@@ -283,8 +283,9 @@ select {
   overflow: hidden;
 }
 .win--active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  /* Fokus nur als Akzent: Schatten hinter dem Panel (NF-08). */
+  border-color: #4a515d;
+  box-shadow: 0 0 0 1px rgba(78, 161, 255, 0.35), 0 6px 22px rgba(78, 161, 255, 0.28);
 }
 .win--swap-source {
   border-color: var(--warn);
@@ -306,10 +307,11 @@ select {
   border-bottom: 1px solid #3b414c;
 }
 .win__title {
-  flex: 1;
-  min-width: 0;
+  flex: 0 1 auto;
+  min-width: 3em;
+  max-width: 30%;
   cursor: grab;
-  padding: 2px 0;
+  padding: 2px 4px;
 }
 .win__name {
   display: block;
@@ -327,18 +329,22 @@ select {
   border-radius: 4px;
   padding: 1px 4px;
 }
-.win__actions {
+.win__nav {
   display: flex;
-  gap: 2px;
+  gap: 1px;
 }
-.win__actions button {
-  padding: 1px 6px;
-  min-width: 24px;
+.win__bar button {
+  padding: 1px 5px;
+  min-width: 22px;
   border-color: transparent;
   background: transparent;
 }
-.win__actions button:hover {
+.win__bar button:hover:not(:disabled) {
   background: var(--panel);
+}
+.win__bar button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .win__close:hover {
   color: #ff6b6b;
@@ -387,6 +393,13 @@ select {
 }
 .menu__list button:hover {
   background: var(--panel-2);
+}
+.menu__list {
+  min-width: 210px;
+}
+.menu__sep {
+  border-top: 1px solid #3b414c;
+  margin: 4px 2px;
 }
 
 /* ---------- Maximiert und Splitscreen */
@@ -443,46 +456,130 @@ select {
 
 /* ---------- Stapel (F-08): senkrechte Leiste rechts am Panel */
 .stack {
-  flex: 0 0 120px;
+  /* Schmale Leiste (NF-06); ausgeklappt liegt sie über dem Inhalt. */
+  flex: 0 0 24px;
+  position: relative;
+  min-height: 0;
+}
+.stack__inner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 24px;
+  z-index: 6;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 3px;
+  padding: 3px 2px;
   background: var(--bg);
-  border-left: 1px solid #3b414c;
-  min-height: 0;
+  /* Ampel (F-26): nur die Innenkante der Leiste zum Inhalt hin. */
+  border-left: 3px solid var(--load, #3b414c);
+  overflow: hidden;
+  transition: width 0.12s ease;
 }
-.stack > button {
+.stack:hover .stack__inner,
+.stack:focus-within .stack__inner {
+  width: 150px;
+  box-shadow: -6px 0 14px rgba(0, 0, 0, 0.45);
+}
+.stack__step {
   padding: 0;
+  font-size: 0.75em;
   border-color: transparent;
   background: transparent;
+}
+.stack__count {
+  text-align: center;
+  font-size: 0.72em;
+  color: var(--muted);
+  white-space: nowrap;
 }
 .stack__list {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   overflow-y: auto;
   scrollbar-width: none;
 }
 .stack__item {
-  flex: 0 0 auto;
+  /* Einträge füllen die ganze Höhe der Leiste (F-26). */
+  flex: 1 1 0;
+  min-height: 18px;
+  align-items: center;
+  display: flex;
+  gap: 6px;
   overflow: hidden;
   white-space: nowrap;
-  text-overflow: ellipsis;
   text-align: left;
-  padding: 2px 8px;
-  font-size: 0.9em;
+  padding: 2px 4px;
+  font-size: 0.8em;
   background: var(--panel-2);
   border-color: transparent;
 }
-.stack__item--on {
-  background: var(--accent);
-  color: #0b1220;
+.stack__num {
+  flex: 0 0 auto;
+  min-width: 1.1em;
+  text-align: center;
+}
+.stack__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stack__close {
+  display: none;
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border-radius: 4px;
+  opacity: 0.7;
+}
+.stack:hover .stack__close,
+.stack:focus-within .stack__close {
+  display: inline;
+}
+.stack__close:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.25);
 }
 
-/* ---------- Panel-Inhalt und vorläufige Adresszeile */
+/* ---------- Hinweis-Dialog (F-26) */
+.notice {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+.notice__box {
+  max-width: 440px;
+  padding: 18px 20px;
+  background: var(--panel);
+  border: 1px solid #3b414c;
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+.notice__box p {
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+.notice__box button {
+  float: right;
+}
+.stack__item--on {
+  background: var(--load, var(--accent));
+  color: #0b1220;
+  font-weight: 600;
+}
+
+.icon {
+  display: block;
+}
+
+/* ---------- Panel-Inhalt und Adresszeile (F-14) */
 .win__main {
   flex: 1;
   min-width: 0;
@@ -490,32 +587,29 @@ select {
   flex-direction: column;
 }
 .win__address {
+  flex: 1;
+  min-width: 4em;
   display: flex;
-  gap: 4px;
-  padding: 4px;
-  border-bottom: 1px solid #3b414c;
 }
 .win__address input {
   flex: 1;
   min-width: 0;
   font: inherit;
+  font-size: 0.92em;
   color: var(--text);
   background: var(--bg);
   border: 1px solid #3b414c;
   border-radius: 6px;
-  padding: 3px 8px;
-}
-.win__address button {
   padding: 2px 8px;
 }
-.win__ext {
-  align-self: center;
-  color: var(--muted);
-  text-decoration: none;
-  padding: 0 4px;
+.win__address input:focus {
+  outline: none;
+  border-color: var(--accent);
 }
-.win__ext:hover {
-  color: var(--accent);
+.win__placeholder--small {
+  font-size: 1em;
+  padding: 0 12px;
+  text-align: center;
 }
 .win__body {
   min-height: 0;
@@ -555,3 +649,29 @@ select {
     font-size: 16px;
   }
 }
+
+/* ---------- Hinweis-Popup */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 100;
+  max-width: min(560px, calc(100vw - 32px));
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px 12px 16px;
+  background: var(--panel-2);
+  border: 1px solid #4a515d;
+  border-left: 3px solid var(--warn);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  line-height: 1.4;
+}
+.toast button {
+  border: none;
+  background: transparent;
+  padding: 0 4px;
+}
+

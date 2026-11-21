@@ -14,7 +14,7 @@ import {
 import * as T from './workspace/tree';
 import { STACK_ID, type PanelMeta, type Slot } from './workspace/types';
 import { useWorkspace } from './workspace/useWorkspace';
-import { describe, setupFor, slotOf, splitSelection, viewOf } from './workspace/workspace';
+import { FOCUS_WARN, STACK_MAX, addPanel as addTo, describe, setupFor, slotOf, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -65,6 +65,8 @@ export default function App() {
   const [mode, setMode] = useState<Mode>({ kind: 'area' });
   const [swapFrom, setSwapFrom] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  /** Wichtiger Hinweis als Dialog, der bestätigt werden muss (F-26). */
+  const [notice, setNotice] = useState<string | null>(null);
   const [clsOverride, setClsOverride] = useState<ScreenClassId | 'auto'>('auto');
   const [oriOverride, setOriOverride] = useState<Orientation | 'auto'>('auto');
   /** Anordnung während eine Kante gezogen wird (wird beim Loslassen übernommen). */
@@ -101,10 +103,27 @@ export default function App() {
   const min: T.Min = { w: Math.min(MIN_W_PX / iw, slot.w * 0.9), h: Math.min(MIN_H_PX / ih, slot.h * 0.9) };
   const px = (r: T.FRect) => ({ left: GAP + r.x * iw, top: GAP + r.y * ih, width: Math.max(0, r.w * iw - GAP), height: Math.max(0, r.h * ih - GAP) });
 
-  const notify = useCallback((text: string) => {
+  const notify = useCallback((text: string, ms = 3000) => {
     setFlash(text);
-    window.setTimeout(() => setFlash((f) => (f === text ? null : f)), 3000);
+    window.setTimeout(() => setFlash((f) => (f === text ? null : f)), ms);
   }, []);
+
+  /** Neues Panel mit Ampel-Regel (F-26): Hinweis bei 5, Grenze bei 9 Panels je Platz. */
+  const addPanel = () => {
+    if (stackFull(ws, setup)) {
+      return setNotice(
+        `Auf diesem Platz liegen schon ${STACK_MAX} Panels – mehr gehen nicht. Schließe ein Panel oder lege es an einem anderen Platz an.`,
+      );
+    }
+    const before = viewOf(ws, setup).stack.length;
+    const after = viewOf(addTo(ws, setup), setup).stack.length;
+    dispatch({ type: 'add', setup });
+    if (after === FOCUS_WARN && after > before) {
+      setNotice(
+        `Jetzt liegen ${FOCUS_WARN} Panels auf diesem Platz. Ab hier nehmen Fokus und Übersicht ab – lieber Panels schließen oder auf andere Plätze verteilen.`,
+      );
+    }
+  };
 
   // Esc beendet Tauschen, Ziehen, Maximieren und Splitscreen.
   useEffect(() => {
@@ -125,6 +144,39 @@ export default function App() {
     if (active && !exists(active)) setActive(ws.panels[0]?.id ?? null);
     if (swapFrom && !exists(swapFrom)) setSwapFrom(null);
   }, [ws.panels, mode, active, swapFrom]);
+
+  // Klick in eine eingebettete Seite: Das iframe schluckt das Mausereignis, deshalb
+  // erkennen wir den Wechsel am Fokus (Fenster verliert ihn an ein iframe) und fragen
+  // danach regelmäßig nach, solange der Fokus in iframes liegt (Wechsel zwischen Panels).
+  const activateRef = useRef<(id: string) => void>(() => {});
+  useEffect(() => {
+    let timer = 0;
+    let last: Element | null = null;
+    const check = () => {
+      const el = document.activeElement;
+      if (el === last) return;
+      last = el;
+      if (el?.tagName !== 'IFRAME') return;
+      const id = el.closest<HTMLElement>('[data-panel-id]')?.dataset.panelId;
+      if (id) activateRef.current(id);
+    };
+    const onBlur = () => {
+      window.setTimeout(check, 0);
+      window.clearInterval(timer);
+      timer = window.setInterval(check, 200);
+    };
+    const onFocus = () => {
+      window.clearInterval(timer);
+      last = null;
+    };
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
 
   /** Startet eine Zeiger-Geste; Bewegen und Loslassen laufen über das ganze Fenster. */
   const track = (onMove: (e: PointerEvent) => void, onUp: (e: PointerEvent) => void, cursor?: string) => {
@@ -230,6 +282,7 @@ export default function App() {
     }
     setActive(id);
   };
+  activateRef.current = activate;
 
   /** Panel, das auf einem Platz sichtbar ist (beim Stapel das vorderste). */
   const shown = (slotId: string): PanelMeta | null =>
@@ -251,6 +304,7 @@ export default function App() {
                   setActive(id);
                 },
                 onStep: (step) => dispatch({ type: 'stackStep', setup, step }),
+                onRemove: (id) => dispatch({ type: 'remove', id }),
               }
             : undefined
         }
@@ -262,7 +316,14 @@ export default function App() {
         onActivate={() => activate(meta.id)}
         onDragStart={onArea ? (e) => startDrag(e, onArea.slotId) : undefined}
         onRename={(name) => dispatch({ type: 'rename', id: meta.id, name })}
-        onOpenUrl={(url) => dispatch({ type: 'setUrl', id: meta.id, url })}
+        onNavigate={(url) => dispatch({ type: 'setUrl', id: meta.id, url })}
+        onHistory={(step) => dispatch({ type: 'history', id: meta.id, step })}
+        onHome={() => dispatch({ type: 'home', id: meta.id })}
+        onSetHome={() => {
+          dispatch({ type: 'setHome', id: meta.id });
+          notify('Aktuelle Seite ist jetzt die Startseite dieses Panels.');
+        }}
+        notify={notify}
         onClose={() => dispatch({ type: 'remove', id: meta.id })}
         onStartSwap={() => {
           if (ws.panels.length < 2) return notify('Zum Tauschen braucht es mindestens zwei Panels.');
@@ -318,7 +379,7 @@ export default function App() {
     content = (
       <div className="empty">
         <p>Keine Panels geöffnet.</p>
-        <button type="button" onClick={() => dispatch({ type: 'add', setup })}>
+        <button type="button" onClick={addPanel}>
           + Panel anlegen
         </button>
       </div>
@@ -383,7 +444,7 @@ export default function App() {
     <div className="app">
       <header className="toolbar">
         <strong className="brand">E-Source</strong>
-        <button type="button" onClick={() => dispatch({ type: 'add', setup })} title="Neues Panel anlegen">
+        <button type="button" onClick={addPanel} title="Neues Panel anlegen">
           + Panel
         </button>
         <span className="sep" />
@@ -486,11 +547,28 @@ export default function App() {
         </span>
         <span className="grow" />
         {swapFrom && <span className="hint">Ziel-Panel anklicken · Esc bricht ab</span>}
-        {flash && !swapFrom && <span className="hint">{flash}</span>}
       </header>
+      {flash && !swapFrom && (
+        <div className="toast" role="status">
+          <span>{flash}</span>
+          <button type="button" onClick={() => setFlash(null)} aria-label="Hinweis schließen" title="Schließen">
+            ×
+          </button>
+        </div>
+      )}
       <main className="area" ref={areaRef}>
         {content}
       </main>
+      {notice && (
+        <div className="notice" role="alertdialog" aria-modal="true" onClick={() => setNotice(null)}>
+          <div className="notice__box" onClick={(e) => e.stopPropagation()}>
+            <p>{notice}</p>
+            <button type="button" autoFocus onClick={() => setNotice(null)}>
+              Verstanden
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

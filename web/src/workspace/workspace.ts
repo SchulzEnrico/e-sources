@@ -144,14 +144,45 @@ function change(ws: Workspace, setup: ScreenSetup, fn: (tree: T.Node, v: View) =
 // ---------------------------------------------------------------- F-10
 
 /** Panel anlegen. Es teilt sich das größte Panel; ist kein Platz frei, kommt es in den Stapel und wird dort angezeigt. */
-export function addPanel(ws: Workspace, setup: ScreenSetup): Workspace {
+// ---------------------------------------------------------------- F-26 Ampel
+
+/** Ab dieser Zahl je Platz bzw. Panel (Tabs) nehmen Fokus und Übersicht ab. */
+export const FOCUS_WARN = 5;
+/** Höchstzahl der Panels je Platz bzw. Tabs je Panel. */
+export const STACK_MAX = 9;
+
+const mix = (a: number[], b: number[], t: number) =>
+  `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(', ')})`;
+
+/**
+ * Rahmenfarbe nach Anzahl (F-26): 1–5 von Dunkelgrün zu Neongrün in 20-%-Schritten,
+ * 6 Gelb, 7 Orange, 8–9 Rot.
+ */
+export function loadColor(n: number): string {
+  if (n <= 5) return mix([22, 92, 44], [57, 255, 20], (Math.max(1, n) - 1) / 4);
+  if (n === 6) return 'rgb(255, 214, 10)';
+  if (n === 7) return 'rgb(255, 140, 0)';
+  return n === 8 ? 'rgb(255, 59, 48)' : 'rgb(208, 0, 0)';
+}
+
+/** True, wenn ein neues Panel im Stapel landen würde und dieser schon voll ist. */
+export function stackFull(ws: Workspace, setup: ScreenSetup): boolean {
+  const probe = addPanel(ws, setup, true);
+  return probe === ws;
+}
+
+export function addPanel(ws: Workspace, setup: ScreenSetup, limit = true): Workspace {
   const meta: PanelMeta = { id: newId(), name: `Panel ${ws.nextNumber}` };
   const v = viewOf(ws, setup);
   let next: Workspace = { ...ws, panels: [...ws.panels, meta], nextNumber: ws.nextNumber + 1 };
   // Eine noch nie angezeigte Einstellung bekommt zuerst ihre Standard-Anordnung.
   const tree = normalize(next.panels, v.tree ?? undefined, v.spec);
   next = commit(next, v.key, tree);
-  if (!T.hasLeaf(tree, meta.id)) next = { ...next, stackFront: { ...next.stackFront, [v.key]: meta.id } };
+  if (!T.hasLeaf(tree, meta.id)) {
+    // F-26: Mehr als STACK_MAX Panels je Platz gehen nicht.
+    if (limit && describe(next, v.key, v.spec, tree).stack.length > STACK_MAX) return ws;
+    next = { ...next, stackFront: { ...next.stackFront, [v.key]: meta.id } };
+  }
   return next;
 }
 
@@ -205,18 +236,70 @@ export function normalizeUrl(input: string): string {
   return `https://${t}`;
 }
 
-/** Seite in einem Panel öffnen (vorläufige Adresszeile). */
-export function setPanelUrl(ws: Workspace, id: string, input: string): Workspace {
+/** Höchstzahl der Einträge im Verlauf eines Panels. */
+export const HISTORY_MAX = 50;
+
+const mapPanel = (ws: Workspace, id: string, f: (p: PanelMeta) => PanelMeta): Workspace => ({
+  ...ws,
+  panels: ws.panels.map((p) => (p.id === id ? f(p) : p)),
+});
+
+/**
+ * Seite in einem Panel öffnen (Adresszeile, F-14). Legt einen Verlaufseintrag an; Einträge
+ * „vorwärts“ entfallen wie im Browser. Leere Eingabe = keine Seite (Verlauf bleibt).
+ */
+export function navigatePanel(ws: Workspace, id: string, input: string): Workspace {
   const url = normalizeUrl(input);
-  return {
-    ...ws,
-    panels: ws.panels.map((p) => {
-      if (p.id !== id) return p;
-      const next: PanelMeta = { id: p.id, name: p.name };
-      if (url) next.url = url;
+  return mapPanel(ws, id, (p) => {
+    if (!url) {
+      const next = { ...p };
+      delete next.url;
       return next;
-    }),
-  };
+    }
+    if (url === p.url) return p;
+    const past = (p.history ?? []).slice(0, (p.pos ?? -1) + 1);
+    const history = [...past, url].slice(-HISTORY_MAX);
+    return { ...p, url, history, pos: history.length - 1, home: p.home ?? url };
+  });
+}
+
+/** Bisheriger Name, damit ältere Aufrufe weiter funktionieren. */
+export const setPanelUrl = navigatePanel;
+
+export function canGoBack(p: PanelMeta): boolean {
+  return !!p.history && (p.pos ?? 0) > 0;
+}
+export function canGoForward(p: PanelMeta): boolean {
+  return !!p.history && (p.pos ?? 0) < p.history.length - 1;
+}
+
+/** Im Verlauf zurück (−1) oder vor (+1). */
+export function historyStep(ws: Workspace, id: string, step: number): Workspace {
+  return mapPanel(ws, id, (p) => {
+    if (!p.history?.length) return p;
+    const pos = Math.max(0, Math.min(p.history.length - 1, (p.pos ?? 0) + step));
+    return pos === p.pos ? p : { ...p, pos, url: p.history[pos] };
+  });
+}
+
+/** Zur Startseite des Panels (Home-Knopf). */
+export function goHome(ws: Workspace, id: string): Workspace {
+  const home = ws.panels.find((p) => p.id === id)?.home;
+  return home ? navigatePanel(ws, id, home) : ws;
+}
+
+/** Aktuelle Seite als Startseite des Panels festlegen. */
+export function setHome(ws: Workspace, id: string): Workspace {
+  return mapPanel(ws, id, (p) => (p.url ? { ...p, home: p.url } : p));
+}
+
+/** True, wenn die Adresse E-Source selbst ist (würde sich endlos verschachteln). */
+export function isSelfUrl(url: string, origin: string): boolean {
+  try {
+    return new URL(url).origin === origin;
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------- F-08 Stapel

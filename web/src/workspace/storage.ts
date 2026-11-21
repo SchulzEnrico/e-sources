@@ -12,7 +12,16 @@ const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
 function isMeta(v: unknown): v is PanelMeta {
-  return isObj(v) && typeof v.id === 'string' && typeof v.name === 'string' && (v.url === undefined || typeof v.url === 'string');
+  const optStr = (x: unknown) => x === undefined || typeof x === 'string';
+  return (
+    isObj(v) &&
+    typeof v.id === 'string' &&
+    typeof v.name === 'string' &&
+    optStr(v.url) &&
+    optStr(v.home) &&
+    (v.pos === undefined || isNum(v.pos)) &&
+    (v.history === undefined || (Array.isArray(v.history) && v.history.every((h) => typeof h === 'string')))
+  );
 }
 
 function treeMap(v: unknown): Record<string, Node> {
@@ -45,7 +54,14 @@ export function loadWorkspace(): Workspace {
   }
 }
 
+/**
+ * Eine in einem Panel eingebettete E-Source (F-18) liest dieselbe Arbeitsfläche, speichert aber
+ * nicht: Sonst überschreiben sich äußere und innere E-Source gegenseitig.
+ */
+const EMBEDDED = typeof window !== 'undefined' && window.self !== window.top;
+
 export function saveWorkspace(ws: Workspace): void {
+  if (EMBEDDED) return;
   try {
     localStorage.setItem(KEY, JSON.stringify(ws));
   } catch {

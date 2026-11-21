@@ -127,11 +127,14 @@ describe('F-08 Stapel', () => {
     expect(v.front?.id).toBe(ws.panels[4].id); // neues Panel wird im Stapel gleich angezeigt
   });
 
-  it('nimmt beliebig viele Panels auf', () => {
+  it('nimmt bis zu 9 Panels je Platz auf (F-26), insgesamt bleibt die Zahl frei', () => {
     const ws = addN(W.defaultWorkspace(), LAPTOP2, 20);
     const v = W.viewOf(ws, LAPTOP2);
     expect(v.slots).toHaveLength(4);
-    expect(v.stack).toHaveLength(20);
+    expect(v.stack).toHaveLength(W.STACK_MAX);
+    // Auf einem größeren Bildschirm lassen sich weitere anlegen.
+    const big = addN(ws, MONITOR2, 2);
+    expect(big.panels.length).toBe(ws.panels.length + 2);
   });
 
   it('wechselt vor und zurück, am Ende geht es vorne weiter', () => {
@@ -362,6 +365,39 @@ describe('Vorläufige Adresszeile', () => {
     ws = W.setPanelUrl(ws, id, '   ');
     expect(ws.panels[0].url).toBe(undefined);
   });
+
+  it('führt je Panel einen eigenen Verlauf (F-14)', () => {
+    let ws = W.defaultWorkspace();
+    const id = ws.panels[0].id;
+    const p = () => ws.panels[0];
+    ws = W.navigatePanel(ws, id, 'a.de');
+    ws = W.navigatePanel(ws, id, 'b.de');
+    ws = W.navigatePanel(ws, id, 'c.de');
+    expect(p().history).toEqual(['https://a.de', 'https://b.de', 'https://c.de']);
+    expect(p().home).toBe('https://a.de');
+    expect(W.canGoForward(p())).toBe(false);
+    ws = W.historyStep(ws, id, -1);
+    expect(p().url).toBe('https://b.de');
+    expect(W.canGoBack(p()) && W.canGoForward(p())).toBe(true);
+    ws = W.historyStep(ws, id, -5);
+    expect(p().url).toBe('https://a.de');
+    expect(W.canGoBack(p())).toBe(false);
+    ws = W.historyStep(ws, id, 1);
+    // Neue Seite mitten im Verlauf: Einträge „vorwärts“ entfallen.
+    ws = W.navigatePanel(ws, id, 'd.de');
+    expect(p().history).toEqual(['https://a.de', 'https://b.de', 'https://d.de']);
+    // Gleiche Adresse erneut: kein doppelter Eintrag.
+    ws = W.navigatePanel(ws, id, 'd.de');
+    expect(p().history?.length).toBe(3);
+    ws = W.setHome(ws, id);
+    ws = W.goHome(ws, id);
+    expect(p().home).toBe('https://d.de');
+    ws = W.historyStep(ws, id, -1);
+    ws = W.goHome(ws, id);
+    expect(p().url).toBe('https://d.de');
+    expect(W.isSelfUrl('http://localhost:2910/x', 'http://localhost:2910')).toBe(true);
+    expect(W.isSelfUrl('https://a.de', 'http://localhost:2910')).toBe(false);
+  });
 });
 
 describe('Speichern', () => {
@@ -372,3 +408,18 @@ describe('Speichern', () => {
     expect(T.isNode({ dir: 'row', children: [leaf('a'), leaf('b')], sizes: [1, -1] })).toBe(false);
   });
 });
+
+describe('Ampel (F-26)', () => {
+  it('färbt nach Anzahl und begrenzt den Stapel auf 9', () => {
+    expect(W.loadColor(1)).toBe('rgb(22, 92, 44)');
+    expect(W.loadColor(5)).toBe('rgb(57, 255, 20)');
+    expect(W.loadColor(6)).toBe('rgb(255, 214, 10)');
+    expect(W.loadColor(9)).toBe('rgb(208, 0, 0)');
+    // Smartphone: ein Platz, alles im Stapel.
+    let ws = W.defaultWorkspace();
+    while (!W.stackFull(ws, PHONE)) ws = W.addPanel(ws, PHONE);
+    expect(W.viewOf(ws, PHONE).stack).toHaveLength(W.STACK_MAX);
+    expect(W.addPanel(ws, PHONE)).toBe(ws);
+  });
+});
+

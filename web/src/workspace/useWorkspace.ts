@@ -12,6 +12,9 @@ export type Action =
   | { type: 'remove'; id: string }
   | { type: 'rename'; id: string; name: string }
   | { type: 'setUrl'; id: string; url: string }
+  | { type: 'history'; id: string; step: number }
+  | { type: 'home'; id: string }
+  | { type: 'setHome'; id: string }
   | ({ type: 'swap'; a: string; b: string } & S)
   | ({ type: 'drop'; id: string; target: string; zone: Zone } & S)
   | ({ type: 'setLayout'; tree: Node } & S)
@@ -34,7 +37,13 @@ export function reducer(ws: Workspace, a: Action): Workspace {
     case 'rename':
       return W.renamePanel(ws, a.id, a.name);
     case 'setUrl':
-      return W.setPanelUrl(ws, a.id, a.url);
+      return W.navigatePanel(ws, a.id, a.url);
+    case 'history':
+      return W.historyStep(ws, a.id, a.step);
+    case 'home':
+      return W.goHome(ws, a.id);
+    case 'setHome':
+      return W.setHome(ws, a.id);
     case 'swap':
       return W.swapPanels(ws, a.setup, a.a, a.b);
     case 'drop':

@@ -7,9 +7,11 @@ export interface StackProps {
   frontId: string;
   onSelect: (id: string) => void;
   onStep: (step: number) => void;
+  /** Panel aus dem Stapel schließen. */
+  onRemove: (id: string) => void;
 }
 
-export function StackBar({ members, frontId, onSelect, onStep }: StackProps) {
+export function StackBar({ members, frontId, onSelect, onStep, onRemove }: StackProps) {
   const lastWheel = useRef(0);
   const onWheel = (e: WheelEvent) => {
     const now = Date.now();
@@ -19,29 +21,50 @@ export function StackBar({ members, frontId, onSelect, onStep }: StackProps) {
     lastWheel.current = now;
     onStep(d > 0 ? 1 : -1);
   };
+  const index = Math.max(0, members.findIndex((m) => m.id === frontId));
   return (
+    // Schmal (Zähler und Nummern); bei Hover oder Antippen klappt die Leiste mit Namen
+    // nach links über den Inhalt aus, ohne ihn zu verschieben (NF-06).
     <div className="stack" onWheel={onWheel} role="tablist" aria-orientation="vertical" aria-label="Stapel">
-      <button type="button" onClick={() => onStep(-1)} title="Vorheriges Panel im Stapel" aria-label="Vorheriges">
-        ▲
-      </button>
-      <div className="stack__list">
-        {members.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            role="tab"
-            aria-selected={m.id === frontId}
-            className={m.id === frontId ? 'stack__item stack__item--on' : 'stack__item'}
-            onClick={() => onSelect(m.id)}
-            title={m.name}
-          >
-            {m.name}
-          </button>
-        ))}
+      <div className="stack__inner">
+        <button type="button" className="stack__step" onClick={() => onStep(-1)} title="Vorheriges Panel im Stapel" aria-label="Vorheriges">
+          ▲
+        </button>
+        <span className="stack__count" title={`${members.length} Panels im Stapel`}>
+          {index + 1}/{members.length}
+        </span>
+        <div className="stack__list">
+          {members.map((m, i) => (
+            <button
+              key={m.id}
+              type="button"
+              role="tab"
+              aria-selected={m.id === frontId}
+              className={m.id === frontId ? 'stack__item stack__item--on' : 'stack__item'}
+              onClick={() => onSelect(m.id)}
+              title={m.name}
+            >
+              <span className="stack__num">{i + 1}</span>
+              <span className="stack__name">{m.name}</span>
+              <span
+                className="stack__close"
+                role="button"
+                aria-label={`${m.name} schließen`}
+                title="Panel schließen"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove(m.id);
+                }}
+              >
+                ×
+              </span>
+            </button>
+          ))}
+        </div>
+        <button type="button" className="stack__step" onClick={() => onStep(1)} title="Nächstes Panel im Stapel" aria-label="Nächstes">
+          ▼
+        </button>
       </div>
-      <button type="button" onClick={() => onStep(1)} title="Nächstes Panel im Stapel" aria-label="Nächstes">
-        ▼
-      </button>
     </div>
   );
 }

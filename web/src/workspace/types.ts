@@ -4,8 +4,17 @@ import type { FRect, Node } from './tree';
 export interface PanelMeta {
   id: string;
   name: string;
-  /** Zuletzt geöffnete Adresse (vorläufig für Tests mit eingebetteten Seiten, F-14 folgt in Stufe 2). */
+  /** Gerade angezeigte Adresse (F-14). */
   url?: string;
+  /**
+   * Eigener Verlauf des Panels (F-14): alle über die Adresszeile geöffneten Adressen.
+   * Klicks innerhalb einer fremden Seite sind nicht erfassbar (iframe, cross-origin).
+   */
+  history?: string[];
+  /** Position von `url` in `history`. */
+  pos?: number;
+  /** Startseite für den Home-Knopf; ohne Angabe die erste geöffnete Adresse. */
+  home?: string;
 }
 
 /** Kennung des Stapel-Platzes in der Anordnung (F-08). */

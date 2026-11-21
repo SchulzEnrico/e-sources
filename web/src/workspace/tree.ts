@@ -78,6 +78,17 @@ export function rects(n: Node | null, r: FRect = FULL): Map<string, FRect> {
   return out;
 }
 
+/** NF-07: Blätter, deren Breite oder Höhe sich zwischen zwei Anordnungen ändert. */
+export function resizedLeaves(before: Node | null, after: Node | null, eps = 1e-4): Set<string> {
+  const a = rects(before);
+  const out = new Set<string>();
+  for (const [id, r] of rects(after)) {
+    const o = a.get(id);
+    if (!o || Math.abs(o.w - r.w) > eps || Math.abs(o.h - r.h) > eps) out.add(id);
+  }
+  return out;
+}
+
 /** Blätter in Lesereihenfolge nach ihrer Lage auf der Fläche (oben vor unten, links vor rechts). */
 export function readingOrder(n: Node | null): string[] {
   const r = rects(n);

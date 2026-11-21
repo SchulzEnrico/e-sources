@@ -218,6 +218,24 @@ describe('F-02 Kanten ziehen', () => {
   });
 });
 
+describe('NF-07 Rückmeldung beim Ziehen', () => {
+  const four = col(row(leaf('a'), leaf('b')), row(leaf('c'), leaf('d')));
+
+  it('meldet nur die Panels, deren Größe sich ändert', () => {
+    const t = T.resizeEdge(four, 'a', 'right', 0.2, MIN);
+    expect([...T.resizedLeaves(four, t)].sort()).toEqual(['a', 'b']);
+  });
+
+  it('untere Kante betrifft alle vier Panels', () => {
+    const t = T.resizeEdge(four, 'b', 'bottom', -0.2, MIN);
+    expect(T.resizedLeaves(four, t).size).toBe(4);
+  });
+
+  it('ohne Änderung wird nichts gemeldet', () => {
+    expect(T.resizedLeaves(four, four).size).toBe(0);
+  });
+});
+
 describe('F-11 Anordnungen, tauschen, andocken', () => {
   it('tauscht beim Ablegen auf der Mitte', () => {
     const t = T.drop(row(leaf('a'), leaf('b')), 'a', 'b', 'center');

@@ -95,6 +95,8 @@ export default function App() {
   const view = useMemo(() => viewOf(ws, setup), [ws, setup.cls, setup.orientation, setup.lines]);
   const shownView = useMemo(() => (draft ? describe(ws, view.key, view.spec, draft) : view), [draft, ws, view]);
   const tree = shownView.tree;
+  /** NF-07: Panels, deren Größe sich beim Ziehen gerade ändert. */
+  const resizing = useMemo(() => (draft ? T.resizedLeaves(view.tree, draft) : new Set<string>()), [draft, view.tree]);
 
   // Innenmaß der Fläche ohne Außenabstand; Mindestgröße als Anteil davon.
   const iw = Math.max(1, area.width - GAP);
@@ -407,7 +409,7 @@ export default function App() {
           const meta = shown(s.id);
           const over = drag?.target === s.id ? drag.zone : null;
           return (
-            <div key={s.id} className="tile" style={px(s.rect)}>
+            <div key={s.id} className={`tile${resizing.has(s.id) ? ' tile--resizing' : ''}`} style={px(s.rect)}>
               {meta && frame(meta, { slotId: s.id, rect: s.rect })}
               {grips(s.id)}
               {over && (

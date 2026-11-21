@@ -75,6 +75,8 @@ export function parseWorkspace(data: unknown): Workspace | null {
   if (!isObj(data) || !Array.isArray(data.panels)) return null;
   const panels = data.panels.map(parsePanel);
   if (panels.some((p) => !p)) return null;
+  const embed: Record<string, boolean> = {};
+  if (isObj(data.embed)) for (const [k, v] of Object.entries(data.embed)) if (typeof v === 'boolean') embed[k] = v;
   const lines: Record<string, 1 | 2> = {};
   if (isObj(data.lines)) for (const [k, v] of Object.entries(data.lines)) if (v === 1 || v === 2) lines[k] = v;
   return {
@@ -85,6 +87,7 @@ export function parseWorkspace(data: unknown): Workspace | null {
     nextNumber: isNum(data.nextNumber) ? (data.nextNumber as number) : panels.length + 1,
     areas: namedList(data.areas),
     scenarios: namedList(data.scenarios),
+    embed,
   };
 }
 

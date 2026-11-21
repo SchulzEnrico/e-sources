@@ -38,7 +38,7 @@ export function newPanel(name: string): PanelMeta {
 
 export function defaultWorkspace(): Workspace {
   const panels = [1, 2, 3].map((n) => newPanel(`Panel ${n}`));
-  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, areas: [], scenarios: [] };
+  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, areas: [], scenarios: [], embed: {} };
 }
 
 /** Einstellung aus Klasse und Ausrichtung, ergänzt um die gespeicherte Wahl ein-/zweizeilig. */
@@ -452,6 +452,65 @@ export function isSelfUrl(url: string, base: string): boolean {
   } catch {
     return false;
   }
+}
+
+// ---------------------------------------------------------------- F-43 gesperrte Seiten
+
+/**
+ * Domains, die das Einbetten in fremde Seiten bekanntlich verbieten (X-Frame-Options bzw.
+ * frame-ancestors). Der Browser verrät E-Source das nicht, deshalb diese Liste plus die eigene
+ * Markierung des Nutzers. Gilt auch für Subdomains.
+ */
+export const KNOWN_BLOCKED = [
+  'claude.ai',
+  'chatgpt.com',
+  'openai.com',
+  'github.com',
+  'google.com',
+  'google.de',
+  'youtube.com',
+  'linkedin.com',
+  'facebook.com',
+  'instagram.com',
+  'x.com',
+  'twitter.com',
+  'amazon.de',
+  'amazon.com',
+  'paypal.com',
+  'apple.com',
+  'microsoft.com',
+  'live.com',
+  'notion.so',
+];
+
+/** Domain einer Adresse ohne „www.“; leer, wenn keine gültige Adresse. */
+export function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+const covers = (host: string, domain: string) => host === domain || host.endsWith(`.${domain}`);
+
+/** True, wenn die Seite voraussichtlich nicht im Panel angezeigt werden kann (F-43). */
+export function isBlocked(ws: Workspace, url: string): boolean {
+  const host = hostOf(url);
+  if (!host) return false;
+  // Eigene Wahl: die genaueste passende Domain zählt.
+  const own = Object.keys(ws.embed)
+    .filter((d) => covers(host, d))
+    .sort((a, b) => b.length - a.length)[0];
+  if (own) return !ws.embed[own];
+  return KNOWN_BLOCKED.some((d) => covers(host, d));
+}
+
+/** Merkt sich für die Domain einer Adresse, ob sie sich einbetten lässt. */
+export function setEmbed(ws: Workspace, url: string, ok: boolean): Workspace {
+  const host = hostOf(url);
+  if (!host) return ws;
+  return { ...ws, embed: { ...ws.embed, [host]: ok } };
 }
 
 // ---------------------------------------------------------------- F-08, F-09 Stapel

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from 'react';
 import type { PanelMeta } from '../workspace/types';
-import { FOCUS_WARN, TAB_MAX, activeTab, canGoBack, canGoForward, isSelfUrl, loadColor, tabLabel } from '../workspace/workspace';
+import { FOCUS_WARN, TAB_MAX, activeTab, canGoBack, canGoForward, hostOf, isSelfUrl, loadColor, tabLabel } from '../workspace/workspace';
 import { StackBar, type StackProps, useSwipe } from './StackBar';
 
 /** Voreingestellte Größen (F-12) als Anteil von Breite und Höhe der Arbeitsfläche. */
@@ -43,6 +43,10 @@ interface Props {
   onMoveTab: (tab: string, to: number) => void;
   /** F-09: neues Panel auf diesem Platz obendrauf legen. */
   onAddHere: () => void;
+  /** F-43: Lässt sich die Seite voraussichtlich nicht einbetten? */
+  isBlocked: (url: string) => boolean;
+  /** F-43: Domain als einbettbar (true) oder gesperrt (false) merken. */
+  onEmbed: (url: string, ok: boolean) => void;
   onClose: () => void;
   onStartSwap: () => void;
   onSetSize: (w: number, h: number) => void;
@@ -54,6 +58,19 @@ interface Props {
 
 const pct = (v: number) => `${Math.round(v * 100)} %`;
 
+/** F-123: Seite außerhalb von E-Source öffnen – als Browser-Tab oder als eigenes Fenster. */
+function openOutside(url: string, how: 'tab' | 'window') {
+  if (how === 'tab') {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  const w = Math.min(1280, Math.round(window.screen.availWidth * 0.8));
+  const h = Math.min(900, Math.round(window.screen.availHeight * 0.85));
+  const left = Math.round((window.screen.availWidth - w) / 2);
+  const top = Math.round((window.screen.availHeight - h) / 2);
+  window.open(url, '_blank', `popup,noopener,noreferrer,width=${w},height=${h},left=${left},top=${top}`);
+}
+
 /** Symbol für die Größen-Voreinstellungen: Rahmen der Fläche mit einem Panel darin und Pfeil zur Ecke. */
 const SizeIcon = (
   <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" className="icon">
@@ -62,6 +79,35 @@ const SizeIcon = (
     <path d="M9.5 9.5 L13 13 M13 10 V13 H10" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
+
+/**
+ * F-09: Knopf „Panel auf diesen Platz legen“ – ein Plus im Stil des ES-Logos:
+ * roter Verlauf, silberne Lichtkante (wie der E-Sources-Knopf im Portfolio).
+ */
+function StackAddIcon() {
+  const id = useId().replace(/:/g, '');
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true" className="icon">
+      <defs>
+        <linearGradient id={`${id}f`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#a3352a" />
+          <stop offset="1" stopColor="#5a130c" />
+        </linearGradient>
+        <linearGradient id={`${id}e`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#f1f1f4" />
+          <stop offset="1" stopColor="#8d8d96" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M10.6 4.2a1 1 0 0 1 1-1h.8a1 1 0 0 1 1 1v6.4h6.4a1 1 0 0 1 1 1v.8a1 1 0 0 1-1 1h-6.4v6.4a1 1 0 0 1-1 1h-.8a1 1 0 0 1-1-1v-6.4H4.2a1 1 0 0 1-1-1v-.8a1 1 0 0 1 1-1h6.4z"
+        fill={`url(#${id}f)`}
+        stroke={`url(#${id}e)`}
+        strokeWidth="0.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 /** Ausklappmenü in der Kopfleiste (Größen, Panel-Optionen F-20). */
 export function Menu(props: { icon: ReactNode; label: string; children: (close: () => void) => ReactNode }) {
@@ -181,6 +227,10 @@ export function PanelFrame(p: Props) {
     >
         {/* Kopfleiste wie im Browser (F-14): Zurück · Vor · Neu laden · Home · Adresse · Größen · Name · Menü · Schließen */}
         <header className="win__bar">
+          {/* F-09: Stapeln ganz links in der Kopfleiste */}
+          <button type="button" className="win__stack-add" onClick={p.onAddHere} title="Neues Panel auf diesen Platz legen (stapeln)" aria-label="Neues Panel auf diesen Platz legen">
+            <StackAddIcon />
+          </button>
           <div className="win__nav">
             <button type="button" disabled={!canGoBack(p.panel)} onClick={() => p.onHistory(-1)} title="Zurück" aria-label="Zurück">
               ←
@@ -218,6 +268,15 @@ export function PanelFrame(p: Props) {
               spellCheck={false}
             />
           </form>
+          <button
+            type="button"
+            className="win__max"
+            onClick={p.onToggleMaximize}
+            title={p.maximized ? 'Verkleinern (Esc)' : 'Maximieren'}
+            aria-label={p.maximized ? 'Verkleinern' : 'Maximieren'}
+          >
+            {p.maximized ? '⤡' : '⤢'}
+          </button>
           {!p.maximized && (
             <Menu icon={SizeIcon} label="Größe wählen (Voreinstellungen)">
               {(close) =>
@@ -275,13 +334,19 @@ export function PanelFrame(p: Props) {
                   <Item onClick={run(startEdit)}>✎ Umbenennen</Item>
                   {!p.maximized && <Item onClick={run(p.onStartSwap)}>⇄ Mit anderem Panel tauschen</Item>}
                   {!p.maximized && <Item onClick={run(p.onReset)}>↺ Panel zurücksetzen</Item>}
-                  <Item onClick={run(p.onToggleMaximize)}>{p.maximized ? '🗗 Verkleinern (Esc)' : '🗖 Maximieren'}</Item>
+                  <Item onClick={run(p.onToggleMaximize)}>{p.maximized ? '⤡ Verkleinern (Esc)' : '⤢ Maximieren'}</Item>
                   {url && (
                     <>
                       <li className="menu__sep" role="separator" />
                       <Item onClick={run(p.onSetHome)}>⌂ Als Startseite festlegen</Item>
                       <Item onClick={run(() => void copyUrl())}>⧉ Adresse kopieren</Item>
-                      <Item onClick={run(() => window.open(url, '_blank', 'noopener,noreferrer'))}>↗ In neuem Tab öffnen</Item>
+                      <Item onClick={run(() => openOutside(url, 'tab'))}>↗ In neuem Tab öffnen</Item>
+                      <Item onClick={run(() => openOutside(url, 'window'))}>⧉ In neuem Fenster öffnen</Item>
+                      {p.isBlocked(url) ? (
+                        <Item onClick={run(() => p.onEmbed(url, true))}>▣ {hostOf(url)} doch hier anzeigen</Item>
+                      ) : (
+                        <Item onClick={run(() => p.onEmbed(url, false))}>⊘ Seite lädt nicht – {hostOf(url)} als gesperrt merken</Item>
+                      )}
                     </>
                   )}
                 </>
@@ -342,10 +407,11 @@ export function PanelFrame(p: Props) {
         {/* F-67: Kopf- und Tab-Leiste gehen über die ganze Breite, die Stapel-Leiste beginnt darunter. */}
         <div className="win__row">
         <div className="win__main">
-        <div className="win__body" {...swipe}>
+        {/* F-124: roter Schatten nach innen, wenn die Seite sich nicht einbetten lässt */}
+        <div className={url && p.isBlocked(url) ? 'win__body win__body--blocked' : 'win__body'} {...swipe}>
           {/* Alle Tabs bleiben geladen (wie im Browser), sichtbar ist nur der aktive. */}
           {p.panel.tabs.map((t) =>
-            t.url && !isSelf(t.url) ? (
+            t.url && !isSelf(t.url) && !p.isBlocked(t.url) ? (
               <iframe
                 key={`${t.id}#${t.url}#${reloads[t.id] ?? 0}`}
                 className="win__frame"
@@ -360,6 +426,24 @@ export function PanelFrame(p: Props) {
           )}
           {isSelf(url) ? (
             <p className="win__placeholder win__placeholder--small">In einer eingebetteten E-Source lädt sich E-Source nicht noch einmal.</p>
+          ) : url && p.isBlocked(url) ? (
+            // F-43: Ersatzanzeige statt leerer grauer Fläche
+            <div className="fallback">
+              <p className="fallback__title">{hostOf(url)} lässt sich hier nicht anzeigen</p>
+              <p className="fallback__text">Die Seite erlaubt nicht, in andere Seiten eingebettet zu werden. In der Desktop-App wird das später möglich.</p>
+              {/* F-123: Tab oder eigenes Fenster */}
+              <span className="fallback__choice">
+                <button type="button" className="fallback__open" onClick={() => openOutside(url, 'tab')}>
+                  ↗ In neuem Tab
+                </button>
+                <button type="button" className="fallback__open" onClick={() => openOutside(url, 'window')}>
+                  ⧉ In neuem Fenster
+                </button>
+              </span>
+              <button type="button" className="fallback__try" onClick={() => p.onEmbed(url, true)}>
+                Trotzdem hier versuchen
+              </button>
+            </div>
           ) : !url ? (
             <>
               <p className="win__placeholder">{p.panel.name}</p>

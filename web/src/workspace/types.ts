@@ -80,4 +80,9 @@ export interface Workspace {
   areas: Named[];
   /** F-116 (vorbereitet): Szenarien. */
   scenarios: Named[];
+  /**
+   * F-43: eigene Wahl je Domain, ob sie sich einbetten lässt (true) oder gesperrt ist (false).
+   * Geht vor der eingebauten Liste bekannter Sperr-Seiten.
+   */
+  embed: Record<string, boolean>;
 }

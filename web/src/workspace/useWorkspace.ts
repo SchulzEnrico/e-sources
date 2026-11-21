@@ -15,6 +15,8 @@ export type Action =
   | { type: 'history'; id: string; step: number }
   | { type: 'home'; id: string }
   | { type: 'setHome'; id: string }
+  /** F-43: Domain als einbettbar oder gesperrt merken. */
+  | { type: 'embed'; url: string; ok: boolean }
   | { type: 'addTab'; id: string; url?: string }
   | { type: 'closeTab'; id: string; tab: string }
   | { type: 'selectTab'; id: string; tab: string }
@@ -50,6 +52,8 @@ export function reducer(ws: Workspace, a: Action): Workspace {
       return W.goHome(ws, a.id);
     case 'setHome':
       return W.setHome(ws, a.id);
+    case 'embed':
+      return W.setEmbed(ws, a.url, a.ok);
     case 'addTab':
       return W.addTab(ws, a.id, a.url);
     case 'closeTab':

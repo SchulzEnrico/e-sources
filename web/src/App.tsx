@@ -17,7 +17,7 @@ import type { PanelMeta, Slot } from './workspace/types';
 import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { useWorkspace } from './workspace/useWorkspace';
-import { FOCUS_WARN, STACK_MAX, addPanel as addTo, describe, placeIn, placeOf, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
+import { FOCUS_WARN, STACK_MAX, addPanel as addTo, describe, isBlocked, placeIn, placeOf, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -352,6 +352,11 @@ export default function App() {
         onCloseTab={(tab) => dispatch({ type: 'closeTab', id: meta.id, tab })}
         onSelectTab={(tab) => dispatch({ type: 'selectTab', id: meta.id, tab })}
         onMoveTab={(tab, to) => dispatch({ type: 'moveTab', id: meta.id, tab, to })}
+        isBlocked={(u) => isBlocked(ws, u)}
+        onEmbed={(url, ok) => {
+          dispatch({ type: 'embed', url, ok });
+          if (!ok) notify('Gemerkt: Diese Seite öffnet ab jetzt mit „In neuem Tab öffnen“.');
+        }}
         onAddHere={() => (slotOfMeta ? addPanel(slotOfMeta.id) : addPanel())}
         onSetHome={() => {
           dispatch({ type: 'setHome', id: meta.id });

@@ -615,3 +615,19 @@ describe('Speicher v5 und Datei-Version 2', () => {
     expect(back).toEqual(ws);
   });
 });
+
+describe('F-43 gesperrte Seiten', () => {
+  it('erkennt bekannte Sperr-Seiten samt Subdomains, die eigene Wahl geht vor', () => {
+    let ws = W.defaultWorkspace();
+    expect(W.isBlocked(ws, 'https://claude.ai/new')).toBe(true);
+    expect(W.isBlocked(ws, 'https://gist.github.com/x')).toBe(true);
+    expect(W.isBlocked(ws, 'https://schulzenrico.github.io/')).toBe(false);
+    expect(W.isBlocked(ws, 'https://www.wikipedia.org')).toBe(false);
+    ws = W.setEmbed(ws, 'https://www.stepstone.de/jobs', false);
+    expect(W.isBlocked(ws, 'https://stepstone.de/x')).toBe(true);
+    ws = W.setEmbed(ws, 'https://claude.ai/new', true);
+    expect(W.isBlocked(ws, 'https://claude.ai/chat')).toBe(false);
+    expect(W.setEmbed(ws, 'kein link', true)).toBe(ws);
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))!.embed).toEqual({ 'stepstone.de': false, 'claude.ai': true });
+  });
+});

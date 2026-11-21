@@ -5,6 +5,7 @@ import type { Min, Node, Zone } from './tree';
 import type { Bookmark, Workspace } from './types';
 import * as B from './bookmarks';
 import * as W from './workspace';
+import { type Look, setLook } from './look';
 
 type S = { setup: ScreenSetup };
 
@@ -52,6 +53,8 @@ export type Action =
   | { type: 'rulerAll' }
   | { type: 'rulerPanel'; id: string }
   | { type: 'rulerStyle'; labels?: boolean; color?: number }
+  /** F-60, F-61: Darstellung. */
+  | ({ type: 'look' } & Partial<Look>)
   /** F-121: ganze Arbeitsfläche durch eine importierte ersetzen. */
   | { type: 'replace'; ws: Workspace };
 
@@ -135,6 +138,8 @@ export function reducer(ws: Workspace, a: Action): Workspace {
       return W.toggleRulerPanel(ws, a.id);
     case 'rulerStyle':
       return W.setRulerStyle(ws, { labels: a.labels, color: a.color });
+    case 'look':
+      return setLook(ws, { theme: a.theme, accent: a.accent });
     case 'replace':
       return a.ws;
   }

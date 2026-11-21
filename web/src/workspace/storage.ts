@@ -1,4 +1,5 @@
 import type { Arrangement, Bookmark, Named, PanelMeta, Tab, Workspace } from './types';
+import { parseLook } from './look';
 import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } from './workspace';
 
 /**
@@ -141,6 +142,7 @@ export function parseWorkspace(data: unknown): Workspace | null {
       : { ...RULER_DEFAULT },
     areaNames,
     nextArea: isNum(data.nextArea) && (data.nextArea as number) >= 1 ? Math.floor(data.nextArea as number) : areaNames.length + 1,
+    look: parseLook(data.look),
   };
 }
 

@@ -6,6 +6,7 @@ import type { Workspace } from './types';
 import * as X from './transfer';
 import * as B from './bookmarks';
 import * as W from './workspace';
+import * as L from './look';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -864,5 +865,47 @@ describe('F-128 Area', () => {
     expect(back.areaNames).toEqual([]);
     expect(back.panels.every((p) => p.areaName === undefined)).toBe(true);
     expect(back.nextArea).toBe(1);
+  });
+});
+
+describe('F-60, F-61, F-69, F-130 Darstellung', () => {
+  it('Standard: dunkel mit Portfolio-Rot; Chakren-Farben und Windows-Blau stehen zur Wahl', () => {
+    const ws = W.defaultWorkspace();
+    expect(ws.look).toEqual({ theme: 'dark', accent: '#e4522c' });
+    expect(L.ACCENTS.map((a) => a.hex)).toContain('#64a970');
+    expect(L.ACCENTS.map((a) => a.hex)).toContain('#0a246a');
+    expect(L.THEMES.map((t) => t.id)).toEqual(['dark', 'light', 'system', 'win2000', 'winxp']);
+  });
+
+  it('„wie System“ folgt dem Gerät, die übrigen bleiben', () => {
+    expect(L.resolveTheme('system', true)).toBe('dark');
+    expect(L.resolveTheme('system', false)).toBe('light');
+    expect(L.resolveTheme('win2000', true)).toBe('win2000');
+  });
+
+  it('setLook nimmt nur gültige Farben an und ändert ohne Unterschied nichts', () => {
+    let ws = W.defaultWorkspace();
+    ws = L.setLook(ws, { theme: 'win2000', accent: '#0A246A' });
+    expect(ws.look).toEqual({ theme: 'win2000', accent: '#0a246a' });
+    expect(L.setLook(ws, { accent: 'rot' })).toBe(ws);
+    expect(L.setLook(ws, { theme: 'win2000' })).toBe(ws);
+  });
+
+  it('Kontrast: Schwarz/Weiß 21 : 1; Warnung nur bei schwacher Farbe', () => {
+    expect(Math.round(L.contrast('#000000', '#ffffff'))).toBe(21);
+    expect(L.contrastWarning('#e4522c', 'dark')).toBe(null);
+    expect(L.contrastWarning('#0a246a', 'dark') !== null).toBe(true);
+    expect(L.contrastWarning('#0a246a', 'win2000')).toBe(null);
+    expect(L.contrastWarning('#0054e3', 'winxp')).toBe(null);
+  });
+
+  it('Darstellung bleibt beim Speichern erhalten; Unbekanntes fällt auf die Voreinstellung', () => {
+    const ws = L.setLook(W.defaultWorkspace(), { theme: 'light', accent: '#66afe1' });
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))!.look).toEqual({ theme: 'light', accent: '#66afe1' });
+    const bad = JSON.parse(JSON.stringify(ws));
+    bad.look = { theme: 'neon', accent: 'blau' };
+    expect(parseWorkspace(bad)!.look).toEqual(L.LOOK_DEFAULT);
+    delete bad.look;
+    expect(parseWorkspace(bad)!.look).toEqual(L.LOOK_DEFAULT);
   });
 });

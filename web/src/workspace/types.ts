@@ -1,3 +1,4 @@
+import type { Look } from './look';
 import type { FRect, Node } from './tree';
 
 /** Ein Tab im Panel (F-21, F-22): eine geöffnete Seite mit eigenem Verlauf. */
@@ -124,6 +125,8 @@ export interface Workspace {
   ruler: RulerSettings;
   /** F-128: Namen der Areas (Stapel). */
   areaNames: Named[];
+  /** F-60, F-61: Hell/Dunkel und Akzentfarbe. */
+  look: Look;
   /** F-128: laufende Nummer für den Standardnamen neuer Areas („NewArea 1“ …). */
   nextArea: number;
 }

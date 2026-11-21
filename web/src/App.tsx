@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import './App.css';
 import logoUrl from './assets/e-sources-logo.svg';
+import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, PanelFrame } from './components/PanelFrame';
 import { RulerIcon } from './components/Ruler';
 import {
@@ -19,6 +20,7 @@ import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { useWorkspace } from './workspace/useWorkspace';
 import { openBookmark } from './workspace/bookmarks';
+import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
 import { FOCUS_WARN, STACK_MAX, TAB_MAX, addPanel as addTo, areaIn, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
@@ -90,6 +92,22 @@ const CORNERS: { c: Corner; x: 'left' | 'right'; y: 'top' | 'bottom' }[] = [
 
 export default function App() {
   const [ws, dispatch] = useWorkspace();
+  // F-60, F-61, F-130: Darstellung und Akzentfarbe auf die ganze Seite anwenden; „wie System“ folgt dem Gerät.
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true);
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
+    if (!mq) return;
+    const on = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  const shownTheme = resolveTheme(ws.look.theme, systemDark);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = shownTheme;
+    root.style.setProperty('--accent-rgb', rgbOf(ws.look.accent).join(', '));
+  }, [shownTheme, ws.look.accent]);
+  const lookWarning = contrastWarning(ws.look.accent, shownTheme);
   const [active, setActive] = useState<string | null>(ws.panels[0]?.id ?? null);
   const [mode, setMode] = useState<Mode>({ kind: 'area' });
   const [swapFrom, setSwapFrom] = useState<string | null>(null);
@@ -565,7 +583,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="toolbar">
-        <img className="brand-logo" src={logoUrl} alt="E-Sources" width={366} height={186} />
+        <img className="brand-logo" src={shownTheme === 'dark' ? logoUrl : logoLightUrl} alt="E-Sources" width={366} height={186} />
         <button type="button" onClick={() => addPanel()} title="Neues Panel anlegen">
           + Panel
         </button>
@@ -696,6 +714,40 @@ export default function App() {
                   </span>
                 </li>
               )}
+              <li className="menu__sep" role="separator" />
+              {/* F-60, F-61, F-69, F-130: Darstellung */}
+              <li className="menu__field">
+                <label>Darstellung</label>
+                <span className="seg seg--wrap" role="group" aria-label="Darstellung">
+                  {THEMES.map((t) => (
+                    <button key={t.id} type="button" className={ws.look.theme === t.id ? 'on' : ''} onClick={() => dispatch({ type: 'look', theme: t.id })}>
+                      {t.label}
+                    </button>
+                  ))}
+                </span>
+              </li>
+              <li className="menu__field">
+                <label>Akzentfarbe</label>
+                <span className="look__swatches" role="group" aria-label="Akzentfarbe">
+                  {ACCENTS.map((a) => (
+                    <button
+                      key={a.hex}
+                      type="button"
+                      className={ws.look.accent === a.hex ? 'look__swatch on' : 'look__swatch'}
+                      style={{ '--swatch': a.hex } as CSSProperties}
+                      title={a.name}
+                      aria-label={a.name}
+                      aria-pressed={ws.look.accent === a.hex}
+                      onClick={() => dispatch({ type: 'look', accent: a.hex })}
+                    />
+                  ))}
+                </span>
+                <label className="look__custom">
+                  Eigene Farbe
+                  <input type="color" value={ws.look.accent} onChange={(e) => dispatch({ type: 'look', accent: e.target.value })} />
+                </label>
+                {lookWarning && <p className="look__warn">{lookWarning}</p>}
+              </li>
               <li className="menu__sep" role="separator" />
               <Item
                 onClick={() => {

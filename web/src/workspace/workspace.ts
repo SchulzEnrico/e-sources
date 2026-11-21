@@ -16,6 +16,7 @@ import {
   slotSize,
   specOf,
 } from './screen';
+import { LOOK_DEFAULT } from './look';
 import * as T from './tree';
 import type { Arrangement, PanelMeta, Area, RulerSettings, Slot, Tab, Workspace } from './types';
 
@@ -38,7 +39,7 @@ export function newPanel(name: string): PanelMeta {
 
 export function defaultWorkspace(): Workspace {
   const panels = [1, 2, 3].map((n) => newPanel(`Panel ${n}`));
-  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, spheres: [], scenarios: [], embed: {}, bookmarks: [], categories: [], ruler: { ...RULER_DEFAULT }, areaNames: [], nextArea: 1 };
+  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, spheres: [], scenarios: [], embed: {}, bookmarks: [], categories: [], ruler: { ...RULER_DEFAULT }, areaNames: [], nextArea: 1, look: { ...LOOK_DEFAULT } };
 }
 
 /** Einstellung aus Klasse und Ausrichtung, ergänzt um die gespeicherte Wahl ein-/zweizeilig. */

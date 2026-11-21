@@ -1,13 +1,14 @@
-import type { Arrangement, Named, PanelMeta, Tab, Workspace } from './types';
+import type { Arrangement, Bookmark, Named, PanelMeta, Tab, Workspace } from './types';
 import { defaultWorkspace, isArrangement, newId } from './workspace';
 
 /**
  * Stufe 1: Die Arbeitsfläche liegt nur im Browser (localStorage). Später kommt der Server dazu.
- * v5: Panels mit Tabs, Plätze mit eigenem Stapel (F-09, F-21). Ein Stand v4 wird beim ersten
- * Laden umgewandelt: Panels und Seiten bleiben, die Anordnung entsteht neu.
+ * v6: dazu Lesezeichen und Kategorien (F-30 bis F-32). Ältere Stände werden beim ersten Laden
+ * umgewandelt: v5 bekommt eine leere Sammlung; bei v4 bleiben Panels und Seiten, die Anordnung
+ * entsteht neu.
  */
-const KEY = 'esource.workspace.v5';
-const OLD_KEY = 'esource.workspace.v4';
+const KEY = 'esource.workspace.v6';
+const OLD_KEYS = ['esource.workspace.v5', 'esource.workspace.v4'];
 
 const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -67,9 +68,29 @@ function namedList(v: unknown): Named[] {
   return Array.isArray(v) ? v.filter((n): n is Named => isObj(n) && typeof n.id === 'string' && typeof n.name === 'string') : [];
 }
 
+/** Lesezeichen (F-30); fehlerhafte Einträge fallen weg, statt die ganze Arbeitsfläche zu verwerfen. */
+function bookmarkList(v: unknown, panelIds: Set<string>, categoryIds: Set<string>): Bookmark[] {
+  if (!Array.isArray(v)) return [];
+  const out: Bookmark[] = [];
+  for (const b of v) {
+    if (!isObj(b) || typeof b.id !== 'string' || typeof b.url !== 'string' || !b.url) continue;
+    const item: Bookmark = {
+      id: b.id,
+      title: typeof b.title === 'string' ? b.title : b.url,
+      url: b.url,
+      category: typeof b.category === 'string' && categoryIds.has(b.category) ? b.category : '',
+      tags: strList(b.tags) ? (b.tags as string[]) : [],
+      panels: strList(b.panels) ? (b.panels as string[]).filter((id) => panelIds.has(id)) : [],
+    };
+    if (typeof b.note === 'string' && b.note) item.note = b.note;
+    out.push(item);
+  }
+  return out;
+}
+
 /**
  * Prüft gespeicherte oder importierte Daten (F-121); null, wenn es keine Arbeitsfläche ist.
- * Nimmt auch Stände v4 (Datei-Version 1) an und wandelt sie um.
+ * Nimmt auch Stände v4/v5 (Datei-Version 1/2) an und wandelt sie um.
  */
 export function parseWorkspace(data: unknown): Workspace | null {
   if (!isObj(data) || !Array.isArray(data.panels)) return null;
@@ -79,6 +100,12 @@ export function parseWorkspace(data: unknown): Workspace | null {
   if (isObj(data.embed)) for (const [k, v] of Object.entries(data.embed)) if (typeof v === 'boolean') embed[k] = v;
   const lines: Record<string, 1 | 2> = {};
   if (isObj(data.lines)) for (const [k, v] of Object.entries(data.lines)) if (v === 1 || v === 2) lines[k] = v;
+  const categories = namedList(data.categories);
+  const bookmarks = bookmarkList(
+    data.bookmarks,
+    new Set((panels as PanelMeta[]).map((p) => p.id)),
+    new Set(categories.map((c) => c.id)),
+  );
   return {
     panels: panels as PanelMeta[],
     layouts: arrangements(data.layouts),
@@ -88,12 +115,15 @@ export function parseWorkspace(data: unknown): Workspace | null {
     areas: namedList(data.areas),
     scenarios: namedList(data.scenarios),
     embed,
+    bookmarks,
+    categories,
   };
 }
 
 export function loadWorkspace(): Workspace {
   try {
-    const raw = localStorage.getItem(KEY) ?? localStorage.getItem(OLD_KEY);
+    let raw = localStorage.getItem(KEY);
+    for (const k of OLD_KEYS) raw ??= localStorage.getItem(k);
     if (!raw) return defaultWorkspace();
     return parseWorkspace(JSON.parse(raw)) ?? defaultWorkspace();
   } catch {

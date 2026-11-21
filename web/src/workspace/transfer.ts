@@ -9,8 +9,11 @@ import type { Workspace } from './types';
  * gefragt.
  */
 export const FILE_FORMAT = 'e-sources-arbeitsflaeche';
-/** Version 2: Panels mit Tabs (V07). Dateien der Version 1 werden beim Import umgewandelt. */
-export const FILE_VERSION = 2;
+/**
+ * Version 3: mit Lesezeichen und Kategorien (V08). Version 2 (Panels mit Tabs, V07) und
+ * Version 1 werden beim Import umgewandelt.
+ */
+export const FILE_VERSION = 3;
 export const FILE_NAME = 'e-sources-arbeitsflaeche.json';
 
 export interface TransferFile {

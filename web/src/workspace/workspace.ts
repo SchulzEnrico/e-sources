@@ -38,7 +38,7 @@ export function newPanel(name: string): PanelMeta {
 
 export function defaultWorkspace(): Workspace {
   const panels = [1, 2, 3].map((n) => newPanel(`Panel ${n}`));
-  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, areas: [], scenarios: [], embed: {} };
+  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, areas: [], scenarios: [], embed: {}, bookmarks: [], categories: [] };
 }
 
 /** Einstellung aus Klasse und Ausrichtung, ergänzt um die gespeicherte Wahl ein-/zweizeilig. */
@@ -274,7 +274,9 @@ export function removePanel(ws: Workspace, id: string): Workspace {
     const fixed = normalize(panels, takeOut(stored, id), specOf(setup));
     if (fixed) layouts[key] = fixed;
   }
-  return { ...ws, panels, layouts };
+  // F-32: Lesezeichen bleiben in der Gesamtsammlung, nur die Zuordnung zum Panel entfällt.
+  const bookmarks = ws.bookmarks.map((b) => (b.panels.includes(id) ? { ...b, panels: b.panels.filter((x) => x !== id) } : b));
+  return { ...ws, panels, layouts, bookmarks };
 }
 
 export function renamePanel(ws: Workspace, id: string, name: string): Workspace {

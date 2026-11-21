@@ -2,7 +2,8 @@ import { useEffect, useReducer } from 'react';
 import type { Lines, Orientation, ScreenClassId, ScreenSetup } from './screen';
 import { loadWorkspace, saveWorkspace } from './storage';
 import type { Min, Node, Zone } from './tree';
-import type { Workspace } from './types';
+import type { Bookmark, Workspace } from './types';
+import * as B from './bookmarks';
 import * as W from './workspace';
 
 type S = { setup: ScreenSetup };
@@ -33,6 +34,17 @@ export type Action =
   | ({ type: 'stackFront'; id: string } & S)
   | ({ type: 'stackStep'; place: string; step: number } & S)
   | { type: 'setLines'; cls: ScreenClassId; orientation: Orientation; lines: Lines }
+  /** F-30 bis F-32: Lesezeichen und Kategorien. */
+  | { type: 'saveBookmark'; bookmark: Bookmark }
+  | { type: 'deleteBookmark'; id: string }
+  | { type: 'moveBookmark'; id: string; to: number; category?: string }
+  | { type: 'dropBookmark'; id: string; target: string }
+  | { type: 'toggleBookmarkPanel'; id: string; panel: string }
+  | { type: 'openBookmark'; panel: string; url: string }
+  | { type: 'addCategory'; id: string; name: string }
+  | { type: 'renameCategory'; id: string; name: string }
+  | { type: 'deleteCategory'; id: string }
+  | { type: 'moveCategory'; id: string; to: number }
   /** F-121: ganze Arbeitsfläche durch eine importierte ersetzen. */
   | { type: 'replace'; ws: Workspace };
 
@@ -86,6 +98,26 @@ export function reducer(ws: Workspace, a: Action): Workspace {
       return W.stepStack(ws, a.setup, a.place, a.step);
     case 'setLines':
       return W.setLines(ws, a.cls, a.orientation, a.lines);
+    case 'saveBookmark':
+      return B.saveBookmark(ws, a.bookmark);
+    case 'deleteBookmark':
+      return B.deleteBookmark(ws, a.id);
+    case 'moveBookmark':
+      return B.moveBookmark(ws, a.id, a.to, a.category);
+    case 'dropBookmark':
+      return B.dropBookmark(ws, a.id, a.target);
+    case 'toggleBookmarkPanel':
+      return B.toggleBookmarkPanel(ws, a.id, a.panel);
+    case 'openBookmark':
+      return B.openBookmark(ws, a.panel, a.url).ws;
+    case 'addCategory':
+      return B.addCategory(ws, a.id, a.name);
+    case 'renameCategory':
+      return B.renameCategory(ws, a.id, a.name);
+    case 'deleteCategory':
+      return B.deleteCategory(ws, a.id);
+    case 'moveCategory':
+      return B.moveCategory(ws, a.id, a.to);
     case 'replace':
       return a.ws;
   }

@@ -62,6 +62,22 @@ export interface Slot {
   front: PanelMeta;
 }
 
+/**
+ * Ein Lesezeichen (F-30). Die Reihenfolge in `Workspace.bookmarks` ist zugleich die Position in
+ * der Kategorie (F-31).
+ */
+export interface Bookmark {
+  id: string;
+  title: string;
+  url: string;
+  /** Id aus Workspace.categories; leer = ohne Kategorie. */
+  category: string;
+  tags: string[];
+  note?: string;
+  /** F-32: Panels, in deren Sammlung das Lesezeichen fest im Menü steht. */
+  panels: string[];
+}
+
 /** Zustand der Arbeitsfläche, der im Browser gespeichert wird. */
 export interface Workspace {
   panels: PanelMeta[];
@@ -85,4 +101,8 @@ export interface Workspace {
    * Geht vor der eingebauten Liste bekannter Sperr-Seiten.
    */
   embed: Record<string, boolean>;
+  /** F-30 bis F-32: alle Lesezeichen des Nutzers (Gesamtsammlung). */
+  bookmarks: Bookmark[];
+  /** F-20: frei angelegte Kategorien, in Reihenfolge. */
+  categories: Named[];
 }

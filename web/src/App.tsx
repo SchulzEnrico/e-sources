@@ -17,7 +17,8 @@ import type { PanelMeta, Slot } from './workspace/types';
 import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { useWorkspace } from './workspace/useWorkspace';
-import { FOCUS_WARN, STACK_MAX, addPanel as addTo, describe, isBlocked, placeIn, placeOf, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
+import { openBookmark } from './workspace/bookmarks';
+import { FOCUS_WARN, STACK_MAX, TAB_MAX, addPanel as addTo, describe, isBlocked, placeIn, placeOf, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -134,9 +135,12 @@ export default function App() {
    * Mit `place` kommt es auf diesen Platz obendrauf (F-09).
    */
   const addPanel = (place?: string) => {
+    // Hinweise nennen das Panel, auf das gestapelt wird – sein Name zeigt, wofür der Nutzer den Platz verwendet.
+    const frontId = place ? viewOf(ws, setup).arrangement?.places[place]?.front : undefined;
+    const target = frontId ? `„${ws.panels.find((x) => x.id === frontId)?.name ?? ''}“` : 'diesem Stapel';
     if (stackFull(ws, setup, place)) {
       return setNotice(
-        `Auf diesem Platz liegen schon ${STACK_MAX} Panels – mehr gehen nicht. Schließe ein Panel oder lege es an einem anderen Platz an.`,
+        `Auf ${target} liegen schon ${STACK_MAX} Panels – mehr gehen nicht. Schließe ein Panel oder lege es woanders an.`,
       );
     }
     const probe = addTo(ws, setup, place);
@@ -147,7 +151,7 @@ export default function App() {
     dispatch({ type: 'add', setup, place });
     if (after === FOCUS_WARN) {
       setNotice(
-        `Jetzt liegen ${FOCUS_WARN} Panels auf diesem Platz. Ab hier nehmen Fokus und Übersicht ab – lieber Panels schließen oder auf andere Plätze verteilen.`,
+        `Jetzt liegen ${FOCUS_WARN} Panels auf ${target}. Ab hier nehmen Fokus und Übersicht ab – lieber Panels schließen oder anders verteilen.`,
       );
     }
   };
@@ -363,6 +367,14 @@ export default function App() {
           notify('Aktuelle Seite ist jetzt die Startseite dieses Panels.');
         }}
         notify={notify}
+        ws={ws}
+        dispatch={dispatch}
+        onOpenBookmark={(url) => {
+          // F-21: als Tab öffnen; bei voller Tab-Leiste (F-26) nur Hinweis
+          if (openBookmark(ws, meta.id, url).result === 'full')
+            return notify(`Schon ${TAB_MAX} Tabs offen. Schließe einen Tab oder öffne das Lesezeichen in einem anderen Panel.`);
+          dispatch({ type: 'openBookmark', panel: meta.id, url });
+        }}
         onClose={() => dispatch({ type: 'remove', id: meta.id })}
         onStartSwap={() => {
           if (ws.panels.length < 2) return notify('Zum Tauschen braucht es mindestens zwei Panels.');

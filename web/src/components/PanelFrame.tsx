@@ -1,5 +1,8 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from 'react';
-import type { PanelMeta } from '../workspace/types';
+import type { Bookmark, PanelMeta, Workspace } from '../workspace/types';
+import type { Action } from '../workspace/useWorkspace';
+import { bookmarkOf, collectionSize } from '../workspace/bookmarks';
+import { BookmarkEditor, CollectionDrawer, CollectionIcon, draftFor } from './Bookmarks';
 import { FOCUS_WARN, TAB_MAX, activeTab, canGoBack, canGoForward, hostOf, isSelfUrl, loadColor, tabLabel } from '../workspace/workspace';
 import { StackBar, type StackProps, useSwipe } from './StackBar';
 
@@ -54,7 +57,15 @@ interface Props {
   onToggleMaximize: () => void;
   /** Kurze Meldung für den Nutzer (z. B. „Adresse kopiert“). */
   notify: (text: string) => void;
+  /** F-14, F-20, F-30 bis F-32: Lesezeichen und Kategorien der ganzen Arbeitsfläche. */
+  ws: Workspace;
+  dispatch: (a: Action) => void;
+  /** F-21: Lesezeichen in diesem Panel öffnen. */
+  onOpenBookmark: (url: string) => void;
 }
+
+/** Seitenleiste im Panel: Sammlung oder Lesezeichen bearbeiten. */
+type Drawer = null | { kind: 'collection' } | { kind: 'edit'; bookmark: Bookmark; isNew: boolean; back: boolean };
 
 const pct = (v: number) => `${Math.round(v * 100)} %`;
 
@@ -159,6 +170,18 @@ export function PanelFrame(p: Props) {
   /** Zähler für „Neu laden“ je Tab: ein neuer Schlüssel lädt dessen iframe neu. */
   const [reloads, setReloads] = useState<Record<string, number>>({});
   useEffect(() => setAddress(url ?? ''), [url, tab.id]);
+  const [drawer, setDrawer] = useState<Drawer>(null);
+  const saved = bookmarkOf(p.ws, url, p.panel.id);
+  const ownCount = collectionSize(p.ws, p.panel.id);
+  /** F-14: aktuelle Seite speichern bzw. ihr Lesezeichen bearbeiten. */
+  const editCurrent = (back = false) => {
+    if (!url) return;
+    setDrawer(
+      saved
+        ? { kind: 'edit', bookmark: saved, isNew: false, back }
+        : { kind: 'edit', bookmark: draftFor(url, tabLabel(tab), p.panel.id), isNew: true, back },
+    );
+  };
   /** Tab, der gerade gezogen wird (F-22). */
   const dragTab = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -228,7 +251,7 @@ export function PanelFrame(p: Props) {
         {/* Kopfleiste wie im Browser (F-14): Zurück · Vor · Neu laden · Home · Adresse · Größen · Name · Menü · Schließen */}
         <header className="win__bar">
           {/* F-09: Stapeln ganz links in der Kopfleiste */}
-          <button type="button" className="win__stack-add" onClick={p.onAddHere} title="Neues Panel auf diesen Platz legen (stapeln)" aria-label="Neues Panel auf diesen Platz legen">
+          <button type="button" className="win__stack-add" onClick={p.onAddHere} title={`Neues Panel auf „${p.panel.name}“ legen (stapeln)`} aria-label={`Neues Panel auf „${p.panel.name}“ legen`}>
             <StackAddIcon />
           </button>
           <div className="win__nav">
@@ -245,6 +268,17 @@ export function PanelFrame(p: Props) {
               ⌂
             </button>
           </div>
+          {/* F-20: Sammlung des Panels */}
+          <button
+            type="button"
+            className={drawer?.kind === 'collection' ? 'win__coll win__coll--on' : 'win__coll'}
+            onClick={() => setDrawer(drawer?.kind === 'collection' ? null : { kind: 'collection' })}
+            title={`Sammlung (${ownCount} Lesezeichen in diesem Panel)`}
+            aria-label="Sammlung öffnen"
+            aria-expanded={drawer?.kind === 'collection'}
+          >
+            {CollectionIcon}
+          </button>
           <form
             className="win__address"
             onSubmit={(e) => {
@@ -267,6 +301,18 @@ export function PanelFrame(p: Props) {
               aria-label="Adresse"
               spellCheck={false}
             />
+            {/* F-14: Lesezeichen speichern – Stern in der Adresszeile wie im Browser */}
+            {url && (
+              <button
+                type="button"
+                className={saved ? 'win__star win__star--on' : 'win__star'}
+                onClick={() => editCurrent()}
+                title={saved ? 'Lesezeichen bearbeiten' : 'Lesezeichen speichern'}
+                aria-label={saved ? 'Lesezeichen bearbeiten' : 'Lesezeichen speichern'}
+              >
+                {saved ? '★' : '☆'}
+              </button>
+            )}
           </form>
           <button
             type="button"
@@ -328,8 +374,11 @@ export function PanelFrame(p: Props) {
               };
               return (
                 <>
+                  <Item onClick={run(() => setDrawer({ kind: 'collection' }))}>☰ Sammlung ({ownCount})</Item>
+                  {url && <Item onClick={run(() => editCurrent())}>{saved ? '★ Lesezeichen bearbeiten' : '☆ Lesezeichen speichern'}</Item>}
+                  <li className="menu__sep" role="separator" />
                   <Item onClick={run(addTab)}>＋ Neuer Tab</Item>
-                  <Item onClick={run(p.onAddHere)}>▣ Neues Panel auf diesen Platz legen</Item>
+                  <Item onClick={run(p.onAddHere)}>▣ Neues Panel auf „{p.panel.name}“ legen</Item>
                   <li className="menu__sep" role="separator" />
                   <Item onClick={run(startEdit)}>✎ Umbenennen</Item>
                   {!p.maximized && <Item onClick={run(p.onStartSwap)}>⇄ Mit anderem Panel tauschen</Item>}
@@ -454,6 +503,36 @@ export function PanelFrame(p: Props) {
               )}
             </>
           ) : null}
+          {drawer?.kind === 'collection' && (
+            <CollectionDrawer
+              ws={p.ws}
+              panelId={p.panel.id}
+              panelName={p.panel.name}
+              saved={!!saved}
+              dispatch={p.dispatch}
+              onOpen={(u) => {
+                p.onOpenBookmark(u);
+                setDrawer(null);
+              }}
+              onEdit={(b) => setDrawer({ kind: 'edit', bookmark: b, isNew: false, back: true })}
+              onSaveCurrent={url ? () => editCurrent(true) : undefined}
+              onClose={() => setDrawer(null)}
+            />
+          )}
+          {drawer?.kind === 'edit' && (
+            <BookmarkEditor
+              key={drawer.bookmark.id}
+              ws={p.ws}
+              bookmark={drawer.bookmark}
+              isNew={drawer.isNew}
+              dispatch={p.dispatch}
+              onDone={(text) => {
+                if (text) p.notify(text);
+                // Aus der Sammlung heraus bearbeitet: zurück dorthin.
+                setDrawer(drawer.back ? { kind: 'collection' } : null);
+              }}
+            />
+          )}
         </div>
         </div>
         {p.stack && <StackBar {...p.stack} />}

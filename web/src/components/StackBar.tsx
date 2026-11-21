@@ -67,7 +67,7 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd }
           ▼
         </button>
         {onAdd && (
-          <button type="button" className="stack__step stack__add" onClick={onAdd} title="Neues Panel auf diesen Platz legen" aria-label="Neues Panel auf diesen Platz">
+          <button type="button" className="stack__step stack__add" onClick={onAdd} title={`Neues Panel auf „${members[index]?.name ?? ''}“ legen`} aria-label="Neues Panel auf diesen Stapel legen">
             +
           </button>
         )}

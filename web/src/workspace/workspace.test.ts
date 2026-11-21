@@ -4,6 +4,7 @@ import * as T from './tree';
 import { parseWorkspace } from './storage';
 import type { Workspace } from './types';
 import * as X from './transfer';
+import * as B from './bookmarks';
 import * as W from './workspace';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
@@ -594,7 +595,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (r.ok) expect(W.panelUrl(r.file.workspace.panels[0])).toBe('https://a.de');
-    expect(X.FILE_VERSION).toBe(2);
+    expect(X.FILE_VERSION).toBe(3);
   });
 
   it('Bereich und Szenario bleiben erhalten (F-116, vorbereitet)', () => {
@@ -629,5 +630,120 @@ describe('F-43 gesperrte Seiten', () => {
     expect(W.isBlocked(ws, 'https://claude.ai/chat')).toBe(false);
     expect(W.setEmbed(ws, 'kein link', true)).toBe(ws);
     expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))!.embed).toEqual({ 'stepstone.de': false, 'claude.ai': true });
+  });
+});
+
+describe('F-30 bis F-32 Lesezeichen', () => {
+  const bm = (id: string, url: string, category = '', panels: string[] = []) => ({ id, title: '', url, category, tags: [], panels });
+  const base = () => {
+    let ws = W.defaultWorkspace();
+    ws = B.addCategory(ws, 'doku', 'Doku');
+    ws = B.addCategory(ws, 'jobs', 'Jobs');
+    return ws;
+  };
+
+  it('legt an: URL ergänzt, Titel aus der Domain, Tags bereinigt, unbekannte Panels fallen weg', () => {
+    const start = base();
+    const p1 = start.panels[0].id;
+    const ws = B.saveBookmark(start, { ...bm('a', 'www.mdn.dev/x', 'doku', [p1, 'gibtsnicht', p1]), tags: ['css', ' #CSS', 'html', ''] as string[], note: '  ' });
+    expect(ws.bookmarks).toHaveLength(1);
+    const b = ws.bookmarks[0];
+    expect(b.url).toBe('https://www.mdn.dev/x');
+    expect(b.title).toBe('mdn.dev');
+    expect(b.tags).toEqual(['css', 'html']);
+    expect(b.panels).toEqual([p1]);
+    expect(b.note).toBe(undefined);
+    expect(B.saveBookmark(start, bm('x', '  '))).toBe(start);
+    expect(B.parseTags('react, Doku ,#css,react')).toEqual(['react', 'Doku', 'css']);
+  });
+
+  it('Kategorien: keine doppelten Namen, Löschen behält die Lesezeichen ohne Kategorie', () => {
+    let ws = B.addCategory(base(), 'x', 'doku');
+    expect(ws.categories).toHaveLength(2);
+    ws = B.saveBookmark(ws, bm('a', 'a.de', 'doku'));
+    expect(B.renameCategory(ws, 'doku', 'JOBS')).toBe(ws);
+    ws = B.renameCategory(ws, 'doku', 'Dokumentation');
+    expect(ws.categories[0].name).toBe('Dokumentation');
+    ws = B.deleteCategory(ws, 'doku');
+    expect(ws.categories.map((c) => c.id)).toEqual(['jobs']);
+    expect(ws.bookmarks[0].category).toBe(B.NO_CATEGORY);
+    expect(B.groups(ws, null).map((g) => g.category?.id ?? null)).toEqual(['jobs', null]);
+    ws = B.addCategory(ws, 'z', 'Zeug');
+    expect(B.moveCategory(ws, 'z', 0).categories.map((c) => c.id)).toEqual(['z', 'jobs']);
+  });
+
+  it('F-31 sortieren und in andere Kategorie ziehen, Bearbeiten behält die Stelle', () => {
+    let ws = base();
+    for (const id of ['a', 'b', 'c']) ws = B.saveBookmark(ws, bm(id, `${id}.de`, 'doku'));
+    ws = B.saveBookmark(ws, bm('j', 'j.de', 'jobs'));
+    ws = B.moveBookmark(ws, 'c', 0);
+    expect(B.groups(ws, null)[0].items.map((b) => b.id)).toEqual(['c', 'a', 'b']);
+    ws = B.moveBookmark(ws, 'c', 9);
+    expect(B.groups(ws, null)[0].items.map((b) => b.id)).toEqual(['a', 'b', 'c']);
+    ws = B.moveBookmark(ws, 'a', 0, 'jobs');
+    expect(B.groups(ws, null)[1].items.map((b) => b.id)).toEqual(['a', 'j']);
+    ws = B.saveBookmark(ws, { ...ws.bookmarks.find((b) => b.id === 'a')!, title: 'Neu' });
+    expect(B.groups(ws, null)[1].items.map((b) => b.title)).toEqual(['Neu', 'j.de']);
+    ws = B.saveBookmark(ws, { ...ws.bookmarks.find((b) => b.id === 'a')!, category: 'doku' });
+    expect(B.groups(ws, null)[0].items.map((b) => b.id)).toEqual(['b', 'c', 'a']);
+    expect(B.deleteBookmark(ws, 'a').bookmarks).toHaveLength(3);
+    // Ziehen auf ein anderes Lesezeichen: nach unten dahinter, nach oben davor, fremde Kategorie davor
+    expect(B.groups(B.dropBookmark(ws, 'b', 'c'), null)[0].items.map((b) => b.id)).toEqual(['c', 'b', 'a']);
+    expect(B.groups(B.dropBookmark(ws, 'a', 'b'), null)[0].items.map((b) => b.id)).toEqual(['a', 'b', 'c']);
+    const moved = B.dropBookmark(ws, 'j', 'c');
+    expect(B.groups(moved, null)[0].items.map((b) => b.id)).toEqual(['b', 'j', 'c', 'a']);
+  });
+
+  it('F-32 Sammlung je Panel, Suche über Titel, URL, Kategorie und Tags', () => {
+    let ws = base();
+    const [p1, p2] = ws.panels.map((p) => p.id);
+    ws = B.saveBookmark(ws, { ...bm('a', 'react.dev', 'doku', [p1]), title: 'React', tags: ['js'] });
+    ws = B.saveBookmark(ws, bm('b', 'stepstone.de', 'jobs', [p1, p2]));
+    ws = B.saveBookmark(ws, bm('c', 'lose.de', '', []));
+    expect(B.collectionSize(ws, p1)).toBe(2);
+    expect(B.groups(ws, p2).map((g) => g.items.map((b) => b.id))).toEqual([['b']]);
+    expect(B.groups(ws, null, 'jobs').map((g) => g.items.map((b) => b.id))).toEqual([['b']]);
+    expect(B.groups(ws, null, '#js').map((g) => g.items.map((b) => b.id))).toEqual([['a']]);
+    expect(B.groups(ws, null, 'doku react').map((g) => g.items.map((b) => b.id))).toEqual([['a']]);
+    ws = B.toggleBookmarkPanel(ws, 'c', p2);
+    expect(B.collectionSize(ws, p2)).toBe(2);
+    ws = W.removePanel(ws, p1);
+    expect(ws.bookmarks.map((b) => b.panels)).toEqual([[], [p2], [p2]]);
+    expect(B.bookmarkOf(ws, 'https://react.dev/')?.id).toBe('a');
+  });
+
+  it('F-21 öffnet als Tab: leerer Tab zuerst, offene Seite wird angesprungen, Grenze TAB_MAX', () => {
+    let ws = W.defaultWorkspace();
+    const p = ws.panels[0].id;
+    let r = B.openBookmark(ws, p, 'https://a.de');
+    expect(r.result).toBe('here');
+    ws = r.ws;
+    r = B.openBookmark(ws, p, 'https://b.de');
+    expect(r.result).toBe('tab');
+    ws = r.ws;
+    expect(ws.panels[0].tabs).toHaveLength(2);
+    r = B.openBookmark(ws, p, 'a.de/');
+    expect(r.result).toBe('switched');
+    expect(W.panelUrl(r.ws.panels[0])).toBe('https://a.de');
+    for (let i = 0; i < 10; i++) ws = W.addTab(ws, p, `https://x${i}.de`);
+    expect(B.openBookmark(ws, p, 'https://neu.de').result).toBe('full');
+  });
+
+  it('Speicher v6: Lesezeichen bleiben erhalten, kaputte Einträge fallen weg, v5 bekommt eine leere Sammlung', () => {
+    let ws = base();
+    ws = B.saveBookmark(ws, { ...bm('a', 'a.de', 'doku', [ws.panels[0].id]), note: 'Notiz' });
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))).toEqual(ws);
+    const raw = JSON.parse(JSON.stringify(ws));
+    raw.bookmarks.push({ id: 'kaputt' }, { id: 'z', url: 'z.de', category: 'weg', panels: ['weg'] });
+    const back = parseWorkspace(raw)!;
+    expect(back.bookmarks.map((b) => b.id)).toEqual(['a', 'z']);
+    expect(back.bookmarks[1].category).toBe('');
+    expect(back.bookmarks[1].panels).toEqual([]);
+    const v5 = JSON.parse(JSON.stringify(W.defaultWorkspace()));
+    delete v5.bookmarks;
+    delete v5.categories;
+    const up = parseWorkspace(v5)!;
+    expect(up.bookmarks).toEqual([]);
+    expect(up.categories).toEqual([]);
   });
 });

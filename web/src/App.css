@@ -1297,3 +1297,13 @@ select {
 .bm-newcat input {
   flex: 1;
 }
+
+/* F-127: Knopf „Ansicht“ mit Symbol */
+.tb-view {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.tb-view .icon {
+  flex: none;
+}

@@ -32,6 +32,30 @@ const EDGE_BAND = 0.25;
 /** So nah am Rand der Arbeitsfläche (Pixel) dockt ein Panel an die ganze Fläche an. */
 const AREA_BAND_PX = 22;
 
+/** F-127: Ansichten des Knopfs „Ansicht“, in der Reihenfolge des Weiterschaltens (wie Hineinzoomen). */
+type ViewKind = 'area' | 4 | 2 | 1;
+const VIEW_NEXT: Record<ViewKind, ViewKind> = { area: 4, 4: 2, 2: 1, 1: 'area' };
+const VIEW_NAME: Record<ViewKind, string> = {
+  area: 'ganze Arbeitsfläche',
+  4: '4 Panels (2 × 2)',
+  2: '2 Panels nebeneinander',
+  1: 'aktives Panel allein (maximiert)',
+};
+
+/**
+ * F-127: Symbol des Knopfs „Ansicht“ – zeigt die aktuelle Ansicht: freie Arbeitsfläche
+ * (hohes Panel links, zwei rechts), 2 × 2, 2 Spalten oder ein Panel allein.
+ */
+function ViewIcon({ view }: { view: ViewKind }) {
+  const lines = { area: 'M8 1v12M8 7h11', 4: 'M10 1v12M1 7h18', 2: 'M10 1v12', 1: '' }[view];
+  return (
+    <svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true" className="icon">
+      <rect x="0.75" y="0.75" width="18.5" height="12.5" rx="2" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      {lines ? <path d={lines} stroke="currentColor" strokeWidth="1.3" /> : <rect x="3" y="3" width="14" height="8" rx="1" fill="currentColor" opacity="0.45" />}
+    </svg>
+  );
+}
+
 type Mode = { kind: 'area' } | { kind: 'max'; id: string } | { kind: 'split'; count: 2 | 4 };
 type Corner = 'tl' | 'tr' | 'bl' | 'br';
 interface Drag {
@@ -543,22 +567,32 @@ export default function App() {
         <button type="button" className="tb-wide" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Alle Panels gleich groß, die Anordnung bleibt">
           Gleich verteilen
         </button>
-        <button
-          type="button"
-          className={mode.kind === 'split' && mode.count === 2 ? 'on' : ''}
-          onClick={() => setMode(mode.kind === 'split' && mode.count === 2 ? { kind: 'area' } : { kind: 'split', count: 2 })}
-          title="Splitscreen mit 2 Panels (aktives Panel und das nächste)"
-        >
-          Split 2
-        </button>
-        <button
-          type="button"
-          className={mode.kind === 'split' && mode.count === 4 ? 'on' : ''}
-          onClick={() => setMode(mode.kind === 'split' && mode.count === 4 ? { kind: 'area' } : { kind: 'split', count: 4 })}
-          title="Splitscreen mit 4 Panels"
-        >
-          Split 4
-        </button>
+        {/* F-127: Knopf „Ansicht“ – jeder Klick schaltet weiter: Arbeitsfläche → 2 × 2 → 2 → 1 → Arbeitsfläche */}
+        {(() => {
+          const now: ViewKind = mode.kind === 'max' ? 1 : mode.kind === 'split' ? mode.count : 'area';
+          const next = VIEW_NEXT[now];
+          const go = () => {
+            if (next === 'area') return setMode({ kind: 'area' });
+            if (next === 1) {
+              const id = (active && ws.panels.some((x) => x.id === active) ? active : null) ?? shownView.slots[0]?.front.id;
+              return setMode(id ? { kind: 'max', id } : { kind: 'area' });
+            }
+            setMode({ kind: 'split', count: next });
+          };
+          return (
+            <button
+              type="button"
+              className={now === 'area' ? 'tb-view' : 'on tb-view'}
+              onClick={go}
+              title={`Ansicht: ${VIEW_NAME[now]} · Klick: ${VIEW_NAME[next]}${next === 'area' ? ' (Esc)' : ''}`}
+              aria-label={`Ansicht: ${VIEW_NAME[now]}. Weiter zu: ${VIEW_NAME[next]}`}
+              aria-pressed={now !== 'area'}
+            >
+              <ViewIcon view={now} />
+              Ansicht
+            </button>
+          );
+        })()}
         {!onArea && (
           <button type="button" onClick={() => setMode({ kind: 'area' })} title="Zurück zur Arbeitsfläche (Esc)">
             Zur Arbeitsfläche

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import './App.css';
-import { PanelFrame } from './components/PanelFrame';
+import logoUrl from './assets/e-sources-logo.svg';
+import { Item, Menu, PanelFrame } from './components/PanelFrame';
 import {
   type Lines,
   type Orientation,
@@ -79,19 +80,31 @@ export default function App() {
 
   // Größe der Arbeitsfläche messen: bestimmt Bildschirmklasse und Ausrichtung (F-03).
   const areaRef = useRef<HTMLDivElement>(null);
-  const [area, setArea] = useState({ width: window.innerWidth, height: window.innerHeight - 60 });
+  // Klasse und Ausrichtung richten sich nach dem ganzen Fenster (Gerät), nicht nach der Fläche unter
+  // der Kopfleiste – sonst gilt ein iPhone im Hochformat als „quer“, wenn die Kopfleiste viel Höhe braucht.
+  const [area, setArea] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight - 60,
+    vw: window.innerWidth,
+    vh: window.innerHeight,
+  });
   useLayoutEffect(() => {
     const el = areaRef.current;
     if (!el) return;
-    const measure = () => setArea({ width: el.clientWidth, height: el.clientHeight });
+    const measure = () =>
+      setArea({ width: el.clientWidth, height: el.clientHeight, vw: window.innerWidth, vh: window.innerHeight });
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    return () => ro.disconnect();
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
   }, []);
   useEffect(() => () => cleanup.current?.(), []);
 
-  const detected = detectScreen(area.width, area.height);
+  const detected = detectScreen(area.vw, area.vh);
   const cls = clsOverride === 'auto' ? detected.cls : clsOverride;
   const orientation = oriOverride === 'auto' ? detected.orientation : oriOverride;
   const setup = setupFor(ws, cls, orientation);
@@ -487,12 +500,12 @@ export default function App() {
   return (
     <div className="app">
       <header className="toolbar">
-        <strong className="brand">E-Source</strong>
+        <img className="brand-logo" src={logoUrl} alt="E-Sources" width={366} height={186} />
         <button type="button" onClick={addPanel} title="Neues Panel anlegen">
           + Panel
         </button>
         <span className="sep" />
-        <button type="button" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Alle Panels gleich groß, die Anordnung bleibt">
+        <button type="button" className="tb-wide" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Alle Panels gleich groß, die Anordnung bleibt">
           Gleich verteilen
         </button>
         <button
@@ -516,95 +529,107 @@ export default function App() {
             Zur Arbeitsfläche
           </button>
         )}
-        <span className="sep" />
-        <button
-          type="button"
-          onClick={() => {
-            dispatch({ type: 'savePreferred', setup });
-            notify('Wunsch-Anordnung für diese Bildschirm-Einstellung gespeichert.');
-          }}
-          title="Aktuelle Anordnung als Wunsch-Anordnung merken"
-        >
-          Als Wunsch-Anordnung merken
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            dispatch({ type: 'resetLayout', setup });
-            setMode({ kind: 'area' });
-            notify(hasPreferred ? 'Wunsch-Anordnung wiederhergestellt.' : 'Standard-Anordnung wiederhergestellt.');
-          }}
-          title={hasPreferred ? 'Auf die Wunsch-Anordnung zurücksetzen' : 'Auf die Standard-Anordnung zurücksetzen'}
-        >
-          Layout zurücksetzen
-        </button>
-        {hasPreferred && (
-          <button
-            type="button"
-            onClick={() => {
-              dispatch({ type: 'clearPreferred', setup });
-              notify('Wunsch-Anordnung gelöscht; Zurücksetzen nutzt wieder die Standard-Anordnung.');
-            }}
-            title="Wunsch-Anordnung dieser Bildschirm-Einstellung löschen"
-          >
-            Wunsch löschen
-          </button>
-        )}
-        <span className="sep" />
-        <label className="screen" title="Bildschirmklasse: bestimmt, wie viele Panels sichtbar sind">
-          Bildschirm:{' '}
-          <select value={clsOverride} onChange={(e) => setClsOverride(e.target.value as ScreenClassId | 'auto')}>
-            <option value="auto">Automatisch ({screenClass(detected.cls).label})</option>
-            {SCREEN_CLASSES.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label} – {c.capacity} sichtbar
-              </option>
-            ))}
-          </select>
-        </label>
-        <select
-          value={oriOverride}
-          onChange={(e) => setOriOverride(e.target.value as Orientation | 'auto')}
-          title="Ausrichtung des Bildschirms"
-          aria-label="Ausrichtung"
-        >
-          <option value="auto">Ausrichtung automatisch ({detected.orientation === 'landscape' ? 'quer' : 'hoch'})</option>
-          <option value="landscape">Querformat</option>
-          <option value="portrait">Hochformat</option>
-        </select>
-        {canTwoLines && (
-          <span className="seg" role="group" aria-label="Reihen">
-            {([1, 2] as Lines[]).map((n) => (
-              <button
-                key={n}
-                type="button"
-                className={setup.lines === n ? 'on' : ''}
-                onClick={() => dispatch({ type: 'setLines', cls, orientation, lines: n })}
-              >
-                {lineWord[n - 1]}
-              </button>
-            ))}
-          </span>
-        )}
-        <span className="muted">
-          {view.slots.length} von {view.spec.capacity} Plätzen{view.stack.length > 0 ? ` · ${view.stack.length} Panels im Stapel` : ''}
-        </span>
         <span className="grow" />
         {swapFrom && <span className="hint">Ziel-Panel anklicken · Esc bricht ab</span>}
-        <span className="sep" />
-        <button type="button" onClick={exportWorkspace} title="Arbeitsfläche als Datei speichern, um sie auf einem anderen Gerät zu laden">
-          Exportieren
-        </button>
-        <button type="button" onClick={() => importRef.current?.click()} title="Arbeitsfläche aus einer exportierten Datei laden">
-          Importieren
-        </button>
-        <input
-          ref={importRef}
-          type="file"
-          accept="application/json,.json"
-          hidden
-          onChange={(e) => void importWorkspace(e.currentTarget)}
-        />
+        <span className="muted" title={`${screenClass(cls).label} · ${orientation === 'landscape' ? 'quer' : 'hoch'}`}>
+          {view.slots.length}/{view.spec.capacity}
+          {view.stack.length > 0 ? ` · ${view.stack.length} im Stapel` : ''}
+        </span>
+        {/* F-66: Selten Gebrauchtes im Menü, damit die Kopfleiste schlank bleibt */}
+        <Menu icon={<span aria-hidden="true">⋯</span>} label="Weitere Einstellungen">
+          {(close) => (
+            <>
+              <Item
+                onClick={() => {
+                  dispatch({ type: 'savePreferred', setup });
+                  notify('Wunsch-Anordnung für diese Bildschirm-Einstellung gespeichert.');
+                  close();
+                }}
+              >
+                Als Wunsch-Anordnung merken
+              </Item>
+              <Item
+                onClick={() => {
+                  dispatch({ type: 'resetLayout', setup });
+                  setMode({ kind: 'area' });
+                  notify(hasPreferred ? 'Wunsch-Anordnung wiederhergestellt.' : 'Standard-Anordnung wiederhergestellt.');
+                  close();
+                }}
+              >
+                {hasPreferred ? 'Auf Wunsch-Anordnung zurücksetzen' : 'Layout zurücksetzen'}
+              </Item>
+              {hasPreferred && (
+                <Item
+                  onClick={() => {
+                    dispatch({ type: 'clearPreferred', setup });
+                    notify('Wunsch-Anordnung gelöscht; Zurücksetzen nutzt wieder die Standard-Anordnung.');
+                    close();
+                  }}
+                >
+                  Wunsch-Anordnung löschen
+                </Item>
+              )}
+              <li className="menu__sep" role="separator" />
+              <li className="menu__field">
+                <label>
+                  Bildschirm
+                  <select value={clsOverride} onChange={(e) => setClsOverride(e.target.value as ScreenClassId | 'auto')}>
+                    <option value="auto">Automatisch ({screenClass(detected.cls).label})</option>
+                    {SCREEN_CLASSES.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label} – {c.capacity} sichtbar
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </li>
+              <li className="menu__field">
+                <label>
+                  Ausrichtung
+                  <select value={oriOverride} onChange={(e) => setOriOverride(e.target.value as Orientation | 'auto')}>
+                    <option value="auto">Automatisch ({detected.orientation === 'landscape' ? 'quer' : 'hoch'})</option>
+                    <option value="landscape">Querformat</option>
+                    <option value="portrait">Hochformat</option>
+                  </select>
+                </label>
+              </li>
+              {canTwoLines && (
+                <li className="menu__field">
+                  <span className="seg" role="group" aria-label="Reihen">
+                    {([1, 2] as Lines[]).map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        className={setup.lines === n ? 'on' : ''}
+                        onClick={() => dispatch({ type: 'setLines', cls, orientation, lines: n })}
+                      >
+                        {lineWord[n - 1]}
+                      </button>
+                    ))}
+                  </span>
+                </li>
+              )}
+              <li className="menu__sep" role="separator" />
+              <Item
+                onClick={() => {
+                  exportWorkspace();
+                  close();
+                }}
+              >
+                Arbeitsfläche exportieren
+              </Item>
+              <Item
+                onClick={() => {
+                  importRef.current?.click();
+                  close();
+                }}
+              >
+                Arbeitsfläche importieren
+              </Item>
+            </>
+          )}
+        </Menu>
+        <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={(e) => void importWorkspace(e.currentTarget)} />
       </header>
       {flash && !swapFrom && (
         <div className="toast" role="status">

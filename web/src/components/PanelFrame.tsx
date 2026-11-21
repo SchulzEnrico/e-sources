@@ -57,7 +57,7 @@ const SizeIcon = (
 );
 
 /** Ausklappmenü in der Kopfleiste (Größen, Panel-Optionen F-20). */
-function Menu(props: { icon: ReactNode; label: string; children: (close: () => void) => ReactNode }) {
+export function Menu(props: { icon: ReactNode; label: string; children: (close: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -87,7 +87,7 @@ function Menu(props: { icon: ReactNode; label: string; children: (close: () => v
   );
 }
 
-function Item(props: { onClick: () => void; children: ReactNode }) {
+export function Item(props: { onClick: () => void; children: ReactNode }) {
   return (
     <li>
       <button type="button" role="menuitem" onClick={props.onClick}>

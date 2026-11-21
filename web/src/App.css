@@ -783,3 +783,23 @@ select {
   padding: 0 4px;
 }
 
+
+/* F-66 (Teil): Logo „ES“ + „ources“ im Stil des Portfolio-Logos */
+.toolbar .brand-logo { display: block; height: 34px; width: auto; flex: none; margin-right: 4px; }
+
+/* F-66: schlanke Kopfleiste – eine Zeile, Selteneres im Menü „⋯“ */
+.toolbar { flex-wrap: nowrap; padding: 5px 10px; gap: 6px; position: relative; z-index: 50; }
+.toolbar > .menu > button { min-width: 36px; font-size: 18px; line-height: 1; }
+.toolbar .muted { white-space: nowrap; font-size: 13px; }
+.toolbar .menu__list { min-width: 250px; z-index: 60; }
+.menu__field { padding: 4px 10px; }
+.menu__field label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted, #b0b0b5); }
+.menu__field select { width: 100%; }
+.menu__field .seg { display: flex; }
+.menu__field .seg button { flex: 1; width: auto; text-align: center; }
+@media (max-width: 640px) {
+  .toolbar { gap: 4px; padding: 4px 8px; }
+  .toolbar .sep, .toolbar .muted, .toolbar .tb-wide { display: none; }
+  .toolbar .brand-logo { height: 28px; }
+  .toolbar > button { padding-left: 9px; padding-right: 9px; white-space: nowrap; }
+}

@@ -1,0 +1,22 @@
+# System
+.DS_Store
+Thumbs.db
+
+# Editoren
+.idea/
+.vscode/
+*.iml
+
+# Oberfläche
+web/node_modules/
+web/dist/
+*.log
+
+# Server
+server/target/
+server/.mvn/wrapper/maven-wrapper.jar
+
+# Umgebungsvariablen und Geheimnisse
+.env
+.env.*
+!.env.example

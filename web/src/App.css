@@ -1668,6 +1668,15 @@ select {
   color: var(--warn-text);
   line-height: 1.35;
 }
+
+/* F-132 Urheberrechtsvermerk im Menü „⋯“ */
+.menu__copy {
+  padding: 4px 12px 6px;
+  font-size: 11px;
+  opacity: 0.6;
+  cursor: default;
+  user-select: none;
+}
 .menu__field .seg--wrap {
   flex-wrap: wrap;
   gap: 4px;

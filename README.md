@@ -41,3 +41,7 @@ cd server
 ./mvnw test
 ./mvnw spring-boot:run   # http://localhost:8080/api/health
 ```
+
+## Urheberrecht
+
+© 2026 Enrico Schulz – Alle Rechte vorbehalten. Ansehen erlaubt; Nutzen, Kopieren, Verändern und Weitergeben nur mit schriftlicher Erlaubnis. Siehe [`LICENSE`](LICENSE).

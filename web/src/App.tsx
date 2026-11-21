@@ -765,6 +765,9 @@ export default function App() {
               >
                 Arbeitsfläche importieren
               </Item>
+              {/* F-132 Urheberrechtsvermerk */}
+              <li className="menu__sep" role="separator" />
+              <li className="menu__copy">© 2026 Enrico Schulz</li>
             </>
           )}
         </Menu>

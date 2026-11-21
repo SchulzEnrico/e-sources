@@ -9,9 +9,11 @@ export interface StackProps {
   onStep: (step: number) => void;
   /** Panel aus dem Stapel schließen. */
   onRemove: (id: string) => void;
+  /** F-09: neues Panel auf diesen Platz legen; fehlt, wenn der Platz voll ist. */
+  onAdd?: () => void;
 }
 
-export function StackBar({ members, frontId, onSelect, onStep, onRemove }: StackProps) {
+export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd }: StackProps) {
   const lastWheel = useRef(0);
   const onWheel = (e: WheelEvent) => {
     const now = Date.now();
@@ -64,6 +66,11 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove }: Stack
         <button type="button" className="stack__step" onClick={() => onStep(1)} title="Nächstes Panel im Stapel" aria-label="Nächstes">
           ▼
         </button>
+        {onAdd && (
+          <button type="button" className="stack__step stack__add" onClick={onAdd} title="Neues Panel auf diesen Platz legen" aria-label="Neues Panel auf diesen Platz">
+            +
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,56 +1,96 @@
-import { isNode, type Node } from './tree';
-import type { PanelMeta, Workspace } from './types';
-import { defaultWorkspace } from './workspace';
+import type { Arrangement, Named, PanelMeta, Tab, Workspace } from './types';
+import { defaultWorkspace, isArrangement, newId } from './workspace';
 
 /**
  * Stufe 1: Die Arbeitsfläche liegt nur im Browser (localStorage). Später kommt der Server dazu.
- * v4: Anordnung als Teilungsbaum (Kachel-Modell). Ältere Stände werden nicht übernommen.
+ * v5: Panels mit Tabs, Plätze mit eigenem Stapel (F-09, F-21). Ein Stand v4 wird beim ersten
+ * Laden umgewandelt: Panels und Seiten bleiben, die Anordnung entsteht neu.
  */
-const KEY = 'esource.workspace.v4';
+const KEY = 'esource.workspace.v5';
+const OLD_KEY = 'esource.workspace.v4';
 
 const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const optStr = (x: unknown) => x === undefined || typeof x === 'string';
+const strList = (v: unknown) => Array.isArray(v) && v.every((h) => typeof h === 'string');
 
-function isMeta(v: unknown): v is PanelMeta {
-  const optStr = (x: unknown) => x === undefined || typeof x === 'string';
-  return (
-    isObj(v) &&
-    typeof v.id === 'string' &&
-    typeof v.name === 'string' &&
-    optStr(v.url) &&
-    optStr(v.home) &&
-    (v.pos === undefined || isNum(v.pos)) &&
-    (v.history === undefined || (Array.isArray(v.history) && v.history.every((h) => typeof h === 'string')))
-  );
+/** Seite mit Verlauf; gilt für Tabs und für Panels aus v4 (dort lag die Seite direkt am Panel). */
+function pageOf(v: Record<string, unknown>): Omit<Tab, 'id'> | null {
+  if (!optStr(v.url) || !(v.pos === undefined || isNum(v.pos)) || !(v.history === undefined || strList(v.history))) return null;
+  const page: Omit<Tab, 'id'> = {};
+  if (typeof v.url === 'string') page.url = v.url;
+  if (v.history) page.history = v.history as string[];
+  if (isNum(v.pos)) page.pos = v.pos as number;
+  return page;
 }
 
-function treeMap(v: unknown): Record<string, Node> {
-  const out: Record<string, Node> = {};
+function parseTab(v: unknown): Tab | null {
+  if (!isObj(v) || typeof v.id !== 'string') return null;
+  const page = pageOf(v);
+  return page && { id: v.id, ...page };
+}
+
+/** Panel im Format v5 oder v4 (ohne Tabs: die Seite wird zum ersten Tab). */
+function parsePanel(v: unknown): PanelMeta | null {
+  if (!isObj(v) || typeof v.id !== 'string' || typeof v.name !== 'string' || !optStr(v.home)) return null;
+  let tabs: Tab[];
+  if (Array.isArray(v.tabs)) {
+    const parsed = v.tabs.map(parseTab);
+    if (parsed.length === 0 || parsed.some((t) => !t)) return null;
+    tabs = parsed as Tab[];
+  } else {
+    const page = pageOf(v);
+    if (!page) return null;
+    tabs = [{ id: newId(), ...page }];
+  }
+  const panel: PanelMeta = {
+    id: v.id,
+    name: v.name,
+    tabs,
+    activeTab: typeof v.activeTab === 'string' && tabs.some((t) => t.id === v.activeTab) ? v.activeTab : tabs[0].id,
+  };
+  if (typeof v.home === 'string') panel.home = v.home;
+  if (typeof v.area === 'string') panel.area = v.area;
+  if (typeof v.scenario === 'string') panel.scenario = v.scenario;
+  return panel;
+}
+
+/** Anordnungen im Format v5; ältere (reiner Baum) entfallen und entstehen beim Anzeigen neu. */
+function arrangements(v: unknown): Record<string, Arrangement> {
+  const out: Record<string, Arrangement> = {};
   if (!isObj(v)) return out;
-  for (const [k, t] of Object.entries(v)) if (isNode(t)) out[k] = t;
+  for (const [k, a] of Object.entries(v)) if (isArrangement(a)) out[k] = a;
   return out;
 }
 
-/** Prüft gespeicherte oder importierte Daten (F-121); null, wenn es keine Arbeitsfläche ist. */
+function namedList(v: unknown): Named[] {
+  return Array.isArray(v) ? v.filter((n): n is Named => isObj(n) && typeof n.id === 'string' && typeof n.name === 'string') : [];
+}
+
+/**
+ * Prüft gespeicherte oder importierte Daten (F-121); null, wenn es keine Arbeitsfläche ist.
+ * Nimmt auch Stände v4 (Datei-Version 1) an und wandelt sie um.
+ */
 export function parseWorkspace(data: unknown): Workspace | null {
-  if (!isObj(data) || !Array.isArray(data.panels) || !data.panels.every(isMeta)) return null;
-  const stackFront: Record<string, string> = {};
-  if (isObj(data.stackFront)) for (const [k, v] of Object.entries(data.stackFront)) if (typeof v === 'string') stackFront[k] = v;
+  if (!isObj(data) || !Array.isArray(data.panels)) return null;
+  const panels = data.panels.map(parsePanel);
+  if (panels.some((p) => !p)) return null;
   const lines: Record<string, 1 | 2> = {};
   if (isObj(data.lines)) for (const [k, v] of Object.entries(data.lines)) if (v === 1 || v === 2) lines[k] = v;
   return {
-    panels: data.panels,
-    layouts: treeMap(data.layouts),
-    preferred: treeMap(data.preferred),
-    stackFront,
+    panels: panels as PanelMeta[],
+    layouts: arrangements(data.layouts),
+    preferred: arrangements(data.preferred),
     lines,
-    nextNumber: isNum(data.nextNumber) ? (data.nextNumber as number) : data.panels.length + 1,
+    nextNumber: isNum(data.nextNumber) ? (data.nextNumber as number) : panels.length + 1,
+    areas: namedList(data.areas),
+    scenarios: namedList(data.scenarios),
   };
 }
 
 export function loadWorkspace(): Workspace {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY) ?? localStorage.getItem(OLD_KEY);
     if (!raw) return defaultWorkspace();
     return parseWorkspace(JSON.parse(raw)) ?? defaultWorkspace();
   } catch {

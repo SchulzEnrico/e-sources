@@ -13,11 +13,11 @@ import {
   slotSize,
 } from './workspace/screen';
 import * as T from './workspace/tree';
-import { STACK_ID, type PanelMeta, type Slot } from './workspace/types';
+import type { PanelMeta, Slot } from './workspace/types';
 import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { useWorkspace } from './workspace/useWorkspace';
-import { FOCUS_WARN, STACK_MAX, addPanel as addTo, describe, setupFor, slotOf, splitSelection, stackFull, viewOf } from './workspace/workspace';
+import { FOCUS_WARN, STACK_MAX, addPanel as addTo, describe, placeIn, placeOf, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -109,7 +109,10 @@ export default function App() {
   const orientation = oriOverride === 'auto' ? detected.orientation : oriOverride;
   const setup = setupFor(ws, cls, orientation);
   const view = useMemo(() => viewOf(ws, setup), [ws, setup.cls, setup.orientation, setup.lines]);
-  const shownView = useMemo(() => (draft ? describe(ws, view.key, view.spec, draft) : view), [draft, ws, view]);
+  const shownView = useMemo(
+    () => (draft && view.arrangement ? describe(ws, view.key, view.spec, { ...view.arrangement, tree: draft }) : view),
+    [draft, ws, view],
+  );
   const tree = shownView.tree;
   /** NF-07: Panels, deren Größe sich beim Ziehen gerade ändert. */
   const resizing = useMemo(() => (draft ? T.resizedLeaves(view.tree, draft) : new Set<string>()), [draft, view.tree]);
@@ -126,17 +129,23 @@ export default function App() {
     window.setTimeout(() => setFlash((f) => (f === text ? null : f)), ms);
   }, []);
 
-  /** Neues Panel mit Ampel-Regel (F-26): Hinweis bei 5, Grenze bei 9 Panels je Platz. */
-  const addPanel = () => {
-    if (stackFull(ws, setup)) {
+  /**
+   * Neues Panel mit Ampel-Regel (F-26): Hinweis bei 5, Grenze bei 9 Panels je Platz.
+   * Mit `place` kommt es auf diesen Platz obendrauf (F-09).
+   */
+  const addPanel = (place?: string) => {
+    if (stackFull(ws, setup, place)) {
       return setNotice(
         `Auf diesem Platz liegen schon ${STACK_MAX} Panels – mehr gehen nicht. Schließe ein Panel oder lege es an einem anderen Platz an.`,
       );
     }
-    const before = viewOf(ws, setup).stack.length;
-    const after = viewOf(addTo(ws, setup), setup).stack.length;
-    dispatch({ type: 'add', setup });
-    if (after === FOCUS_WARN && after > before) {
+    const probe = addTo(ws, setup, place);
+    const added = probe.panels[probe.panels.length - 1];
+    const arr = viewOf(probe, setup).arrangement;
+    const at = placeIn(arr, added.id);
+    const after = at ? arr!.places[at].panels.length : 1;
+    dispatch({ type: 'add', setup, place });
+    if (after === FOCUS_WARN) {
       setNotice(
         `Jetzt liegen ${FOCUS_WARN} Panels auf diesem Platz. Ab hier nehmen Fokus und Übersicht ab – lieber Panels schließen oder auf andere Plätze verteilen.`,
       );
@@ -303,26 +312,28 @@ export default function App() {
   activateRef.current = activate;
 
   /** Panel, das auf einem Platz sichtbar ist (beim Stapel das vorderste). */
-  const shown = (slotId: string): PanelMeta | null =>
-    slotId === STACK_ID ? shownView.front : (ws.panels.find((p) => p.id === slotId) ?? null);
+  const shown = (slotId: string): PanelMeta | null => shownView.slots.find((s) => s.id === slotId)?.front ?? null;
 
   const frame = (meta: PanelMeta, onArea?: { slotId: string; rect: T.FRect }) => {
-    const inStack = slotOf(shownView, meta.id) === STACK_ID;
+    const slotOfMeta = shownView.slots.find((s) => s.panels.some((m) => m.id === meta.id));
+    const inStack = !!slotOfMeta && slotOfMeta.panels.length > 1;
+    const full = !slotOfMeta || slotOfMeta.panels.length >= STACK_MAX;
     return (
       <PanelFrame
         panel={meta}
         share={onArea && { w: onArea.rect.w, h: onArea.rect.h }}
         stack={
-          inStack && shownView.front
+          inStack && slotOfMeta
             ? {
-                members: shownView.stack,
-                frontId: shownView.front.id,
+                members: slotOfMeta.panels,
+                frontId: slotOfMeta.front.id,
                 onSelect: (id) => {
                   dispatch({ type: 'stackFront', setup, id });
                   setActive(id);
                 },
-                onStep: (step) => dispatch({ type: 'stackStep', setup, step }),
+                onStep: (step) => dispatch({ type: 'stackStep', setup, place: slotOfMeta.id, step }),
                 onRemove: (id) => dispatch({ type: 'remove', id }),
+                onAdd: full ? undefined : () => addPanel(slotOfMeta.id),
               }
             : undefined
         }
@@ -337,6 +348,11 @@ export default function App() {
         onNavigate={(url) => dispatch({ type: 'setUrl', id: meta.id, url })}
         onHistory={(step) => dispatch({ type: 'history', id: meta.id, step })}
         onHome={() => dispatch({ type: 'home', id: meta.id })}
+        onAddTab={() => dispatch({ type: 'addTab', id: meta.id })}
+        onCloseTab={(tab) => dispatch({ type: 'closeTab', id: meta.id, tab })}
+        onSelectTab={(tab) => dispatch({ type: 'selectTab', id: meta.id, tab })}
+        onMoveTab={(tab, to) => dispatch({ type: 'moveTab', id: meta.id, tab, to })}
+        onAddHere={() => (slotOfMeta ? addPanel(slotOfMeta.id) : addPanel())}
         onSetHome={() => {
           dispatch({ type: 'setHome', id: meta.id });
           notify('Aktuelle Seite ist jetzt die Startseite dieses Panels.');
@@ -397,7 +413,7 @@ export default function App() {
     content = (
       <div className="empty">
         <p>Keine Panels geöffnet.</p>
-        <button type="button" onClick={addPanel}>
+        <button type="button" onClick={() => addPanel()}>
           + Panel anlegen
         </button>
       </div>
@@ -406,7 +422,7 @@ export default function App() {
     const meta = ws.panels.find((p) => p.id === mode.id);
     content = meta ? <div className="maximized">{frame(meta)}</div> : null;
   } else if (mode.kind === 'split') {
-    const chosen = splitSelection(view, active && slotOf(view, active), mode.count)
+    const chosen = splitSelection(view, active && placeOf(view, active), mode.count)
       .map(shown)
       .filter((m): m is PanelMeta => !!m);
     content = (
@@ -455,6 +471,8 @@ export default function App() {
 
   const onArea = mode.kind === 'area';
   const hasPreferred = !!ws.preferred[view.key];
+  /** Panels hinter dem jeweils sichtbaren, auf allen Plätzen zusammen. */
+  const stacked = view.slots.reduce((n, s) => n + s.panels.length - 1, 0);
   const canTwoLines = allowsTwoLines(cls);
   const lineWord = orientation === 'landscape' ? ['einzeilig', 'zweizeilig'] : ['einspaltig', 'zweispaltig'];
 
@@ -501,7 +519,7 @@ export default function App() {
     <div className="app">
       <header className="toolbar">
         <img className="brand-logo" src={logoUrl} alt="E-Sources" width={366} height={186} />
-        <button type="button" onClick={addPanel} title="Neues Panel anlegen">
+        <button type="button" onClick={() => addPanel()} title="Neues Panel anlegen">
           + Panel
         </button>
         <span className="sep" />
@@ -533,7 +551,7 @@ export default function App() {
         {swapFrom && <span className="hint">Ziel-Panel anklicken · Esc bricht ab</span>}
         <span className="muted" title={`${screenClass(cls).label} · ${orientation === 'landscape' ? 'quer' : 'hoch'}`}>
           {view.slots.length}/{view.spec.capacity}
-          {view.stack.length > 0 ? ` · ${view.stack.length} im Stapel` : ''}
+          {stacked > 0 ? ` · ${stacked} im Stapel` : ''}
         </span>
         {/* F-66: Selten Gebrauchtes im Menü, damit die Kopfleiste schlank bleibt */}
         <Menu icon={<span aria-hidden="true">⋯</span>} label="Weitere Einstellungen">

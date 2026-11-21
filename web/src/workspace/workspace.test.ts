@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { type ScreenSetup, detectScreen, specOf } from './screen';
 import * as T from './tree';
-import { STACK_ID, type Workspace } from './types';
+import { parseWorkspace } from './storage';
+import type { Workspace } from './types';
 import * as X from './transfer';
 import * as W from './workspace';
 
@@ -40,7 +41,14 @@ function addN(ws: Workspace, setup: ScreenSetup, n: number) {
   return ws;
 }
 
-const rectOf = (ws: Workspace, setup: ScreenSetup, id: string) => T.rects(W.viewOf(ws, setup).tree).get(id)!;
+/** Platz eines Panels in einer Einstellung. */
+const P = (ws: Workspace, setup: ScreenSetup, id: string) => W.placeOf(W.viewOf(ws, setup), id)!;
+const rectOf = (ws: Workspace, setup: ScreenSetup, id: string) => T.rects(W.viewOf(ws, setup).tree).get(P(ws, setup, id))!;
+/** Sichtbare Panels in Lesereihenfolge. */
+const fronts = (ws: Workspace, setup: ScreenSetup) => {
+  const v = W.viewOf(ws, setup);
+  return T.readingOrder(v.tree).map((id) => v.arrangement!.places[id].front);
+};
 
 describe('F-03 Bildschirmklassen', () => {
   it('erkennt Klasse und Ausrichtung', () => {
@@ -81,9 +89,9 @@ describe('F-03 Bildschirmklassen', () => {
   it('führt je Einstellung eine eigene Anordnung', () => {
     let ws = W.defaultWorkspace();
     const [a, b] = ws.panels.map((p) => p.id);
-    ws = W.dropSlot(ws, MONITOR2, a, b, 'center');
-    expect(T.readingOrder(W.viewOf(ws, MONITOR2).tree)[0]).toBe(b);
-    expect(T.readingOrder(W.viewOf(ws, LAPTOP2).tree)[0]).toBe(a);
+    ws = W.dropSlot(ws, MONITOR2, P(ws, MONITOR2, a), P(ws, MONITOR2, b), 'center');
+    expect(fronts(ws, MONITOR2)[0]).toBe(b);
+    expect(fronts(ws, LAPTOP2)[0]).toBe(a);
   });
 });
 
@@ -106,34 +114,51 @@ describe('F-01 lückenlos, F-10 anlegen', () => {
     const added = ws.panels[3].id;
     const r = rectOf(ws, LAPTOP2, added);
     expect(close(r.y, 0.5) && close(r.w, 0.5) && close(r.x, 0.5)).toBe(true);
-    expect(close(rectOf(ws, LAPTOP2, bottom.id).w, 0.5)).toBe(true);
+    expect(close(rectOf(ws, LAPTOP2, bottom.front.id).w, 0.5)).toBe(true);
   });
 });
 
-describe('F-08 Stapel', () => {
-  it('Smartphone: ab dem zweiten Panel liegt alles im Stapel', () => {
+describe('F-08, F-09 Stapel', () => {
+  it('Smartphone: alle Panels liegen auf einem Platz', () => {
     const v = W.viewOf(W.defaultWorkspace(), PHONE);
-    expect(v.slots.map((s) => s.id)).toEqual([STACK_ID]);
-    expect(v.stack).toHaveLength(3);
+    expect(v.slots).toHaveLength(1);
+    expect(v.slots[0].panels).toHaveLength(3);
   });
 
-  it('ist der Bildschirm voll, wird der Platz ganz rechts zum Stapel', () => {
+  it('ist der Bildschirm voll, kommt das neue Panel auf den Platz ganz rechts und wird angezeigt', () => {
     let ws = addN(W.defaultWorkspace(), LAPTOP1, 1); // 4 Panels nebeneinander
-    const rightId = W.viewOf(ws, LAPTOP1).slots.find((s) => close(s.rect.x + s.rect.w, 1))!.id;
+    const right = W.viewOf(ws, LAPTOP1).slots.find((s) => close(s.rect.x + s.rect.w, 1))!;
     ws = W.addPanel(ws, LAPTOP1);
     const v = W.viewOf(ws, LAPTOP1);
     expect(v.slots).toHaveLength(4);
-    expect(close(rectOf(ws, LAPTOP1, STACK_ID).x + rectOf(ws, LAPTOP1, STACK_ID).w, 1)).toBe(true);
-    expect(v.stack.map((p) => p.id)).toContain(rightId);
-    expect(v.front?.id).toBe(ws.panels[4].id); // neues Panel wird im Stapel gleich angezeigt
+    const after = v.slots.find((s) => s.id === right.id)!;
+    expect(after.panels.map((m) => m.id)).toEqual([right.front.id, ws.panels[4].id]);
+    expect(after.front.id).toBe(ws.panels[4].id);
+  });
+
+  it('F-09: an jedem Platz lässt sich ein Panel obendrauf legen', () => {
+    let ws = W.defaultWorkspace();
+    const pa = P(ws, MONITOR2, ws.panels[0].id);
+    ws = W.addPanel(ws, MONITOR2, pa);
+    ws = W.addPanel(ws, MONITOR2, pa);
+    const v = W.viewOf(ws, MONITOR2);
+    expect(v.slots).toHaveLength(3);
+    const s = v.slots.find((x) => x.id === pa)!;
+    expect(s.panels).toHaveLength(3);
+    expect(s.front.id).toBe(ws.panels[4].id);
+    // Andere Einstellungen ordnen die neuen Panels selbst ein.
+    expect(W.viewOf(ws, LAPTOP2).slots).toHaveLength(4);
   });
 
   it('nimmt bis zu 9 Panels je Platz auf (F-26), insgesamt bleibt die Zahl frei', () => {
     const ws = addN(W.defaultWorkspace(), LAPTOP2, 20);
     const v = W.viewOf(ws, LAPTOP2);
     expect(v.slots).toHaveLength(4);
-    expect(v.stack).toHaveLength(W.STACK_MAX);
-    // Auf einem größeren Bildschirm lassen sich weitere anlegen.
+    expect(Math.max(...v.slots.map((s) => s.panels.length))).toBe(W.STACK_MAX);
+    expect(W.stackFull(ws, LAPTOP2)).toBe(true);
+    // Ein anderer Platz nimmt weiter Panels auf, ein größerer Bildschirm auch.
+    const other = v.slots.find((s) => s.panels.length === 1)!;
+    expect(W.stackFull(ws, LAPTOP2, other.id)).toBe(false);
     const big = addN(ws, MONITOR2, 2);
     expect(big.panels.length).toBe(ws.panels.length + 2);
   });
@@ -141,33 +166,42 @@ describe('F-08 Stapel', () => {
   it('wechselt vor und zurück, am Ende geht es vorne weiter', () => {
     let ws = W.defaultWorkspace();
     const ids = ws.panels.map((p) => p.id);
+    const place = W.viewOf(ws, PHONE).slots[0].id;
     ws = W.setStackFront(ws, PHONE, ids[0]);
-    ws = W.stepStack(ws, PHONE, 1);
-    expect(W.viewOf(ws, PHONE).front?.id).toBe(ids[1]);
-    ws = W.stepStack(ws, PHONE, -2);
-    expect(W.viewOf(ws, PHONE).front?.id).toBe(ids[2]);
+    ws = W.stepStack(ws, PHONE, place, 1);
+    expect(W.viewOf(ws, PHONE).slots[0].front.id).toBe(ids[1]);
+    ws = W.stepStack(ws, PHONE, place, -2);
+    expect(W.viewOf(ws, PHONE).slots[0].front.id).toBe(ids[2]);
   });
 
-  it('schließt man ein Panel auf der Fläche, rückt das Stapel-Panel nach', () => {
-    let ws = addN(W.defaultWorkspace(), LAPTOP1, 3); // 6 Panels: 3 sichtbar + Stapel mit 3
-    const v = W.viewOf(ws, LAPTOP1);
-    const victim = v.slots.find((s) => s.id !== STACK_ID)!;
-    const front = v.front!;
-    ws = W.removePanel(ws, victim.id);
-    const after = W.viewOf(ws, LAPTOP1);
-    expect(after.slots.find((s) => s.id === front.id)?.rect).toEqual(victim.rect);
-    expect(after.stack).toHaveLength(2);
+  it('schließt man das sichtbare Panel eines Stapels, rückt das nächste nach vorn', () => {
+    let ws = W.defaultWorkspace();
+    const ids = ws.panels.map((p) => p.id);
+    ws = W.setStackFront(ws, PHONE, ids[1]);
+    ws = W.removePanel(ws, ids[1]);
+    const s = W.viewOf(ws, PHONE).slots[0];
+    expect(s.panels.map((m) => m.id)).toEqual([ids[0], ids[2]]);
+    expect(s.front.id).toBe(ids[2]);
   });
 
-  it('tauscht ein Panel auf der Fläche mit dem Stapel', () => {
-    let ws = addN(W.defaultWorkspace(), LAPTOP1, 3);
+  it('tauscht ein Panel auf der Fläche mit einem Panel im Stapel', () => {
+    let ws = addN(W.defaultWorkspace(), LAPTOP1, 3); // 6 Panels: 3 einzeln + Stapel mit 3
     const v = W.viewOf(ws, LAPTOP1);
-    const onArea = v.slots.find((s) => s.id !== STACK_ID)!.id;
-    const inStack = v.front!.id;
+    const single = v.slots.find((s) => s.panels.length === 1)!;
+    const stack = v.slots.find((s) => s.panels.length > 1)!;
+    const onArea = single.front.id;
+    const inStack = stack.front.id;
     ws = W.swapPanels(ws, LAPTOP1, onArea, inStack);
     const after = W.viewOf(ws, LAPTOP1);
-    expect(after.slots.some((s) => s.id === inStack)).toBe(true);
-    expect(after.front?.id).toBe(onArea);
+    expect(after.slots.find((s) => s.id === single.id)!.front.id).toBe(inStack);
+    expect(after.slots.find((s) => s.id === stack.id)!.front.id).toBe(onArea);
+  });
+
+  it('ergibt beim erneuten Anzeigen dieselben Plätze (Seiten laden nicht neu)', () => {
+    const ws = addN(W.defaultWorkspace(), LAPTOP1, 3);
+    const ids = (setup: ScreenSetup) => W.viewOf(ws, setup).slots.map((s) => s.id);
+    expect(ids(MONITOR2)).toEqual(ids(MONITOR2));
+    expect(ids(PHONE)).toEqual(ids(PHONE));
   });
 });
 
@@ -288,10 +322,9 @@ describe('F-11 Anordnungen, tauschen, andocken', () => {
   it('auf der Arbeitsfläche: Ablegen am Rand dockt an', () => {
     let ws = W.defaultWorkspace();
     const [a, b, c] = ws.panels.map((p) => p.id);
-    ws = W.dropSlot(ws, LAPTOP1, c, a, 'bottom');
-    const r = T.rects(W.viewOf(ws, LAPTOP1).tree);
-    expect(close(r.get(a)!.x, r.get(c)!.x)).toBe(true);
-    expect(close(r.get(b)!.h, 1)).toBe(true);
+    ws = W.dropSlot(ws, LAPTOP1, P(ws, LAPTOP1, c), P(ws, LAPTOP1, a), 'bottom');
+    expect(close(rectOf(ws, LAPTOP1, a).x, rectOf(ws, LAPTOP1, c).x)).toBe(true);
+    expect(close(rectOf(ws, LAPTOP1, b).h, 1)).toBe(true);
   });
 });
 
@@ -303,7 +336,7 @@ describe('F-10, F-12 schließen, umbenennen, Größe', () => {
     ws = W.removePanel(ws, b);
     const v = W.viewOf(ws, LAPTOP2);
     expect(v.slots).toHaveLength(2);
-    expect(close(T.rects(v.tree).get(a)!.w, 1)).toBe(true);
+    expect(close(rectOf(ws, LAPTOP2, a).w, 1)).toBe(true);
     expectTiled(v.tree);
   });
 
@@ -344,13 +377,14 @@ describe('F-05 Zurücksetzen', () => {
   it('stellt die Wunsch-Anordnung wieder her, ohne Panels zu löschen', () => {
     let ws = W.defaultWorkspace();
     const [a, b] = ws.panels.map((p) => p.id);
-    ws = W.dropSlot(ws, LAPTOP1, a, b, 'center');
+    const drop = () => W.dropSlot(ws, LAPTOP1, P(ws, LAPTOP1, a), P(ws, LAPTOP1, b), 'center');
+    ws = drop();
     ws = W.savePreferred(ws, LAPTOP1);
-    ws = W.dropSlot(ws, LAPTOP1, a, b, 'center');
+    ws = drop();
     ws = W.addPanel(ws, LAPTOP1);
     ws = W.resetLayout(ws, LAPTOP1);
     const v = W.viewOf(ws, LAPTOP1);
-    expect(T.readingOrder(v.tree).slice(0, 2)).toEqual([b, a]);
+    expect(fronts(ws, LAPTOP1).slice(0, 2)).toEqual([b, a]);
     expect(ws.panels).toHaveLength(4);
     expect(v.slots).toHaveLength(4);
   });
@@ -379,41 +413,41 @@ describe('Vorläufige Adresszeile', () => {
     expect(W.normalizeUrl(' https://example.com ')).toBe('https://example.com');
     let ws = W.defaultWorkspace();
     const id = ws.panels[0].id;
-    ws = W.setPanelUrl(ws, id, 'example.com');
-    expect(ws.panels[0].url).toBe('https://example.com');
-    ws = W.setPanelUrl(ws, id, '   ');
-    expect(ws.panels[0].url).toBe(undefined);
+    ws = W.navigatePanel(ws, id, 'example.com');
+    expect(W.panelUrl(ws.panels[0])).toBe('https://example.com');
+    ws = W.navigatePanel(ws, id, '   ');
+    expect(W.panelUrl(ws.panels[0])).toBe(undefined);
   });
 
-  it('führt je Panel einen eigenen Verlauf (F-14)', () => {
+  it('führt je Tab einen eigenen Verlauf (F-14)', () => {
     let ws = W.defaultWorkspace();
     const id = ws.panels[0].id;
     const p = () => ws.panels[0];
     ws = W.navigatePanel(ws, id, 'a.de');
     ws = W.navigatePanel(ws, id, 'b.de');
     ws = W.navigatePanel(ws, id, 'c.de');
-    expect(p().history).toEqual(['https://a.de', 'https://b.de', 'https://c.de']);
+    expect(W.activeTab(p()).history).toEqual(['https://a.de', 'https://b.de', 'https://c.de']);
     expect(p().home).toBe('https://a.de');
     expect(W.canGoForward(p())).toBe(false);
     ws = W.historyStep(ws, id, -1);
-    expect(p().url).toBe('https://b.de');
+    expect(W.panelUrl(p())).toBe('https://b.de');
     expect(W.canGoBack(p()) && W.canGoForward(p())).toBe(true);
     ws = W.historyStep(ws, id, -5);
-    expect(p().url).toBe('https://a.de');
+    expect(W.panelUrl(p())).toBe('https://a.de');
     expect(W.canGoBack(p())).toBe(false);
     ws = W.historyStep(ws, id, 1);
     // Neue Seite mitten im Verlauf: Einträge „vorwärts“ entfallen.
     ws = W.navigatePanel(ws, id, 'd.de');
-    expect(p().history).toEqual(['https://a.de', 'https://b.de', 'https://d.de']);
+    expect(W.activeTab(p()).history).toEqual(['https://a.de', 'https://b.de', 'https://d.de']);
     // Gleiche Adresse erneut: kein doppelter Eintrag.
     ws = W.navigatePanel(ws, id, 'd.de');
-    expect(p().history?.length).toBe(3);
+    expect(W.activeTab(p()).history?.length).toBe(3);
     ws = W.setHome(ws, id);
     ws = W.goHome(ws, id);
     expect(p().home).toBe('https://d.de');
     ws = W.historyStep(ws, id, -1);
     ws = W.goHome(ws, id);
-    expect(p().url).toBe('https://d.de');
+    expect(W.panelUrl(p())).toBe('https://d.de');
     expect(W.isSelfUrl('http://localhost:2910/x', 'http://localhost:2910')).toBe(true);
     expect(W.isSelfUrl('https://a.de', 'http://localhost:2910')).toBe(false);
     // F-120: Portfolio und E-Source teilen sich die Domain, nur der Pfad unterscheidet sie.
@@ -443,7 +477,7 @@ describe('Ampel (F-26)', () => {
     // Smartphone: ein Platz, alles im Stapel.
     let ws = W.defaultWorkspace();
     while (!W.stackFull(ws, PHONE)) ws = W.addPanel(ws, PHONE);
-    expect(W.viewOf(ws, PHONE).stack).toHaveLength(W.STACK_MAX);
+    expect(W.viewOf(ws, PHONE).slots[0].panels).toHaveLength(W.STACK_MAX);
     expect(W.addPanel(ws, PHONE)).toBe(ws);
   });
 });
@@ -489,5 +523,95 @@ describe('F-121 Abgleich per JSON-Datei', () => {
     expect(X.deviceLabel('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', true)).toBe('iPhone');
     expect(X.deviceLabel('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', true)).toBe('iPad');
     expect(X.deviceLabel('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', false)).toBe('Mac');
+  });
+});
+
+describe('F-21, F-22 Tabs', () => {
+  it('Tabs anlegen, wechseln und schließen; jeder Tab hat seinen Verlauf', () => {
+    let ws = W.defaultWorkspace();
+    const id = ws.panels[0].id;
+    const p = () => ws.panels[0];
+    expect(p().tabs).toHaveLength(1);
+    ws = W.navigatePanel(ws, id, 'a.de');
+    ws = W.addTab(ws, id, 'b.de');
+    expect(p().tabs).toHaveLength(2);
+    expect(W.panelUrl(p())).toBe('https://b.de');
+    expect(W.tabLabel(p().tabs[0])).toBe('a.de');
+    expect(W.tabLabel(W.newTab())).toBe('Neuer Tab');
+    ws = W.selectTab(ws, id, p().tabs[0].id);
+    expect(W.panelUrl(p())).toBe('https://a.de');
+    ws = W.navigatePanel(ws, id, 'c.de');
+    expect(W.activeTab(p()).history).toEqual(['https://a.de', 'https://c.de']);
+    expect(p().tabs[1].history).toEqual(['https://b.de']);
+    expect(p().home).toBe('https://a.de'); // Startseite gehört zum Panel
+    ws = W.closeTab(ws, id, p().tabs[0].id);
+    expect(p().tabs).toHaveLength(1);
+    expect(W.panelUrl(p())).toBe('https://b.de');
+    // Der letzte Tab wird nur geleert, das Panel bleibt.
+    ws = W.closeTab(ws, id, p().tabs[0].id);
+    expect(p().tabs).toHaveLength(1);
+    expect(W.panelUrl(p())).toBe(undefined);
+    expect(ws.panels).toHaveLength(3);
+  });
+
+  it('Reihenfolge per Ziehen, höchstens 9 Tabs (F-26)', () => {
+    let ws = W.defaultWorkspace();
+    const id = ws.panels[0].id;
+    const ids = () => ws.panels[0].tabs.map((t) => t.id);
+    for (let i = 0; i < 12; i++) ws = W.addTab(ws, id, `s${i}.de`);
+    expect(ids()).toHaveLength(W.TAB_MAX);
+    expect(W.addTab(ws, id)).toBe(ws);
+    const [t0, t1] = ids();
+    ws = W.moveTab(ws, id, t0, 2);
+    expect(ids()[0]).toBe(t1);
+    expect(ids()[2]).toBe(t0);
+    expect(W.moveTab(ws, id, t0, 2)).toBe(ws);
+  });
+});
+
+describe('Speicher v5 und Datei-Version 2', () => {
+  const old = {
+    panels: [{ id: 'p1', name: 'Alt', url: 'https://a.de', history: ['https://a.de'], pos: 0, home: 'https://a.de' }, { id: 'p2', name: 'Leer' }],
+    layouts: { 'laptop|landscape|1': { dir: 'row', children: [{ id: 'p1' }, { id: 'p2' }], sizes: [0.5, 0.5] } },
+    preferred: {},
+    stackFront: {},
+    lines: {},
+    nextNumber: 3,
+  };
+
+  it('wandelt einen Stand v4 um: Seite und Verlauf werden zum ersten Tab', () => {
+    const ws = parseWorkspace(old)!;
+    expect(ws.panels[0].tabs).toHaveLength(1);
+    expect(W.activeTab(ws.panels[0]).history).toEqual(['https://a.de']);
+    expect(ws.panels[0].home).toBe('https://a.de');
+    expect(W.panelUrl(ws.panels[1])).toBe(undefined);
+    expect(ws.layouts).toEqual({}); // alte Anordnung entsteht neu
+    expect(W.viewOf(ws, LAPTOP1).slots).toHaveLength(2);
+  });
+
+  it('nimmt Dateien der Version 1 an und wandelt sie um', () => {
+    const file = { format: X.FILE_FORMAT, version: 1, savedAt: '2026-11-21T14:00:00Z', device: 'Mac', workspace: old };
+    const r = X.readTransferFile(JSON.stringify(file));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(W.panelUrl(r.file.workspace.panels[0])).toBe('https://a.de');
+    expect(X.FILE_VERSION).toBe(2);
+  });
+
+  it('Bereich und Szenario bleiben erhalten (F-116, vorbereitet)', () => {
+    const ws = W.defaultWorkspace();
+    const withAreas: Workspace = {
+      ...ws,
+      areas: [{ id: 'privat', name: 'Privat' }],
+      scenarios: [{ id: 'recherche', name: 'Recherche' }],
+      panels: ws.panels.map((p, i) => (i === 0 ? { ...p, area: 'privat', scenario: 'recherche' } : p)),
+    };
+    const back = parseWorkspace(JSON.parse(JSON.stringify(withAreas)))!;
+    expect(back).toEqual(withAreas);
+  });
+
+  it('gespeicherte Anordnung mit Plätzen bleibt beim Laden erhalten', () => {
+    const ws = addN(W.defaultWorkspace(), LAPTOP1, 3);
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(back).toEqual(ws);
   });
 });

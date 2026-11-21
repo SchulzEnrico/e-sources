@@ -8,13 +8,17 @@ import * as W from './workspace';
 type S = { setup: ScreenSetup };
 
 export type Action =
-  | ({ type: 'add' } & S)
+  | ({ type: 'add'; place?: string } & S)
   | { type: 'remove'; id: string }
   | { type: 'rename'; id: string; name: string }
   | { type: 'setUrl'; id: string; url: string }
   | { type: 'history'; id: string; step: number }
   | { type: 'home'; id: string }
   | { type: 'setHome'; id: string }
+  | { type: 'addTab'; id: string; url?: string }
+  | { type: 'closeTab'; id: string; tab: string }
+  | { type: 'selectTab'; id: string; tab: string }
+  | { type: 'moveTab'; id: string; tab: string; to: number }
   | ({ type: 'swap'; a: string; b: string } & S)
   | ({ type: 'drop'; id: string; target: string; zone: Zone } & S)
   | ({ type: 'setLayout'; tree: Node } & S)
@@ -25,7 +29,7 @@ export type Action =
   | ({ type: 'clearPreferred' } & S)
   | ({ type: 'resetLayout' } & S)
   | ({ type: 'stackFront'; id: string } & S)
-  | ({ type: 'stackStep'; step: number } & S)
+  | ({ type: 'stackStep'; place: string; step: number } & S)
   | { type: 'setLines'; cls: ScreenClassId; orientation: Orientation; lines: Lines }
   /** F-121: ganze Arbeitsfläche durch eine importierte ersetzen. */
   | { type: 'replace'; ws: Workspace };
@@ -33,7 +37,7 @@ export type Action =
 export function reducer(ws: Workspace, a: Action): Workspace {
   switch (a.type) {
     case 'add':
-      return W.addPanel(ws, a.setup);
+      return W.addPanel(ws, a.setup, a.place);
     case 'remove':
       return W.removePanel(ws, a.id);
     case 'rename':
@@ -46,6 +50,14 @@ export function reducer(ws: Workspace, a: Action): Workspace {
       return W.goHome(ws, a.id);
     case 'setHome':
       return W.setHome(ws, a.id);
+    case 'addTab':
+      return W.addTab(ws, a.id, a.url);
+    case 'closeTab':
+      return W.closeTab(ws, a.id, a.tab);
+    case 'selectTab':
+      return W.selectTab(ws, a.id, a.tab);
+    case 'moveTab':
+      return W.moveTab(ws, a.id, a.tab, a.to);
     case 'swap':
       return W.swapPanels(ws, a.setup, a.a, a.b);
     case 'drop':
@@ -67,7 +79,7 @@ export function reducer(ws: Workspace, a: Action): Workspace {
     case 'stackFront':
       return W.setStackFront(ws, a.setup, a.id);
     case 'stackStep':
-      return W.stepStack(ws, a.setup, a.step);
+      return W.stepStack(ws, a.setup, a.place, a.step);
     case 'setLines':
       return W.setLines(ws, a.cls, a.orientation, a.lines);
     case 'replace':

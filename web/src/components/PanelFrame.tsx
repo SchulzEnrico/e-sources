@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from 'react';
 import type { PanelMeta } from '../workspace/types';
-import { canGoBack, canGoForward, isSelfUrl, loadColor } from '../workspace/workspace';
+import { FOCUS_WARN, TAB_MAX, activeTab, canGoBack, canGoForward, isSelfUrl, loadColor, tabLabel } from '../workspace/workspace';
 import { StackBar, type StackProps, useSwipe } from './StackBar';
 
 /** Voreingestellte Größen (F-12) als Anteil von Breite und Höhe der Arbeitsfläche. */
@@ -36,6 +36,13 @@ interface Props {
   onHistory: (step: number) => void;
   onHome: () => void;
   onSetHome: () => void;
+  /** Tabs (F-21, F-22). */
+  onAddTab: () => void;
+  onCloseTab: (tab: string) => void;
+  onSelectTab: (tab: string) => void;
+  onMoveTab: (tab: string, to: number) => void;
+  /** F-09: neues Panel auf diesem Platz obendrauf legen. */
+  onAddHere: () => void;
   onClose: () => void;
   onStartSwap: () => void;
   onSetSize: (w: number, h: number) => void;
@@ -100,19 +107,37 @@ export function Item(props: { onClick: () => void; children: ReactNode }) {
 export function PanelFrame(p: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(p.panel.name);
-  const [address, setAddress] = useState(p.panel.url ?? '');
-  /** Zähler für „Neu laden“: ein neuer Schlüssel lädt das iframe neu. */
-  const [reloads, setReloads] = useState(0);
-  useEffect(() => setAddress(p.panel.url ?? ''), [p.panel.url]);
+  const tab = activeTab(p.panel);
+  const url = tab.url;
+  const [address, setAddress] = useState(url ?? '');
+  /** Zähler für „Neu laden“ je Tab: ein neuer Schlüssel lädt dessen iframe neu. */
+  const [reloads, setReloads] = useState<Record<string, number>>({});
+  useEffect(() => setAddress(url ?? ''), [url, tab.id]);
+  /** Tab, der gerade gezogen wird (F-22). */
+  const dragTab = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const swipe = useSwipe(p.stack?.onStep);
-  const url = p.panel.url;
   // E-Source darf sich selbst laden (F-18), aber nur auf oberster Ebene: Eine eingebettete
   // E-Source lädt sich nicht noch einmal, sonst verschachtelt es sich endlos.
   const embedded = window.self !== window.top;
-  const self = !!url && embedded && isSelfUrl(url, new URL(import.meta.env.BASE_URL, window.location.origin).href);
-  /** Anzahl auf diesem Platz für die Ampel (F-26); Tabs folgen. */
+  const base = new URL(import.meta.env.BASE_URL, window.location.origin).href;
+  const isSelf = (u: string | undefined) => !!u && embedded && isSelfUrl(u, base);
+  /** Anzahl auf diesem Platz für die Ampel (F-26). */
   const load = p.stack ? p.stack.members.length : 1;
+  const tabCount = p.panel.tabs.length;
+
+  /** Neuer Tab mit Ampel-Regel (F-26): Hinweis bei 5, Grenze bei 9. */
+  const addTab = () => {
+    if (tabCount >= TAB_MAX) return p.notify(`Mehr als ${TAB_MAX} Tabs gehen nicht. Lege lieber ein neues Panel an.`);
+    p.onAddTab();
+    if (tabCount + 1 === FOCUS_WARN) p.notify(`Jetzt sind ${FOCUS_WARN} Tabs offen. Ab hier nehmen Fokus und Übersicht ab.`);
+  };
+  const dropTab = (e: DragEvent, to: number) => {
+    e.preventDefault();
+    const id = dragTab.current;
+    dragTab.current = null;
+    if (id) p.onMoveTab(id, to);
+  };
 
   useEffect(() => {
     if (editing) inputRef.current?.select();
@@ -154,7 +179,6 @@ export function PanelFrame(p: Props) {
       data-panel-id={p.panel.id}
       style={{ '--load': loadColor(load) } as CSSProperties}
     >
-      <div className="win__main">
         {/* Kopfleiste wie im Browser (F-14): Zurück · Vor · Neu laden · Home · Adresse · Größen · Name · Menü · Schließen */}
         <header className="win__bar">
           <div className="win__nav">
@@ -164,7 +188,7 @@ export function PanelFrame(p: Props) {
             <button type="button" disabled={!canGoForward(p.panel)} onClick={() => p.onHistory(1)} title="Vor" aria-label="Vor">
               →
             </button>
-            <button type="button" disabled={!url} onClick={() => setReloads((n) => n + 1)} title="Neu laden" aria-label="Neu laden">
+            <button type="button" disabled={!url} onClick={() => setReloads((r) => ({ ...r, [tab.id]: (r[tab.id] ?? 0) + 1 }))} title="Neu laden" aria-label="Neu laden">
               ⟳
             </button>
             <button type="button" disabled={!p.panel.home} onClick={p.onHome} title={p.panel.home ? `Startseite: ${p.panel.home}` : 'Noch keine Startseite'} aria-label="Startseite">
@@ -245,6 +269,9 @@ export function PanelFrame(p: Props) {
               };
               return (
                 <>
+                  <Item onClick={run(addTab)}>＋ Neuer Tab</Item>
+                  <Item onClick={run(p.onAddHere)}>▣ Neues Panel auf diesen Platz legen</Item>
+                  <li className="menu__sep" role="separator" />
                   <Item onClick={run(startEdit)}>✎ Umbenennen</Item>
                   {!p.maximized && <Item onClick={run(p.onStartSwap)}>⇄ Mit anderem Panel tauschen</Item>}
                   {!p.maximized && <Item onClick={run(p.onReset)}>↺ Panel zurücksetzen</Item>}
@@ -265,20 +292,75 @@ export function PanelFrame(p: Props) {
             ×
           </button>
         </header>
+        {/* F-21, F-22: Tabs unter der Kopfleiste (die Kopfleiste bleibt der Griff zum Verschieben), Ampel an der unteren Kante (F-26) */}
+        <div className="tabs" role="tablist" aria-label="Tabs" style={{ '--tabload': loadColor(tabCount) } as CSSProperties}>
+          {p.panel.tabs.map((t, i) => (
+            <div
+              key={t.id}
+              role="tab"
+              aria-selected={t.id === tab.id}
+              className={t.id === tab.id ? 'tab tab--on' : 'tab'}
+              draggable
+              onDragStart={(e) => {
+                dragTab.current = t.id;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', t.url ?? '');
+              }}
+              onDragOver={(e) => dragTab.current && e.preventDefault()}
+              onDrop={(e) => dropTab(e, i)}
+              onClick={() => p.onSelectTab(t.id)}
+              title={t.url ?? 'Neuer Tab'}
+            >
+              <span className="tab__label">{tabLabel(t)}</span>
+              <button
+                type="button"
+                className="tab__close"
+                aria-label={`${tabLabel(t)} schließen`}
+                title="Tab schließen"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  p.onCloseTab(t.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="tabs__add"
+            onClick={addTab}
+            disabled={tabCount >= TAB_MAX}
+            title={tabCount >= TAB_MAX ? `Höchstens ${TAB_MAX} Tabs je Panel` : 'Neuer Tab'}
+            aria-label="Neuer Tab"
+            onDragOver={(e) => dragTab.current && e.preventDefault()}
+            onDrop={(e) => dropTab(e, tabCount - 1)}
+          >
+            +
+          </button>
+        </div>
+        {/* F-67: Kopf- und Tab-Leiste gehen über die ganze Breite, die Stapel-Leiste beginnt darunter. */}
+        <div className="win__row">
+        <div className="win__main">
         <div className="win__body" {...swipe}>
-          {url && !self ? (
-            <iframe
-              key={`${url}#${reloads}`}
-              className="win__frame"
-              src={url}
-              title={p.panel.name}
-              referrerPolicy="no-referrer"
-              // Ohne allow-top-navigation: Die Seite darf E-Source nicht wegnavigieren.
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"
-            />
-          ) : self ? (
+          {/* Alle Tabs bleiben geladen (wie im Browser), sichtbar ist nur der aktive. */}
+          {p.panel.tabs.map((t) =>
+            t.url && !isSelf(t.url) ? (
+              <iframe
+                key={`${t.id}#${t.url}#${reloads[t.id] ?? 0}`}
+                className="win__frame"
+                hidden={t.id !== tab.id}
+                src={t.url}
+                title={`${p.panel.name} – ${tabLabel(t)}`}
+                referrerPolicy="no-referrer"
+                // Ohne allow-top-navigation: Die Seite darf E-Source nicht wegnavigieren.
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"
+              />
+            ) : null,
+          )}
+          {isSelf(url) ? (
             <p className="win__placeholder win__placeholder--small">In einer eingebetteten E-Source lädt sich E-Source nicht noch einmal.</p>
-          ) : (
+          ) : !url ? (
             <>
               <p className="win__placeholder">{p.panel.name}</p>
               {p.share && (
@@ -287,10 +369,11 @@ export function PanelFrame(p: Props) {
                 </p>
               )}
             </>
-          )}
+          ) : null}
         </div>
-      </div>
-      {p.stack && <StackBar {...p.stack} />}
+        </div>
+        {p.stack && <StackBar {...p.stack} />}
+        </div>
     </section>
   );
 }

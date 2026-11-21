@@ -19,7 +19,7 @@ import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { useWorkspace } from './workspace/useWorkspace';
 import { openBookmark } from './workspace/bookmarks';
-import { FOCUS_WARN, STACK_MAX, TAB_MAX, addPanel as addTo, describe, isBlocked, placeIn, placeOf, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
+import { FOCUS_WARN, STACK_MAX, TAB_MAX, addPanel as addTo, areaIn, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -135,6 +135,8 @@ export default function App() {
   const orientation = oriOverride === 'auto' ? detected.orientation : oriOverride;
   const setup = setupFor(ws, cls, orientation);
   const view = useMemo(() => viewOf(ws, setup), [ws, setup.cls, setup.orientation, setup.lines]);
+  // F-128: Stapel ohne Namen (alte Stände, kleinerer Bildschirm) bekommen „NewArea n“.
+  useEffect(() => dispatch({ type: 'ensureAreas', setup }), [view]); // eslint-disable-line react-hooks/exhaustive-deps
   const shownView = useMemo(
     () => (draft && view.arrangement ? describe(ws, view.key, view.spec, { ...view.arrangement, tree: draft }) : view),
     [draft, ws, view],
@@ -156,24 +158,24 @@ export default function App() {
   }, []);
 
   /**
-   * Neues Panel mit Ampel-Regel (F-26): Hinweis bei 5, Grenze bei 9 Panels je Platz.
-   * Mit `place` kommt es auf diesen Platz obendrauf (F-09).
+   * Neues Panel mit Ampel-Regel (F-26): Hinweis bei 5, Grenze bei 9 Panels je Area.
+   * Mit `area` kommt es auf diese Area obendrauf (F-09).
    */
-  const addPanel = (place?: string) => {
-    // Hinweise nennen das Panel, auf das gestapelt wird – sein Name zeigt, wofür der Nutzer den Platz verwendet.
-    const frontId = place ? viewOf(ws, setup).arrangement?.places[place]?.front : undefined;
+  const addPanel = (area?: string) => {
+    // Hinweise nennen das Panel, auf das gestapelt wird – sein Name zeigt, wofür der Nutzer die Area verwendet.
+    const frontId = area ? viewOf(ws, setup).arrangement?.areas[area]?.front : undefined;
     const target = frontId ? `„${ws.panels.find((x) => x.id === frontId)?.name ?? ''}“` : 'diesem Stapel';
-    if (stackFull(ws, setup, place)) {
+    if (stackFull(ws, setup, area)) {
       return setNotice(
         `Auf ${target} liegen schon ${STACK_MAX} Panels – mehr gehen nicht. Schließe ein Panel oder lege es woanders an.`,
       );
     }
-    const probe = addTo(ws, setup, place);
+    const probe = addTo(ws, setup, area);
     const added = probe.panels[probe.panels.length - 1];
     const arr = viewOf(probe, setup).arrangement;
-    const at = placeIn(arr, added.id);
-    const after = at ? arr!.places[at].panels.length : 1;
-    dispatch({ type: 'add', setup, place });
+    const at = areaIn(arr, added.id);
+    const after = at ? arr!.areas[at].panels.length : 1;
+    dispatch({ type: 'add', setup, area });
     if (after === FOCUS_WARN) {
       setNotice(
         `Jetzt liegen ${FOCUS_WARN} Panels auf ${target}. Ab hier nehmen Fokus und Übersicht ab – lieber Panels schließen oder anders verteilen.`,
@@ -340,7 +342,7 @@ export default function App() {
   };
   activateRef.current = activate;
 
-  /** Panel, das auf einem Platz sichtbar ist (beim Stapel das vorderste). */
+  /** Panel, das auf einer Area sichtbar ist (beim Stapel das vorderste). */
   const shown = (slotId: string): PanelMeta | null => shownView.slots.find((s) => s.id === slotId)?.front ?? null;
 
   const frame = (meta: PanelMeta, onArea?: { slotId: string; rect: T.FRect }) => {
@@ -360,7 +362,9 @@ export default function App() {
                   dispatch({ type: 'stackFront', setup, id });
                   setActive(id);
                 },
-                onStep: (step) => dispatch({ type: 'stackStep', setup, place: slotOfMeta.id, step }),
+                onStep: (step) => dispatch({ type: 'stackStep', setup, area: slotOfMeta.id, step }),
+                areaName: areaLabel(ws, slotOfMeta),
+                onRenameArea: (name) => dispatch({ type: 'renameArea', setup, area: slotOfMeta.id, name }),
                 onRemove: (id) => dispatch({ type: 'remove', id }),
                 onAdd: full ? undefined : () => addPanel(slotOfMeta.id),
                 onRename: (id, name) => dispatch({ type: 'rename', id, name }),
@@ -465,7 +469,7 @@ export default function App() {
     const meta = ws.panels.find((p) => p.id === mode.id);
     content = meta ? <div className="maximized">{frame(meta)}</div> : null;
   } else if (mode.kind === 'split') {
-    const chosen = splitSelection(view, active && placeOf(view, active), mode.count)
+    const chosen = splitSelection(view, active && areaOf(view, active), mode.count)
       .map(shown)
       .filter((m): m is PanelMeta => !!m);
     content = (
@@ -514,7 +518,7 @@ export default function App() {
 
   const onArea = mode.kind === 'area';
   const hasPreferred = !!ws.preferred[view.key];
-  /** Panels hinter dem jeweils sichtbaren, auf allen Plätzen zusammen. */
+  /** Panels hinter dem jeweils sichtbaren, auf allen Areas zusammen. */
   const stacked = view.slots.reduce((n, s) => n + s.panels.length - 1, 0);
   const canTwoLines = allowsTwoLines(cls);
   const lineWord = orientation === 'landscape' ? ['einzeilig', 'zweizeilig'] : ['einspaltig', 'zweispaltig'];

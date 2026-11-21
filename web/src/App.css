@@ -20,6 +20,8 @@
   --accent: rgb(var(--silver));
   --glow: rgba(var(--silver), 0.3);
   --warn: #e0b060;
+  /* F-129: Akzentfarbe für Panelnamen; Standard = Rot aus dem Portfolio (dort --accent) */
+  --name-accent: #e4522c;
   --line: rgba(255, 255, 255, 0.1);
   --radius: 14px;
   --neu-top: #17171c;
@@ -404,6 +406,26 @@ select {
   white-space: nowrap;
   text-overflow: ellipsis;
   font-weight: 600;
+  color: var(--name-accent);
+}
+.win__title:has(.win__area) {
+  max-width: 34%;
+  line-height: 1.1;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+/* F-128: Name der Area groß, darunter klein das aktive Panel */
+.win__area {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 700;
+  font-size: 13px;
+}
+.win__name--sub {
+  font-weight: 500;
+  font-size: 10px;
 }
 .win__name-input {
   width: 100%;

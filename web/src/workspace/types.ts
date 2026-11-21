@@ -28,6 +28,12 @@ export interface PanelMeta {
   sphere?: string;
   /** F-116 (vorbereitet): Szenario, zu dem das Panel gehört (Id aus Workspace.scenarios). */
   scenario?: string;
+  /**
+   * F-128: Name der Area, zu der das Panel gehört (Id aus Workspace.areaNames). Hängt am Panel,
+   * damit der Name in jeder Bildschirm-Einstellung gilt, obwohl die Anordnung je Einstellung
+   * gespeichert ist.
+   */
+  areaName?: string;
   /** F-15, F-125: Lineal nur für dieses Panel ein (true) oder aus (false); fehlt = wie Workspace.ruler.on. */
   ruler?: boolean;
 }
@@ -46,26 +52,26 @@ export interface Named {
 }
 
 /**
- * Ein Platz auf der Arbeitsfläche (F-08, F-09). Liegen mehrere Panels darauf, ist er ein Stapel;
+ * Eine Area auf der Arbeitsfläche (F-08, F-09). Liegen mehrere Panels darauf, ist sie ein Stapel;
  * `front` ist das sichtbare.
  */
-export interface Place {
+export interface Area {
   id: string;
   panels: string[];
   front: string;
 }
 
-/** Anordnung einer Bildschirm-Einstellung: Teilungsbaum (Blätter = Plätze) und die Plätze selbst. */
+/** Anordnung einer Bildschirm-Einstellung: Teilungsbaum (Blätter = Areas) und die Areas selbst. */
 export interface Arrangement {
   tree: Node;
-  places: Record<string, Place>;
+  areas: Record<string, Area>;
 }
 
-/** Ein Platz für die Anzeige, mit Lage als Anteil der Fläche. */
+/** Eine Area für die Anzeige, mit Lage als Anteil der Fläche. */
 export interface Slot {
   id: string;
   rect: FRect;
-  /** Panels auf dem Platz, in Reihenfolge. */
+  /** Panels auf der Area, in Reihenfolge. */
   panels: PanelMeta[];
   /** Sichtbares Panel. */
   front: PanelMeta;
@@ -92,7 +98,7 @@ export interface Workspace {
   panels: PanelMeta[];
   /**
    * Anordnung je Bildschirm-Einstellung (Schlüssel aus layoutKey). Panels, die dort noch keinen
-   * Platz haben, bekommen beim Anzeigen einen neuen oder landen auf dem Platz ganz rechts.
+   * Area haben, bekommen beim Anzeigen eine neue oder landen auf der Area ganz rechts.
    */
   layouts: Record<string, Arrangement>;
   /** Wunsch-Anordnung je Bildschirm-Einstellung (F-05). */
@@ -116,4 +122,8 @@ export interface Workspace {
   categories: Named[];
   /** F-125: Lineal (F-15). */
   ruler: RulerSettings;
+  /** F-128: Namen der Areas (Stapel). */
+  areaNames: Named[];
+  /** F-128: laufende Nummer für den Standardnamen neuer Areas („NewArea 1“ …). */
+  nextArea: number;
 }

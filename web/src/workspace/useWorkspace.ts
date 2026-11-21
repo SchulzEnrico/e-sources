@@ -9,7 +9,7 @@ import * as W from './workspace';
 type S = { setup: ScreenSetup };
 
 export type Action =
-  | ({ type: 'add'; place?: string } & S)
+  | ({ type: 'add'; area?: string } & S)
   | { type: 'remove'; id: string }
   | { type: 'rename'; id: string; name: string }
   | { type: 'setUrl'; id: string; url: string }
@@ -32,7 +32,10 @@ export type Action =
   | ({ type: 'clearPreferred' } & S)
   | ({ type: 'resetLayout' } & S)
   | ({ type: 'stackFront'; id: string } & S)
-  | ({ type: 'stackStep'; place: string; step: number } & S)
+  | ({ type: 'stackStep'; area: string; step: number } & S)
+  /** F-128: Area umbenennen; Stapel ohne Namen benennen. */
+  | ({ type: 'renameArea'; area: string; name: string } & S)
+  | ({ type: 'ensureAreas' } & S)
   | { type: 'setLines'; cls: ScreenClassId; orientation: Orientation; lines: Lines }
   /** F-30 bis F-32: Lesezeichen und Kategorien. */
   | { type: 'saveBookmark'; bookmark: Bookmark }
@@ -55,7 +58,7 @@ export type Action =
 export function reducer(ws: Workspace, a: Action): Workspace {
   switch (a.type) {
     case 'add':
-      return W.addPanel(ws, a.setup, a.place);
+      return W.addPanel(ws, a.setup, a.area);
     case 'remove':
       return W.removePanel(ws, a.id);
     case 'rename':
@@ -99,7 +102,11 @@ export function reducer(ws: Workspace, a: Action): Workspace {
     case 'stackFront':
       return W.setStackFront(ws, a.setup, a.id);
     case 'stackStep':
-      return W.stepStack(ws, a.setup, a.place, a.step);
+      return W.stepStack(ws, a.setup, a.area, a.step);
+    case 'renameArea':
+      return W.renameArea(ws, a.setup, a.area, a.name);
+    case 'ensureAreas':
+      return W.ensureAreaNames(ws, a.setup);
     case 'setLines':
       return W.setLines(ws, a.cls, a.orientation, a.lines);
     case 'saveBookmark':

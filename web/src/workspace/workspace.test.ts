@@ -42,13 +42,13 @@ function addN(ws: Workspace, setup: ScreenSetup, n: number) {
   return ws;
 }
 
-/** Platz eines Panels in einer Einstellung. */
-const P = (ws: Workspace, setup: ScreenSetup, id: string) => W.placeOf(W.viewOf(ws, setup), id)!;
+/** Area eines Panels in einer Einstellung. */
+const P = (ws: Workspace, setup: ScreenSetup, id: string) => W.areaOf(W.viewOf(ws, setup), id)!;
 const rectOf = (ws: Workspace, setup: ScreenSetup, id: string) => T.rects(W.viewOf(ws, setup).tree).get(P(ws, setup, id))!;
 /** Sichtbare Panels in Lesereihenfolge. */
 const fronts = (ws: Workspace, setup: ScreenSetup) => {
   const v = W.viewOf(ws, setup);
-  return T.readingOrder(v.tree).map((id) => v.arrangement!.places[id].front);
+  return T.readingOrder(v.tree).map((id) => v.arrangement!.areas[id].front);
 };
 
 describe('F-03 Bildschirmklassen', () => {
@@ -120,13 +120,13 @@ describe('F-01 lückenlos, F-10 anlegen', () => {
 });
 
 describe('F-08, F-09 Stapel', () => {
-  it('Smartphone: alle Panels liegen auf einem Platz', () => {
+  it('Smartphone: alle Panels liegen auf einer Area', () => {
     const v = W.viewOf(W.defaultWorkspace(), PHONE);
     expect(v.slots).toHaveLength(1);
     expect(v.slots[0].panels).toHaveLength(3);
   });
 
-  it('ist der Bildschirm voll, kommt das neue Panel auf den Platz ganz rechts und wird angezeigt', () => {
+  it('ist der Bildschirm voll, kommt das neue Panel auf die Area ganz rechts und wird angezeigt', () => {
     let ws = addN(W.defaultWorkspace(), LAPTOP1, 1); // 4 Panels nebeneinander
     const right = W.viewOf(ws, LAPTOP1).slots.find((s) => close(s.rect.x + s.rect.w, 1))!;
     ws = W.addPanel(ws, LAPTOP1);
@@ -137,7 +137,7 @@ describe('F-08, F-09 Stapel', () => {
     expect(after.front.id).toBe(ws.panels[4].id);
   });
 
-  it('F-09: an jedem Platz lässt sich ein Panel obendrauf legen', () => {
+  it('F-09: an jeder Area lässt sich ein Panel obendrauf legen', () => {
     let ws = W.defaultWorkspace();
     const pa = P(ws, MONITOR2, ws.panels[0].id);
     ws = W.addPanel(ws, MONITOR2, pa);
@@ -151,13 +151,13 @@ describe('F-08, F-09 Stapel', () => {
     expect(W.viewOf(ws, LAPTOP2).slots).toHaveLength(4);
   });
 
-  it('nimmt bis zu 9 Panels je Platz auf (F-26), insgesamt bleibt die Zahl frei', () => {
+  it('nimmt bis zu 9 Panels je Area auf (F-26), insgesamt bleibt die Zahl frei', () => {
     const ws = addN(W.defaultWorkspace(), LAPTOP2, 20);
     const v = W.viewOf(ws, LAPTOP2);
     expect(v.slots).toHaveLength(4);
     expect(Math.max(...v.slots.map((s) => s.panels.length))).toBe(W.STACK_MAX);
     expect(W.stackFull(ws, LAPTOP2)).toBe(true);
-    // Ein anderer Platz nimmt weiter Panels auf, ein größerer Bildschirm auch.
+    // Eine andere Area nimmt weiter Panels auf, ein größerer Bildschirm auch.
     const other = v.slots.find((s) => s.panels.length === 1)!;
     expect(W.stackFull(ws, LAPTOP2, other.id)).toBe(false);
     const big = addN(ws, MONITOR2, 2);
@@ -167,11 +167,11 @@ describe('F-08, F-09 Stapel', () => {
   it('wechselt vor und zurück, am Ende geht es vorne weiter', () => {
     let ws = W.defaultWorkspace();
     const ids = ws.panels.map((p) => p.id);
-    const place = W.viewOf(ws, PHONE).slots[0].id;
+    const area = W.viewOf(ws, PHONE).slots[0].id;
     ws = W.setStackFront(ws, PHONE, ids[0]);
-    ws = W.stepStack(ws, PHONE, place, 1);
+    ws = W.stepStack(ws, PHONE, area, 1);
     expect(W.viewOf(ws, PHONE).slots[0].front.id).toBe(ids[1]);
-    ws = W.stepStack(ws, PHONE, place, -2);
+    ws = W.stepStack(ws, PHONE, area, -2);
     expect(W.viewOf(ws, PHONE).slots[0].front.id).toBe(ids[2]);
   });
 
@@ -198,7 +198,7 @@ describe('F-08, F-09 Stapel', () => {
     expect(after.slots.find((s) => s.id === stack.id)!.front.id).toBe(onArea);
   });
 
-  it('ergibt beim erneuten Anzeigen dieselben Plätze (Seiten laden nicht neu)', () => {
+  it('ergibt beim erneuten Anzeigen dieselben Areas (Seiten laden nicht neu)', () => {
     const ws = addN(W.defaultWorkspace(), LAPTOP1, 3);
     const ids = (setup: ScreenSetup) => W.viewOf(ws, setup).slots.map((s) => s.id);
     expect(ids(MONITOR2)).toEqual(ids(MONITOR2));
@@ -330,7 +330,7 @@ describe('F-11 Anordnungen, tauschen, andocken', () => {
 });
 
 describe('F-10, F-12 schließen, umbenennen, Größe', () => {
-  it('beim Schließen ohne Stapel übernimmt der Nachbar den Platz', () => {
+  it('beim Schließen ohne Stapel übernimmt der Nachbar die Area', () => {
     let ws = W.defaultWorkspace();
     const [a, b] = ws.panels.map((p) => p.id);
     ws = W.distribute(W.setPanelSize(ws, LAPTOP2, a, 0.4, 0.5, MIN), LAPTOP2); // Anordnung speichern
@@ -399,7 +399,7 @@ describe('F-05 Zurücksetzen', () => {
     expect(close(rectOf(ws, LAPTOP1, a).w, 1 / 3)).toBe(true);
   });
 
-  it('F-13 Splitscreen wählt das aktive und die folgenden Plätze', () => {
+  it('F-13 Splitscreen wählt das aktive und die folgenden Areas', () => {
     const ws = addN(W.defaultWorkspace(), LAPTOP1, 1);
     const v = W.viewOf(ws, LAPTOP1);
     const order = T.readingOrder(v.tree);
@@ -475,7 +475,7 @@ describe('Ampel (F-26)', () => {
     expect(W.loadColor(5)).toBe('rgb(57, 255, 20)');
     expect(W.loadColor(6)).toBe('rgb(255, 214, 10)');
     expect(W.loadColor(9)).toBe('rgb(208, 0, 0)');
-    // Smartphone: ein Platz, alles im Stapel.
+    // Smartphone: eine Area, alles im Stapel.
     let ws = W.defaultWorkspace();
     while (!W.stackFull(ws, PHONE)) ws = W.addPanel(ws, PHONE);
     expect(W.viewOf(ws, PHONE).slots[0].panels).toHaveLength(W.STACK_MAX);
@@ -595,7 +595,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (r.ok) expect(W.panelUrl(r.file.workspace.panels[0])).toBe('https://a.de');
-    expect(X.FILE_VERSION).toBe(3);
+    expect(X.FILE_VERSION).toBe(4);
   });
 
   it('Bereich und Szenario bleiben erhalten (F-116, vorbereitet)', () => {
@@ -617,7 +617,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     expect(parseWorkspace(alt)).toEqual(withAreas);
   });
 
-  it('gespeicherte Anordnung mit Plätzen bleibt beim Laden erhalten', () => {
+  it('gespeicherte Anordnung mit Areas bleibt beim Laden erhalten', () => {
     const ws = addN(W.defaultWorkspace(), LAPTOP1, 3);
     const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
     expect(back).toEqual(ws);
@@ -782,5 +782,87 @@ describe('F-15, F-125 Lineal', () => {
     const old = JSON.parse(JSON.stringify(W.defaultWorkspace()));
     delete old.ruler;
     expect(parseWorkspace(old)!.ruler).toEqual(W.RULER_DEFAULT);
+  });
+});
+
+describe('F-128 Area', () => {
+  const slotWith = (ws: Workspace, setup: ScreenSetup, id: string) => W.viewOf(ws, setup).slots.find((s) => s.panels.some((m) => m.id === id))!;
+
+  it('ein einzelnes Panel hat keinen Area-Namen, ein neuer Stapel heißt „NewArea 1“, der nächste „NewArea 2“', () => {
+    let ws = W.defaultWorkspace();
+    const [a, b] = ws.panels.map((p) => p.id);
+    expect(W.areaLabel(ws, slotWith(ws, MONITOR2, a))).toBe('');
+    ws = W.addPanel(ws, MONITOR2, P(ws, MONITOR2, a));
+    expect(W.areaLabel(ws, slotWith(ws, MONITOR2, a))).toBe('NewArea 1');
+    ws = W.addPanel(ws, MONITOR2, P(ws, MONITOR2, b));
+    expect(W.areaLabel(ws, slotWith(ws, MONITOR2, b))).toBe('NewArea 2');
+    // weiteres Panel auf den ersten Stapel: Name bleibt, keine neue Nummer
+    ws = W.addPanel(ws, MONITOR2, P(ws, MONITOR2, a));
+    expect(W.areaLabel(ws, slotWith(ws, MONITOR2, a))).toBe('NewArea 1');
+    expect(ws.areaNames).toHaveLength(2);
+    expect(ws.nextArea).toBe(3);
+  });
+
+  it('umbenennen gilt in allen Bildschirm-Einstellungen; leerer Name ändert nichts', () => {
+    let ws = W.defaultWorkspace();
+    const a = ws.panels[0].id;
+    ws = W.addPanel(ws, MONITOR2, P(ws, MONITOR2, a));
+    const added = ws.panels[3].id;
+    ws = W.renameArea(ws, MONITOR2, P(ws, MONITOR2, a), '  Jobs  ');
+    expect(W.areaLabel(ws, slotWith(ws, MONITOR2, a))).toBe('Jobs');
+    expect(W.renameArea(ws, MONITOR2, P(ws, MONITOR2, a), '   ')).toBe(ws);
+    // Auf dem Handy liegen alle Panels in einem Stapel: der Name gilt dort auch
+    ws = W.setStackFront(ws, PHONE, added);
+    expect(W.areaLabel(ws, slotWith(ws, PHONE, a))).toBe('Jobs');
+  });
+
+  it('kleinerer Bildschirm: ensureAreaNames benennt den Stapel, überschreibt aber keine vorhandenen Namen', () => {
+    let ws = W.defaultWorkspace();
+    expect(W.areaLabel(ws, slotWith(ws, PHONE, ws.panels[0].id))).toBe('');
+    ws = W.ensureAreaNames(ws, PHONE);
+    expect(W.areaLabel(ws, slotWith(ws, PHONE, ws.panels[0].id))).toBe('NewArea 1');
+    expect(W.ensureAreaNames(ws, PHONE)).toBe(ws);
+
+    let ws2 = W.defaultWorkspace();
+    const [a, b] = ws2.panels.map((p) => p.id);
+    ws2 = W.addPanel(ws2, MONITOR2, P(ws2, MONITOR2, a));
+    ws2 = W.renameArea(ws2, MONITOR2, P(ws2, MONITOR2, a), 'Jobs');
+    ws2 = W.ensureAreaNames(ws2, PHONE); // alle 4 Panels in einem Stapel
+    expect(ws2.panels.find((p) => p.id === a)!.areaName).toBe(ws2.panels.find((p) => p.id === b)!.areaName);
+    expect(ws2.areaNames.map((n) => n.name)).toEqual(['Jobs']);
+  });
+
+  it('Name überlebt Tauschen; schließt man alle Panels einer Area, entfällt ihr Name', () => {
+    let ws = W.defaultWorkspace();
+    const [a, , c] = ws.panels.map((p) => p.id);
+    ws = W.addPanel(ws, MONITOR2, P(ws, MONITOR2, a));
+    const d = ws.panels[3].id;
+    ws = W.renameArea(ws, MONITOR2, P(ws, MONITOR2, a), 'Jobs');
+    const stackId = P(ws, MONITOR2, a);
+    ws = W.swapPanels(ws, MONITOR2, d, c); // c kommt sichtbar in den Stapel
+    const s = W.viewOf(ws, MONITOR2).slots.find((x) => x.id === stackId)!;
+    expect(s.front.id).toBe(c);
+    expect(W.areaLabel(ws, s)).toBe('Jobs');
+    ws = W.removePanel(W.removePanel(ws, a), d);
+    expect(ws.areaNames).toEqual([]);
+  });
+
+  it('Speicher v7: Namen bleiben erhalten; Stände bis v6 mit „places“ werden übernommen', () => {
+    let ws = W.defaultWorkspace();
+    ws = W.addPanel(ws, MONITOR2, P(ws, MONITOR2, ws.panels[0].id));
+    ws = W.renameArea(ws, MONITOR2, P(ws, MONITOR2, ws.panels[0].id), 'Jobs');
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))).toEqual(ws);
+    const old = JSON.parse(JSON.stringify(ws));
+    for (const arr of Object.values(old.layouts) as Record<string, unknown>[]) {
+      arr.places = arr.areas;
+      delete arr.areas;
+    }
+    delete old.areaNames;
+    delete old.nextArea;
+    const back = parseWorkspace(old)!;
+    expect(back.layouts).toEqual(ws.layouts);
+    expect(back.areaNames).toEqual([]);
+    expect(back.panels.every((p) => p.areaName === undefined)).toBe(true);
+    expect(back.nextArea).toBe(1);
   });
 });

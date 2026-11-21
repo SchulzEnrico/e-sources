@@ -1,6 +1,6 @@
 /**
  * Aktionen auf der ganzen Arbeitsfläche. Panels und Tabs gelten überall, die Anordnung je
- * Bildschirm-Einstellung (F-03). Jeder Platz kann mehrere Panels tragen und ist dann ein Stapel
+ * Bildschirm-Einstellung (F-03). Jede Area kann mehrere Panels tragen und ist dann ein Stapel
  * (F-08, F-09); jedes Panel hat Tabs (F-21, F-22).
  */
 import {
@@ -17,7 +17,7 @@ import {
   specOf,
 } from './screen';
 import * as T from './tree';
-import type { Arrangement, PanelMeta, Place, RulerSettings, Slot, Tab, Workspace } from './types';
+import type { Arrangement, PanelMeta, Area, RulerSettings, Slot, Tab, Workspace } from './types';
 
 /** Mindestgröße, wenn die Oberfläche keine eigene angibt (Anteil der Fläche). */
 export const DEFAULT_MIN: T.Min = { w: 0.08, h: 0.12 };
@@ -38,7 +38,7 @@ export function newPanel(name: string): PanelMeta {
 
 export function defaultWorkspace(): Workspace {
   const panels = [1, 2, 3].map((n) => newPanel(`Panel ${n}`));
-  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, spheres: [], scenarios: [], embed: {}, bookmarks: [], categories: [], ruler: { ...RULER_DEFAULT } };
+  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, spheres: [], scenarios: [], embed: {}, bookmarks: [], categories: [], ruler: { ...RULER_DEFAULT }, areaNames: [], nextArea: 1 };
 }
 
 /** Einstellung aus Klasse und Ausrichtung, ergänzt um die gespeicherte Wahl ein-/zweizeilig. */
@@ -53,9 +53,9 @@ export function setLines(ws: Workspace, cls: ScreenClassId, orientation: Orienta
 
 // ---------------------------------------------------------------- F-26 Ampel
 
-/** Ab dieser Zahl je Platz bzw. Panel (Tabs) nehmen Fokus und Übersicht ab. */
+/** Ab dieser Zahl je Area bzw. Panel (Tabs) nehmen Fokus und Übersicht ab. */
 export const FOCUS_WARN = 5;
-/** Höchstzahl der Panels je Platz. */
+/** Höchstzahl der Panels je Area. */
 export const STACK_MAX = 9;
 /** Höchstzahl der Tabs je Panel. */
 export const TAB_MAX = 9;
@@ -78,10 +78,10 @@ export function loadColor(n: number): string {
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
-/** Prüft eine gespeicherte Anordnung (Baum und Plätze) auf ihre Form. */
+/** Prüft eine gespeicherte Anordnung (Baum und Areas) auf ihre Form. */
 export function isArrangement(v: unknown): v is Arrangement {
-  if (!isObj(v) || !T.isNode(v.tree) || !isObj(v.places)) return false;
-  return Object.values(v.places).every(
+  if (!isObj(v) || !T.isNode(v.tree) || !isObj(v.areas)) return false;
+  return Object.values(v.areas).every(
     (p) =>
       isObj(p) &&
       typeof p.id === 'string' &&
@@ -92,41 +92,41 @@ export function isArrangement(v: unknown): v is Arrangement {
 }
 
 /**
- * Kennung für einen neuen Platz. Sie leitet sich vom ersten Panel ab, damit dieselbe Anordnung
- * bei jedem Anzeigen dieselben Plätze ergibt (sonst würden Seiten neu geladen).
+ * Kennung für eine neue Area. Sie leitet sich vom ersten Panel ab, damit dieselbe Anordnung
+ * bei jedem Anzeigen dieselben Areas ergibt (sonst würden Seiten neu geladen).
  */
-function placeId(panelId: string, taken: Record<string, Place>): string {
-  let id = `place-${panelId}`;
-  for (let n = 2; taken[id]; n++) id = `place-${panelId}-${n}`;
+function newAreaId(panelId: string, taken: Record<string, Area>): string {
+  let id = `area-${panelId}`;
+  for (let n = 2; taken[id]; n++) id = `area-${panelId}-${n}`;
   return id;
 }
 
-/** Platz, auf dem ein Panel liegt. */
-export function placeIn(arr: Arrangement | null | undefined, panelId: string): string | null {
+/** Area, auf der ein Panel liegt. */
+export function areaIn(arr: Arrangement | null | undefined, panelId: string): string | null {
   if (!arr) return null;
-  for (const p of Object.values(arr.places)) if (p.panels.includes(panelId)) return p.id;
+  for (const p of Object.values(arr.areas)) if (p.panels.includes(panelId)) return p.id;
   return null;
 }
 
-/** Erste Anordnung: alle Panels gleich verteilt, überzählige als Stapel auf dem letzten Platz. */
+/** Erste Anordnung: alle Panels gleich verteilt, überzählige als Stapel auf der letzten Area. */
 function initial(panels: PanelMeta[], spec: ScreenSpec): Arrangement | null {
   if (panels.length === 0) return null;
   const cap = spec.capacity;
   const ids = panels.map((p) => p.id);
   const groups = ids.length <= cap ? ids.map((id) => [id]) : [...ids.slice(0, cap - 1).map((id) => [id]), ids.slice(cap - 1)];
-  const places: Record<string, Place> = {};
+  const areas: Record<string, Area> = {};
   for (const g of groups) {
-    const id = placeId(g[0], places);
-    places[id] = { id, panels: g, front: g[0] };
+    const id = newAreaId(g[0], areas);
+    areas[id] = { id, panels: g, front: g[0] };
   }
-  const tree = T.standard(Object.keys(places), spec.lines, spec.perLine, spec.orientation);
-  return tree ? { tree, places } : null;
+  const tree = T.standard(Object.keys(areas), spec.lines, spec.perLine, spec.orientation);
+  return tree ? { tree, areas } : null;
 }
 
 /**
  * Bringt eine gespeicherte Anordnung in einen gültigen Zustand: entfernt geschlossene Panels und
- * leere Plätze, gibt neuen Panels einen eigenen Platz, solange die Bildschirmklasse noch einen
- * zeigt, und legt sie sonst auf den Platz ganz rechts (F-08).
+ * leere Areas, gibt neuen Panels eine eigene Area, solange die Bildschirmklasse noch eine
+ * zeigt, und legt sie sonst auf die Area ganz rechts (F-08).
  */
 export function normalize(panels: PanelMeta[], stored: Arrangement | null | undefined, spec: ScreenSpec): Arrangement | null {
   if (panels.length === 0) return null;
@@ -134,30 +134,30 @@ export function normalize(panels: PanelMeta[], stored: Arrangement | null | unde
   const exists = new Set(panels.map((p) => p.id));
   const seen = new Set<string>();
   let tree: T.Node | null = stored.tree;
-  const places: Record<string, Place> = {};
+  const areas: Record<string, Area> = {};
   for (const id of T.leaves(stored.tree)) {
-    const old = stored.places[id];
+    const old = stored.areas[id];
     const members = (old?.panels ?? []).filter((m) => exists.has(m) && !seen.has(m));
     members.forEach((m) => seen.add(m));
-    if (members.length === 0 || places[id]) {
+    if (members.length === 0 || areas[id]) {
       tree = tree && T.removeLeaf(tree, id);
       continue;
     }
-    places[id] = { id, panels: members, front: members.includes(old.front) ? old.front : members[0] };
+    areas[id] = { id, panels: members, front: members.includes(old.front) ? old.front : members[0] };
   }
   if (!tree || T.leaves(tree).length > spec.capacity) return initial(panels, spec);
   for (const p of panels) {
     if (seen.has(p.id)) continue;
     if (T.leaves(tree).length < spec.capacity) {
-      const id = placeId(p.id, places);
-      places[id] = { id, panels: [p.id], front: p.id };
+      const id = newAreaId(p.id, areas);
+      areas[id] = { id, panels: [p.id], front: p.id };
       tree = T.addToLargest(tree, id, spec.aspect);
     } else {
-      const right = places[T.rightmost(tree)];
-      places[right.id] = { ...right, panels: [...right.panels, p.id] };
+      const right = areas[T.rightmost(tree)];
+      areas[right.id] = { ...right, panels: [...right.panels, p.id] };
     }
   }
-  return { tree, places };
+  return { tree, areas };
 }
 
 export interface View {
@@ -165,20 +165,20 @@ export interface View {
   spec: ScreenSpec;
   arrangement: Arrangement | null;
   tree: T.Node | null;
-  /** Plätze auf der Fläche mit ihren Panels. */
+  /** Areas auf der Fläche mit ihren Panels. */
   slots: Slot[];
 }
 
-/** Plätze mit Lage und Panels zu einer Anordnung. */
+/** Areas mit Lage und Panels zu einer Anordnung. */
 export function describe(ws: Workspace, key: string, spec: ScreenSpec, arrangement: Arrangement | null): View {
   const byId = new Map(ws.panels.map((p) => [p.id, p]));
   const tree = arrangement?.tree ?? null;
   const slots: Slot[] = [];
   for (const [id, rect] of T.rects(tree)) {
-    const place = arrangement!.places[id];
-    const panels = (place?.panels ?? []).map((m) => byId.get(m)).filter((m): m is PanelMeta => !!m);
+    const area = arrangement!.areas[id];
+    const panels = (area?.panels ?? []).map((m) => byId.get(m)).filter((m): m is PanelMeta => !!m);
     if (panels.length === 0) continue;
-    slots.push({ id, rect, panels, front: panels.find((m) => m.id === place.front) ?? panels[0] });
+    slots.push({ id, rect, panels, front: panels.find((m) => m.id === area.front) ?? panels[0] });
   }
   return { key, spec, arrangement, tree, slots };
 }
@@ -189,9 +189,9 @@ export function viewOf(ws: Workspace, setup: ScreenSetup): View {
   return describe(ws, key, spec, normalize(ws.panels, ws.layouts[key], spec));
 }
 
-/** Platz, auf dem ein Panel in dieser Ansicht liegt. */
-export function placeOf(view: View, panelId: string): string | null {
-  return placeIn(view.arrangement, panelId);
+/** Area, auf der ein Panel in dieser Ansicht liegt. */
+export function areaOf(view: View, panelId: string): string | null {
+  return areaIn(view.arrangement, panelId);
 }
 
 function commit(ws: Workspace, key: string, arr: Arrangement | null): Workspace {
@@ -210,57 +210,58 @@ function change(ws: Workspace, setup: ScreenSetup, fn: (arr: Arrangement, v: Vie
   return commit(ws, v.key, after);
 }
 
-const withPlace = (arr: Arrangement, place: Place): Arrangement => ({ ...arr, places: { ...arr.places, [place.id]: place } });
+const withArea = (arr: Arrangement, area: Area): Arrangement => ({ ...arr, areas: { ...arr.areas, [area.id]: area } });
 const withTree = (arr: Arrangement, tree: T.Node): Arrangement => ({ ...arr, tree });
 
 // ---------------------------------------------------------------- F-09, F-10 anlegen und schließen
 
 /**
- * Panel anlegen. Ohne Platzangabe teilt es sich das größte Panel; zeigt die Bildschirmklasse
- * keinen Platz mehr, kommt es auf den Platz ganz rechts. Mit Platzangabe (F-09) kommt es dort
+ * Panel anlegen. Ohne Angabe der Area teilt es sich das größte Panel; zeigt die Bildschirmklasse
+ * keine Area mehr, kommt es auf die Area ganz rechts. Mit Angabe der Area (F-09) kommt es dort
  * obendrauf. Liegt es in einem Stapel, wird es dort angezeigt. Mehr als STACK_MAX Panels je
- * Platz gehen nicht (F-26): dann bleibt alles, wie es ist.
+ * Area gehen nicht (F-26): dann bleibt alles, wie es ist.
  */
-export function addPanel(ws: Workspace, setup: ScreenSetup, onPlace?: string): Workspace {
+export function addPanel(ws: Workspace, setup: ScreenSetup, onArea?: string): Workspace {
   const meta = newPanel(`Panel ${ws.nextNumber}`);
   const v = viewOf(ws, setup);
   const next: Workspace = { ...ws, panels: [...ws.panels, meta], nextNumber: ws.nextNumber + 1 };
-  const target = onPlace ? v.arrangement?.places[onPlace] : undefined;
+  const target = onArea ? v.arrangement?.areas[onArea] : undefined;
   let arr: Arrangement | null;
   if (target && v.arrangement) {
-    arr = withPlace(v.arrangement, { ...target, panels: [...target.panels, meta.id], front: meta.id });
+    arr = withArea(v.arrangement, { ...target, panels: [...target.panels, meta.id], front: meta.id });
   } else {
     arr = normalize(next.panels, v.arrangement, v.spec);
   }
-  const pid = placeIn(arr, meta.id);
-  const place = pid ? arr!.places[pid] : null;
-  if (!arr || !place) return ws;
-  if (place.panels.length > STACK_MAX) return ws;
-  if (place.panels.length > 1) arr = withPlace(arr, { ...place, front: meta.id });
-  return commit(next, v.key, arr);
+  const pid = areaIn(arr, meta.id);
+  const area = pid ? arr!.areas[pid] : null;
+  if (!arr || !area) return ws;
+  if (area.panels.length > STACK_MAX) return ws;
+  if (area.panels.length > 1) arr = withArea(arr, { ...area, front: meta.id });
+  // F-128: Wer auf eine Area gelegt wird, gehört zu ihr; ein neuer Stapel bekommt einen Namen.
+  return ensureAreaNames(commit(next, v.key, arr), setup);
 }
 
 /** True, wenn kein weiteres Panel mehr dazukommen kann (F-26). */
-export function stackFull(ws: Workspace, setup: ScreenSetup, onPlace?: string): boolean {
-  return addPanel(ws, setup, onPlace) === ws;
+export function stackFull(ws: Workspace, setup: ScreenSetup, onArea?: string): boolean {
+  return addPanel(ws, setup, onArea) === ws;
 }
 
-/** Nimmt ein Panel aus einer Anordnung. Wird ein Platz leer, übernimmt der Nachbar die Fläche (F-02). */
+/** Nimmt ein Panel aus einer Anordnung. Wird eine Area leer, übernimmt der Nachbar die Fläche (F-02). */
 function takeOut(arr: Arrangement, panelId: string): Arrangement | null {
-  const pid = placeIn(arr, panelId);
+  const pid = areaIn(arr, panelId);
   if (!pid) return arr;
-  const place = arr.places[pid];
-  const rest = place.panels.filter((m) => m !== panelId);
+  const area = arr.areas[pid];
+  const rest = area.panels.filter((m) => m !== panelId);
   if (rest.length === 0) {
     const tree = T.removeLeaf(arr.tree, pid);
     if (!tree) return null;
-    const places = { ...arr.places };
-    delete places[pid];
-    return { tree, places };
+    const areas = { ...arr.areas };
+    delete areas[pid];
+    return { tree, areas };
   }
-  const i = place.panels.indexOf(panelId);
-  const front = place.front === panelId ? rest[Math.min(i, rest.length - 1)] : place.front;
-  return withPlace(arr, { ...place, panels: rest, front });
+  const i = area.panels.indexOf(panelId);
+  const front = area.front === panelId ? rest[Math.min(i, rest.length - 1)] : area.front;
+  return withArea(arr, { ...area, panels: rest, front });
 }
 
 /** Panel schließen – in allen Bildschirm-Einstellungen. Im Stapel rückt das nächste Panel nach vorn. */
@@ -276,7 +277,7 @@ export function removePanel(ws: Workspace, id: string): Workspace {
   }
   // F-32: Lesezeichen bleiben in der Gesamtsammlung, nur die Zuordnung zum Panel entfällt.
   const bookmarks = ws.bookmarks.map((b) => (b.panels.includes(id) ? { ...b, panels: b.panels.filter((x) => x !== id) } : b));
-  return { ...ws, panels, layouts, bookmarks };
+  return pruneAreaNames({ ...ws, panels, layouts, bookmarks });
 }
 
 export function renamePanel(ws: Workspace, id: string, name: string): Workspace {
@@ -520,19 +521,123 @@ export function setEmbed(ws: Workspace, url: string, ok: boolean): Workspace {
 /** Panel in seinem Stapel nach vorn holen. */
 export function setStackFront(ws: Workspace, setup: ScreenSetup, panelId: string): Workspace {
   return change(ws, setup, (arr) => {
-    const pid = placeIn(arr, panelId);
-    return pid ? withPlace(arr, { ...arr.places[pid], front: panelId }) : null;
+    const pid = areaIn(arr, panelId);
+    return pid ? withArea(arr, { ...arr.areas[pid], front: panelId }) : null;
   });
 }
 
-/** Wechselt im Stapel eines Platzes um `step` Panels weiter (−1 = zurück); am Ende geht es vorne weiter. */
-export function stepStack(ws: Workspace, setup: ScreenSetup, place: string, step: number): Workspace {
+/** Wechselt im Stapel einer Area um `step` Panels weiter (−1 = zurück); am Ende geht es vorne weiter. */
+export function stepStack(ws: Workspace, setup: ScreenSetup, area: string, step: number): Workspace {
   return change(ws, setup, (arr) => {
-    const p = arr.places[place];
+    const p = arr.areas[area];
     if (!p || p.panels.length < 2) return null;
     const i = Math.max(0, p.panels.indexOf(p.front));
-    return withPlace(arr, { ...p, front: p.panels[(i + step + p.panels.length * 9) % p.panels.length] });
+    return withArea(arr, { ...p, front: p.panels[(i + step + p.panels.length * 9) % p.panels.length] });
   });
+}
+
+// ---------------------------------------------------------------- F-128 Area-Namen
+
+/** Standardname neuer Areas, immer mit laufender Nummer: „NewArea 1“, „NewArea 2“ … */
+export const AREA_DEFAULT = 'NewArea';
+
+/**
+ * Name-Id einer Area: die, zu der die meisten ihrer Panels gehören; bei Gleichstand die des
+ * sichtbaren Panels, sonst die des vordersten. So bleibt der Name auch nach Tauschen stabil.
+ */
+function nameIdOf(ws: Workspace, members: string[], front: string): string | undefined {
+  const known = new Set(ws.areaNames.map((n) => n.id));
+  const byId = new Map(ws.panels.map((p) => [p.id, p]));
+  const of = (m: string) => {
+    const a = byId.get(m)?.areaName;
+    return a && known.has(a) ? a : undefined;
+  };
+  const count = new Map<string, number>();
+  for (const m of members) {
+    const a = of(m);
+    if (a) count.set(a, (count.get(a) ?? 0) + 1);
+  }
+  if (count.size === 0) return undefined;
+  const best = Math.max(...count.values());
+  const f = of(front);
+  if (f && count.get(f) === best) return f;
+  return members.map(of).find((a) => a && count.get(a) === best);
+}
+
+/** Name der Area, auf der eine Anzeige-Stelle liegt; leer bei nur einem Panel oder noch ohne Namen. */
+export function areaLabel(ws: Workspace, slot: Slot): string {
+  if (slot.panels.length < 2) return '';
+  const id = nameIdOf(
+    ws,
+    slot.panels.map((p) => p.id),
+    slot.front.id,
+  );
+  return ws.areaNames.find((n) => n.id === id)?.name ?? '';
+}
+
+/**
+ * Ordnet die Panels einer Area ihrem Namen zu; gibt es noch keinen, entsteht einer (`name` oder
+ * der nächste „NewArea n“). Panels, die schon zu einer anderen Area gehören, behalten ihre –
+ * sonst würde z. B. der Stapel auf dem Smartphone die Namen vom großen Bildschirm überschreiben.
+ */
+function claimArea(ws: Workspace, members: string[], front: string, name?: string): Workspace {
+  let id = nameIdOf(ws, members, front);
+  let next = ws;
+  if (!id) {
+    id = newId();
+    let n = ws.nextArea;
+    let label = name;
+    if (label === undefined) {
+      const taken = new Set(ws.areaNames.map((a) => a.name));
+      while (taken.has(`${AREA_DEFAULT} ${n}`)) n++;
+      label = `${AREA_DEFAULT} ${n}`;
+      n++;
+    }
+    next = { ...ws, areaNames: [...ws.areaNames, { id, name: label }], nextArea: n };
+  } else if (name !== undefined) {
+    const nid = id;
+    if (ws.areaNames.some((a) => a.id === nid && a.name !== name))
+      next = { ...ws, areaNames: ws.areaNames.map((a) => (a.id === nid ? { ...a, name } : a)) };
+  }
+  const known = new Set(next.areaNames.map((a) => a.id));
+  const set = new Set(members);
+  if (next.panels.some((p) => set.has(p.id) && !(p.areaName && known.has(p.areaName)))) {
+    const nid = id;
+    next = { ...next, panels: next.panels.map((p) => (set.has(p.id) && !(p.areaName && known.has(p.areaName)) ? { ...p, areaName: nid } : p)) };
+  }
+  return next;
+}
+
+/**
+ * F-128: Jeder Stapel in dieser Einstellung bekommt einen Namen, falls er noch keinen hat
+ * (z. B. alte Stände oder ein Stapel, der erst durch einen kleineren Bildschirm entsteht).
+ * Ändert sich nichts, kommt dieselbe Arbeitsfläche zurück.
+ */
+export function ensureAreaNames(ws: Workspace, setup: ScreenSetup): Workspace {
+  let next = ws;
+  for (const s of viewOf(ws, setup).slots) {
+    if (s.panels.length < 2) continue;
+    next = claimArea(
+      next,
+      s.panels.map((p) => p.id),
+      s.front.id,
+    );
+  }
+  return next;
+}
+
+/** F-128: Area umbenennen (gilt für alle Bildschirm-Einstellungen). Leerer Name = keine Änderung. */
+export function renameArea(ws: Workspace, setup: ScreenSetup, areaId: string, name: string): Workspace {
+  const trimmed = name.trim();
+  const area = viewOf(ws, setup).arrangement?.areas[areaId];
+  if (!trimmed || !area) return ws;
+  return claimArea(ws, area.panels, area.front, trimmed);
+}
+
+/** Namen, zu denen kein Panel mehr gehört, entfallen. */
+function pruneAreaNames(ws: Workspace): Workspace {
+  const used = new Set(ws.panels.map((p) => p.areaName).filter(Boolean));
+  return ws.areaNames.every((a) => used.has(a.id)) ? ws : { ...ws, areaNames: ws.areaNames.filter((a) => used.has(a.id)) };
 }
 
 // ---------------------------------------------------------------- F-11, F-12
@@ -540,21 +645,21 @@ export function stepStack(ws: Workspace, setup: ScreenSetup, place: string, step
 /** Zwei Panels tauschen (Knopf ⇄): Jedes nimmt die Stelle des anderen ein, auch im Stapel. */
 export function swapPanels(ws: Workspace, setup: ScreenSetup, a: string, b: string): Workspace {
   return change(ws, setup, (arr) => {
-    const pa = placeIn(arr, a);
-    const pb = placeIn(arr, b);
+    const pa = areaIn(arr, a);
+    const pb = areaIn(arr, b);
     if (!pa || !pb || a === b || pa === pb) return null;
-    const put = (p: Place, out: string, inn: string): Place => ({
+    const put = (p: Area, out: string, inn: string): Area => ({
       ...p,
       panels: p.panels.map((m) => (m === out ? inn : m)),
       front: p.front === out ? inn : p.front,
     });
-    return withPlace(withPlace(arr, put(arr.places[pa], a, b)), put(arr.places[pb], b, a));
+    return withArea(withArea(arr, put(arr.areas[pa], a, b)), put(arr.areas[pb], b, a));
   });
 }
 
-/** Ziehen & Ablegen eines Platzes samt Stapel: Mitte = tauschen, Rand = andocken. */
-export function dropSlot(ws: Workspace, setup: ScreenSetup, place: string, target: string, zone: T.Zone): Workspace {
-  return change(ws, setup, (arr) => withTree(arr, T.drop(arr.tree, place, target, zone)));
+/** Ziehen & Ablegen einer Area samt Stapel: Mitte = tauschen, Rand = andocken. */
+export function dropSlot(ws: Workspace, setup: ScreenSetup, area: string, target: string, zone: T.Zone): Workspace {
+  return change(ws, setup, (arr) => withTree(arr, T.drop(arr.tree, area, target, zone)));
 }
 
 /** Übernimmt einen fertigen Teilungsbaum, z. B. nach dem Ziehen einer Kante. */
@@ -565,7 +670,7 @@ export function setLayout(ws: Workspace, setup: ScreenSetup, tree: T.Node): Work
 /** F-12: Voreingestellte Größe als Anteil von Breite und Höhe der Arbeitsfläche. */
 export function setPanelSize(ws: Workspace, setup: ScreenSetup, id: string, wf: number, hf: number, min = DEFAULT_MIN): Workspace {
   return change(ws, setup, (arr) => {
-    const pid = placeIn(arr, id);
+    const pid = areaIn(arr, id);
     return pid ? withTree(arr, T.setLeafSize(arr.tree, pid, wf, hf, min)) : null;
   });
 }
@@ -591,7 +696,7 @@ export function clearPreferred(ws: Workspace, setup: ScreenSetup): Workspace {
 
 /**
  * Ganze Anordnung zurücksetzen: auf die Wunsch-Anordnung, sonst auf die Standard-Verteilung.
- * Es werden keine Panels gelöscht; neu dazugekommene landen auf einem freien Platz oder im Stapel.
+ * Es werden keine Panels gelöscht; neu dazugekommene landen auf einer freien Area oder im Stapel.
  */
 export function resetLayout(ws: Workspace, setup: ScreenSetup): Workspace {
   const key = layoutKey(setup);
@@ -599,18 +704,18 @@ export function resetLayout(ws: Workspace, setup: ScreenSetup): Workspace {
   return commit(ws, key, pref ? normalize(ws.panels, pref, specOf(setup)) : null);
 }
 
-/** Einzelnes Panel zurücksetzen: auf die Größe seines Platzes in der Wunsch-Anordnung, sonst auf Platzgröße. */
+/** Einzelnes Panel zurücksetzen: auf die Größe seiner Area in der Wunsch-Anordnung, sonst auf Area-Größe. */
 export function resetPanel(ws: Workspace, setup: ScreenSetup, id: string, min = DEFAULT_MIN): Workspace {
   const pref = ws.preferred[layoutKey(setup)];
   return change(ws, setup, (arr, v) => {
-    const pid = placeIn(arr, id);
+    const pid = areaIn(arr, id);
     if (!pid) return null;
     const target = (pref && isArrangement(pref) && T.rects(pref.tree).get(pid)) || slotSize(v.spec);
     return withTree(arr, T.setLeafSize(arr.tree, pid, target.w, target.h, min));
   });
 }
 
-/** F-13: Splitscreen – der aktive und die folgenden Plätze in Lesereihenfolge. */
+/** F-13: Splitscreen – der aktive und die folgenden Areas in Lesereihenfolge. */
 export function splitSelection(view: View, activePlace: string | null, count: number): string[] {
   const ordered = T.readingOrder(view.tree);
   if (ordered.length <= count) return ordered;

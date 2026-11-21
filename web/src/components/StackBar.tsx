@@ -9,10 +9,13 @@ export interface StackProps {
   onStep: (step: number) => void;
   /** Panel aus dem Stapel schließen. */
   onRemove: (id: string) => void;
-  /** F-09: neues Panel auf diesen Platz legen; fehlt, wenn der Platz voll ist. */
+  /** F-09: neues Panel auf diese Area legen; fehlt, wenn die Area voll ist. */
   onAdd?: () => void;
   /** F-10: Panel direkt in der Stapel-Leiste umbenennen (Doppelklick). */
   onRename: (id: string, name: string) => void;
+  /** F-128: Name der Area (leer, solange sie noch keinen hat). */
+  areaName: string;
+  onRenameArea: (name: string) => void;
 }
 
 export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, onRename }: StackProps) {

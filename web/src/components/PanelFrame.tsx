@@ -45,7 +45,7 @@ interface Props {
   onCloseTab: (tab: string) => void;
   onSelectTab: (tab: string) => void;
   onMoveTab: (tab: string, to: number) => void;
-  /** F-09: neues Panel auf diesem Platz obendrauf legen. */
+  /** F-09: neues Panel auf dieser Area obendrauf legen. */
   onAddHere: () => void;
   /** F-43: Lässt sich die Seite voraussichtlich nicht einbetten? */
   isBlocked: (url: string) => boolean;
@@ -93,7 +93,7 @@ const SizeIcon = (
 );
 
 /**
- * F-09: Knopf „Panel auf diesen Platz legen“ – ein Plus im Stil des ES-Logos:
+ * F-09: Knopf „Panel auf diese Area legen“ – ein Plus im Stil des ES-Logos:
  * roter Verlauf, silberne Lichtkante (wie der E-Sources-Knopf im Portfolio).
  */
 function StackAddIcon() {
@@ -163,7 +163,9 @@ export function Item(props: { onClick: () => void; children: ReactNode }) {
 }
 
 export function PanelFrame(p: Props) {
-  const [editing, setEditing] = useState(false);
+  /** Was gerade umbenannt wird: der Panelname oder der Name der Area (F-128). */
+  const [editing, setEditing] = useState<null | 'panel' | 'area'>(null);
+  const areaName = p.stack?.areaName ?? '';
   const [draft, setDraft] = useState(p.panel.name);
   const tab = activeTab(p.panel);
   const url = tab.url;
@@ -192,7 +194,7 @@ export function PanelFrame(p: Props) {
   const embedded = window.self !== window.top;
   const base = new URL(import.meta.env.BASE_URL, window.location.origin).href;
   const isSelf = (u: string | undefined) => !!u && embedded && isSelfUrl(u, base);
-  /** Anzahl auf diesem Platz für die Ampel (F-26). */
+  /** Anzahl auf dieser Area für die Ampel (F-26). */
   const load = p.stack ? p.stack.members.length : 1;
   const tabCount = p.panel.tabs.length;
 
@@ -213,13 +215,14 @@ export function PanelFrame(p: Props) {
     if (editing) inputRef.current?.select();
   }, [editing]);
 
-  const startEdit = () => {
-    setDraft(p.panel.name);
-    setEditing(true);
+  const startEdit = (what: 'panel' | 'area' = 'panel') => {
+    setDraft(what === 'area' ? areaName : p.panel.name);
+    setEditing(what);
   };
   const commit = () => {
-    p.onRename(draft);
-    setEditing(false);
+    if (editing === 'area') p.stack?.onRenameArea(draft);
+    else p.onRename(draft);
+    setEditing(null);
   };
   const copyUrl = async () => {
     if (!url) return;
@@ -357,8 +360,11 @@ export function PanelFrame(p: Props) {
             onPointerDown={(e) => {
               if (!editing && e.button === 0) p.onDragStart?.(e);
             }}
-            onDoubleClick={startEdit}
-            title={p.onDragStart ? 'Ziehen: auf die Mitte eines Panels = tauschen, an dessen Rand = andocken · Doppelklick zum Umbenennen' : 'Doppelklick zum Umbenennen'}
+            onDoubleClick={() => startEdit('panel')}
+            title={
+              (areaName ? `Area „${areaName}“ · Panel „${p.panel.name}“ · ` : '') +
+              (p.onDragStart ? 'Ziehen: auf die Mitte eines Panels = tauschen, an dessen Rand = andocken · Doppelklick zum Umbenennen' : 'Doppelklick zum Umbenennen')
+            }
           >
             {editing ? (
               <input
@@ -369,10 +375,24 @@ export function PanelFrame(p: Props) {
                 onBlur={commit}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') commit();
-                  if (e.key === 'Escape') setEditing(false);
+                  if (e.key === 'Escape') setEditing(null);
                 }}
-                aria-label="Panelname"
+                aria-label={editing === 'area' ? 'Name der Area' : 'Panelname'}
               />
+            ) : areaName ? (
+              // F-128: im Stapel groß die Area, klein darunter das aktive Panel
+              <>
+                <span
+                  className="win__area"
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    startEdit('area');
+                  }}
+                >
+                  {areaName}
+                </span>
+                <span className="win__name win__name--sub">{p.panel.name}</span>
+              </>
             ) : (
               <span className="win__name">{p.panel.name}</span>
             )}
@@ -395,7 +415,8 @@ export function PanelFrame(p: Props) {
                   <Item onClick={run(() => p.dispatch({ type: 'rulerPanel', id: p.panel.id }))}>
                     {rulerShown(p.ws, p.panel) ? '▭ Lineal in diesem Panel ausblenden' : '▭ Lineal in diesem Panel zeigen'}
                   </Item>
-                  <Item onClick={run(startEdit)}>✎ Umbenennen</Item>
+                  <Item onClick={run(() => startEdit('panel'))}>✎ Panel umbenennen</Item>
+                  {p.stack && <Item onClick={run(() => startEdit('area'))}>✎ Area umbenennen</Item>}
                   {!p.maximized && <Item onClick={run(p.onStartSwap)}>⇄ Mit anderem Panel tauschen</Item>}
                   {!p.maximized && <Item onClick={run(p.onReset)}>↺ Panel zurücksetzen</Item>}
                   <Item onClick={run(p.onToggleMaximize)}>{p.maximized ? '⤡ Verkleinern (Esc)' : '⤢ Maximieren'}</Item>

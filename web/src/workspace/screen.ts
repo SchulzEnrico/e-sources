@@ -94,7 +94,7 @@ export function specOf(s: ScreenSetup): ScreenSpec {
   return { capacity: c.capacity, lines, perLine, orientation: s.orientation, aspect };
 }
 
-/** Größe eines Platzes bei gleichmäßiger Verteilung (Anteil von Breite und Höhe). */
+/** Größe einer Area bei gleichmäßiger Verteilung (Anteil von Breite und Höhe). */
 export function slotSize(spec: ScreenSpec): { w: number; h: number } {
   return spec.orientation === 'landscape'
     ? { w: 1 / spec.perLine, h: 1 / spec.lines }

@@ -3,12 +3,13 @@ import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } f
 
 /**
  * Stufe 1: Die Arbeitsfläche liegt nur im Browser (localStorage). Später kommt der Server dazu.
+ * v7: Plätze heißen Areas (`areas` statt `places`) und haben Namen (F-128).
  * v6: dazu Lesezeichen und Kategorien (F-30 bis F-32). Ältere Stände werden beim ersten Laden
- * umgewandelt: v5 bekommt eine leere Sammlung; bei v4 bleiben Panels und Seiten, die Anordnung
- * entsteht neu.
+ * umgewandelt: v6 bekommt `areas`, v5 eine leere Sammlung; bei v4 bleiben Panels und Seiten, die
+ * Anordnung entsteht neu.
  */
-const KEY = 'esource.workspace.v6';
-const OLD_KEYS = ['esource.workspace.v5', 'esource.workspace.v4'];
+const KEY = 'esource.workspace.v7';
+const OLD_KEYS = ['esource.workspace.v6', 'esource.workspace.v5', 'esource.workspace.v4'];
 
 const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -56,14 +57,21 @@ function parsePanel(v: unknown): PanelMeta | null {
   if (typeof sphere === 'string') panel.sphere = sphere;
   if (typeof v.scenario === 'string') panel.scenario = v.scenario;
   if (typeof v.ruler === 'boolean') panel.ruler = v.ruler;
+  if (typeof v.areaName === 'string') panel.areaName = v.areaName;
   return panel;
 }
 
-/** Anordnungen im Format v5; ältere (reiner Baum) entfallen und entstehen beim Anzeigen neu. */
+/**
+ * Anordnungen ab Format v5; bis v6 hießen die Areas `places`. Ältere (reiner Baum) entfallen und
+ * entstehen beim Anzeigen neu.
+ */
 function arrangements(v: unknown): Record<string, Arrangement> {
   const out: Record<string, Arrangement> = {};
   if (!isObj(v)) return out;
-  for (const [k, a] of Object.entries(v)) if (isArrangement(a)) out[k] = a;
+  for (const [k, a] of Object.entries(v)) {
+    const arr = isObj(a) && a.areas === undefined && isObj(a.places) ? { tree: a.tree, areas: a.places } : a;
+    if (isArrangement(arr)) out[k] = arr;
+  }
   return out;
 }
 
@@ -109,6 +117,10 @@ export function parseWorkspace(data: unknown): Workspace | null {
     new Set((panels as PanelMeta[]).map((p) => p.id)),
     new Set(categories.map((c) => c.id)),
   );
+  // F-128: Namen der Areas; Zuordnungen zu unbekannten Namen fallen weg.
+  const areaNames = namedList(data.areaNames);
+  const nameIds = new Set(areaNames.map((a) => a.id));
+  for (const p of panels as PanelMeta[]) if (p.areaName && !nameIds.has(p.areaName)) delete p.areaName;
   return {
     panels: panels as PanelMeta[],
     layouts: arrangements(data.layouts),
@@ -127,6 +139,8 @@ export function parseWorkspace(data: unknown): Workspace | null {
           color: isNum(data.ruler.color) && (data.ruler.color as number) >= 0 && (data.ruler.color as number) < RULER_COLORS.length ? Math.floor(data.ruler.color as number) : 0,
         }
       : { ...RULER_DEFAULT },
+    areaNames,
+    nextArea: isNum(data.nextArea) && (data.nextArea as number) >= 1 ? Math.floor(data.nextArea as number) : areaNames.length + 1,
   };
 }
 

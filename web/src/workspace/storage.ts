@@ -31,24 +31,28 @@ function treeMap(v: unknown): Record<string, Node> {
   return out;
 }
 
+/** Prüft gespeicherte oder importierte Daten (F-121); null, wenn es keine Arbeitsfläche ist. */
+export function parseWorkspace(data: unknown): Workspace | null {
+  if (!isObj(data) || !Array.isArray(data.panels) || !data.panels.every(isMeta)) return null;
+  const stackFront: Record<string, string> = {};
+  if (isObj(data.stackFront)) for (const [k, v] of Object.entries(data.stackFront)) if (typeof v === 'string') stackFront[k] = v;
+  const lines: Record<string, 1 | 2> = {};
+  if (isObj(data.lines)) for (const [k, v] of Object.entries(data.lines)) if (v === 1 || v === 2) lines[k] = v;
+  return {
+    panels: data.panels,
+    layouts: treeMap(data.layouts),
+    preferred: treeMap(data.preferred),
+    stackFront,
+    lines,
+    nextNumber: isNum(data.nextNumber) ? (data.nextNumber as number) : data.panels.length + 1,
+  };
+}
+
 export function loadWorkspace(): Workspace {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return defaultWorkspace();
-    const data: unknown = JSON.parse(raw);
-    if (!isObj(data) || !Array.isArray(data.panels) || !data.panels.every(isMeta)) return defaultWorkspace();
-    const stackFront: Record<string, string> = {};
-    if (isObj(data.stackFront)) for (const [k, v] of Object.entries(data.stackFront)) if (typeof v === 'string') stackFront[k] = v;
-    const lines: Record<string, 1 | 2> = {};
-    if (isObj(data.lines)) for (const [k, v] of Object.entries(data.lines)) if (v === 1 || v === 2) lines[k] = v;
-    return {
-      panels: data.panels,
-      layouts: treeMap(data.layouts),
-      preferred: treeMap(data.preferred),
-      stackFront,
-      lines,
-      nextNumber: isNum(data.nextNumber) ? (data.nextNumber as number) : data.panels.length + 1,
-    };
+    return parseWorkspace(JSON.parse(raw)) ?? defaultWorkspace();
   } catch {
     return defaultWorkspace();
   }
@@ -60,10 +64,58 @@ export function loadWorkspace(): Workspace {
  */
 const EMBEDDED = typeof window !== 'undefined' && window.self !== window.top;
 
-export function saveWorkspace(ws: Workspace): void {
+/** Zeitpunkte für die Abgleich-Regel (F-121), in Millisekunden. */
+export interface SyncMeta {
+  /** Letzte Änderung der Arbeitsfläche auf diesem Gerät. */
+  changedAt: number;
+  /** Letzter Export oder Import auf diesem Gerät. */
+  syncedAt: number;
+}
+const META_KEY = 'esource.sync.v1';
+
+export function loadSyncMeta(): SyncMeta {
+  try {
+    const m: unknown = JSON.parse(localStorage.getItem(META_KEY) ?? 'null');
+    if (isObj(m) && isNum(m.changedAt) && isNum(m.syncedAt)) return { changedAt: m.changedAt as number, syncedAt: m.syncedAt as number };
+  } catch {
+    // unlesbar: wie neu
+  }
+  return { changedAt: 0, syncedAt: 0 };
+}
+
+export function saveSyncMeta(m: SyncMeta): void {
+  if (EMBEDDED) return;
+  try {
+    localStorage.setItem(META_KEY, JSON.stringify(m));
+  } catch {
+    // ohne Speicher keine Regel, Arbeitsfläche läuft weiter
+  }
+}
+
+/**
+ * F-121: Importierte Arbeitsfläche speichern und als abgeglichen markieren. Danach findet das
+ * automatische Speichern keinen Unterschied mehr und zählt den Import nicht als Änderung.
+ */
+export function storeImported(ws: Workspace): void {
   if (EMBEDDED) return;
   try {
     localStorage.setItem(KEY, JSON.stringify(ws));
+    const now = Date.now();
+    saveSyncMeta({ changedAt: now, syncedAt: now });
+  } catch {
+    // ohne Speicher läuft die Arbeitsfläche trotzdem weiter
+  }
+}
+
+export function saveWorkspace(ws: Workspace): void {
+  if (EMBEDDED) return;
+  try {
+    const next = JSON.stringify(ws);
+    const prev = localStorage.getItem(KEY);
+    if (prev === next) return; // nichts geändert (z. B. direkt nach dem Laden)
+    localStorage.setItem(KEY, next);
+    // Der allererste Stand (leeres Gerät) zählt nicht als Änderung, sonst fragt der erste Import unnötig.
+    if (prev !== null) saveSyncMeta({ ...loadSyncMeta(), changedAt: Date.now() });
   } catch {
     // Speicher voll oder gesperrt (z. B. privater Modus): Arbeitsfläche läuft weiter, nur ohne Speichern.
   }

@@ -13,6 +13,8 @@ import {
 } from './workspace/screen';
 import * as T from './workspace/tree';
 import { STACK_ID, type PanelMeta, type Slot } from './workspace/types';
+import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
+import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { useWorkspace } from './workspace/useWorkspace';
 import { FOCUS_WARN, STACK_MAX, addPanel as addTo, describe, setupFor, slotOf, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
@@ -67,6 +69,7 @@ export default function App() {
   const [flash, setFlash] = useState<string | null>(null);
   /** Wichtiger Hinweis als Dialog, der bestätigt werden muss (F-26). */
   const [notice, setNotice] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   const [clsOverride, setClsOverride] = useState<ScreenClassId | 'auto'>('auto');
   const [oriOverride, setOriOverride] = useState<Orientation | 'auto'>('auto');
   /** Anordnung während eine Kante gezogen wird (wird beim Loslassen übernommen). */
@@ -442,6 +445,45 @@ export default function App() {
   const canTwoLines = allowsTwoLines(cls);
   const lineWord = orientation === 'landscape' ? ['einzeilig', 'zweizeilig'] : ['einspaltig', 'zweispaltig'];
 
+  // F-121: Arbeitsfläche als JSON-Datei zwischen Geräten weitergeben.
+  const device = () => deviceLabel(navigator.userAgent, navigator.maxTouchPoints > 1);
+  const exportWorkspace = () => {
+    const file = toTransferFile(ws, device());
+    const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = FILE_NAME;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+    saveSyncMeta({ ...loadSyncMeta(), syncedAt: Date.now() });
+    notify(`Arbeitsfläche als ${FILE_NAME} gespeichert. Auf dem anderen Gerät „Importieren“ wählen.`);
+  };
+  const importWorkspace = async (input: HTMLInputElement) => {
+    const chosen = input.files?.[0];
+    input.value = ''; // dieselbe Datei darf später noch einmal gewählt werden
+    if (!chosen) return;
+    const result = readTransferFile(await chosen.text());
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    const { file } = result;
+    const when = new Date(file.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+    if (
+      needsConfirm(loadSyncMeta(), file.savedAt) &&
+      !window.confirm(`Die Arbeitsfläche auf diesem Gerät ist neuer als die Datei (${file.device}, ${when}). Trotzdem ersetzen?`)
+    )
+      return;
+    storeImported(file.workspace);
+    dispatch({ type: 'replace', ws: file.workspace });
+    setActive(file.workspace.panels[0]?.id ?? null);
+    setMode({ kind: 'area' });
+    notify(`Arbeitsfläche übernommen (${file.device}, ${when}).`);
+  };
+
   return (
     <div className="app">
       <header className="toolbar">
@@ -549,6 +591,20 @@ export default function App() {
         </span>
         <span className="grow" />
         {swapFrom && <span className="hint">Ziel-Panel anklicken · Esc bricht ab</span>}
+        <span className="sep" />
+        <button type="button" onClick={exportWorkspace} title="Arbeitsfläche als Datei speichern, um sie auf einem anderen Gerät zu laden">
+          Exportieren
+        </button>
+        <button type="button" onClick={() => importRef.current?.click()} title="Arbeitsfläche aus einer exportierten Datei laden">
+          Importieren
+        </button>
+        <input
+          ref={importRef}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={(e) => void importWorkspace(e.currentTarget)}
+        />
       </header>
       {flash && !swapFrom && (
         <div className="toast" role="status">

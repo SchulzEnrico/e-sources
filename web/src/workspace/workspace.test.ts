@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { type ScreenSetup, detectScreen, specOf } from './screen';
 import * as T from './tree';
 import { STACK_ID, type Workspace } from './types';
+import * as X from './transfer';
 import * as W from './workspace';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
@@ -415,6 +416,12 @@ describe('Vorläufige Adresszeile', () => {
     expect(p().url).toBe('https://d.de');
     expect(W.isSelfUrl('http://localhost:2910/x', 'http://localhost:2910')).toBe(true);
     expect(W.isSelfUrl('https://a.de', 'http://localhost:2910')).toBe(false);
+    // F-120: Portfolio und E-Source teilen sich die Domain, nur der Pfad unterscheidet sie.
+    const base = 'https://schulzenrico.github.io/e-sources/';
+    expect(W.isSelfUrl('https://schulzenrico.github.io/e-sources/', base)).toBe(true);
+    expect(W.isSelfUrl('https://schulzenrico.github.io/e-sources', base)).toBe(true);
+    expect(W.isSelfUrl('https://schulzenrico.github.io/', base)).toBe(false);
+    expect(W.isSelfUrl('https://schulzenrico.github.io/e-sources-alt/', base)).toBe(false);
   });
 });
 
@@ -441,3 +448,46 @@ describe('Ampel (F-26)', () => {
   });
 });
 
+
+describe('F-121 Abgleich per JSON-Datei', () => {
+  const ws = W.defaultWorkspace();
+
+  it('Export und Import ergeben dieselbe Arbeitsfläche', () => {
+    const file = X.toTransferFile(ws, 'Mac', new Date('2026-11-21T14:00:00Z'));
+    const back = X.readTransferFile(JSON.stringify(file));
+    expect(back.ok).toBe(true);
+    if (back.ok) {
+      expect(back.file.workspace).toEqual(ws);
+      expect(back.file.device).toBe('Mac');
+      expect(back.file.savedAt).toBe('2026-11-21T14:00:00.000Z');
+    }
+  });
+
+  it('fremde oder kaputte Dateien werden abgelehnt', () => {
+    expect(X.readTransferFile('kein json').ok).toBe(false);
+    expect(X.readTransferFile(JSON.stringify({ format: 'anderes' })).ok).toBe(false);
+    const neuer = { ...X.toTransferFile(ws, 'Mac'), version: X.FILE_VERSION + 1 };
+    expect(X.readTransferFile(JSON.stringify(neuer)).ok).toBe(false);
+    const kaputt = { ...X.toTransferFile(ws, 'Mac'), workspace: { panels: 'x' } };
+    expect(X.readTransferFile(JSON.stringify(kaputt)).ok).toBe(false);
+  });
+
+  it('Regel: nur fragen, wenn dieses Gerät seit dem letzten Abgleich neuer ist als die Datei', () => {
+    const t = (s: string) => Date.parse(s);
+    const file = '2026-11-21T12:00:00.000Z';
+    // nichts geändert seit dem letzten Abgleich
+    expect(X.needsConfirm({ changedAt: t('2026-11-21T13:00:00Z'), syncedAt: t('2026-11-21T13:30:00Z') }, file)).toBe(false);
+    // geändert, aber die Datei ist neuer
+    expect(X.needsConfirm({ changedAt: t('2026-11-21T11:00:00Z'), syncedAt: 0 }, file)).toBe(false);
+    // geändert und neuer als die Datei
+    expect(X.needsConfirm({ changedAt: t('2026-11-21T13:00:00Z'), syncedAt: t('2026-11-21T10:00:00Z') }, file)).toBe(true);
+    // neues Gerät ohne Änderungen
+    expect(X.needsConfirm({ changedAt: 0, syncedAt: 0 }, file)).toBe(false);
+  });
+
+  it('Gerätebezeichnung', () => {
+    expect(X.deviceLabel('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', true)).toBe('iPhone');
+    expect(X.deviceLabel('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', true)).toBe('iPad');
+    expect(X.deviceLabel('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', false)).toBe('Mac');
+  });
+});

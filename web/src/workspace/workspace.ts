@@ -293,10 +293,17 @@ export function setHome(ws: Workspace, id: string): Workspace {
   return mapPanel(ws, id, (p) => (p.url ? { ...p, home: p.url } : p));
 }
 
-/** True, wenn die Adresse E-Source selbst ist (würde sich endlos verschachteln). */
-export function isSelfUrl(url: string, origin: string): boolean {
+/**
+ * True, wenn die Adresse E-Source selbst ist (würde sich endlos verschachteln).
+ * `base` ist die Adresse der App, z. B. https://schulzenrico.github.io/e-sources/ (F-120):
+ * Das Portfolio unter derselben Domain ist dann nicht E-Source.
+ */
+export function isSelfUrl(url: string, base: string): boolean {
   try {
-    return new URL(url).origin === origin;
+    const u = new URL(url);
+    const b = new URL(base);
+    const path = b.pathname.endsWith('/') ? b.pathname : `${b.pathname}/`;
+    return u.origin === b.origin && `${u.pathname.replace(/\/$/, '')}/`.startsWith(path);
   } catch {
     return false;
   }

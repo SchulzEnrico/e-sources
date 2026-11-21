@@ -26,7 +26,9 @@ export type Action =
   | ({ type: 'resetLayout' } & S)
   | ({ type: 'stackFront'; id: string } & S)
   | ({ type: 'stackStep'; step: number } & S)
-  | { type: 'setLines'; cls: ScreenClassId; orientation: Orientation; lines: Lines };
+  | { type: 'setLines'; cls: ScreenClassId; orientation: Orientation; lines: Lines }
+  /** F-121: ganze Arbeitsfläche durch eine importierte ersetzen. */
+  | { type: 'replace'; ws: Workspace };
 
 export function reducer(ws: Workspace, a: Action): Workspace {
   switch (a.type) {
@@ -68,6 +70,8 @@ export function reducer(ws: Workspace, a: Action): Workspace {
       return W.stepStack(ws, a.setup, a.step);
     case 'setLines':
       return W.setLines(ws, a.cls, a.orientation, a.lines);
+    case 'replace':
+      return a.ws;
   }
 }
 

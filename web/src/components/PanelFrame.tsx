@@ -110,7 +110,7 @@ export function PanelFrame(p: Props) {
   // E-Source darf sich selbst laden (F-18), aber nur auf oberster Ebene: Eine eingebettete
   // E-Source lädt sich nicht noch einmal, sonst verschachtelt es sich endlos.
   const embedded = window.self !== window.top;
-  const self = !!url && embedded && isSelfUrl(url, window.location.origin);
+  const self = !!url && embedded && isSelfUrl(url, new URL(import.meta.env.BASE_URL, window.location.origin).href);
   /** Anzahl auf diesem Platz für die Ampel (F-26); Tabs folgen. */
   const load = p.stack ? p.stack.members.length : 1;
 

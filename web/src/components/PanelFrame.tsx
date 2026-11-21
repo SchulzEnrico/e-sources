@@ -3,8 +3,9 @@ import type { Bookmark, PanelMeta, Workspace } from '../workspace/types';
 import type { Action } from '../workspace/useWorkspace';
 import { bookmarkOf, collectionSize } from '../workspace/bookmarks';
 import { BookmarkEditor, CollectionDrawer, CollectionIcon, draftFor } from './Bookmarks';
-import { FOCUS_WARN, TAB_MAX, activeTab, canGoBack, canGoForward, hostOf, isSelfUrl, loadColor, tabLabel } from '../workspace/workspace';
+import { FOCUS_WARN, TAB_MAX, rulerShown, activeTab, canGoBack, canGoForward, hostOf, isSelfUrl, loadColor, tabLabel } from '../workspace/workspace';
 import { StackBar, type StackProps, useSwipe } from './StackBar';
+import { Ruler, RulerIcon } from './Ruler';
 
 /** Voreingestellte Größen (F-12) als Anteil von Breite und Höhe der Arbeitsfläche. */
 export const SIZE_PRESETS: { label: string; w: number; h: number }[] = [
@@ -314,6 +315,17 @@ export function PanelFrame(p: Props) {
               </button>
             )}
           </form>
+          {/* F-15: Lineal nur für dieses Panel */}
+          <button
+            type="button"
+            className={rulerShown(p.ws, p.panel) ? 'win__ruler win__ruler--on' : 'win__ruler'}
+            onClick={() => p.dispatch({ type: 'rulerPanel', id: p.panel.id })}
+            title={rulerShown(p.ws, p.panel) ? 'Lineal in diesem Panel ausblenden' : 'Lineal in diesem Panel zeigen'}
+            aria-label="Lineal in diesem Panel"
+            aria-pressed={rulerShown(p.ws, p.panel)}
+          >
+            {RulerIcon}
+          </button>
           <button
             type="button"
             className="win__max"
@@ -380,6 +392,9 @@ export function PanelFrame(p: Props) {
                   <Item onClick={run(addTab)}>＋ Neuer Tab</Item>
                   <Item onClick={run(p.onAddHere)}>▣ Neues Panel auf „{p.panel.name}“ legen</Item>
                   <li className="menu__sep" role="separator" />
+                  <Item onClick={run(() => p.dispatch({ type: 'rulerPanel', id: p.panel.id }))}>
+                    {rulerShown(p.ws, p.panel) ? '▭ Lineal in diesem Panel ausblenden' : '▭ Lineal in diesem Panel zeigen'}
+                  </Item>
                   <Item onClick={run(startEdit)}>✎ Umbenennen</Item>
                   {!p.maximized && <Item onClick={run(p.onStartSwap)}>⇄ Mit anderem Panel tauschen</Item>}
                   {!p.maximized && <Item onClick={run(p.onReset)}>↺ Panel zurücksetzen</Item>}
@@ -407,7 +422,7 @@ export function PanelFrame(p: Props) {
           </button>
         </header>
         {/* F-21, F-22: Tabs unter der Kopfleiste (die Kopfleiste bleibt der Griff zum Verschieben), Ampel an der unteren Kante (F-26) */}
-        <div className="tabs" role="tablist" aria-label="Tabs" style={{ '--tabload': loadColor(tabCount) } as CSSProperties}>
+        <div className={p.stack ? 'tabs tabs--stacked' : 'tabs'} role="tablist" aria-label="Tabs" style={{ '--tabload': loadColor(tabCount) } as CSSProperties}>
           {p.panel.tabs.map((t, i) => (
             <div
               key={t.id}
@@ -503,6 +518,13 @@ export function PanelFrame(p: Props) {
               )}
             </>
           ) : null}
+          {rulerShown(p.ws, p.panel) && (
+            <Ruler
+              settings={p.ws.ruler}
+              onStyle={(change) => p.dispatch({ type: 'rulerStyle', ...change })}
+              onClose={() => p.dispatch({ type: 'rulerPanel', id: p.panel.id })}
+            />
+          )}
           {drawer?.kind === 'collection' && (
             <CollectionDrawer
               ws={p.ws}

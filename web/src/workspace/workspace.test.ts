@@ -602,12 +602,19 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const ws = W.defaultWorkspace();
     const withAreas: Workspace = {
       ...ws,
-      areas: [{ id: 'privat', name: 'Privat' }],
+      spheres: [{ id: 'privat', name: 'Privat' }],
       scenarios: [{ id: 'recherche', name: 'Recherche' }],
-      panels: ws.panels.map((p, i) => (i === 0 ? { ...p, area: 'privat', scenario: 'recherche' } : p)),
+      panels: ws.panels.map((p, i) => (i === 0 ? { ...p, sphere: 'privat', scenario: 'recherche' } : p)),
     };
     const back = parseWorkspace(JSON.parse(JSON.stringify(withAreas)))!;
     expect(back).toEqual(withAreas);
+    // bis V08 hieß die Sphere „area“
+    const alt = JSON.parse(JSON.stringify(withAreas));
+    alt.areas = alt.spheres;
+    delete alt.spheres;
+    alt.panels[0].area = alt.panels[0].sphere;
+    delete alt.panels[0].sphere;
+    expect(parseWorkspace(alt)).toEqual(withAreas);
   });
 
   it('gespeicherte Anordnung mit Plätzen bleibt beim Laden erhalten', () => {
@@ -745,5 +752,35 @@ describe('F-30 bis F-32 Lesezeichen', () => {
     const up = parseWorkspace(v5)!;
     expect(up.bookmarks).toEqual([]);
     expect(up.categories).toEqual([]);
+  });
+});
+
+describe('F-15, F-125 Lineal', () => {
+  it('Knopf für alle schaltet alle, einzelne Panels lassen sich zusätzlich schalten', () => {
+    let ws = W.defaultWorkspace();
+    const [a, b] = ws.panels;
+    expect(W.rulerShown(ws, a)).toBe(false);
+    ws = W.toggleRulerPanel(ws, a.id);
+    expect(W.rulerShown(ws, ws.panels[0])).toBe(true);
+    expect(W.rulerShown(ws, ws.panels[1])).toBe(false);
+    ws = W.toggleRulerAll(ws);
+    expect(ws.panels.every((p) => W.rulerShown(ws, p))).toBe(true);
+    expect(ws.panels[0].ruler).toBe(undefined); // Wahl am Panel aufgehoben
+    ws = W.toggleRulerPanel(ws, b.id);
+    expect(W.rulerShown(ws, ws.panels[1])).toBe(false);
+    ws = W.toggleRulerPanel(ws, b.id);
+    expect(ws.panels[1].ruler).toBe(undefined); // wieder wie „alle“
+    ws = W.setRulerStyle(ws, { color: -1, labels: false });
+    expect(ws.ruler).toEqual({ on: true, labels: false, color: W.RULER_COLORS.length - 1 });
+    expect(W.setRulerStyle(ws, { color: W.RULER_COLORS.length }).ruler.color).toBe(0);
+  });
+
+  it('bleibt beim Speichern erhalten; ältere Stände bekommen das Lineal aus', () => {
+    let ws = W.toggleRulerPanel(W.setRulerStyle(W.defaultWorkspace(), { color: 3 }), W.defaultWorkspace().panels[0].id);
+    ws = W.toggleRulerPanel(ws, ws.panels[1].id);
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))).toEqual(ws);
+    const old = JSON.parse(JSON.stringify(W.defaultWorkspace()));
+    delete old.ruler;
+    expect(parseWorkspace(old)!.ruler).toEqual(W.RULER_DEFAULT);
   });
 });

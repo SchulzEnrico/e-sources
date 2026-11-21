@@ -24,13 +24,22 @@ export interface PanelMeta {
   activeTab: string;
   /** Startseite für den Home-Knopf, gilt für alle Tabs des Panels; ohne Angabe die erste geöffnete Adresse. */
   home?: string;
-  /** F-116 (vorbereitet): Bereich, z. B. Privat oder Geschäftlich (Id aus Workspace.areas). */
-  area?: string;
+  /** F-116 (vorbereitet): Sphere, z. B. Privat oder Geschäftlich (Id aus Workspace.spheres). */
+  sphere?: string;
   /** F-116 (vorbereitet): Szenario, zu dem das Panel gehört (Id aus Workspace.scenarios). */
   scenario?: string;
+  /** F-15, F-125: Lineal nur für dieses Panel ein (true) oder aus (false); fehlt = wie Workspace.ruler.on. */
+  ruler?: boolean;
 }
 
-/** F-116 (vorbereitet): ein Bereich oder Szenario mit Namen. */
+/** F-125: Lineal für alle Panels, mit Beschriftung und Strichfarbe (Index in RULER_COLORS). */
+export interface RulerSettings {
+  on: boolean;
+  labels: boolean;
+  color: number;
+}
+
+/** F-116 (vorbereitet): eine Sphere oder ein Szenario mit Namen. */
 export interface Named {
   id: string;
   name: string;
@@ -92,8 +101,8 @@ export interface Workspace {
   lines: Record<string, 1 | 2>;
   /** Laufende Nummer für den Standardnamen neuer Panels. */
   nextNumber: number;
-  /** F-116 (vorbereitet): Bereiche. */
-  areas: Named[];
+  /** F-116 (vorbereitet): Spheres (Privat, Geschäftlich, Schule …). */
+  spheres: Named[];
   /** F-116 (vorbereitet): Szenarien. */
   scenarios: Named[];
   /**
@@ -105,4 +114,6 @@ export interface Workspace {
   bookmarks: Bookmark[];
   /** F-20: frei angelegte Kategorien, in Reihenfolge. */
   categories: Named[];
+  /** F-125: Lineal (F-15). */
+  ruler: RulerSettings;
 }

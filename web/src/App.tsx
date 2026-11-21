@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import './App.css';
 import logoUrl from './assets/e-sources-logo.svg';
 import { Item, Menu, PanelFrame } from './components/PanelFrame';
+import { RulerIcon } from './components/Ruler';
 import {
   type Lines,
   type Orientation,
@@ -362,6 +363,7 @@ export default function App() {
                 onStep: (step) => dispatch({ type: 'stackStep', setup, place: slotOfMeta.id, step }),
                 onRemove: (id) => dispatch({ type: 'remove', id }),
                 onAdd: full ? undefined : () => addPanel(slotOfMeta.id),
+                onRename: (id, name) => dispatch({ type: 'rename', id, name }),
               }
             : undefined
         }
@@ -593,6 +595,18 @@ export default function App() {
             </button>
           );
         })()}
+        {/* F-125: Lineal für alle Panels */}
+        <button
+          type="button"
+          className={ws.ruler.on ? 'on tb-view' : 'tb-view'}
+          onClick={() => dispatch({ type: 'rulerAll' })}
+          title={ws.ruler.on ? 'Lineal in allen Panels ausblenden' : 'Lineal in allen Panels zeigen (einzelne Panels zusätzlich im Menü ⋮)'}
+          aria-label="Lineal für alle Panels"
+          aria-pressed={ws.ruler.on}
+        >
+          {RulerIcon}
+          Lineal
+        </button>
         {!onArea && (
           <button type="button" onClick={() => setMode({ kind: 'area' })} title="Zurück zur Arbeitsfläche (Esc)">
             Zur Arbeitsfläche

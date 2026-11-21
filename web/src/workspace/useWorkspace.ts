@@ -45,6 +45,10 @@ export type Action =
   | { type: 'renameCategory'; id: string; name: string }
   | { type: 'deleteCategory'; id: string }
   | { type: 'moveCategory'; id: string; to: number }
+  /** F-15, F-125: Lineal. */
+  | { type: 'rulerAll' }
+  | { type: 'rulerPanel'; id: string }
+  | { type: 'rulerStyle'; labels?: boolean; color?: number }
   /** F-121: ganze Arbeitsfläche durch eine importierte ersetzen. */
   | { type: 'replace'; ws: Workspace };
 
@@ -118,6 +122,12 @@ export function reducer(ws: Workspace, a: Action): Workspace {
       return B.deleteCategory(ws, a.id);
     case 'moveCategory':
       return B.moveCategory(ws, a.id, a.to);
+    case 'rulerAll':
+      return W.toggleRulerAll(ws);
+    case 'rulerPanel':
+      return W.toggleRulerPanel(ws, a.id);
+    case 'rulerStyle':
+      return W.setRulerStyle(ws, { labels: a.labels, color: a.color });
     case 'replace':
       return a.ws;
   }

@@ -1,5 +1,5 @@
 import type { Arrangement, Bookmark, Named, PanelMeta, Tab, Workspace } from './types';
-import { defaultWorkspace, isArrangement, newId } from './workspace';
+import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } from './workspace';
 
 /**
  * Stufe 1: Die Arbeitsfläche liegt nur im Browser (localStorage). Später kommt der Server dazu.
@@ -51,8 +51,11 @@ function parsePanel(v: unknown): PanelMeta | null {
     activeTab: typeof v.activeTab === 'string' && tabs.some((t) => t.id === v.activeTab) ? v.activeTab : tabs[0].id,
   };
   if (typeof v.home === 'string') panel.home = v.home;
-  if (typeof v.area === 'string') panel.area = v.area;
+  // F-116: bis V08 hieß die Sphere „area“
+  const sphere = v.sphere ?? v.area;
+  if (typeof sphere === 'string') panel.sphere = sphere;
   if (typeof v.scenario === 'string') panel.scenario = v.scenario;
+  if (typeof v.ruler === 'boolean') panel.ruler = v.ruler;
   return panel;
 }
 
@@ -112,11 +115,18 @@ export function parseWorkspace(data: unknown): Workspace | null {
     preferred: arrangements(data.preferred),
     lines,
     nextNumber: isNum(data.nextNumber) ? (data.nextNumber as number) : panels.length + 1,
-    areas: namedList(data.areas),
+    spheres: namedList(data.spheres ?? data.areas),
     scenarios: namedList(data.scenarios),
     embed,
     bookmarks,
     categories,
+    ruler: isObj(data.ruler)
+      ? {
+          on: data.ruler.on === true,
+          labels: data.ruler.labels !== false,
+          color: isNum(data.ruler.color) && (data.ruler.color as number) >= 0 && (data.ruler.color as number) < RULER_COLORS.length ? Math.floor(data.ruler.color as number) : 0,
+        }
+      : { ...RULER_DEFAULT },
   };
 }
 

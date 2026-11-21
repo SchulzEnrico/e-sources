@@ -823,9 +823,17 @@ select {
   overflow-x: auto;
   flex: 0 0 auto;
   scrollbar-width: none;
-  background: rgba(10, 10, 13, 0.75);
-  /* Ampel (F-26) an der Innenkante zum Inhalt hin, gedämpft */
-  border-bottom: var(--load-line) solid color-mix(in srgb, var(--tabload, #333) 55%, #0c0c0f);
+  /*
+   * Ampel (F-26) an der Innenkante zum Inhalt hin, gedämpft. Als Hintergrund-Linie statt Rahmen,
+   * damit sie bei einem Stapel an der Stapel-Leiste endet (--tabs-cut = deren Breite).
+   */
+  padding-bottom: var(--load-line);
+  background:
+    linear-gradient(color-mix(in srgb, var(--tabload, #333) 55%, #0c0c0f), color-mix(in srgb, var(--tabload, #333) 55%, #0c0c0f)) left bottom / calc(100% - var(--tabs-cut, 0px)) var(--load-line) no-repeat,
+    rgba(10, 10, 13, 0.75);
+}
+.tabs--stacked {
+  --tabs-cut: 24px;
 }
 .tabs::-webkit-scrollbar {
   display: none;
@@ -1306,4 +1314,76 @@ select {
 }
 .tb-view .icon {
   flex: none;
+}
+
+/* ---------- F-15, F-125: Lineal über der Seite; die Seite bleibt bedienbar */
+.ruler {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: hidden;
+}
+.ruler__svg {
+  position: absolute;
+  inset: 0;
+}
+.ruler__num {
+  font: 600 10px/1 var(--font, system-ui), system-ui, sans-serif;
+}
+.ruler__size {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(10, 10, 13, 0.7);
+}
+.ruler__tools {
+  position: absolute;
+  top: 18px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  pointer-events: auto;
+  padding: 3px;
+  border-radius: 9px;
+  background: rgba(14, 14, 18, 0.8);
+  border: 1px solid var(--line);
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.ruler__tools:hover {
+  opacity: 1;
+}
+.ruler__tools button {
+  font-size: 11px;
+  min-width: 0;
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+.ruler__tools .ruler__color {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  align-self: center;
+}
+.win__bar .win__ruler--on {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 0 0 1px rgba(var(--silver), 0.25);
+}
+/* F-10: Umbenennen in der Stapel-Leiste */
+.stack__input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid rgba(var(--silver), 0.5);
+  border-radius: 6px;
+  padding: 1px 4px;
 }

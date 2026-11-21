@@ -17,7 +17,7 @@ import {
   specOf,
 } from './screen';
 import * as T from './tree';
-import type { Arrangement, PanelMeta, Place, Slot, Tab, Workspace } from './types';
+import type { Arrangement, PanelMeta, Place, RulerSettings, Slot, Tab, Workspace } from './types';
 
 /** Mindestgröße, wenn die Oberfläche keine eigene angibt (Anteil der Fläche). */
 export const DEFAULT_MIN: T.Min = { w: 0.08, h: 0.12 };
@@ -38,7 +38,7 @@ export function newPanel(name: string): PanelMeta {
 
 export function defaultWorkspace(): Workspace {
   const panels = [1, 2, 3].map((n) => newPanel(`Panel ${n}`));
-  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, areas: [], scenarios: [], embed: {}, bookmarks: [], categories: [] };
+  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, spheres: [], scenarios: [], embed: {}, bookmarks: [], categories: [], ruler: { ...RULER_DEFAULT } };
 }
 
 /** Einstellung aus Klasse und Ausrichtung, ergänzt um die gespeicherte Wahl ein-/zweizeilig. */
@@ -616,4 +616,45 @@ export function splitSelection(view: View, activePlace: string | null, count: nu
   if (ordered.length <= count) return ordered;
   const start = Math.max(0, ordered.indexOf(activePlace ?? ''));
   return Array.from({ length: count }, (_, k) => ordered[(start + k) % ordered.length]);
+}
+
+// ---------------------------------------------------------------- F-15, F-125 Lineal
+
+/** Strichfarben wie im alten Lineal; gewechselt per Klick oder Mausrad. */
+export const RULER_COLORS = ['#ffffff', '#ffd84d', '#ff9a3c', '#ff5a4d', '#4dd97a', '#4da3ff', '#c08a5a', '#000000', '#8a8a92'];
+export const RULER_DEFAULT: RulerSettings = { on: false, labels: true, color: 0 };
+
+/** Zeigt dieses Panel das Lineal? Die Wahl am Panel geht vor der für alle. */
+export function rulerShown(ws: Workspace, p: PanelMeta): boolean {
+  return p.ruler ?? ws.ruler.on;
+}
+
+/** F-125: Lineal für alle Panels ein- oder ausschalten; die Wahl einzelner Panels wird dabei aufgehoben. */
+export function toggleRulerAll(ws: Workspace): Workspace {
+  const on = !ws.ruler.on;
+  return {
+    ...ws,
+    ruler: { ...ws.ruler, on },
+    panels: ws.panels.map((p) => {
+      if (p.ruler === undefined) return p;
+      const { ruler: _drop, ...rest } = p;
+      return rest;
+    }),
+  };
+}
+
+/** F-15: Lineal nur für dieses Panel umschalten. Stimmt die Wahl wieder mit „alle“ überein, entfällt sie. */
+export function toggleRulerPanel(ws: Workspace, id: string): Workspace {
+  return mapPanel(ws, id, (p) => {
+    const want = !rulerShown(ws, p);
+    const { ruler: _drop, ...rest } = p;
+    return want === ws.ruler.on ? rest : { ...rest, ruler: want };
+  });
+}
+
+/** Beschriftung oder Farbe ändern (gilt für alle Lineale). Die Farbe läuft im Kreis. */
+export function setRulerStyle(ws: Workspace, change: { labels?: boolean; color?: number }): Workspace {
+  const n = RULER_COLORS.length;
+  const color = change.color === undefined ? ws.ruler.color : ((Math.round(change.color) % n) + n) % n;
+  return { ...ws, ruler: { ...ws.ruler, labels: change.labels ?? ws.ruler.labels, color } };
 }

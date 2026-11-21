@@ -1,4 +1,4 @@
-import { useRef, type TouchEvent, type WheelEvent } from 'react';
+import { useRef, useState, type TouchEvent, type WheelEvent } from 'react';
 import type { PanelMeta } from '../workspace/types';
 
 /** F-08: Stapel-Leiste rechts am Panel – Klick wählt, Mausrad und Pfeile blättern. */
@@ -11,10 +11,19 @@ export interface StackProps {
   onRemove: (id: string) => void;
   /** F-09: neues Panel auf diesen Platz legen; fehlt, wenn der Platz voll ist. */
   onAdd?: () => void;
+  /** F-10: Panel direkt in der Stapel-Leiste umbenennen (Doppelklick). */
+  onRename: (id: string, name: string) => void;
 }
 
-export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd }: StackProps) {
+export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, onRename }: StackProps) {
   const lastWheel = useRef(0);
+  /** Panel, dessen Name gerade bearbeitet wird; solange hat das Eingabefeld den Fokus und die Leiste bleibt offen. */
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const commit = () => {
+    if (editing) onRename(editing, draft);
+    setEditing(null);
+  };
   const onWheel = (e: WheelEvent) => {
     const now = Date.now();
     if (now - lastWheel.current < 250) return; // ein Wechsel pro Rad-Bewegung
@@ -36,7 +45,25 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd }
           {index + 1}/{members.length}
         </span>
         <div className="stack__list">
-          {members.map((m, i) => (
+          {members.map((m, i) =>
+            editing === m.id ? (
+              <div key={m.id} className="stack__item stack__item--edit">
+                <span className="stack__num">{i + 1}</span>
+                <input
+                  className="stack__input"
+                  value={draft}
+                  autoFocus
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={commit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commit();
+                    if (e.key === 'Escape') setEditing(null);
+                  }}
+                  aria-label="Panelname"
+                />
+              </div>
+            ) : (
             <button
               key={m.id}
               type="button"
@@ -44,7 +71,11 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd }
               aria-selected={m.id === frontId}
               className={m.id === frontId ? 'stack__item stack__item--on' : 'stack__item'}
               onClick={() => onSelect(m.id)}
-              title={m.name}
+              onDoubleClick={() => {
+                setDraft(m.name);
+                setEditing(m.id);
+              }}
+              title={`${m.name} · Doppelklick zum Umbenennen`}
             >
               <span className="stack__num">{i + 1}</span>
               <span className="stack__name">{m.name}</span>
@@ -61,7 +92,8 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd }
                 ×
               </span>
             </button>
-          ))}
+            ),
+          )}
         </div>
         <button type="button" className="stack__step" onClick={() => onStep(1)} title="Nächstes Panel im Stapel" aria-label="Nächstes">
           ▼

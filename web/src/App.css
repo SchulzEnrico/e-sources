@@ -99,15 +99,184 @@ select {
   position: relative;
 }
 
-.grid {
-  height: 100%;
+/* ---------- Kacheln (F-01, F-02, F-11) */
+.tile {
+  position: absolute;
+}
+.gesture,
+.gesture * {
+  user-select: none;
+}
+/* Eingebettete Seiten schlucken sonst die Maus beim Ziehen */
+.gesture iframe {
+  pointer-events: none;
+}
+
+/* Griffe an Kanten und Ecken: liegen im Spalt zwischen zwei Panels */
+.grip {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+}
+.grip--left,
+.grip--right {
+  top: 18px;
+  bottom: 18px;
+  width: 14px;
+  cursor: ew-resize;
+}
+.grip--left {
+  left: -11px;
+}
+.grip--right {
+  right: -11px;
+}
+.grip--top,
+.grip--bottom {
+  left: 18px;
+  right: 18px;
+  height: 14px;
+  cursor: ns-resize;
+}
+.grip--top {
+  top: -11px;
+}
+.grip--bottom {
+  bottom: -11px;
+}
+.grip--tl,
+.grip--tr,
+.grip--bl,
+.grip--br {
+  width: 20px;
+  height: 20px;
+  z-index: 6;
+}
+.grip--tl {
+  top: -12px;
+  left: -12px;
+  cursor: nwse-resize;
+}
+.grip--br {
+  bottom: -12px;
+  right: -12px;
+  cursor: nwse-resize;
+}
+.grip--tr {
+  top: -12px;
+  right: -12px;
+  cursor: nesw-resize;
+}
+.grip--bl {
+  bottom: -12px;
+  left: -12px;
+  cursor: nesw-resize;
+}
+/* Sichtbarer Pfeil in der Mitte der Kante bzw. an der Ecke */
+.grip::after {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  font-size: 11px;
+  border-radius: 50%;
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid #3b414c;
+  opacity: 0.55;
+}
+.grip--left::after,
+.grip--right::after {
+  content: '↔';
+}
+.grip--top::after,
+.grip--bottom::after {
+  content: '↕';
+}
+.grip--tl::after,
+.grip--br::after {
+  content: '⤡';
+}
+.grip--tr::after,
+.grip--bl::after {
+  content: '⤢';
+}
+.grip:hover::after {
+  opacity: 1;
+  color: #0b1220;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Ziehen eines Panels: Ziel-Bereich und mitlaufendes Schild */
+.win--dragging {
+  opacity: 0.45;
+}
+.drop {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  pointer-events: none;
+}
+.drop span {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #0b1220;
+  font-weight: 600;
+}
+.drop--center {
+  inset: 0;
+}
+.drop--left {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+}
+.drop--right {
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+}
+.drop--top {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 50%;
+}
+.drop--bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 50%;
+}
+.ghost {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--accent);
+  white-space: nowrap;
 }
 
 /* ---------- Fenster */
 .win {
   height: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row; /* Inhalt links, Stapel-Leiste rechts (F-08) */
   background: var(--panel);
   border: 1px solid #3b414c;
   border-radius: 8px;
@@ -257,15 +426,6 @@ select {
   color: var(--muted);
 }
 
-/* Platzhalter beim Ziehen im Raster */
-.react-grid-item.react-grid-placeholder {
-  background: var(--accent);
-  border-radius: 8px;
-}
-.react-grid-item > .react-resizable-handle::after {
-  border-color: var(--muted);
-}
-
 /* ---------- Umschalter ein-/zweizeilig */
 .seg {
   display: inline-flex;
@@ -281,35 +441,38 @@ select {
   border-left: none;
 }
 
-/* ---------- Stapel (F-08) */
+/* ---------- Stapel (F-08): senkrechte Leiste rechts am Panel */
 .stack {
+  flex: 0 0 120px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 2px;
-  padding: 3px 4px;
+  padding: 4px 3px;
   background: var(--bg);
-  border-bottom: 1px solid #3b414c;
+  border-left: 1px solid #3b414c;
+  min-height: 0;
 }
 .stack > button {
-  padding: 0 6px;
+  padding: 0;
   border-color: transparent;
   background: transparent;
 }
 .stack__list {
   flex: 1;
-  min-width: 0;
+  min-height: 0;
   display: flex;
+  flex-direction: column;
   gap: 2px;
-  overflow-x: auto;
+  overflow-y: auto;
   scrollbar-width: none;
 }
 .stack__item {
   flex: 0 0 auto;
-  max-width: 140px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  padding: 1px 8px;
+  text-align: left;
+  padding: 2px 8px;
   font-size: 0.9em;
   background: var(--panel-2);
   border-color: transparent;
@@ -317,4 +480,78 @@ select {
 .stack__item--on {
   background: var(--accent);
   color: #0b1220;
+}
+
+/* ---------- Panel-Inhalt und vorläufige Adresszeile */
+.win__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.win__address {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-bottom: 1px solid #3b414c;
+}
+.win__address input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid #3b414c;
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+.win__address button {
+  padding: 2px 8px;
+}
+.win__ext {
+  align-self: center;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 0 4px;
+}
+.win__ext:hover {
+  color: var(--accent);
+}
+.win__body {
+  min-height: 0;
+  position: relative;
+}
+.win__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+/* ---------- Touch: größere Griffe */
+@media (pointer: coarse) {
+  .grip--left,
+  .grip--right {
+    width: 32px;
+    right: -20px;
+  }
+  .grip--top,
+  .grip--bottom {
+    height: 32px;
+    bottom: -20px;
+  }
+  .grip--br {
+    width: 40px;
+    height: 40px;
+    right: -24px;
+    bottom: -24px;
+  }
+  .grip::after {
+    width: 28px;
+    height: 28px;
+    line-height: 28px;
+    font-size: 16px;
+  }
 }

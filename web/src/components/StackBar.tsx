@@ -1,9 +1,9 @@
 import { useRef, type TouchEvent, type WheelEvent } from 'react';
-import type { WinMeta } from '../workspace/types';
+import type { PanelMeta } from '../workspace/types';
 
-/** F-08: Leiste über dem Stapel – Klick wählt, Mausrad und Pfeile blättern. */
+/** F-08: Stapel-Leiste rechts am Panel – Klick wählt, Mausrad und Pfeile blättern. */
 export interface StackProps {
-  members: WinMeta[];
+  members: PanelMeta[];
   frontId: string;
   onSelect: (id: string) => void;
   onStep: (step: number) => void;
@@ -20,9 +20,9 @@ export function StackBar({ members, frontId, onSelect, onStep }: StackProps) {
     onStep(d > 0 ? 1 : -1);
   };
   return (
-    <div className="stack no-drag" onWheel={onWheel} role="tablist" aria-label="Stapel">
-      <button type="button" onClick={() => onStep(-1)} title="Vorheriges Fenster im Stapel" aria-label="Vorheriges">
-        ‹
+    <div className="stack" onWheel={onWheel} role="tablist" aria-orientation="vertical" aria-label="Stapel">
+      <button type="button" onClick={() => onStep(-1)} title="Vorheriges Panel im Stapel" aria-label="Vorheriges">
+        ▲
       </button>
       <div className="stack__list">
         {members.map((m) => (
@@ -39,8 +39,8 @@ export function StackBar({ members, frontId, onSelect, onStep }: StackProps) {
           </button>
         ))}
       </div>
-      <button type="button" onClick={() => onStep(1)} title="Nächstes Fenster im Stapel" aria-label="Nächstes">
-        ›
+      <button type="button" onClick={() => onStep(1)} title="Nächstes Panel im Stapel" aria-label="Nächstes">
+        ▼
       </button>
     </div>
   );

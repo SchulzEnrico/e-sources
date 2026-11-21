@@ -1,7 +1,8 @@
 import { useEffect, useReducer } from 'react';
 import type { Lines, Orientation, ScreenClassId, ScreenSetup } from './screen';
 import { loadWorkspace, saveWorkspace } from './storage';
-import type { Rect, Workspace } from './types';
+import type { Min, Node, Zone } from './tree';
+import type { Workspace } from './types';
 import * as W from './workspace';
 
 type S = { setup: ScreenSetup };
@@ -10,11 +11,12 @@ export type Action =
   | ({ type: 'add' } & S)
   | { type: 'remove'; id: string }
   | { type: 'rename'; id: string; name: string }
+  | { type: 'setUrl'; id: string; url: string }
   | ({ type: 'swap'; a: string; b: string } & S)
-  | ({ type: 'move'; id: string; rect: Rect } & S)
-  | ({ type: 'resize'; id: string; rect: Rect } & S)
-  | ({ type: 'setSize'; id: string; w: number; h: number } & S)
-  | ({ type: 'resetWindow'; id: string } & S)
+  | ({ type: 'drop'; id: string; target: string; zone: Zone } & S)
+  | ({ type: 'setLayout'; tree: Node } & S)
+  | ({ type: 'setSize'; id: string; w: number; h: number; min: Min } & S)
+  | ({ type: 'resetPanel'; id: string; min: Min } & S)
   | ({ type: 'distribute' } & S)
   | ({ type: 'savePreferred' } & S)
   | ({ type: 'clearPreferred' } & S)
@@ -26,21 +28,23 @@ export type Action =
 export function reducer(ws: Workspace, a: Action): Workspace {
   switch (a.type) {
     case 'add':
-      return W.addWindow(ws, a.setup);
+      return W.addPanel(ws, a.setup);
     case 'remove':
-      return W.removeWindow(ws, a.id);
+      return W.removePanel(ws, a.id);
     case 'rename':
-      return W.renameWindow(ws, a.id, a.name);
+      return W.renamePanel(ws, a.id, a.name);
+    case 'setUrl':
+      return W.setPanelUrl(ws, a.id, a.url);
     case 'swap':
-      return W.swapWindows(ws, a.setup, a.a, a.b);
-    case 'move':
-      return W.moveWindow(ws, a.setup, a.id, a.rect);
-    case 'resize':
-      return W.resizeWindow(ws, a.setup, a.id, a.rect);
+      return W.swapPanels(ws, a.setup, a.a, a.b);
+    case 'drop':
+      return W.dropSlot(ws, a.setup, a.id, a.target, a.zone);
+    case 'setLayout':
+      return W.setLayout(ws, a.setup, a.tree);
     case 'setSize':
-      return W.setWindowSize(ws, a.setup, a.id, a.w, a.h);
-    case 'resetWindow':
-      return W.resetWindow(ws, a.setup, a.id);
+      return W.setPanelSize(ws, a.setup, a.id, a.w, a.h, a.min);
+    case 'resetPanel':
+      return W.resetPanel(ws, a.setup, a.id, a.min);
     case 'distribute':
       return W.distribute(ws, a.setup);
     case 'savePreferred':

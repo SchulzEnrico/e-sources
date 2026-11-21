@@ -1,8 +1,7 @@
 /**
- * Aktionen auf der ganzen Arbeitsfläche. Namen gelten überall, Position und Größe je
- * Bildschirm-Einstellung (F-03). Fenster ohne Platz im Raster liegen im Stapel (F-08).
+ * Aktionen auf der ganzen Arbeitsfläche. Namen gelten überall, die Anordnung je
+ * Bildschirm-Einstellung (F-03). Panels ohne Platz liegen im Stapel (F-08).
  */
-import * as G from './layout';
 import {
   type Lines,
   type Orientation,
@@ -13,9 +12,14 @@ import {
   layoutKey,
   linesKey,
   parseLayoutKey,
+  slotSize,
   specOf,
 } from './screen';
-import { STACK_ID, type Placed, type Rect, type WinItem, type WinMeta, type Workspace } from './types';
+import * as T from './tree';
+import { STACK_ID, type PanelMeta, type Slot, type Workspace } from './types';
+
+/** Mindestgröße, wenn die Oberfläche keine eigene angibt (Anteil der Fläche). */
+export const DEFAULT_MIN: T.Min = { w: 0.08, h: 0.12 };
 
 export function newId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -23,8 +27,8 @@ export function newId(): string {
 }
 
 export function defaultWorkspace(): Workspace {
-  const windows = [1, 2, 3].map((n) => ({ id: newId(), name: `Fenster ${n}` }));
-  return { windows, layouts: {}, preferred: {}, stackFront: {}, lines: {}, nextNumber: 4 };
+  const panels = [1, 2, 3].map((n) => ({ id: newId(), name: `Panel ${n}` }));
+  return { panels, layouts: {}, preferred: {}, stackFront: {}, lines: {}, nextNumber: 4 };
 }
 
 /** Einstellung aus Klasse und Ausrichtung, ergänzt um die gespeicherte Wahl ein-/zweizeilig. */
@@ -37,157 +41,182 @@ export function setLines(ws: Workspace, cls: ScreenClassId, orientation: Orienta
   return { ...ws, lines: { ...ws.lines, [linesKey(cls, orientation)]: lines } };
 }
 
-// ---------------------------------------------------------------- Layout herstellen
+// ---------------------------------------------------------------- Anordnung herstellen
 
-const strip = ({ id, x, y, w, h }: Placed): Placed => ({ id, x, y, w, h });
-const asItem = (p: Placed): WinItem => ({ ...p, name: '' });
-
-/** Erstes Layout: alle Fenster gleich verteilt, überzählige im Stapel rechts. */
-function initialPlacement(windows: WinMeta[], spec: ScreenSpec): Placed[] {
+/** Erste Anordnung: alle Panels gleich verteilt, überzählige im Stapel ganz rechts. */
+function initialTree(panels: PanelMeta[], spec: ScreenSpec): T.Node | null {
   const cap = spec.capacity;
-  const ids = windows.length <= cap ? windows.map((w) => w.id) : [...windows.slice(0, cap - 1).map((w) => w.id), STACK_ID];
-  const items = ids.map((id) => ({ id, name: '', x: 0, y: 0, w: 1, h: 1 }));
-  return G.distributeEvenly(items, spec, spec, STACK_ID).map(strip);
-}
-
-/** Platz ganz rechts (bei Gleichstand der untere) – dort entsteht der Stapel. */
-function rightmost(items: WinItem[]): WinItem {
-  return [...items].sort((a, b) => b.x + b.w - (a.x + a.w) || b.y + b.h - (a.y + a.h))[0];
+  const ids = panels.length <= cap ? panels.map((p) => p.id) : [...panels.slice(0, cap - 1).map((p) => p.id), STACK_ID];
+  return T.standard(ids, spec.lines, spec.perLine, spec.orientation);
 }
 
 /**
- * Bringt ein gespeichertes Layout in einen gültigen Zustand: entfernt geschlossene Fenster,
- * gibt neuen Fenstern einen Platz oder legt sie in den Stapel, und löst einen Stapel mit
- * nur einem oder keinem Fenster auf.
+ * Bringt eine gespeicherte Anordnung in einen gültigen Zustand: entfernt geschlossene Panels,
+ * gibt neuen Panels einen Platz oder legt sie in den Stapel und löst einen Stapel mit nur
+ * einem oder keinem Panel auf.
  */
-export function normalize(windows: WinMeta[], stored: Placed[] | undefined, spec: ScreenSpec): Placed[] {
-  if (!stored) return initialPlacement(windows, spec);
-  const exists = new Set(windows.map((w) => w.id));
-  let items = stored
-    .filter((p) => (p.id === STACK_ID || exists.has(p.id)) && G.inBounds(p, spec))
-    .map(asItem);
-  if (!G.isValidLayout(items, spec) || items.length > spec.capacity) return initialPlacement(windows, spec);
+export function normalize(panels: PanelMeta[], stored: T.Node | null | undefined, spec: ScreenSpec): T.Node | null {
+  if (!stored || !T.isNode(stored)) return initialTree(panels, spec);
+  const exists = new Set(panels.map((p) => p.id));
+  let tree: T.Node | null = stored;
+  for (const id of T.leaves(stored)) {
+    if (id !== STACK_ID && !exists.has(id) && tree) tree = T.removeLeaf(tree, id);
+  }
+  if (!tree || T.leaves(tree).length > spec.capacity) return initialTree(panels, spec);
 
-  let hasStack = items.some((i) => i.id === STACK_ID);
+  let hasStack = T.hasLeaf(tree, STACK_ID);
   if (!hasStack) {
-    const placedIds = new Set(items.map((i) => i.id));
-    for (const m of windows.filter((w) => !placedIds.has(w.id))) {
-      if (items.length < spec.capacity) {
-        const spot = G.placeNew(items, spec, { w: spec.slotW, h: spec.slotH });
-        items = spot
-          ? [...spot.windows, { id: m.id, name: '', ...spot.rect }]
-          : G.distributeEvenly([...items, { id: m.id, name: '', x: 0, y: 0, w: 1, h: 1 }], spec, spec);
+    for (const p of panels.filter((m) => !T.hasLeaf(tree, m.id))) {
+      if (T.leaves(tree).length < spec.capacity) {
+        tree = T.addToLargest(tree, p.id, spec.aspect);
         continue;
       }
       // Kein sichtbarer Platz mehr: Der Platz ganz rechts wird zum Stapel.
-      const last = rightmost(items);
-      items = items.map((i) => (i.id === last.id ? { ...i, id: STACK_ID } : i));
+      tree = T.replaceLeaf(tree, T.rightmost(tree), STACK_ID);
       hasStack = true;
-      break; // alle übrigen Fenster liegen damit im Stapel
+      break; // alle übrigen Panels liegen damit im Stapel
     }
   }
 
   if (hasStack) {
-    const placedNow = new Set(items.map((i) => i.id));
-    const members = windows.filter((w) => !placedNow.has(w.id));
-    if (members.length === 0) items = G.growIntoGaps(items.filter((i) => i.id !== STACK_ID), spec);
-    else if (members.length === 1) items = items.map((i) => (i.id === STACK_ID ? { ...i, id: members[0].id } : i));
+    const members = panels.filter((p) => !T.hasLeaf(tree, p.id));
+    if (members.length === 0) tree = T.removeLeaf(tree, STACK_ID);
+    else if (members.length === 1) tree = T.replaceLeaf(tree, STACK_ID, members[0].id);
   }
-  return items.map(strip);
+  return tree;
 }
 
 export interface View {
   key: string;
   spec: ScreenSpec;
-  /** Plätze im Raster, darunter ggf. der Stapel (id = STACK_ID). */
-  items: WinItem[];
-  /** Fenster im Stapel, in Reihenfolge. */
-  stack: WinMeta[];
-  /** Sichtbares Fenster im Stapel. */
-  front: WinMeta | null;
+  tree: T.Node | null;
+  /** Plätze auf der Fläche, darunter ggf. der Stapel (id = STACK_ID). */
+  slots: Slot[];
+  /** Panels im Stapel, in Reihenfolge. */
+  stack: PanelMeta[];
+  /** Sichtbares Panel im Stapel. */
+  front: PanelMeta | null;
+}
+
+/** Plätze, Stapel und vorderstes Stapel-Panel zu einem Baum. */
+export function describe(ws: Workspace, key: string, spec: ScreenSpec, tree: T.Node | null): View {
+  const names = new Map(ws.panels.map((p) => [p.id, p.name]));
+  const placed = new Set(T.leaves(tree));
+  const stack = placed.has(STACK_ID) ? ws.panels.filter((p) => !placed.has(p.id)) : [];
+  const front = stack.find((p) => p.id === ws.stackFront[key]) ?? stack[0] ?? null;
+  const slots = [...T.rects(tree).entries()].map(([id, rect]) => ({
+    id,
+    rect,
+    name: id === STACK_ID ? `Stapel (${stack.length})` : (names.get(id) ?? ''),
+  }));
+  return { key, spec, tree, slots, stack, front };
 }
 
 export function viewOf(ws: Workspace, setup: ScreenSetup): View {
   const key = layoutKey(setup);
   const spec = specOf(setup);
-  const placed = normalize(ws.windows, ws.layouts[key], spec);
-  const names = new Map(ws.windows.map((w) => [w.id, w.name]));
-  const placedIds = new Set(placed.map((p) => p.id));
-  const stack = placed.some((p) => p.id === STACK_ID) ? ws.windows.filter((w) => !placedIds.has(w.id)) : [];
-  const front = stack.find((w) => w.id === ws.stackFront[key]) ?? stack[0] ?? null;
-  const items = placed.map((p) => ({ ...p, name: p.id === STACK_ID ? `Stapel (${stack.length})` : (names.get(p.id) ?? '') }));
-  return { key, spec, items, stack, front };
+  return describe(ws, key, spec, normalize(ws.panels, ws.layouts[key], spec));
 }
 
-/** Platz im Raster, auf dem ein Fenster liegt: sein eigener oder der Stapel. */
+/** Platz, auf dem ein Panel liegt: sein eigener oder der Stapel. */
 export function slotOf(view: View, id: string): string | null {
-  if (view.items.some((i) => i.id === id && id !== STACK_ID)) return id;
-  if (view.stack.some((w) => w.id === id)) return STACK_ID;
+  if (id !== STACK_ID && T.hasLeaf(view.tree, id)) return id;
+  if (view.stack.some((p) => p.id === id)) return STACK_ID;
   return null;
 }
 
-function commit(ws: Workspace, key: string, items: Placed[]): Workspace {
-  return { ...ws, layouts: { ...ws.layouts, [key]: items.map(strip) } };
+function commit(ws: Workspace, key: string, tree: T.Node | null): Workspace {
+  const layouts = { ...ws.layouts };
+  if (tree) layouts[key] = tree;
+  else delete layouts[key];
+  return { ...ws, layouts };
 }
 
-/** Wendet eine Änderung auf die Plätze einer Einstellung an; null = nichts ändern. */
-function change(ws: Workspace, setup: ScreenSetup, fn: (items: WinItem[], v: View) => WinItem[] | null): Workspace {
+/** Wendet eine Änderung auf die Anordnung einer Einstellung an; null = nichts ändern. */
+function change(ws: Workspace, setup: ScreenSetup, fn: (tree: T.Node, v: View) => T.Node | null): Workspace {
   const v = viewOf(ws, setup);
-  const after = fn(v.items, v);
-  if (!after || G.sameLayout(v.items, after)) return ws;
+  if (!v.tree) return ws;
+  const after = fn(v.tree, v);
+  if (!after || JSON.stringify(after) === JSON.stringify(v.tree)) return ws;
   return commit(ws, v.key, after);
 }
 
 // ---------------------------------------------------------------- F-10
 
-/** Fenster anlegen. Ist kein sichtbarer Platz frei, kommt es in den Stapel und wird dort angezeigt. */
-export function addWindow(ws: Workspace, setup: ScreenSetup): Workspace {
-  const meta: WinMeta = { id: newId(), name: `Fenster ${ws.nextNumber}` };
+/** Panel anlegen. Es teilt sich das größte Panel; ist kein Platz frei, kommt es in den Stapel und wird dort angezeigt. */
+export function addPanel(ws: Workspace, setup: ScreenSetup): Workspace {
+  const meta: PanelMeta = { id: newId(), name: `Panel ${ws.nextNumber}` };
   const v = viewOf(ws, setup);
-  let next: Workspace = { ...ws, windows: [...ws.windows, meta], nextNumber: ws.nextNumber + 1 };
-  const placed = normalize(next.windows, v.items, v.spec);
-  next = commit(next, v.key, placed);
-  if (!placed.some((p) => p.id === meta.id)) next = { ...next, stackFront: { ...next.stackFront, [v.key]: meta.id } };
+  let next: Workspace = { ...ws, panels: [...ws.panels, meta], nextNumber: ws.nextNumber + 1 };
+  // Eine noch nie angezeigte Einstellung bekommt zuerst ihre Standard-Anordnung.
+  const tree = normalize(next.panels, v.tree ?? undefined, v.spec);
+  next = commit(next, v.key, tree);
+  if (!T.hasLeaf(tree, meta.id)) next = { ...next, stackFront: { ...next.stackFront, [v.key]: meta.id } };
   return next;
 }
 
 /**
- * Fenster schließen. Lag es im Raster und gibt es einen Stapel, rückt das sichtbare
- * Stapel-Fenster auf den frei gewordenen Platz; sonst wachsen die Nachbarn (F-02).
+ * Panel schließen. Lag es auf der Fläche und gibt es einen Stapel, rückt das sichtbare
+ * Stapel-Panel auf den frei gewordenen Platz; sonst übernimmt der Nachbar den Platz (F-02).
  */
-export function removeWindow(ws: Workspace, id: string): Workspace {
-  if (!ws.windows.some((w) => w.id === id)) return ws;
-  const windows = ws.windows.filter((w) => w.id !== id);
+export function removePanel(ws: Workspace, id: string): Workspace {
+  if (!ws.panels.some((p) => p.id === id)) return ws;
+  const panels = ws.panels.filter((p) => p.id !== id);
   const layouts: Workspace['layouts'] = {};
   const stackFront = { ...ws.stackFront };
   for (const [key, stored] of Object.entries(ws.layouts)) {
     const setup = parseLayoutKey(key);
-    if (!setup) continue;
+    if (!setup || !T.isNode(stored)) continue;
     const spec = specOf(setup);
-    let placed = stored;
-    if (stored.some((p) => p.id === id)) {
-      const placedIds = new Set(stored.map((p) => p.id));
-      const members = windows.filter((w) => !placedIds.has(w.id));
-      if (stored.some((p) => p.id === STACK_ID) && members.length > 0) {
-        const front = members.find((w) => w.id === ws.stackFront[key]) ?? members[0];
-        placed = stored.map((p) => (p.id === id ? { ...p, id: front.id } : p));
-        const rest = members.filter((w) => w.id !== front.id);
+    let tree: T.Node | null = stored;
+    if (T.hasLeaf(stored, id)) {
+      const members = panels.filter((p) => !T.hasLeaf(stored, p.id));
+      if (T.hasLeaf(stored, STACK_ID) && members.length > 0) {
+        const front = members.find((p) => p.id === ws.stackFront[key]) ?? members[0];
+        tree = T.replaceLeaf(stored, id, front.id);
+        const rest = members.filter((p) => p.id !== front.id);
         if (rest[0]) stackFront[key] = rest[0].id;
       } else {
-        const rest = stored.filter((p) => p.id !== id).map(asItem);
-        placed = G.growIntoGaps(rest, spec).map(strip);
+        tree = T.removeLeaf(stored, id);
       }
     }
-    layouts[key] = normalize(windows, placed, spec);
+    const fixed = normalize(panels, tree, spec);
+    if (fixed) layouts[key] = fixed;
     if (stackFront[key] === id) delete stackFront[key];
   }
-  return { ...ws, windows, layouts, stackFront };
+  return { ...ws, panels, layouts, stackFront };
 }
 
-export function renameWindow(ws: Workspace, id: string, name: string): Workspace {
+export function renamePanel(ws: Workspace, id: string, name: string): Workspace {
   const trimmed = name.trim();
   if (!trimmed) return ws;
-  return { ...ws, windows: ws.windows.map((w) => (w.id === id ? { ...w, name: trimmed } : w)) };
+  return { ...ws, panels: ws.panels.map((p) => (p.id === id ? { ...p, name: trimmed } : p)) };
+}
+
+/**
+ * Macht aus einer Eingabe eine aufrufbare Adresse: ohne Schema wird https:// ergänzt,
+ * bei localhost und 127.0.0.1 http://. Leere Eingabe = keine Seite.
+ */
+export function normalizeUrl(input: string): string {
+  const t = input.trim();
+  if (!t) return '';
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(t)) return t;
+  if (/^(localhost|127\.0\.0\.1)(:|\/|$)/i.test(t)) return `http://${t}`;
+  return `https://${t}`;
+}
+
+/** Seite in einem Panel öffnen (vorläufige Adresszeile). */
+export function setPanelUrl(ws: Workspace, id: string, input: string): Workspace {
+  const url = normalizeUrl(input);
+  return {
+    ...ws,
+    panels: ws.panels.map((p) => {
+      if (p.id !== id) return p;
+      const next: PanelMeta = { id: p.id, name: p.name };
+      if (url) next.url = url;
+      return next;
+    }),
+  };
 }
 
 // ---------------------------------------------------------------- F-08 Stapel
@@ -196,11 +225,11 @@ export function setStackFront(ws: Workspace, setup: ScreenSetup, id: string): Wo
   return { ...ws, stackFront: { ...ws.stackFront, [layoutKey(setup)]: id } };
 }
 
-/** Wechselt im Stapel um `step` Fenster weiter (−1 = zurück); am Ende geht es vorne weiter. */
+/** Wechselt im Stapel um `step` Panels weiter (−1 = zurück); am Ende geht es vorne weiter. */
 export function stepStack(ws: Workspace, setup: ScreenSetup, step: number): Workspace {
   const v = viewOf(ws, setup);
   if (v.stack.length < 2 || !v.front) return ws;
-  const i = v.stack.findIndex((w) => w.id === v.front!.id);
+  const i = v.stack.findIndex((p) => p.id === v.front!.id);
   const next = v.stack[(i + step + v.stack.length) % v.stack.length];
   return setStackFront(ws, setup, next.id);
 }
@@ -208,57 +237,49 @@ export function stepStack(ws: Workspace, setup: ScreenSetup, step: number): Work
 // ---------------------------------------------------------------- F-11, F-12
 
 /**
- * Zwei Fenster tauschen. Liegt eines davon im Stapel, wechselt das andere in den Stapel
- * und wird dort angezeigt.
+ * Zwei Panels tauschen (Knopf ⇄). Liegt eines davon im Stapel, wechselt das andere in den
+ * Stapel und wird dort angezeigt.
  */
-export function swapWindows(ws: Workspace, setup: ScreenSetup, a: string, b: string): Workspace {
+export function swapPanels(ws: Workspace, setup: ScreenSetup, a: string, b: string): Workspace {
   const v = viewOf(ws, setup);
   const sa = slotOf(v, a);
   const sb = slotOf(v, b);
-  if (!sa || !sb || a === b || (sa === STACK_ID && sb === STACK_ID)) return ws;
-  if (sa !== STACK_ID && sb !== STACK_ID) return commit(ws, v.key, G.swapRects(v.items, a, b));
-  const [inGrid, inStack] = sa === STACK_ID ? [b, a] : [a, b];
-  const items = v.items.map((i) => (i.id === inGrid ? { ...i, id: inStack } : i));
-  return { ...commit(ws, v.key, items), stackFront: { ...ws.stackFront, [v.key]: inGrid } };
+  if (!v.tree || !sa || !sb || a === b || (sa === STACK_ID && sb === STACK_ID)) return ws;
+  if (sa !== STACK_ID && sb !== STACK_ID) return commit(ws, v.key, T.swapLeaves(v.tree, a, b));
+  const [onArea, inStack] = sa === STACK_ID ? [b, a] : [a, b];
+  const tree = T.replaceLeaf(v.tree, onArea, inStack);
+  return { ...commit(ws, v.key, tree), stackFront: { ...ws.stackFront, [v.key]: onArea } };
 }
 
-/** Ergebnis von Ziehen im Raster (id = Platz, also Fenster oder STACK_ID). */
-export function moveWindow(ws: Workspace, setup: ScreenSetup, id: string, next: Rect): Workspace {
-  return change(ws, setup, (items, v) => G.moveWindow(items, v.spec, id, next));
+/** Ziehen & Ablegen eines Platzes (Panel oder Stapel): Mitte = tauschen, Rand = andocken. */
+export function dropSlot(ws: Workspace, setup: ScreenSetup, id: string, target: string, zone: T.Zone): Workspace {
+  return change(ws, setup, (tree) => T.drop(tree, id, target, zone));
 }
 
-/** Ergebnis einer Größenänderung am Rand oder an der Ecke. */
-export function resizeWindow(ws: Workspace, setup: ScreenSetup, id: string, next: Rect): Workspace {
-  return change(ws, setup, (items, v) => G.resizeWindow(items, v.spec, id, next));
+/** Übernimmt eine fertige Anordnung, z. B. nach dem Ziehen einer Kante. */
+export function setLayout(ws: Workspace, setup: ScreenSetup, tree: T.Node): Workspace {
+  return change(ws, setup, () => tree);
 }
 
-/** Voreingestellte Größe als Anteil von Breite und Höhe der Arbeitsfläche. */
-export function setWindowSize(ws: Workspace, setup: ScreenSetup, id: string, wf: number, hf: number): Workspace {
-  return change(ws, setup, (items, v) => {
+/** F-12: Voreingestellte Größe als Anteil von Breite und Höhe der Arbeitsfläche. */
+export function setPanelSize(ws: Workspace, setup: ScreenSetup, id: string, wf: number, hf: number, min = DEFAULT_MIN): Workspace {
+  return change(ws, setup, (tree, v) => {
     const slot = slotOf(v, id);
-    const t = items.find((w) => w.id === slot);
-    if (!slot || !t) return null;
-    const g = v.spec;
-    const w = G.clamp(Math.round(g.cols * wf), G.MIN_W, g.cols);
-    const h = G.clamp(Math.round(g.rows * hf), G.MIN_H, g.rows);
-    const x = G.clamp(t.x, 0, g.cols - w);
-    const y = G.clamp(t.y, 0, g.rows - h);
-    const trial = items.map((o) => (o.id === slot ? { ...o, x, y, w, h } : o));
-    const ok = G.resolve(trial, g, slot, items);
-    if (ok) return G.growIntoGaps(ok, g, slot);
-    return G.resizeWindow(items, g, slot, { x, y, w, h });
+    return slot ? T.setLeafSize(tree, slot, wf, hf, min) : null;
   });
 }
 
 // ---------------------------------------------------------------- F-05
 
+/** Alle Anteile gleich groß; die Anordnung bleibt. */
 export function distribute(ws: Workspace, setup: ScreenSetup): Workspace {
-  return change(ws, setup, (items, v) => G.distributeEvenly(items, v.spec, v.spec, STACK_ID));
+  return change(ws, setup, (tree) => T.equalize(tree));
 }
 
 export function savePreferred(ws: Workspace, setup: ScreenSetup): Workspace {
   const v = viewOf(ws, setup);
-  return { ...ws, preferred: { ...ws.preferred, [v.key]: v.items.map(strip) } };
+  if (!v.tree) return ws;
+  return { ...ws, preferred: { ...ws.preferred, [v.key]: v.tree } };
 }
 
 export function clearPreferred(ws: Workspace, setup: ScreenSetup): Workspace {
@@ -268,35 +289,30 @@ export function clearPreferred(ws: Workspace, setup: ScreenSetup): Workspace {
 }
 
 /**
- * Ganzes Layout zurücksetzen: auf die Wunsch-Anordnung, sonst auf die Standard-Verteilung.
- * Es werden keine Fenster gelöscht; Fenster, die neu dazugekommen sind, landen im Stapel
- * oder auf einem freien Platz.
+ * Ganze Anordnung zurücksetzen: auf die Wunsch-Anordnung, sonst auf die Standard-Verteilung.
+ * Es werden keine Panels gelöscht; neu dazugekommene landen im Stapel oder auf einem freien Platz.
  */
 export function resetLayout(ws: Workspace, setup: ScreenSetup): Workspace {
   const key = layoutKey(setup);
   const pref = ws.preferred[key];
-  const layouts = { ...ws.layouts };
-  if (pref) layouts[key] = normalize(ws.windows, pref, specOf(setup));
-  else delete layouts[key];
-  return { ...ws, layouts };
+  return commit(ws, key, pref ? normalize(ws.panels, pref, specOf(setup)) : null);
 }
 
-/** Einzelnes Fenster zurücksetzen: auf seinen Platz in der Wunsch-Anordnung, sonst auf Platzgröße. */
-export function resetWindow(ws: Workspace, setup: ScreenSetup, id: string): Workspace {
+/** Einzelnes Panel zurücksetzen: auf seine Größe in der Wunsch-Anordnung, sonst auf Platzgröße. */
+export function resetPanel(ws: Workspace, setup: ScreenSetup, id: string, min = DEFAULT_MIN): Workspace {
   const pref = ws.preferred[layoutKey(setup)];
-  return change(ws, setup, (items, v) => {
+  return change(ws, setup, (tree, v) => {
     const slot = slotOf(v, id);
-    const t = items.find((w) => w.id === slot);
-    if (!slot || !t) return null;
-    const g = v.spec;
-    const p = pref?.find((q) => q.id === slot);
-    const w = Math.max(G.MIN_W, Math.floor(g.slotW));
-    const h = Math.max(G.MIN_H, Math.floor(g.slotH));
-    const target: Rect = p
-      ? { x: p.x, y: p.y, w: p.w, h: p.h }
-      : { x: G.clamp(t.x, 0, g.cols - w), y: G.clamp(t.y, 0, g.rows - h), w, h };
-    const trial = items.map((o) => (o.id === slot ? { ...o, ...target } : o));
-    const ok = G.resolve(trial, g, slot, items);
-    return ok ? G.growIntoGaps(ok, g, slot) : null;
+    if (!slot) return null;
+    const target = (pref && T.isNode(pref) && T.rects(pref).get(slot)) || slotSize(v.spec);
+    return T.setLeafSize(tree, slot, target.w, target.h, min);
   });
+}
+
+/** F-13: Splitscreen – das aktive und die folgenden Plätze in Lesereihenfolge. */
+export function splitSelection(view: View, activeSlot: string | null, count: number): string[] {
+  const ordered = T.readingOrder(view.tree);
+  if (ordered.length <= count) return ordered;
+  const start = Math.max(0, ordered.indexOf(activeSlot ?? ''));
+  return Array.from({ length: count }, (_, k) => ordered[(start + k) % ordered.length]);
 }

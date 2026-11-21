@@ -1,10 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import GridLayout, { WidthProvider, type Layout } from 'react-grid-layout';
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import './App.css';
-import { WindowFrame } from './components/WindowFrame';
-import { MIN_H, MIN_W, splitSelection } from './workspace/layout';
+import { PanelFrame } from './components/PanelFrame';
 import {
   type Lines,
   type Orientation,
@@ -13,27 +9,70 @@ import {
   allowsTwoLines,
   detectScreen,
   screenClass,
+  slotSize,
 } from './workspace/screen';
-import { STACK_ID, type WinItem, type WinMeta } from './workspace/types';
+import * as T from './workspace/tree';
+import { STACK_ID, type PanelMeta, type Slot } from './workspace/types';
 import { useWorkspace } from './workspace/useWorkspace';
-import { setupFor, slotOf, viewOf } from './workspace/workspace';
+import { describe, setupFor, slotOf, splitSelection, viewOf } from './workspace/workspace';
 
-const Grid = WidthProvider(GridLayout);
-const MARGIN = 8;
+/** Abstand zwischen den Panels und zum Rand in Pixeln. */
+const GAP = 8;
+/** Mindestgröße eines Panels in Pixeln (F-02). */
+const MIN_W_PX = 180;
+const MIN_H_PX = 120;
+/** Ab dieser Mausbewegung wird aus einem Klick auf die Titelleiste ein Ziehen. */
+const DRAG_START_PX = 6;
+/** Randbereich eines Panels (Anteil), in dem abgelegt wird, um anzudocken. */
+const EDGE_BAND = 0.25;
+/** So nah am Rand der Arbeitsfläche (Pixel) dockt ein Panel an die ganze Fläche an. */
+const AREA_BAND_PX = 22;
 
-type View = { kind: 'grid' } | { kind: 'max'; id: string } | { kind: 'split'; count: 2 | 4 };
+type Mode = { kind: 'area' } | { kind: 'max'; id: string } | { kind: 'split'; count: 2 | 4 };
+type Corner = 'tl' | 'tr' | 'bl' | 'br';
+interface Drag {
+  id: string;
+  x: number;
+  y: number;
+  target: string | null;
+  zone: T.Zone | null;
+}
+
+const ZONE_LABEL: Record<T.Zone, string> = {
+  center: 'Tauschen',
+  left: 'Links andocken',
+  right: 'Rechts andocken',
+  top: 'Oben andocken',
+  bottom: 'Unten andocken',
+};
+const AREA_LABEL: Record<T.Side, string> = {
+  left: 'Links über die ganze Höhe',
+  right: 'Rechts über die ganze Höhe',
+  top: 'Oben über die ganze Breite',
+  bottom: 'Unten über die ganze Breite',
+};
+const dropLabel = (target: string, zone: T.Zone) => (target === T.AREA && zone !== 'center' ? AREA_LABEL[zone] : ZONE_LABEL[zone]);
+const CORNERS: { c: Corner; x: 'left' | 'right'; y: 'top' | 'bottom' }[] = [
+  { c: 'tl', x: 'left', y: 'top' },
+  { c: 'tr', x: 'right', y: 'top' },
+  { c: 'bl', x: 'left', y: 'bottom' },
+  { c: 'br', x: 'right', y: 'bottom' },
+];
 
 export default function App() {
   const [ws, dispatch] = useWorkspace();
-  const [active, setActive] = useState<string | null>(ws.windows[0]?.id ?? null);
-  const [mode, setMode] = useState<View>({ kind: 'grid' });
+  const [active, setActive] = useState<string | null>(ws.panels[0]?.id ?? null);
+  const [mode, setMode] = useState<Mode>({ kind: 'area' });
   const [swapFrom, setSwapFrom] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [clsOverride, setClsOverride] = useState<ScreenClassId | 'auto'>('auto');
   const [oriOverride, setOriOverride] = useState<Orientation | 'auto'>('auto');
+  /** Anordnung während eine Kante gezogen wird (wird beim Loslassen übernommen). */
+  const [draft, setDraft] = useState<T.Node | null>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const cleanup = useRef<(() => void) | null>(null);
 
-  // Größe der Arbeitsfläche messen: bestimmt Bildschirmklasse und Ausrichtung (F-03)
-  // sowie die Zeilenhöhe, damit das Raster genau den Bildschirm füllt.
+  // Größe der Arbeitsfläche messen: bestimmt Bildschirmklasse und Ausrichtung (F-03).
   const areaRef = useRef<HTMLDivElement>(null);
   const [area, setArea] = useState({ width: window.innerWidth, height: window.innerHeight - 60 });
   useLayoutEffect(() => {
@@ -45,42 +84,144 @@ export default function App() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  useEffect(() => () => cleanup.current?.(), []);
 
   const detected = detectScreen(area.width, area.height);
   const cls = clsOverride === 'auto' ? detected.cls : clsOverride;
   const orientation = oriOverride === 'auto' ? detected.orientation : oriOverride;
   const setup = setupFor(ws, cls, orientation);
   const view = useMemo(() => viewOf(ws, setup), [ws, setup.cls, setup.orientation, setup.lines]);
-  const spec = view.spec;
-  const rowHeight = Math.max(12, (area.height - 2 * MARGIN - (spec.rows - 1) * MARGIN) / spec.rows);
+  const shownView = useMemo(() => (draft ? describe(ws, view.key, view.spec, draft) : view), [draft, ws, view]);
+  const tree = shownView.tree;
 
-  // Zähler, der nach jedem Ziehen steigt. So übernimmt das Raster unsere Anordnung
-  // auch dann, wenn eine Änderung abgelehnt und der alte Stand wiederhergestellt wurde.
-  const [rev, setRev] = useState(0);
+  // Innenmaß der Fläche ohne Außenabstand; Mindestgröße als Anteil davon.
+  const iw = Math.max(1, area.width - GAP);
+  const ih = Math.max(1, area.height - GAP);
+  const slot = slotSize(view.spec);
+  const min: T.Min = { w: Math.min(MIN_W_PX / iw, slot.w * 0.9), h: Math.min(MIN_H_PX / ih, slot.h * 0.9) };
+  const px = (r: T.FRect) => ({ left: GAP + r.x * iw, top: GAP + r.y * ih, width: Math.max(0, r.w * iw - GAP), height: Math.max(0, r.h * ih - GAP) });
 
   const notify = useCallback((text: string) => {
     setFlash(text);
     window.setTimeout(() => setFlash((f) => (f === text ? null : f)), 3000);
   }, []);
 
-  // Esc beendet Tauschen, Maximieren und Splitscreen.
+  // Esc beendet Tauschen, Ziehen, Maximieren und Splitscreen.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (swapFrom) setSwapFrom(null);
-      else if (mode.kind !== 'grid') setMode({ kind: 'grid' });
+      if (cleanup.current) cleanup.current();
+      else if (swapFrom) setSwapFrom(null);
+      else if (mode.kind !== 'area') setMode({ kind: 'area' });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [swapFrom, mode]);
 
-  // Geschlossene Fenster aus Ansicht und Fokus entfernen.
+  // Geschlossene Panels aus Ansicht und Fokus entfernen.
   useEffect(() => {
-    const exists = (id: string) => ws.windows.some((w) => w.id === id);
-    if (mode.kind === 'max' && !exists(mode.id)) setMode({ kind: 'grid' });
-    if (active && !exists(active)) setActive(ws.windows[0]?.id ?? null);
+    const exists = (id: string) => ws.panels.some((p) => p.id === id);
+    if (mode.kind === 'max' && !exists(mode.id)) setMode({ kind: 'area' });
+    if (active && !exists(active)) setActive(ws.panels[0]?.id ?? null);
     if (swapFrom && !exists(swapFrom)) setSwapFrom(null);
-  }, [ws.windows, mode, active, swapFrom]);
+  }, [ws.panels, mode, active, swapFrom]);
+
+  /** Startet eine Zeiger-Geste; Bewegen und Loslassen laufen über das ganze Fenster. */
+  const track = (onMove: (e: PointerEvent) => void, onUp: (e: PointerEvent) => void, cursor?: string) => {
+    cleanup.current?.();
+    const up = (e: PointerEvent) => {
+      done();
+      onUp(e);
+    };
+    const done = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', up);
+      document.body.style.cursor = '';
+      document.body.classList.remove('gesture');
+      cleanup.current = null;
+      setDraft(null);
+      setDrag(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', up);
+    if (cursor) document.body.style.cursor = cursor;
+    document.body.classList.add('gesture');
+    cleanup.current = done;
+  };
+
+  // ---------------------------------------------------------------- F-02 Kanten ziehen
+
+  const startResize = (e: ReactPointerEvent, id: string, x: 'left' | 'right' | undefined, y: 'top' | 'bottom' | undefined, cursor: string) => {
+    const base = view.tree;
+    if (!base || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const at = (ev: PointerEvent) => T.resizeEdges(base, id, { x, dx: (ev.clientX - x0) / iw, y, dy: (ev.clientY - y0) / ih }, min);
+    track(
+      (ev) => setDraft(at(ev)),
+      (ev) => dispatch({ type: 'setLayout', setup, tree: at(ev) }),
+      cursor,
+    );
+  };
+
+  // ---------------------------------------------------------------- F-11 Ziehen: tauschen oder andocken
+
+  const hitTest = (cx: number, cy: number, slots: Slot[]): { target: string; zone: T.Zone } | null => {
+    const box = areaRef.current?.getBoundingClientRect();
+    if (!box) return null;
+    const x = cx - box.left;
+    const y = cy - box.top;
+    // Ganz am Rand der Fläche: an die ganze Arbeitsfläche andocken.
+    const edge: [T.Side, number][] = [
+      ['left', x],
+      ['right', box.width - x],
+      ['top', y],
+      ['bottom', box.height - y],
+    ];
+    edge.sort((a, b) => a[1] - b[1]);
+    if (edge[0][1] >= -AREA_BAND_PX && edge[0][1] < AREA_BAND_PX) return { target: T.AREA, zone: edge[0][0] };
+    for (const s of slots) {
+      const r = px(s.rect);
+      if (x < r.left || x > r.left + r.width || y < r.top || y > r.top + r.height) continue;
+      const u = (x - r.left) / r.width;
+      const v = (y - r.top) / r.height;
+      const d: [T.Side, number][] = [
+        ['left', u],
+        ['right', 1 - u],
+        ['top', v],
+        ['bottom', 1 - v],
+      ];
+      d.sort((a, b) => a[1] - b[1]);
+      return { target: s.id, zone: d[0][1] < EDGE_BAND ? d[0][0] : 'center' };
+    }
+    return null;
+  };
+
+  const startDrag = (e: ReactPointerEvent, id: string) => {
+    if (swapFrom || view.slots.length < 2) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const slots = view.slots;
+    let started = false;
+    let last: Drag | null = null;
+    track(
+      (ev) => {
+        if (!started && Math.hypot(ev.clientX - x0, ev.clientY - y0) < DRAG_START_PX) return;
+        if (!started) document.body.style.cursor = 'grabbing';
+        started = true;
+        const hit = hitTest(ev.clientX, ev.clientY, slots);
+        last = { id, x: ev.clientX, y: ev.clientY, target: hit && hit.target !== id ? hit.target : null, zone: hit && hit.target !== id ? hit.zone : null };
+        setDrag(last);
+      },
+      () => {
+        if (last?.target && last.zone) dispatch({ type: 'drop', setup, id, target: last.target, zone: last.zone });
+      },
+    );
+  };
+
+  // ---------------------------------------------------------------- Panels
 
   const activate = (id: string) => {
     if (swapFrom && swapFrom !== id) {
@@ -90,21 +231,21 @@ export default function App() {
     setActive(id);
   };
 
-  /** Fenster, das auf einem Platz sichtbar ist (beim Stapel das vorderste). */
-  const shown = (item: WinItem): WinMeta | null =>
-    item.id === STACK_ID ? view.front : (ws.windows.find((w) => w.id === item.id) ?? null);
+  /** Panel, das auf einem Platz sichtbar ist (beim Stapel das vorderste). */
+  const shown = (slotId: string): PanelMeta | null =>
+    slotId === STACK_ID ? shownView.front : (ws.panels.find((p) => p.id === slotId) ?? null);
 
-  const frame = (meta: WinMeta, cells?: { w: number; h: number }) => {
-    const inStack = slotOf(view, meta.id) === STACK_ID;
+  const frame = (meta: PanelMeta, onArea?: { slotId: string; rect: T.FRect }) => {
+    const inStack = slotOf(shownView, meta.id) === STACK_ID;
     return (
-      <WindowFrame
-        win={meta}
-        cells={cells}
+      <PanelFrame
+        panel={meta}
+        share={onArea && { w: onArea.rect.w, h: onArea.rect.h }}
         stack={
-          inStack && view.front
+          inStack && shownView.front
             ? {
-                members: view.stack,
-                frontId: view.front.id,
+                members: shownView.stack,
+                frontId: shownView.front.id,
                 onSelect: (id) => {
                   dispatch({ type: 'stackFront', setup, id });
                   setActive(id);
@@ -117,44 +258,78 @@ export default function App() {
         maximized={mode.kind === 'max' && mode.id === meta.id}
         swapSource={swapFrom === meta.id}
         swapTarget={swapFrom !== null && swapFrom !== meta.id}
+        dragging={!!onArea && drag?.id === onArea.slotId}
         onActivate={() => activate(meta.id)}
+        onDragStart={onArea ? (e) => startDrag(e, onArea.slotId) : undefined}
         onRename={(name) => dispatch({ type: 'rename', id: meta.id, name })}
+        onOpenUrl={(url) => dispatch({ type: 'setUrl', id: meta.id, url })}
         onClose={() => dispatch({ type: 'remove', id: meta.id })}
         onStartSwap={() => {
-          if (ws.windows.length < 2) return notify('Zum Tauschen braucht es mindestens zwei Fenster.');
+          if (ws.panels.length < 2) return notify('Zum Tauschen braucht es mindestens zwei Panels.');
           setSwapFrom(swapFrom === meta.id ? null : meta.id);
         }}
-        onSetSize={(wf, hf) => dispatch({ type: 'setSize', setup, id: meta.id, w: wf, h: hf })}
-        onReset={() => dispatch({ type: 'resetWindow', setup, id: meta.id })}
+        onSetSize={(w, h) => dispatch({ type: 'setSize', setup, id: meta.id, w, h, min })}
+        onReset={() => dispatch({ type: 'resetPanel', setup, id: meta.id, min })}
         onToggleMaximize={() =>
-          setMode(mode.kind === 'max' && mode.id === meta.id ? { kind: 'grid' } : { kind: 'max', id: meta.id })
+          setMode(mode.kind === 'max' && mode.id === meta.id ? { kind: 'area' } : { kind: 'max', id: meta.id })
         }
       />
     );
   };
 
-  // `rev` ist kein Feld von react-grid-layout; es sorgt nur dafür, dass das Raster den Stand neu übernimmt.
-  const layout = view.items.map(
-    (w) => ({ i: w.id, x: w.x, y: w.y, w: w.w, h: w.h, minW: MIN_W, minH: MIN_H, rev }) as Layout,
-  );
+  /**
+   * Griffe an den Kanten und Ecken, die sich ziehen lassen (nicht am Rand der Fläche).
+   * Jede gemeinsame Kante bekommt nur einen Griff: Er gehört dem Panel links bzw. oberhalb
+   * (dessen rechte/untere Kante ist die linke/obere Kante des Nachbarn).
+   */
+  const grips = (id: string) => {
+    if (!tree || drag) return null;
+    const can = {
+      left: false,
+      right: T.canResize(tree, id, 'right'),
+      top: false,
+      bottom: T.canResize(tree, id, 'bottom'),
+    };
+    const out: ReactNode[] = [];
+    (['left', 'right'] as const).forEach((side) => {
+      if (can[side])
+        out.push(
+          <div key={side} className={`grip grip--${side}`} title="Ziehen: Breite ändern" onPointerDown={(e) => startResize(e, id, side, undefined, 'ew-resize')} />,
+        );
+    });
+    (['top', 'bottom'] as const).forEach((side) => {
+      if (can[side])
+        out.push(
+          <div key={side} className={`grip grip--${side}`} title="Ziehen: Höhe ändern" onPointerDown={(e) => startResize(e, id, undefined, side, 'ns-resize')} />,
+        );
+    });
+    for (const k of CORNERS) {
+      if (!can[k.x] || !can[k.y]) continue;
+      const cursor = k.c === 'tl' || k.c === 'br' ? 'nwse-resize' : 'nesw-resize';
+      out.push(
+        <div key={k.c} className={`grip grip--${k.c}`} title="Ziehen: Breite und Höhe ändern" onPointerDown={(e) => startResize(e, id, k.x, k.y, cursor)} />,
+      );
+    }
+    return out;
+  };
 
   let content: ReactNode;
-  if (ws.windows.length === 0) {
+  if (ws.panels.length === 0) {
     content = (
       <div className="empty">
-        <p>Keine Fenster geöffnet.</p>
+        <p>Keine Panels geöffnet.</p>
         <button type="button" onClick={() => dispatch({ type: 'add', setup })}>
-          + Fenster anlegen
+          + Panel anlegen
         </button>
       </div>
     );
   } else if (mode.kind === 'max') {
-    const meta = ws.windows.find((w) => w.id === mode.id);
+    const meta = ws.panels.find((p) => p.id === mode.id);
     content = meta ? <div className="maximized">{frame(meta)}</div> : null;
   } else if (mode.kind === 'split') {
-    const chosen = splitSelection(view.items, active && slotOf(view, active), mode.count)
+    const chosen = splitSelection(view, active && slotOf(view, active), mode.count)
       .map(shown)
-      .filter((m): m is WinMeta => !!m);
+      .filter((m): m is PanelMeta => !!m);
     content = (
       <div className={`split split--${chosen.length >= 4 ? 4 : chosen.length}`}>
         {chosen.map((m) => (
@@ -166,38 +341,40 @@ export default function App() {
     );
   } else {
     content = (
-      <Grid
-        className="grid"
-        layout={layout}
-        cols={spec.cols}
-        rowHeight={rowHeight}
-        maxRows={spec.rows}
-        margin={[MARGIN, MARGIN]}
-        containerPadding={[MARGIN, MARGIN]}
-        compactType={null}
-        allowOverlap
-        isBounded
-        draggableHandle=".win-drag"
-        draggableCancel=".no-drag"
-        resizeHandles={['e', 's', 'se']}
-        onDragStop={(_l, _old, item) => {
-          dispatch({ type: 'move', setup, id: item.i, rect: { x: item.x, y: item.y, w: item.w, h: item.h } });
-          setRev((r) => r + 1);
-        }}
-        onResizeStop={(_l, _old, item) => {
-          dispatch({ type: 'resize', setup, id: item.i, rect: { x: item.x, y: item.y, w: item.w, h: item.h } });
-          setRev((r) => r + 1);
-        }}
-      >
-        {view.items.map((item) => {
-          const meta = shown(item);
-          return <div key={item.id}>{meta && frame(meta, { w: item.w, h: item.h })}</div>;
+      <>
+        {shownView.slots.map((s) => {
+          const meta = shown(s.id);
+          const over = drag?.target === s.id ? drag.zone : null;
+          return (
+            <div key={s.id} className="tile" style={px(s.rect)}>
+              {meta && frame(meta, { slotId: s.id, rect: s.rect })}
+              {grips(s.id)}
+              {over && (
+                <div className={`drop drop--${over}`}>
+                  <span>{ZONE_LABEL[over]}</span>
+                </div>
+              )}
+            </div>
+          );
         })}
-      </Grid>
+        {drag?.target === T.AREA && drag.zone && (
+          <div className="area-drop">
+            <div className={`drop drop--${drag.zone}`}>
+              <span>{dropLabel(T.AREA, drag.zone)}</span>
+            </div>
+          </div>
+        )}
+        {drag && (
+          <div className="ghost" style={{ left: drag.x + 12, top: drag.y + 12 }}>
+            {shown(drag.id)?.name ?? ''}
+            {drag.target && drag.zone ? ` → ${dropLabel(drag.target, drag.zone)}` : ''}
+          </div>
+        )}
+      </>
     );
   }
 
-  const inGrid = mode.kind === 'grid';
+  const onArea = mode.kind === 'area';
   const hasPreferred = !!ws.preferred[view.key];
   const canTwoLines = allowsTwoLines(cls);
   const lineWord = orientation === 'landscape' ? ['einzeilig', 'zweizeilig'] : ['einspaltig', 'zweispaltig'];
@@ -206,32 +383,32 @@ export default function App() {
     <div className="app">
       <header className="toolbar">
         <strong className="brand">E-Source</strong>
-        <button type="button" onClick={() => dispatch({ type: 'add', setup })} title="Neues Fenster anlegen">
-          + Fenster
+        <button type="button" onClick={() => dispatch({ type: 'add', setup })} title="Neues Panel anlegen">
+          + Panel
         </button>
         <span className="sep" />
-        <button type="button" disabled={!inGrid} onClick={() => dispatch({ type: 'distribute', setup })} title="Alle Plätze gleich groß verteilen">
+        <button type="button" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Alle Panels gleich groß, die Anordnung bleibt">
           Gleich verteilen
         </button>
         <button
           type="button"
           className={mode.kind === 'split' && mode.count === 2 ? 'on' : ''}
-          onClick={() => setMode(mode.kind === 'split' && mode.count === 2 ? { kind: 'grid' } : { kind: 'split', count: 2 })}
-          title="Splitscreen mit 2 Fenstern (aktives Fenster und das nächste)"
+          onClick={() => setMode(mode.kind === 'split' && mode.count === 2 ? { kind: 'area' } : { kind: 'split', count: 2 })}
+          title="Splitscreen mit 2 Panels (aktives Panel und das nächste)"
         >
           Split 2
         </button>
         <button
           type="button"
           className={mode.kind === 'split' && mode.count === 4 ? 'on' : ''}
-          onClick={() => setMode(mode.kind === 'split' && mode.count === 4 ? { kind: 'grid' } : { kind: 'split', count: 4 })}
-          title="Splitscreen mit 4 Fenstern"
+          onClick={() => setMode(mode.kind === 'split' && mode.count === 4 ? { kind: 'area' } : { kind: 'split', count: 4 })}
+          title="Splitscreen mit 4 Panels"
         >
           Split 4
         </button>
-        {!inGrid && (
-          <button type="button" onClick={() => setMode({ kind: 'grid' })} title="Zurück zum Raster (Esc)">
-            Zum Raster
+        {!onArea && (
+          <button type="button" onClick={() => setMode({ kind: 'area' })} title="Zurück zur Arbeitsfläche (Esc)">
+            Zur Arbeitsfläche
           </button>
         )}
         <span className="sep" />
@@ -249,10 +426,10 @@ export default function App() {
           type="button"
           onClick={() => {
             dispatch({ type: 'resetLayout', setup });
-            setMode({ kind: 'grid' });
-            notify(hasPreferred ? 'Wunsch-Anordnung wiederhergestellt.' : 'Standard-Verteilung wiederhergestellt.');
+            setMode({ kind: 'area' });
+            notify(hasPreferred ? 'Wunsch-Anordnung wiederhergestellt.' : 'Standard-Anordnung wiederhergestellt.');
           }}
-          title={hasPreferred ? 'Auf die Wunsch-Anordnung zurücksetzen' : 'Auf die Standard-Verteilung zurücksetzen'}
+          title={hasPreferred ? 'Auf die Wunsch-Anordnung zurücksetzen' : 'Auf die Standard-Anordnung zurücksetzen'}
         >
           Layout zurücksetzen
         </button>
@@ -261,7 +438,7 @@ export default function App() {
             type="button"
             onClick={() => {
               dispatch({ type: 'clearPreferred', setup });
-              notify('Wunsch-Anordnung gelöscht; Zurücksetzen nutzt wieder die Standard-Verteilung.');
+              notify('Wunsch-Anordnung gelöscht; Zurücksetzen nutzt wieder die Standard-Anordnung.');
             }}
             title="Wunsch-Anordnung dieser Bildschirm-Einstellung löschen"
           >
@@ -269,7 +446,7 @@ export default function App() {
           </button>
         )}
         <span className="sep" />
-        <label className="screen" title="Bildschirmklasse: bestimmt, wie viele Fenster sichtbar sind">
+        <label className="screen" title="Bildschirmklasse: bestimmt, wie viele Panels sichtbar sind">
           Bildschirm:{' '}
           <select value={clsOverride} onChange={(e) => setClsOverride(e.target.value as ScreenClassId | 'auto')}>
             <option value="auto">Automatisch ({screenClass(detected.cls).label})</option>
@@ -305,10 +482,10 @@ export default function App() {
           </span>
         )}
         <span className="muted">
-          {view.items.length} von {spec.capacity} Plätzen{view.stack.length > 0 ? ` · ${view.stack.length} im Stapel` : ''}
+          {view.slots.length} von {view.spec.capacity} Plätzen{view.stack.length > 0 ? ` · ${view.stack.length} Panels im Stapel` : ''}
         </span>
         <span className="grow" />
-        {swapFrom && <span className="hint">Ziel-Fenster anklicken · Esc bricht ab</span>}
+        {swapFrom && <span className="hint">Ziel-Panel anklicken · Esc bricht ab</span>}
         {flash && !swapFrom && <span className="hint">{flash}</span>}
       </header>
       <main className="area" ref={areaRef}>

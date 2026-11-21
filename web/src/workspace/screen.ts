@@ -1,6 +1,4 @@
-import type { GridSpec } from './types';
-
-/** F-03: Bildschirmklassen. Sie bestimmen, wie viele Fenster gleichzeitig sichtbar sind. */
+/** F-03: Bildschirmklassen. Sie bestimmen, wie viele Panels gleichzeitig sichtbar sind. */
 export type ScreenClassId = 'phone' | 'small' | 'laptop' | 'monitor' | 'ultrawide' | 'superwide' | 'vision';
 export type Orientation = 'landscape' | 'portrait';
 export type Lines = 1 | 2;
@@ -8,20 +6,22 @@ export type Lines = 1 | 2;
 export interface ScreenClass {
   id: ScreenClassId;
   label: string;
-  /** Sichtbare Fenster (ohne die im Stapel). */
+  /** Sichtbare Panels (ohne die im Stapel). */
   capacity: number;
   /** Ab dieser längeren Bildschirmseite in CSS-Pixeln gilt die Klasse (null = nur manuell). */
   minLongSide: number | null;
+  /** Typisches Seitenverhältnis (lange : kurze Seite) – entscheidet, wie ein neues Panel geteilt wird. */
+  aspect: number;
 }
 
 export const SCREEN_CLASSES: ScreenClass[] = [
-  { id: 'phone', label: 'Smartphone', capacity: 1, minLongSide: 0 },
-  { id: 'small', label: 'Tablet / kleiner Laptop', capacity: 2, minLongSide: 700 },
-  { id: 'laptop', label: 'Großer Laptop', capacity: 4, minLongSide: 1600 },
-  { id: 'monitor', label: 'Monitor', capacity: 6, minLongSide: 2200 },
-  { id: 'ultrawide', label: 'Ultrawide (z. B. 34 Zoll)', capacity: 8, minLongSide: 3200 },
-  { id: 'superwide', label: 'Super-Ultrawide (z. B. 49 Zoll)', capacity: 10, minLongSide: 4600 },
-  { id: 'vision', label: 'Apple Vision', capacity: 16, minLongSide: null },
+  { id: 'phone', label: 'Smartphone', capacity: 1, minLongSide: 0, aspect: 2.1 },
+  { id: 'small', label: 'Tablet / kleiner Laptop', capacity: 2, minLongSide: 700, aspect: 1.5 },
+  { id: 'laptop', label: 'Großer Laptop', capacity: 4, minLongSide: 1600, aspect: 1.6 },
+  { id: 'monitor', label: 'Monitor', capacity: 6, minLongSide: 2200, aspect: 1.78 },
+  { id: 'ultrawide', label: 'Ultrawide (z. B. 34 Zoll)', capacity: 8, minLongSide: 3200, aspect: 2.4 },
+  { id: 'superwide', label: 'Super-Ultrawide (z. B. 49 Zoll)', capacity: 10, minLongSide: 4600, aspect: 3.6 },
+  { id: 'vision', label: 'Apple Vision', capacity: 16, minLongSide: null, aspect: 1.78 },
 ];
 
 /** Kürzere Seite unter diesem Wert = Smartphone. */
@@ -31,7 +31,7 @@ export function screenClass(id: ScreenClassId): ScreenClass {
   return SCREEN_CLASSES.find((c) => c.id === id) ?? SCREEN_CLASSES[2];
 }
 
-/** Ab 4 sichtbaren Fenstern darf der Nutzer zwischen ein- und zweizeilig wählen. */
+/** Ab 4 sichtbaren Panels darf der Nutzer zwischen ein- und zweizeilig wählen. */
 export function allowsTwoLines(id: ScreenClassId): boolean {
   return screenClass(id).capacity >= 4;
 }
@@ -56,20 +56,19 @@ export interface ScreenSetup {
   lines: Lines;
 }
 
-/** Raster einer Einstellung, dazu die Zahl der Reihen und Fenster pro Reihe. */
-export interface ScreenSpec extends GridSpec {
+/** Eckdaten einer Einstellung für die Anordnung. */
+export interface ScreenSpec {
   capacity: number;
   /** Reihen: Zeilen im Querformat, Spalten im Hochformat. */
   lines: Lines;
-  /** Fenster pro Reihe. */
+  /** Panels pro Reihe bei voller Belegung. */
   perLine: number;
   orientation: Orientation;
-  /** Größe eines Platzes bei gleichmäßiger Verteilung. */
-  slotW: number;
-  slotH: number;
+  /** Breite : Höhe der Arbeitsfläche (geschätzt aus der Klasse). */
+  aspect: number;
 }
 
-/** Jede Kombination aus Klasse, Ausrichtung und Reihen hat ihr eigenes Layout. */
+/** Jede Kombination aus Klasse, Ausrichtung und Reihen hat ihre eigene Anordnung. */
 export function layoutKey(s: ScreenSetup): string {
   return `${s.cls}:${s.orientation}:${s.lines}`;
 }
@@ -87,20 +86,17 @@ export function linesKey(cls: ScreenClassId, orientation: Orientation): string {
   return `${cls}:${orientation}`;
 }
 
-/**
- * Raster je Einstellung: Jeder Platz ist 4 Zellen breit bzw. hoch, damit sich Fenster
- * auch bei voller Belegung noch verkleinern und vergrößern lassen.
- */
 export function specOf(s: ScreenSetup): ScreenSpec {
-  const capacity = screenClass(s.cls).capacity;
+  const c = screenClass(s.cls);
   const lines: Lines = allowsTwoLines(s.cls) ? s.lines : 1;
-  const perLine = Math.ceil(capacity / lines);
-  if (s.orientation === 'landscape') {
-    const cols = Math.max(4, perLine * 4);
-    const rows = 12;
-    return { cols, rows, capacity, lines, perLine, orientation: s.orientation, slotW: cols / perLine, slotH: rows / lines };
-  }
-  const cols = 12;
-  const rows = Math.max(12, perLine * 4);
-  return { cols, rows, capacity, lines, perLine, orientation: s.orientation, slotW: cols / lines, slotH: rows / perLine };
+  const perLine = Math.ceil(c.capacity / lines);
+  const aspect = s.orientation === 'landscape' ? c.aspect : 1 / c.aspect;
+  return { capacity: c.capacity, lines, perLine, orientation: s.orientation, aspect };
+}
+
+/** Größe eines Platzes bei gleichmäßiger Verteilung (Anteil von Breite und Höhe). */
+export function slotSize(spec: ScreenSpec): { w: number; h: number } {
+  return spec.orientation === 'landscape'
+    ? { w: 1 / spec.perLine, h: 1 / spec.lines }
+    : { w: 1 / spec.lines, h: 1 / spec.perLine };
 }

@@ -10,7 +10,7 @@ Stand: 21.11.2026 · Chat V02 abgeschlossen (Ausbaustufe 1 noch nicht fertig) ·
 
 - **Lastenheft (verbindlich):** https://claude.ai/artifact/5Lcrj6JwXyEvUMcJjZQRY8 — in V02 geändert: F-01, F-02, F-03, F-08 (neu), F-11, F-53, Ausbaustufe 1, offene Frage „Name für Fenster“
 - **Repository:** https://github.com/SchulzEnrico/e-sources · lokal `~/Projects/e-sources`
-- **Übergabe V01:** `docs/uebergaben/Uebergabe_V01_E-Sources.md`
+- **Übergabe V01:** `docs/uebergaben/V01_Uebergabe_E-Sources.md`
 
 ## Was in V02 entstanden ist
 
@@ -22,7 +22,8 @@ Stand: 21.11.2026 · Chat V02 abgeschlossen (Ausbaustufe 1 noch nicht fertig) ·
   - `src/components/WindowFrame.tsx`, `StackBar.tsx`, `src/App.tsx`
   - `src/workspace/layout.test.ts` – 25 Tests (in Claudes Umgebung mit Ersatz-Runner geprüft)
 - `server-extra/`: `setup-server.sh` erzeugt `server/` über Spring Initializr (Java 21, Maven-Wrapper, Paket `de.esource.server`) und kopiert `HealthController` (`GET /api/health`) samt Test hinein. **Noch nicht ausgeführt.**
-- README, `.gitignore`. **Noch nichts committet.**
+- README, `.gitignore`.
+- **Committet und gepusht** am 21.11.2026 als `0797229` „Stufe 1 (Zwischenstand): Raster, Bildschirmklassen, Stapel, Übergabe V02“. (Diese Übergabedatei wurde danach noch einmal ergänzt – mit dem nächsten Commit mitnehmen.)
 
 ## Entscheidungen aus V02
 
@@ -60,10 +61,12 @@ Danach: Enrico testet, `npm test`, `npm run build`, Server per `setup-server.sh`
 - Claudes Shell auf dem Mac (`device_bash`) ist eine Linux-VM **ohne Internet** und darf **nicht löschen**; `.git` ist dort nicht beschreibbar. Daher: **npm, Maven und git laufen in Enricos Terminal.** Dateien überträgt Claude als Archiv nach `~/Projects/_to_delete/` und entpackt sie per Kopie ins Repo (Enrico löscht `_to_delete` gelegentlich).
 - Projektordner verbunden ist `~/Projects` (darin `e-sources`).
 - Enricos Mac: Node 24, Java 21, Chrome; Arbeitsfläche „Großer Laptop“ wird erkannt.
+- `npm install`, `npm test` und `npm run dev` liefen bei Enrico; die Oberfläche läuft unter http://localhost:2910. `npm test`- und `npm run build`-Ausgaben hat Claude noch nicht gesehen – in V03 nachfragen.
+- **Committen:** Enrico nutzt **GitHub Desktop** (Repository e-sources ist dort eingebunden, Branch `main`): Summary eintragen → „Commit to main“ → „Push origin“. Alternativ Terminal – aber nie im Fenster, in dem `npm run dev` läuft (dort landen Eingaben bei Vite), sondern in einem neuen Tab (Cmd+T).
 
 ## Arbeitsregeln
 
 - **Funktion vor Design.**
 - **Lastenheft ist die Grundlage:** Neue Wünsche kommen dort mit Nummer hinein, bevor sie gebaut werden.
 - **Übergaberegel:** nach jeder abgeschlossenen Ausbaustufe, spätestens bei geschätzt 60–70 % Chat-Füllstand, nie mitten in einer Aufgabe; Claude kündigt sie vorher an.
-- **Übergabedatei:** „Übergabe Vxx E-Sources“ unter `docs/uebergaben/`.
+- **Übergabedatei:** `Vxx_Uebergabe_E-Sources.md` unter `docs/uebergaben/` – Versionsnummer immer am Anfang des Dateinamens.

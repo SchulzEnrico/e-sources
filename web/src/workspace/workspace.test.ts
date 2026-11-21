@@ -7,6 +7,7 @@ import * as X from './transfer';
 import * as B from './bookmarks';
 import * as W from './workspace';
 import * as L from './look';
+import * as D from './demo';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -909,3 +910,59 @@ describe('F-60, F-61, F-69, F-130 Darstellung', () => {
     expect(parseWorkspace(bad)!.look).toEqual(L.LOOK_DEFAULT);
   });
 });
+
+describe('F-133 Demo-Startbelegung', () => {
+  it('vier Panels mit offenen, einbettbaren Seiten und eigener Lesezeichen-Sammlung', () => {
+    const ws = D.demoWorkspace();
+    expect(ws.panels).toHaveLength(5);
+    expect(W.viewOf(ws, LAPTOP2).slots).toHaveLength(4);
+    const ids = new Set(ws.panels.map((p) => p.id));
+    const cats = new Set(ws.categories.map((c) => c.id));
+    for (const p of ws.panels) {
+      expect(p.tabs.every((t) => !!t.url && !W.isBlocked(ws, t.url))).toBe(true);
+      expect(p.tabs.some((t) => t.id === p.activeTab)).toBe(true);
+      expect(B.collectionSize(ws, p.id) > 0).toBe(true);
+    }
+    expect(ws.bookmarks.every((b) => cats.has(b.category) && b.panels.every((id) => ids.has(id)) && !W.isBlocked(ws, b.url))).toBe(true);
+  });
+
+  it('Stapel „Bewerbung“ in jeder Bildschirm-Einstellung; Lineal beim Portfolio an', () => {
+    const ws = D.demoWorkspace();
+    const [portfolio, kontakt, zertifikate] = ws.panels;
+    expect(W.rulerShown(ws, portfolio)).toBe(true);
+    expect(W.rulerShown(ws, kontakt)).toBe(false);
+    for (const setup of [LAPTOP1, LAPTOP2, MONITOR2, MONITOR_HOCH, TABLET]) {
+      const stack = W.viewOf(ws, setup).slots.find((s) => s.panels.some((p) => p.id === kontakt.id))!;
+      expect(stack.panels.some((p) => p.id === zertifikate.id)).toBe(true);
+      expect(W.areaLabel(ws, stack)).toBe('Bewerbung');
+    }
+  });
+
+  it('übersteht Speichern und Laden unverändert', () => {
+    const ws = D.demoWorkspace();
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))).toEqual(ws);
+  });
+});
+
+describe('F-134 + Area', () => {
+  it('neue Spalte rechts über die ganze Höhe, neue Zeile unten über die ganze Breite', () => {
+    const ws = W.defaultWorkspace();
+    const before = W.viewOf(ws, LAPTOP2).slots.length;
+    const col = W.addArea(ws, LAPTOP2, 'right');
+    const vc = W.viewOf(col, LAPTOP2);
+    expect(vc.slots).toHaveLength(before + 1);
+    const c = vc.slots.find((s) => s.front.id === col.panels[col.panels.length - 1].id)!;
+    expect(close(c.rect.h, 1) && close(c.rect.x + c.rect.w, 1)).toBe(true);
+    const row = W.addArea(ws, LAPTOP2, 'bottom');
+    const r = W.viewOf(row, LAPTOP2).slots.find((s) => s.front.id === row.panels[row.panels.length - 1].id)!;
+    expect(close(r.rect.w, 1) && close(r.rect.y + r.rect.h, 1)).toBe(true);
+  });
+
+  it('voller Bildschirm: keine neue Area, nichts wird gestapelt', () => {
+    let ws = W.defaultWorkspace();
+    while (W.canAddArea(ws, TABLET)) ws = W.addArea(ws, TABLET, 'right');
+    expect(W.viewOf(ws, TABLET).slots).toHaveLength(2);
+    expect(W.addArea(ws, TABLET, 'bottom')).toBe(ws);
+  });
+});
+

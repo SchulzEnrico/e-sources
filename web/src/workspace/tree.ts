@@ -231,6 +231,18 @@ export function dockArea(n: Node, id: string, side: Side): Node {
   });
 }
 
+/**
+ * F-134: neues Blatt als ganze Spalte rechts bzw. ganze Zeile unten anfügen; es bekommt so viel
+ * Platz wie eine der vorhandenen Spalten bzw. Zeilen.
+ */
+export function addAtEdge(n: Node | null, id: string, side: 'right' | 'bottom'): Node {
+  if (!n) return { id };
+  const dir = dirOf(side);
+  const lines = !isLeaf(n) && n.dir === dir ? n.children.length : 1;
+  const frac = 1 / (lines + 1);
+  return tidy({ dir, children: [n, { id }], sizes: [1 - frac, frac] });
+}
+
 /** Ablegen: Mitte tauscht, Rand dockt an; Ziel AREA = am Rand der ganzen Fläche. */
 export function drop(n: Node, id: string, target: string, zone: Zone): Node {
   if (id === target) return n;

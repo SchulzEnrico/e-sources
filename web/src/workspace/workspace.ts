@@ -242,6 +242,30 @@ export function addPanel(ws: Workspace, setup: ScreenSetup, onArea?: string): Wo
   return ensureAreaNames(commit(next, v.key, arr), setup);
 }
 
+/** F-134: True, wenn auf dem Bildschirm noch Platz für eine weitere Area ist. */
+export function canAddArea(ws: Workspace, setup: ScreenSetup): boolean {
+  const v = viewOf(ws, setup);
+  return !v.arrangement || T.leaves(v.arrangement.tree).length < v.spec.capacity;
+}
+
+/**
+ * F-134 „+ Area“: neue Area mit leerem Panel als Spalte rechts oder Zeile unten. Ist der
+ * Bildschirm voll, bleibt alles, wie es ist – Panels kommen dann nur über die Areas dazu.
+ */
+export function addArea(ws: Workspace, setup: ScreenSetup, side: 'right' | 'bottom'): Workspace {
+  if (!canAddArea(ws, setup)) return ws;
+  const meta = newPanel(`Panel ${ws.nextNumber}`);
+  const v = viewOf(ws, setup);
+  const next: Workspace = { ...ws, panels: [...ws.panels, meta], nextNumber: ws.nextNumber + 1 };
+  if (!v.arrangement) return ensureAreaNames(commit(next, v.key, normalize(next.panels, null, v.spec)), setup);
+  const id = newAreaId(meta.id, v.arrangement.areas);
+  const arr: Arrangement = {
+    tree: T.addAtEdge(v.arrangement.tree, id, side),
+    areas: { ...v.arrangement.areas, [id]: { id, panels: [meta.id], front: meta.id } },
+  };
+  return ensureAreaNames(commit(next, v.key, arr), setup);
+}
+
 /** True, wenn kein weiteres Panel mehr dazukommen kann (F-26). */
 export function stackFull(ws: Workspace, setup: ScreenSetup, onArea?: string): boolean {
   return addPanel(ws, setup, onArea) === ws;

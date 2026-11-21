@@ -11,6 +11,8 @@ type S = { setup: ScreenSetup };
 
 export type Action =
   | ({ type: 'add'; area?: string } & S)
+  /** F-134: neue Area als Spalte rechts oder Zeile unten. */
+  | ({ type: 'addArea'; side: 'right' | 'bottom' } & S)
   | { type: 'remove'; id: string }
   | { type: 'rename'; id: string; name: string }
   | { type: 'setUrl'; id: string; url: string }
@@ -62,6 +64,8 @@ export function reducer(ws: Workspace, a: Action): Workspace {
   switch (a.type) {
     case 'add':
       return W.addPanel(ws, a.setup, a.area);
+    case 'addArea':
+      return W.addArea(ws, a.setup, a.side);
     case 'remove':
       return W.removePanel(ws, a.id);
     case 'rename':

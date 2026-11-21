@@ -503,7 +503,11 @@ export function PanelFrame(p: Props) {
                 hidden={t.id !== tab.id}
                 src={t.url}
                 title={`${p.panel.name} – ${tabLabel(t)}`}
-                referrerPolicy="no-referrer"
+                // F-133: Nur die Domain von E-Source geht mit (Standard der Browser). Ohne sie
+                // verweigern eingebettete Player wie YouTube den Dienst (Fehler 153).
+                referrerPolicy="strict-origin-when-cross-origin"
+                allow="fullscreen; picture-in-picture; encrypted-media; clipboard-write"
+                allowFullScreen
                 // Ohne allow-top-navigation: Die Seite darf E-Source nicht wegnavigieren.
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"
               />

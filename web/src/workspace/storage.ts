@@ -1,6 +1,7 @@
 import type { Arrangement, Bookmark, Named, PanelMeta, Tab, Workspace } from './types';
 import { parseLook } from './look';
 import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } from './workspace';
+import { demoWorkspace } from './demo';
 
 /**
  * Stufe 1: Die Arbeitsfläche liegt nur im Browser (localStorage). Später kommt der Server dazu.
@@ -150,7 +151,8 @@ export function loadWorkspace(): Workspace {
   try {
     let raw = localStorage.getItem(KEY);
     for (const k of OLD_KEYS) raw ??= localStorage.getItem(k);
-    if (!raw) return defaultWorkspace();
+    // F-133: erster Besuch – Beispiel-Layout statt leerer Panels.
+    if (!raw) return demoWorkspace();
     return parseWorkspace(JSON.parse(raw)) ?? defaultWorkspace();
   } catch {
     return defaultWorkspace();

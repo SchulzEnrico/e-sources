@@ -21,7 +21,7 @@ import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile 
 import { useWorkspace } from './workspace/useWorkspace';
 import { openBookmark } from './workspace/bookmarks';
 import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
-import { FOCUS_WARN, STACK_MAX, TAB_MAX, addPanel as addTo, areaIn, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
+import { FOCUS_WARN, STACK_MAX, TAB_MAX, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -478,8 +478,8 @@ export default function App() {
     content = (
       <div className="empty">
         <p>Keine Panels geöffnet.</p>
-        <button type="button" onClick={() => addPanel()}>
-          + Panel anlegen
+        <button type="button" onClick={() => dispatch({ type: 'addArea', setup, side: 'right' })}>
+          + Area anlegen
         </button>
       </div>
     );
@@ -584,9 +584,35 @@ export default function App() {
     <div className="app">
       <header className="toolbar">
         <img className="brand-logo" src={shownTheme === 'dark' ? logoUrl : logoLightUrl} alt="E-Sources" width={366} height={186} />
-        <button type="button" onClick={() => addPanel()} title="Neues Panel anlegen">
-          + Panel
-        </button>
+        {/* F-134: „+ Area“ – neue Spalte rechts oder Zeile unten; Panels kommen über die Areas dazu. */}
+        {canAddArea(ws, setup) ? (
+          <Menu icon={<span className="tb-add">+ Area</span>} label="Neue Area anlegen">
+            {(close) => (
+              <>
+                <Item
+                  onClick={() => {
+                    dispatch({ type: 'addArea', setup, side: 'right' });
+                    close();
+                  }}
+                >
+                  Neue Spalte rechts
+                </Item>
+                <Item
+                  onClick={() => {
+                    dispatch({ type: 'addArea', setup, side: 'bottom' });
+                    close();
+                  }}
+                >
+                  Neue Zeile unten
+                </Item>
+              </>
+            )}
+          </Menu>
+        ) : (
+          <button type="button" disabled title="Bildschirm voll – weitere Panels über das ⊕ einer Area anlegen">
+            + Area
+          </button>
+        )}
         <span className="sep" />
         <button type="button" className="tb-wide" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Alle Panels gleich groß, die Anordnung bleibt">
           Gleich verteilen

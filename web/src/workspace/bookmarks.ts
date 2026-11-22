@@ -2,7 +2,7 @@
  * Lesezeichen und Kategorien (F-14, F-20, F-30 bis F-33). Alle Lesezeichen liegen in der
  * Gesamtsammlung; die Sammlung eines Panels sind die, die ihm zugeordnet sind (F-32).
  */
-import type { Bookmark, Named, Workspace } from './types';
+import type { Bookmark, Named, PanelMeta, Workspace } from './types';
 import { TAB_MAX, activeTab, addTab, hostOf, navigatePanel, normalizeUrl, selectTab } from './workspace';
 
 /** Kategorie-Id für Lesezeichen ohne Kategorie. */
@@ -215,4 +215,69 @@ export function openBookmark(ws: Workspace, panelId: string, url: string): { ws:
   if (!activeTab(p).url) return { ws: navigatePanel(ws, panelId, url), result: 'here' };
   if (p.tabs.length >= TAB_MAX) return { ws, result: 'full' };
   return { ws: addTab(ws, panelId, url), result: 'tab' };
+}
+
+// ---------------------------------------------------------------- Zentrale Suche (F-34)
+
+/** Ein Treffer der zentralen Suche: ein Lesezeichen in der Sammlung eines Panels. */
+export interface SearchHit {
+  bookmark: Bookmark;
+  /** Panel, in dessen Sammlung es steht; null = nur in der Gesamtsammlung (öffnet im aktiven Panel). */
+  panel: PanelMeta | null;
+  /** Name der Kategorie; leer = ohne Kategorie. */
+  category: string;
+}
+
+/** Höchstzahl der angezeigten Treffer. */
+export const SEARCH_MAX = 50;
+
+/**
+ * F-34: durchsucht alle Lesezeichen (Titel, URL, Kategorie, Tags, Notiz). Steht ein Lesezeichen in
+ * mehreren Panels, gibt es je Panel einen Treffer. Treffer im Titel stehen vorn, sonst gilt die
+ * Reihenfolge der Gesamtsammlung.
+ */
+export function searchAll(ws: Workspace, query: string, max = SEARCH_MAX): SearchHit[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean).map((w) => w.replace(/^#/, '')).filter(Boolean);
+  if (!words.length) return [];
+  const found = ws.bookmarks.filter((b) => matches(ws, b, query));
+  const inTitle = (b: Bookmark) => words.every((w) => b.title.toLowerCase().includes(w));
+  const sorted = [...found.filter(inTitle), ...found.filter((b) => !inTitle(b))];
+  const out: SearchHit[] = [];
+  for (const b of sorted) {
+    const category = ws.categories.find((c) => c.id === b.category)?.name ?? '';
+    const panels = ws.panels.filter((p) => b.panels.includes(p.id));
+    if (!panels.length) out.push({ bookmark: b, panel: null, category });
+    for (const panel of panels) out.push({ bookmark: b, panel, category });
+    if (out.length >= max) break;
+  }
+  return out.slice(0, max);
+}
+
+/** Ein Panel als Treffer der zentralen Suche (F-141). */
+export interface PanelHit {
+  panel: PanelMeta;
+  /** Name der Area (F-128), Sphere und Szenario (F-116); leer = keiner. */
+  area: string;
+  sphere: string;
+  scenario: string;
+}
+
+/**
+ * F-141: Panels finden – über Name, Area, Sphere, Szenario und die Adressen der offenen Tabs.
+ * Treffer im Panelnamen stehen vorn.
+ */
+export function searchPanels(ws: Workspace, query: string, max = SEARCH_MAX): PanelHit[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean).map((w) => w.replace(/^#/, '')).filter(Boolean);
+  if (!words.length) return [];
+  const name = (list: Named[], id: string | undefined) => (id ? (list.find((n) => n.id === id)?.name ?? '') : '');
+  const all = ws.panels.map((panel) => ({
+    panel,
+    area: name(ws.areaNames, panel.areaName),
+    sphere: name(ws.spheres, panel.sphere),
+    scenario: name(ws.scenarios, panel.scenario),
+  }));
+  const hay = (h: PanelHit) => [h.panel.name, h.area, h.sphere, h.scenario, ...h.panel.tabs.map((t) => t.url ?? '')].join(' ').toLowerCase();
+  const found = all.filter((h) => words.every((w) => hay(h).includes(w)));
+  const inName = (h: PanelHit) => words.every((w) => h.panel.name.toLowerCase().includes(w));
+  return [...found.filter(inName), ...found.filter((h) => !inName(h))].slice(0, max);
 }

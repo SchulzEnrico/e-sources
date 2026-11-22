@@ -78,11 +78,12 @@ button {
   padding: 4px 12px;
   cursor: pointer;
   box-shadow: var(--raised-sm);
-  transition: box-shadow 0.15s ease, color 0.15s ease;
+  transition: box-shadow 0.15s ease, color 0.15s ease, background 0.15s ease, filter 0.15s ease;
 }
 button:hover:not(:disabled) {
   color: var(--strong);
-  box-shadow: var(--raised-sm), 0 0 0 1px rgba(var(--accent-rgb), 0.3), 0 0 14px var(--glow);
+  filter: brightness(1.2);
+  box-shadow: var(--raised-sm), 0 0 0 1px rgba(var(--accent-rgb), 0.65), 0 0 16px rgba(var(--accent-rgb), 0.45);
 }
 button:active:not(:disabled) {
   box-shadow: var(--pressed);
@@ -261,11 +262,11 @@ select {
   text-align: center;
   font-size: 11px;
   border-radius: 50%;
-  color: var(--muted);
+  color: var(--strong);
   background: linear-gradient(145deg, var(--btn-a), var(--btn-b));
-  border: 1px solid rgba(var(--tint), 0.06);
-  box-shadow: var(--raised-sm);
-  opacity: 0.55;
+  border: 1px solid rgba(var(--accent-rgb), 0.55);
+  box-shadow: var(--raised-sm), 0 0 8px rgba(var(--accent-rgb), 0.3);
+  opacity: 0.95;
 }
 .grip--left::after,
 .grip--right::after {
@@ -286,7 +287,8 @@ select {
 .grip:hover::after {
   opacity: 1;
   color: var(--strong);
-  box-shadow: var(--raised-sm), 0 0 0 1px rgba(var(--accent-rgb), 0.4), 0 0 12px var(--glow);
+  transform: translate(-50%, -50%) scale(1.25);
+  box-shadow: var(--raised-sm), 0 0 0 1px rgba(var(--accent-rgb), 0.8), 0 0 14px rgba(var(--accent-rgb), 0.55);
 }
 
 /* Ziehen eines Panels: Ziel-Bereich und mitlaufendes Schild */
@@ -462,20 +464,83 @@ select {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
-  color: var(--muted);
+  color: var(--text);
   border-radius: 7px;
 }
 .win__bar button:hover:not(:disabled) {
   color: var(--strong);
-  background: rgba(var(--tint), 0.07);
-  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.25);
+  filter: none;
+  background: rgba(var(--tint), 0.16);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.7), 0 0 10px rgba(var(--accent-rgb), 0.4);
+}
+/* F-135, NF-03: nicht verfügbar, aber erreichbar – blass, ohne Leuchten beim Drüberfahren */
+button.is-off,
+.win__bar button.is-off,
+.win__nav button.is-off {
+  opacity: 0.4;
+  cursor: default;
+}
+button.is-off:hover,
+.win__bar button.is-off:hover,
+.win__nav button.is-off:hover {
+  opacity: 0.6;
+  filter: none;
+  box-shadow: none;
+  background: transparent;
+}
+.win__spin {
+  display: inline-block;
+}
+.is-spin .win__spin {
+  animation: win-spin 0.6s ease-out;
+}
+@keyframes win-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-spin .win__spin {
+    animation: none;
+  }
+}
+/* F-135: Zurück, Vor, Neu laden, Home kräftig und gut lesbar */
+.win__nav button {
+  min-width: 26px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.win__nav button:not(.is-off) {
+  color: var(--strong);
 }
 .win__bar button:disabled {
   opacity: 0.35;
   cursor: default;
 }
-.win__close:hover {
-  color: var(--strong);
+/* F-140: Schließen ganz links, etwas größer, durch eine feine Linie abgesetzt */
+.win__bar .win__close {
+  position: relative;
+  margin-right: 14px;
+  min-width: 26px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 5px 2px;
+}
+.win__bar .win__close::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: rgba(var(--accent-rgb), 0.5);
+  pointer-events: none;
+}
+.win__bar .win__close:hover {
+  color: #fff;
+  background: rgba(200, 50, 35, 0.55);
 }
 
 .win__body {
@@ -526,7 +591,9 @@ select {
   color: var(--strong);
 }
 .menu__list button:hover {
-  background: rgba(var(--tint), 0.07);
+  filter: none;
+  background: rgba(var(--tint), 0.14);
+  box-shadow: inset 3px 0 0 rgba(var(--accent-rgb), 0.85);
 }
 .menu__list {
   min-width: 210px;
@@ -632,6 +699,19 @@ select {
   box-shadow: none;
   color: var(--muted);
 }
+.stack__step:hover:not(:disabled) {
+  filter: none;
+  color: var(--strong);
+  background: rgba(var(--tint), 0.16);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.7);
+}
+/* F-138: gleiches Plus wie in der Panel-Kopfleiste */
+.stack__add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 0;
+}
 .stack__count {
   text-align: center;
   font-size: 0.72em;
@@ -678,17 +758,26 @@ select {
 .stack__close {
   display: none;
   flex: 0 0 auto;
-  padding: 0 4px;
-  border-radius: 4px;
-  opacity: 0.7;
+  min-width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  border-radius: 6px;
+  color: var(--strong);
+  opacity: 0.85;
 }
 .stack:hover .stack__close,
 .stack:focus-within .stack__close {
-  display: inline;
+  display: inline-block;
 }
 .stack__close:hover {
   opacity: 1;
-  background: rgba(var(--shade), 0.25);
+  color: #fff;
+  background: rgba(200, 50, 35, 0.7);
+  box-shadow: 0 0 0 1px rgba(255, 120, 100, 0.8);
 }
 
 /* ---------- Hinweis-Dialog (F-26) */
@@ -834,8 +923,120 @@ select {
 /* F-66: schlanke Kopfleiste – eine Zeile, Selteneres im Menü „⋯“ */
 .toolbar { flex-wrap: nowrap; padding: 5px 10px; gap: 6px; position: relative; z-index: 50; }
 .toolbar > .menu > button { min-width: 36px; font-size: 18px; line-height: 1; }
+.toolbar > .menu > button:has(.tb-add) { font-size: inherit; line-height: inherit; }
 .toolbar .muted { white-space: nowrap; font-size: 13px; }
 .toolbar .menu__list { min-width: 250px; z-index: 60; }
+
+/* ---------- F-34 zentrales Suchfeld */
+.search {
+  position: relative;
+  flex: 0 1 240px;
+  min-width: 90px;
+}
+.search__input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.92em;
+  color: var(--text);
+  background: linear-gradient(145deg, var(--well-a), var(--well-b));
+  border: 1px solid rgba(var(--hi), 0.3);
+  border-radius: 9px;
+  padding: 3px 10px;
+  box-shadow: inset 2px 2px 5px rgba(var(--lo), 0.7), inset -1px -1px 3px rgba(var(--hi), 0.04);
+}
+.search__input:focus {
+  outline: none;
+  box-shadow: inset 2px 2px 5px rgba(var(--lo), 0.7), 0 0 0 1px rgba(var(--accent-rgb), 0.4), 0 0 12px var(--glow);
+}
+.search__list {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 60;
+  width: max(100%, 340px);
+  max-width: calc(100vw - 20px);
+  max-height: min(60vh, 460px);
+  overflow-y: auto;
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 6px;
+  background: rgba(var(--glass), 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(var(--hi), 0.12), 0 16px 34px rgba(var(--lo), 0.6);
+}
+.search__hit {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-radius: 8px;
+  padding: 5px 10px;
+  color: var(--text);
+  cursor: pointer;
+}
+/* Gewählter Treffer (Tastatur und Maus): deutlich, nicht nur über Farbe – heller Grund, Rand, Balken links */
+.search__hit.is-sel {
+  color: var(--strong);
+  background: rgba(var(--tint), 0.16);
+  box-shadow: inset 4px 0 0 var(--accent), inset 0 0 0 1px rgba(var(--accent-rgb), 0.7);
+}
+@media (forced-colors: active) {
+  .search__hit.is-sel {
+    outline: 2px solid Highlight;
+  }
+}
+/* Nur für Bildschirmleser */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.search__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search__where {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.search__panel {
+  color: var(--accent);
+  flex: none;
+}
+.search__cat::before {
+  content: '· ';
+}
+.search__host {
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search__head {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.search__empty {
+  padding: 6px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
 .menu__field { padding: 4px 10px; }
 .menu__field label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted, #b0b0b5); }
 .menu__field select { width: 100%; }
@@ -890,8 +1091,8 @@ select {
   user-select: none;
 }
 .tab:hover {
-  color: var(--text);
-  background: rgba(var(--tint), 0.04);
+  color: var(--strong);
+  background: rgba(var(--tint), 0.1);
 }
 .tab--on {
   color: var(--text);
@@ -927,7 +1128,8 @@ select {
 .tab__close:hover,
 .tabs__add:hover:not(:disabled) {
   color: var(--strong);
-  background: rgba(var(--tint), 0.08);
+  filter: none;
+  background: rgba(var(--tint), 0.16);
 }
 .tabs__add {
   flex: 0 0 auto;
@@ -1013,13 +1215,13 @@ select {
 /* F-09: Stapel-Knopf ganz links, durch eine feine Trennlinie von den übrigen Bedienelementen abgesetzt */
 .win__bar .win__stack-add {
   position: relative;
-  margin-right: 16px;
+  margin-left: 14px;
   padding: 1px 4px;
 }
-.win__bar .win__stack-add::after {
+.win__bar .win__stack-add::before {
   content: '';
   position: absolute;
-  right: -10px;
+  left: -8px;
   top: -2px;
   bottom: -2px;
   width: 1px;

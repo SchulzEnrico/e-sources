@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from 'react';
 import type { Bookmark, PanelMeta, Workspace } from '../workspace/types';
 import type { Action } from '../workspace/useWorkspace';
 import { bookmarkOf, collectionSize } from '../workspace/bookmarks';
@@ -6,6 +6,7 @@ import { BookmarkEditor, CollectionDrawer, CollectionIcon, draftFor } from './Bo
 import { FOCUS_WARN, TAB_MAX, rulerShown, activeTab, canGoBack, canGoForward, hostOf, isSelfUrl, loadColor, tabLabel } from '../workspace/workspace';
 import { StackBar, type StackProps, useSwipe } from './StackBar';
 import { Ruler, RulerIcon } from './Ruler';
+import * as FH from '../workspace/frameHistory';
 
 /** Voreingestellte Größen (F-12) als Anteil von Breite und Höhe der Arbeitsfläche. */
 export const SIZE_PRESETS: { label: string; w: number; h: number }[] = [
@@ -83,6 +84,10 @@ function openOutside(url: string, how: 'tab' | 'window') {
   window.open(url, '_blank', `popup,noopener,noreferrer,width=${w},height=${h},left=${left},top=${top}`);
 }
 
+/** F-135: Warum Zurück/Vor gesperrt sind – der Verlauf fremder Seiten im Panel ist nicht lesbar. */
+const NAV_HINT = 'Noch kein Schritt zum Blättern in diesem Tab.';
+const NAV_OTHER = 'Zurück und Vor gehen zuerst in dem Panel, in dem du zuletzt eine Seite gewechselt hast – dort zuerst blättern.';
+
 /** Symbol für die Größen-Voreinstellungen: Rahmen der Fläche mit einem Panel darin und Pfeil zur Ecke. */
 const SizeIcon = (
   <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" className="icon">
@@ -96,7 +101,7 @@ const SizeIcon = (
  * F-09: Knopf „Panel auf diese Area legen“ – ein Plus im Stil des ES-Logos:
  * roter Verlauf, silberne Lichtkante (wie der E-Sources-Knopf im Portfolio).
  */
-function StackAddIcon() {
+export function StackAddIcon() {
   const id = useId().replace(/:/g, '');
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true" className="icon">
@@ -172,6 +177,38 @@ export function PanelFrame(p: Props) {
   const [address, setAddress] = useState(url ?? '');
   /** Zähler für „Neu laden“ je Tab: ein neuer Schlüssel lädt dessen iframe neu. */
   const [reloads, setReloads] = useState<Record<string, number>>({});
+  // F-135: Schritte innerhalb der eingebetteten Seiten (gemeinsamer Browser-Verlauf)
+  useSyncExternalStore(FH.subscribe, FH.getVersion);
+  const frameKey = (t: { id: string; url?: string }) => `${p.panel.id}/${t.id}#${t.url}#${reloads[t.id] ?? 0}`;
+  const liveKeys = p.panel.tabs.filter((t) => t.url).map(frameKey);
+  const keysRef = useRef<string[]>([]);
+  useEffect(() => {
+    const now = new Set(liveKeys);
+    FH.forget(keysRef.current.filter((k) => !now.has(k)));
+    keysRef.current = liveKeys;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveKeys.join('|')]);
+  useEffect(() => () => FH.forget(keysRef.current), []);
+  const curKey = frameKey(tab);
+  const backOk = FH.canBack(curKey) || canGoBack(p.panel);
+  const fwdOk = FH.canForward(curKey) || canGoForward(p.panel);
+  const goBack = () => {
+    if (FH.canBack(curKey)) FH.back(curKey);
+    else if (canGoBack(p.panel)) p.onHistory(-1);
+    else p.notify(FH.hasSteps(curKey) ? NAV_OTHER : NAV_HINT);
+  };
+  const goForward = () => {
+    if (FH.canForward(curKey)) FH.forward(curKey);
+    else if (canGoForward(p.panel)) p.onHistory(1);
+    else p.notify(FH.hasSteps(curKey) ? NAV_OTHER : NAV_HINT);
+  };
+  // F-135: kurze Drehung als Rückmeldung beim Neuladen
+  const [spin, setSpin] = useState(false);
+  const reload = () => {
+    setReloads((r) => ({ ...r, [tab.id]: (r[tab.id] ?? 0) + 1 }));
+    setSpin(true);
+    window.setTimeout(() => setSpin(false), 600);
+  };
   useEffect(() => setAddress(url ?? ''), [url, tab.id]);
   const [drawer, setDrawer] = useState<Drawer>(null);
   const saved = bookmarkOf(p.ws, url, p.panel.id);
@@ -252,23 +289,60 @@ export function PanelFrame(p: Props) {
       data-panel-id={p.panel.id}
       style={{ '--load': loadColor(load) } as CSSProperties}
     >
-        {/* Kopfleiste wie im Browser (F-14): Zurück · Vor · Neu laden · Home · Adresse · Größen · Name · Menü · Schließen */}
+        {/* Kopfleiste wie im Browser (F-14): Schließen · Zurück · Vor · Neu laden · Home · Adresse · Größen · Name · Menü · Stapeln (F-140) */}
         <header className="win__bar">
-          {/* F-09: Stapeln ganz links in der Kopfleiste */}
-          <button type="button" className="win__stack-add" onClick={p.onAddHere} title={`Neues Panel auf „${p.panel.name}“ legen (stapeln)`} aria-label={`Neues Panel auf „${p.panel.name}“ legen`}>
-            <StackAddIcon />
+          {/* F-140: Schließen ganz links */}
+          <button type="button" className="win__close" onClick={p.onClose} title="Panel schließen" aria-label="Panel schließen">
+            ×
           </button>
           <div className="win__nav">
-            <button type="button" disabled={!canGoBack(p.panel)} onClick={() => p.onHistory(-1)} title="Zurück" aria-label="Zurück">
+            {/* F-135, NF-03: Nicht verfügbare Knöpfe bleiben erreichbar (aria-disabled) und sagen beim Klick, warum. */}
+            <button
+              type="button"
+              className={backOk ? undefined : 'is-off'}
+              aria-disabled={!backOk}
+              onClick={goBack}
+              title={backOk ? 'Zurück' : 'Zurück – noch kein Schritt in diesem Tab'}
+              aria-label="Zurück"
+            >
               ←
             </button>
-            <button type="button" disabled={!canGoForward(p.panel)} onClick={() => p.onHistory(1)} title="Vor" aria-label="Vor">
+            <button
+              type="button"
+              className={fwdOk ? undefined : 'is-off'}
+              aria-disabled={!fwdOk}
+              onClick={goForward}
+              title={fwdOk ? 'Vor' : 'Vor – noch kein Schritt zurück gemacht'}
+              aria-label="Vor"
+            >
               →
             </button>
-            <button type="button" disabled={!url} onClick={() => setReloads((r) => ({ ...r, [tab.id]: (r[tab.id] ?? 0) + 1 }))} title="Neu laden" aria-label="Neu laden">
-              ⟳
+            <button
+              type="button"
+              className={!url ? 'is-off' : spin ? 'is-spin' : undefined}
+              aria-disabled={!url}
+              onClick={() => {
+                if (!url) return p.notify('Dieser Tab ist leer – es gibt nichts neu zu laden.');
+                reload();
+              }}
+              title="Neu laden"
+              aria-label="Neu laden"
+            >
+              <span className="win__spin" aria-hidden="true">⟳</span>
             </button>
-            <button type="button" disabled={!p.panel.home} onClick={p.onHome} title={p.panel.home ? `Startseite: ${p.panel.home}` : 'Noch keine Startseite'} aria-label="Startseite">
+            <button
+              type="button"
+              className={p.panel.home ? undefined : 'is-off'}
+              aria-disabled={!p.panel.home}
+              onClick={() => {
+                if (!p.panel.home) return p.notify('Noch keine Startseite. Im Menü ⋮ „Als Startseite festlegen“ wählen.');
+                // Schon auf der Startseite: frisch laden, damit sie wieder oben beginnt.
+                if (url === p.panel.home) reload();
+                else p.onHome();
+              }}
+              title={p.panel.home ? `Startseite: ${p.panel.home}` : 'Noch keine Startseite'}
+              aria-label="Startseite"
+            >
               ⌂
             </button>
           </div>
@@ -438,8 +512,9 @@ export function PanelFrame(p: Props) {
               );
             }}
           </Menu>
-          <button type="button" className="win__close" onClick={p.onClose} title="Panel schließen" aria-label="Panel schließen">
-            ×
+          {/* F-09, F-140: Stapeln ganz rechts */}
+          <button type="button" className="win__stack-add" onClick={p.onAddHere} title={`Neues Panel auf „${p.panel.name}“ legen (stapeln)`} aria-label={`Neues Panel auf „${p.panel.name}“ legen`}>
+            <StackAddIcon />
           </button>
         </header>
         {/* F-21, F-22: Tabs unter der Kopfleiste (die Kopfleiste bleibt der Griff zum Verschieben), Ampel an der unteren Kante (F-26) */}
@@ -499,6 +574,7 @@ export function PanelFrame(p: Props) {
             t.url && !isSelf(t.url) && !p.isBlocked(t.url) ? (
               <iframe
                 key={`${t.id}#${t.url}#${reloads[t.id] ?? 0}`}
+                onLoad={() => FH.loaded(frameKey(t))}
                 className="win__frame"
                 hidden={t.id !== tab.id}
                 src={t.url}

@@ -8,6 +8,7 @@ import * as B from './bookmarks';
 import * as W from './workspace';
 import * as L from './look';
 import * as D from './demo';
+import * as FH from './frameHistory';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -966,3 +967,87 @@ describe('F-134 + Area', () => {
   });
 });
 
+
+describe('F-34 zentrales Suchfeld', () => {
+  const make = () => {
+    let ws = W.addArea(W.defaultWorkspace(), LAPTOP2, 'right');
+    ws = B.addCategory(ws, 'doku', 'Doku');
+    const [p1, p2] = ws.panels.map((p) => p.id);
+    ws = {
+      ...ws,
+      bookmarks: [
+        { id: 'a', title: 'MDN CSS', url: 'https://developer.mozilla.org/css', category: 'doku', tags: ['web'], panels: [p1, p2] },
+        { id: 'b', title: 'Hafen', url: 'https://de.wikipedia.org/wiki/Hamburger_Hafen', category: '', tags: ['hamburg'], panels: [] },
+        { id: 'c', title: 'Karte', url: 'https://www.openstreetmap.org/#css', category: '', tags: [], panels: [p2] },
+      ],
+    };
+    return { ws, p1, p2 };
+  };
+
+  it('leere Suche ergibt nichts', () => {
+    const { ws } = make();
+    expect(B.searchAll(ws, '   ')).toHaveLength(0);
+    expect(B.searchAll(ws, '#')).toHaveLength(0);
+  });
+
+  it('ein Treffer je Panel, mit Kategorie; ohne Panel = Gesamtsammlung', () => {
+    const { ws, p1, p2 } = make();
+    const css = B.searchAll(ws, 'mdn');
+    expect(css.map((h) => h.panel?.id)).toEqual([p1, p2]);
+    expect(css[0].category).toBe('Doku');
+    const hafen = B.searchAll(ws, '#Hamburg');
+    expect(hafen).toHaveLength(1);
+    expect(hafen[0].panel).toBe(null);
+    expect(hafen[0].category).toBe('');
+  });
+
+  it('Treffer im Titel stehen vorn, Kategorie wird mit durchsucht, Höchstzahl gilt', () => {
+    const { ws } = make();
+    expect(B.searchAll(ws, 'css').map((h) => h.bookmark.id)).toEqual(['a', 'a', 'c']);
+    expect(B.searchAll(ws, 'doku').map((h) => h.bookmark.id)).toEqual(['a', 'a']);
+    expect(B.searchAll(ws, 'css', 2)).toHaveLength(2);
+  });
+});
+
+describe('F-141 Suche nach Panels', () => {
+  it('findet Panels über Name, Area, Szenario und Tab-Adresse; Namenstreffer zuerst', () => {
+    let ws = W.addArea(W.defaultWorkspace(), LAPTOP2, 'right');
+    const [p1, p2] = ws.panels;
+    ws = {
+      ...ws,
+      scenarios: [{ id: 's1', name: 'Bewerbung' }],
+      panels: ws.panels.map((p) =>
+        p.id === p1.id ? { ...p, name: 'Wissen', scenario: 's1' } : p.id === p2.id ? { ...p, name: 'Video', tabs: [{ id: 't', url: 'https://wissen.de/' }], activeTab: 't' } : p,
+      ),
+    };
+    expect(B.searchPanels(ws, 'wissen').map((h) => h.panel.id)).toEqual([p1.id, p2.id]);
+    const s = B.searchPanels(ws, 'bewerbung');
+    expect(s).toHaveLength(1);
+    expect(s[0].scenario).toBe('Bewerbung');
+    expect(B.searchPanels(ws, '  ')).toHaveLength(0);
+  });
+});
+
+describe('F-135 Blättern in eingebetteten Seiten', () => {
+  it('erstes Laden zählt nicht; Zurück nur für das iframe, das zuletzt geblättert hat', () => {
+    FH.reset();
+    FH.loaded('a');
+    FH.loaded('b');
+    expect(FH.canBack('a')).toBe(false);
+    FH.loaded('a'); // Link in a
+    FH.loaded('b'); // Link in b
+    expect(FH.canBack('b')).toBe(true);
+    expect(FH.canBack('a')).toBe(false);
+    expect(FH.hasSteps('a')).toBe(true);
+  });
+
+  it('neuer Schritt verwirft Vor; vergessene iframes fallen heraus', () => {
+    FH.reset();
+    FH.loaded('a');
+    FH.loaded('a');
+    FH.loaded('a');
+    FH.forget(['a']);
+    expect(FH.canBack('a')).toBe(false);
+    expect(FH.hasSteps('a')).toBe(false);
+  });
+});

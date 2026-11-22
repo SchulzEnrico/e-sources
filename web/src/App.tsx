@@ -19,7 +19,8 @@ import type { PanelMeta, Slot } from './workspace/types';
 import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { useWorkspace } from './workspace/useWorkspace';
-import { openBookmark } from './workspace/bookmarks';
+import { type SearchHit, openBookmark } from './workspace/bookmarks';
+import { Search } from './components/Search';
 import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
 import { FOCUS_WARN, STACK_MAX, TAB_MAX, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
@@ -170,7 +171,8 @@ export default function App() {
   const min: T.Min = { w: Math.min(MIN_W_PX / iw, slot.w * 0.9), h: Math.min(MIN_H_PX / ih, slot.h * 0.9) };
   const px = (r: T.FRect) => ({ left: GAP + r.x * iw, top: GAP + r.y * ih, width: Math.max(0, r.w * iw - GAP), height: Math.max(0, r.h * ih - GAP) });
 
-  const notify = useCallback((text: string, ms = 3000) => {
+  // Lange Hinweise bleiben länger stehen (etwa Lesetempo).
+  const notify = useCallback((text: string, ms = Math.max(3000, text.length * 50)) => {
     setFlash(text);
     window.setTimeout(() => setFlash((f) => (f === text ? null : f)), ms);
   }, []);
@@ -347,6 +349,32 @@ export default function App() {
         if (last?.target && last.zone) dispatch({ type: 'drop', setup, id, target: last.target, zone: last.zone });
       },
     );
+  };
+
+  // ---------------------------------------------------------------- Zentrale Suche (F-34)
+
+  /** Aktives Panel, sonst das erste sichtbare. */
+  const currentPanel = (): string | null =>
+    (active && ws.panels.some((x) => x.id === active) ? active : null) ?? shownView.slots[0]?.front.id ?? null;
+
+  /** Treffer im zugehörigen Panel öffnen; liegt das Panel im Stapel hinten, kommt es nach vorn. */
+  const openHit = (h: SearchHit) => {
+    const id = h.panel?.id ?? currentPanel();
+    if (!id) return notify('Lege zuerst eine Area an, dann lässt sich das Lesezeichen öffnen.');
+    const name = ws.panels.find((x) => x.id === id)?.name ?? '';
+    if (openBookmark(ws, id, h.bookmark.url).result === 'full')
+      return notify(`Im Panel „${name}“ sind schon ${TAB_MAX} Tabs offen. Schließe dort einen Tab.`);
+    dispatch({ type: 'stackFront', setup, id });
+    dispatch({ type: 'openBookmark', panel: id, url: h.bookmark.url });
+    setActive(id);
+    if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
+  };
+
+  /** F-141: Panel aus der Suche nach vorn holen und aktiv machen. */
+  const showPanel = (id: string) => {
+    dispatch({ type: 'stackFront', setup, id });
+    setActive(id);
+    if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
   };
 
   // ---------------------------------------------------------------- Panels
@@ -609,7 +637,14 @@ export default function App() {
             )}
           </Menu>
         ) : (
-          <button type="button" disabled title="Bildschirm voll – weitere Panels über das ⊕ einer Area anlegen">
+          // NF-03: bleibt erreichbar und sagt beim Klick, warum keine Area mehr dazukommt
+          <button
+            type="button"
+            className="is-off"
+            aria-disabled="true"
+            title="Bildschirm voll – weitere Panels über das Plus einer Area anlegen"
+            onClick={() => notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.capacity} Areas). Weitere Panels legst du über das rote Plus in der Kopfleiste eines Panels auf diese Area.`, 5000)}
+          >
             + Area
           </button>
         )}
@@ -661,6 +696,8 @@ export default function App() {
           </button>
         )}
         <span className="grow" />
+        {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
+        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} />
         {swapFrom && <span className="hint">Ziel-Panel anklicken · Esc bricht ab</span>}
         <span className="muted" title={`${screenClass(cls).label} · ${orientation === 'landscape' ? 'quer' : 'hoch'}`}>
           {view.slots.length}/{view.spec.capacity}

@@ -1,5 +1,6 @@
 import { useRef, useState, type TouchEvent, type WheelEvent } from 'react';
 import type { PanelMeta } from '../workspace/types';
+import { StackAddIcon } from './PanelFrame';
 
 /** F-08: Stapel-Leiste rechts am Panel – Klick wählt, Mausrad und Pfeile blättern. */
 export interface StackProps {
@@ -78,14 +79,25 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
                 setDraft(m.name);
                 setEditing(m.id);
               }}
-              title={`${m.name} · Doppelklick zum Umbenennen`}
+              title={`${m.name} · Doppelklick oder F2: umbenennen · Entf: schließen`}
+              aria-keyshortcuts="F2 Delete"
+              // NF-03: Das × ist mit der Maus erreichbar; per Tastatur schließt Entf, F2 benennt um.
+              onKeyDown={(e) => {
+                if (e.key === 'Delete') {
+                  e.preventDefault();
+                  onRemove(m.id);
+                } else if (e.key === 'F2') {
+                  e.preventDefault();
+                  setDraft(m.name);
+                  setEditing(m.id);
+                }
+              }}
             >
               <span className="stack__num">{i + 1}</span>
               <span className="stack__name">{m.name}</span>
               <span
                 className="stack__close"
-                role="button"
-                aria-label={`${m.name} schließen`}
+                aria-hidden="true"
                 title="Panel schließen"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -103,7 +115,7 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
         </button>
         {onAdd && (
           <button type="button" className="stack__step stack__add" onClick={onAdd} title={`Neues Panel auf „${members[index]?.name ?? ''}“ legen`} aria-label="Neues Panel auf diesen Stapel legen">
-            +
+            <StackAddIcon />
           </button>
         )}
       </div>

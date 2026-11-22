@@ -19,6 +19,7 @@ import * as S from './sizing';
 import * as H from './help';
 import * as Tour from './tour';
 import * as C from './cycle';
+import * as Cl from './closed';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -1608,5 +1609,93 @@ describe('F-23 Weiterschalten', () => {
     expect(C.nextTabOf(q, -1)).toBe('t2');
     expect(C.tabSaid(q, 't2')).toBe('Tab 2 von 2 in „Recherche“: wikipedia.org');
     expect(C.portalSaid({ ...q, activeTab: 't2' }, 1, 4, 3)).toBe('Portal 2 von 4: „Recherche“, 2 Tabs, sichtbar wikipedia.org, Stack mit 3 Portalen');
+  });
+});
+
+describe('F-24 Zuletzt geschlossen', () => {
+  const withUrl = (ws: Workspace, id: string, url: string) => W.navigatePanel(ws, id, url);
+  it('Portal schließen merkt es, Wiederherstellen bringt es auf den alten Slot zurück', () => {
+    let ws = W.defaultWorkspace();
+    const first = ws.panels[0].id;
+    ws = withUrl(ws, first, 'https://a.de/');
+    ws = W.addPanel(ws, MONITOR2, P(ws, MONITOR2, first)); // Stack mit 2
+    ws = W.selectTab(ws, first, ws.panels[0].activeTab);
+    const slot = P(ws, MONITOR2, first);
+    const before = ws.panels.find((p) => p.id === first)!;
+    ws = Cl.closePanel(ws, first, MONITOR2);
+    expect(ws.panels.some((p) => p.id === first)).toBe(false);
+    expect(Cl.closedOf(ws)).toHaveLength(1);
+    const r = Cl.restoreClosed(ws, MONITOR2);
+    expect(r.result).toBe('ok');
+    const back = r.ws.panels.find((p) => p.id === first)!;
+    expect(back.tabs).toEqual(before.tabs);
+    expect(back.name).toBe(before.name);
+    expect(P(r.ws, MONITOR2, first)).toBe(slot);
+    expect(Cl.closedOf(r.ws)).toHaveLength(0);
+    expect(Cl.restoredSaid(r)).toContain('wiederhergestellt');
+  });
+  it('leere Portale und Tabs werden nicht gemerkt, Liste je Desk höchstens 10', () => {
+    let ws = W.defaultWorkspace();
+    ws = Cl.closePanel(ws, ws.panels[0].id, MONITOR2);
+    expect(Cl.closedOf(ws)).toHaveLength(0);
+    const id = ws.panels[0].id;
+    for (let i = 0; i < 12; i++) {
+      ws = W.addTab(ws, id, `https://s${i}.de/`);
+      const t = ws.panels.find((p) => p.id === id)!.activeTab;
+      ws = Cl.closeTabRemember(ws, id, t, (w) => W.closeTab(w, id, t));
+    }
+    expect(Cl.closedOf(ws)).toHaveLength(Cl.CLOSED_MAX);
+    expect(Cl.closedLabel(Cl.closedOf(ws)[0])).toContain('s11.de');
+    expect(Cl.restoreClosed(W.defaultWorkspace(), MONITOR2).result).toBe('none');
+  });
+  it('Tab kommt an seine Stelle zurück; ist das Portal weg, in ein neues Portal', () => {
+    let ws = W.defaultWorkspace();
+    const id = ws.panels[0].id;
+    ws = withUrl(ws, id, 'https://a.de/');
+    ws = W.addTab(ws, id, 'https://b.de/');
+    ws = W.addTab(ws, id, 'https://c.de/');
+    const mid = ws.panels[0].tabs[1].id;
+    ws = Cl.closeTabRemember(ws, id, mid, (w) => W.closeTab(w, id, mid));
+    let r = Cl.restoreClosed(ws, MONITOR2);
+    expect(r.ws.panels[0].tabs.map((t) => t.id)[1]).toBe(mid);
+    expect(r.ws.panels[0].activeTab).toBe(mid);
+    ws = Cl.closeTabRemember(r.ws, id, mid, (w) => W.closeTab(w, id, mid));
+    ws = W.removePanel(ws, id);
+    r = Cl.restoreClosed(ws, MONITOR2);
+    expect(r.result).toBe('ok');
+    const made = r.ws.panels.find((p) => p.id === r.panel)!;
+    expect(made.tabs[0].url).toBe('https://b.de/');
+  });
+  it('wird beim Speichern und Laden übernommen', () => {
+    let ws = W.defaultWorkspace();
+    ws = withUrl(ws, ws.panels[0].id, 'https://a.de/');
+    ws = Cl.closePanel(ws, ws.panels[0].id, MONITOR2);
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(Cl.closedOf(back)).toHaveLength(1);
+    expect(parseWorkspace(JSON.parse(JSON.stringify(W.defaultWorkspace())))!.closed).toBeUndefined();
+  });
+});
+
+describe('F-29 Rest Grenzen der Fokusanzeige', () => {
+  it('fixRule ordnet die Grenzen und rundet', () => {
+    expect(F.fixRule({ greenMax: 5, yellowMax: 3, orangeMax: 2, tabWeight: 0.3 })).toEqual({ tabWeight: 0.25, greenMax: 5, yellowMax: 6, orangeMax: 7 });
+    expect(F.fixRule({ greenMax: 0 }).greenMax).toBe(1);
+  });
+  it('eigene Regel wirkt auf Fokus und Auswirkung; Voreinstellung entfernt den Eintrag', () => {
+    let ws = W.defaultWorkspace(); // 3 Portale
+    expect(F.focusOf(ws).color).toBe('grün');
+    ws = F.setFocusRule(ws, { greenMax: 1, yellowMax: 2 });
+    expect(ws.focus).toEqual({ tabWeight: 0.5, greenMax: 1, yellowMax: 2, orangeMax: 16 });
+    expect(F.focusOf(ws).color).toBe('orange');
+    expect(F.effectOf(ws, 0).color).toBe('orange');
+    ws = F.setFocusRule(ws, { tabWeight: 0 });
+    expect(F.ruleOf(ws).tabWeight).toBe(0);
+    ws = F.setFocusRule(ws, null);
+    expect(ws.focus).toBeUndefined();
+    expect(F.setFocusRule(W.defaultWorkspace(), { greenMax: 9 }).focus).toBeUndefined();
+  });
+  it('wird gespeichert und geladen', () => {
+    const ws = F.setFocusRule(W.defaultWorkspace(), { orangeMax: 30 });
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))!.focus).toEqual(ws.focus);
   });
 });

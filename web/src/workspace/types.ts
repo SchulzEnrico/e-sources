@@ -1,3 +1,4 @@
+import type { FocusRule } from './focus';
 import type { Look } from './look';
 import type { FRect, Node } from './tree';
 
@@ -138,4 +139,13 @@ export interface Workspace {
    * layoutKey). Damit lassen sich die Areas eines anderen Fensters als Ziel anbieten.
    */
   winSetup: Record<string, string>;
+  /** F-24: zuletzt geschlossene Portale und Tabs, neueste zuerst, je Desk höchstens CLOSED_MAX. */
+  closed?: Closed[];
+  /** F-29 Rest: eigene Grenzen der Fokusanzeige; fehlt = Voreinstellung FOCUS_RULE. */
+  focus?: FocusRule;
 }
+
+/** F-24: ein geschlossenes Portal (mit Tabs und Verlauf) oder ein geschlossener Tab. */
+export type Closed =
+  | { id: string; kind: 'portal'; win: string; at: number; panel: PanelMeta; area?: string }
+  | { id: string; kind: 'tab'; win: string; at: number; tab: Tab; index: number; panelId: string; panelName: string };

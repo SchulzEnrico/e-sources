@@ -6,7 +6,7 @@
 import { TERMS } from './terms';
 
 /** Was die Oberfläche ausführen kann; App.tsx ordnet jedem Wert die passende Aktion zu. */
-export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto';
+export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule';
 
 export interface HelpEntry {
   id: string;
@@ -39,7 +39,7 @@ export const HELP: HelpEntry[] = [
   { id: 'source', group: 'Begriffe', name: 'Source', text: up(def(TERMS.source)), words: ['Webseite', 'Seite', 'Lesezeichen', 'Link'] },
   { id: 'library', group: 'Begriffe', name: 'Library', text: up(def(TERMS.library)), words: ['Lesezeichen', 'Sammlung', 'Favoriten'] },
   { id: 'dashboard', group: 'Begriffe', name: 'Dashboard', text: up(def(TERMS.dashboard)), keys: 'Esc', words: ['Übersicht', 'alle', 'Arbeitsfläche'] },
-  { id: 'focus', group: 'Begriffe', name: 'Fokusanzeige', text: up(def(TERMS.focus)) + ' Ein Portal zählt 1 Punkt, jeder weitere Tab 0,5.', words: ['Fokus', 'Ampel', 'Punkte', 'grün', 'gelb', 'rot', 'Gesamtfokus'] },
+  { id: 'focus', group: 'Begriffe', name: 'Fokusanzeige', text: up(def(TERMS.focus)) + ' Ein Portal zählt 1 Punkt, jeder weitere Tab 0,5; voreingestellt grün bis 9, gelb bis 13, orange bis 16, darüber rot. Änderbar unter „Fokusanzeige anpassen“.', words: ['Fokus', 'Ampel', 'Punkte', 'grün', 'gelb', 'rot', 'Gesamtfokus'] },
 
   // Ansicht
   { id: 'cockpit', group: 'Ansicht', name: 'Cockpit', text: up(def(TERMS.cockpit)), keys: 'Strg/⌘+.', run: 'cockpit', words: ['Radar', 'Überblick', 'Fokus-Radar', 'Lagekarte'] },
@@ -63,6 +63,9 @@ export const HELP: HelpEntry[] = [
 
   // Bedienung
   { id: 'adjust', group: 'Bedienung', name: 'Adjust', text: 'Größen der Portale per Tastatur oder Mausrad ändern: Pfeile oder W A S D verschieben die Kante, Umschalt die andere, Tab wechselt den Slot, M maximiert. Leertaste, Enter oder Esc beendet.', keys: 'Alt/⌥+A', run: 'adjust', words: ['Größe', 'Größen-Modus', 'breiter', 'schmaler', 'höher', 'Kante'] },
+  { id: 'focusRule', group: 'Bedienung', name: 'Fokusanzeige anpassen', text: 'Legt fest, bis wie viele Punkte die Fokusanzeige grün, gelb und orange zeigt und wie viel ein weiterer Tab zählt (Einstellungen, Zahnrad). „Voreinstellung“ setzt alles zurück.', run: 'focusRule', words: ['Grenzen', 'Ampel', 'Punkte', 'Fokus einstellen', 'Schwelle', 'grün', 'rot'] },
+  { id: 'restore', group: 'Bedienung', name: 'Wiederherstellen', text: 'Holt das zuletzt geschlossene Portal (mit allen Tabs und Verlauf) oder den zuletzt geschlossenen Tab zurück – an die alte Stelle, wenn es sie noch gibt. Nach dem Schließen steht dafür auch ein Knopf im Hinweis unten.', keys: 'Alt/⌥+Z', run: 'restore', words: ['rückgängig', 'zurückholen', 'versehentlich geschlossen', 'Undo', 'wieder öffnen'] },
+  { id: 'closed', group: 'Bedienung', name: 'Zuletzt geschlossen', text: 'Liste der letzten 10 geschlossenen Portale und Tabs dieses Desks; jeder Eintrag lässt sich einzeln zurückholen (Einstellungen, Zahnrad). Bleibt beim Neuladen erhalten.', run: 'closed', words: ['Verlauf', 'geschlossene Tabs', 'geschlossene Portale', 'Papierkorb', 'wiederherstellen'] },
   { id: 'nextTab', group: 'Bedienung', name: 'Nächster / voriger Tab', text: 'Wechselt im aktiven Portal zum nächsten Tab, mit Umschalt zum vorigen, und sagt an, welcher es ist. Steht der Fokus auf einem Tab, gehen auch die Pfeiltasten.', keys: 'Alt/⌥+T · Umschalt+Alt/⌥+T', words: ['Tab wechseln', 'Reiter', 'weiterschalten', 'Strg+Tab'] },
   { id: 'nextPortal', group: 'Bedienung', name: 'Nächstes / voriges Portal', text: 'Macht das nächste Portal aktiv (von links oben nach rechts unten), mit Umschalt das vorige, und sagt an, welches es ist. Im Solo-View wird das gezeigte Portal mitgewechselt.', keys: 'Alt/⌥+P · Umschalt+Alt/⌥+P', words: ['Portal wechseln', 'Panel', 'weiterschalten', 'aktiv'] },
   { id: 'distribute', group: 'Bedienung', name: 'Gleich verteilen', text: 'Macht alle Slots dieses Desks gleich groß.', keys: 'Alt/⌥+G', run: 'distribute', words: ['gleich groß', 'ordnen', 'aufräumen', 'Größe'] },

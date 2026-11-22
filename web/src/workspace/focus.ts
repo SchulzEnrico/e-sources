@@ -11,7 +11,8 @@ import { setupOfWindow } from './move';
 /**
  * Voreinstellung des Gesamtfokus (F-29, Entscheidung 22.11.2026; bis 9 grün, 10–13 gelb, 14–16 orange, ab 17 rot): Es zählen nur Panels und Tabs.
  * Jedes Panel zählt 1 Punkt, jeder weitere Tab `tabWeight` Punkte. Bis `greenMax` grün,
- * bis `yellowMax` gelb, bis `orangeMax` orange, darüber rot. Später in den Einstellungen änderbar.
+ * bis `yellowMax` gelb, bis `orangeMax` orange, darüber rot. F-29 Rest: in den Einstellungen änderbar
+ * (Workspace.focus); fehlt sie, gilt FOCUS_RULE.
  */
 export interface FocusRule {
   tabWeight: number;
@@ -21,6 +22,45 @@ export interface FocusRule {
 }
 
 export const FOCUS_RULE: FocusRule = { tabWeight: 0.5, greenMax: 9, yellowMax: 13, orangeMax: 16 };
+
+/** Wahl für das Gewicht eines weiteren Tabs. */
+export const TAB_WEIGHTS = [0, 0.25, 0.5, 1] as const;
+/** Höchste Grenze, die sich einstellen lässt (mehr Portale gibt es praktisch nicht). */
+export const FOCUS_MAX = 200;
+
+/** Regel, die gerade gilt: eigene Einstellung oder Voreinstellung. */
+export const ruleOf = (ws: Workspace): FocusRule => ws.focus ?? FOCUS_RULE;
+
+/**
+ * F-29 Rest: Regel prüfen und in Ordnung bringen – ganze Zahlen, grün ab 1, jede Grenze über der
+ * vorigen, Tab-Gewicht aus TAB_WEIGHTS (sonst das nächstliegende).
+ */
+export function fixRule(r: Partial<FocusRule>): FocusRule {
+  const int = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : d);
+  const greenMax = Math.min(FOCUS_MAX - 2, Math.max(1, int(r.greenMax, FOCUS_RULE.greenMax)));
+  const yellowMax = Math.min(FOCUS_MAX - 1, Math.max(greenMax + 1, int(r.yellowMax, FOCUS_RULE.yellowMax)));
+  const orangeMax = Math.min(FOCUS_MAX, Math.max(yellowMax + 1, int(r.orangeMax, FOCUS_RULE.orangeMax)));
+  const w = typeof r.tabWeight === 'number' ? r.tabWeight : FOCUS_RULE.tabWeight;
+  const tabWeight = TAB_WEIGHTS.reduce((a, b) => (Math.abs(b - w) < Math.abs(a - w) ? b : a), FOCUS_RULE.tabWeight as number);
+  return { tabWeight, greenMax, yellowMax, orangeMax };
+}
+
+/** Eigene Regel setzen; gleich der Voreinstellung = Eintrag entfällt (gilt dann auch bei späteren Änderungen der Voreinstellung). */
+export function setFocusRule(ws: Workspace, r: Partial<FocusRule> | null): Workspace {
+  const next = r ? fixRule({ ...ruleOf(ws), ...r }) : FOCUS_RULE;
+  const same = (Object.keys(FOCUS_RULE) as (keyof FocusRule)[]).every((k) => next[k] === FOCUS_RULE[k]);
+  if (same) {
+    if (!ws.focus) return ws;
+    const { focus: _drop, ...rest } = ws; // eslint-disable-line @typescript-eslint/no-unused-vars
+    return rest;
+  }
+  return { ...ws, focus: next };
+}
+
+/** Bereiche als Satz, z. B. „grün bis 9 Punkte, gelb bis 13, orange bis 16, darüber rot; weiterer Tab 0,5“. */
+export function ruleText(r: FocusRule): string {
+  return `grün bis ${r.greenMax} Punkte, gelb bis ${r.yellowMax}, orange bis ${r.orangeMax}, darüber rot; ein Portal zählt 1, jeder weitere Tab ${pointsText(r.tabWeight)}`;
+}
 
 export type FocusColor = 'aus' | 'grün' | 'gelb' | 'orange' | 'rot';
 
@@ -51,7 +91,7 @@ export function colorOfLevel(level: number): FocusColor {
 }
 
 /** Gesamtfokus der ganzen Arbeitsfläche (F-29). */
-export function focusOf(ws: Workspace, rule: FocusRule = FOCUS_RULE): Focus {
+export function focusOf(ws: Workspace, rule: FocusRule = ruleOf(ws)): Focus {
   const panels = ws.panels.length;
   const extraTabs = ws.panels.reduce((n, p) => n + Math.max(0, p.tabs.length - 1), 0);
   const points = panels + extraTabs * rule.tabWeight;
@@ -71,7 +111,7 @@ export interface Effect {
   text: string;
 }
 
-export function effectOf(ws: Workspace, panels: number, tabs = 0, rule: FocusRule = FOCUS_RULE): Effect {
+export function effectOf(ws: Workspace, panels: number, tabs = 0, rule: FocusRule = ruleOf(ws)): Effect {
   const points = focusOf(ws, rule).points + panels + tabs * rule.tabWeight;
   const level = focusLevel(points, rule);
   const color = colorOfLevel(level);
@@ -79,7 +119,7 @@ export function effectOf(ws: Workspace, panels: number, tabs = 0, rule: FocusRul
 }
 
 /** F-167: Fokus eines einzelnen Desks – gleiche Regel, nur seine Portale und Tabs. */
-export function deskFocusOf(ws: Workspace, win: string, rule: FocusRule = FOCUS_RULE): Focus {
+export function deskFocusOf(ws: Workspace, win: string, rule: FocusRule = ruleOf(ws)): Focus {
   return focusOf({ ...ws, panels: panelsIn(ws.panels, win) }, rule);
 }
 

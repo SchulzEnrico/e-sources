@@ -1,5 +1,6 @@
-import type { Arrangement, Bookmark, Named, PanelMeta, Tab, Workspace } from './types';
+import type { Arrangement, Bookmark, Closed, Named, PanelMeta, Tab, Workspace } from './types';
 import { parseLook } from './look';
+import { type FocusRule, fixRule } from './focus';
 import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } from './workspace';
 import { demoWorkspace } from './demo';
 import { PROBE, probeWorkspace } from './probe';
@@ -141,7 +142,23 @@ export function parseWorkspace(data: unknown): Workspace | null {
   if (isObj(data.winSetup))
     for (const [k, v] of Object.entries(data.winSetup))
       if ((k === '' || winIds.has(k)) && typeof v === 'string' && (parseLayoutKey(v)?.win ?? '') === k) winSetup[k] = v;
+  // F-24: Zuletzt geschlossen – nur gültige Einträge, Desks wie oben.
+  const closed: Closed[] = [];
+  if (Array.isArray(data.closed))
+    for (const c of data.closed) {
+      if (!isObj(c) || typeof c.id !== 'string' || !isNum(c.at)) continue;
+      const win = typeof c.win === 'string' && winIds.has(c.win) ? c.win : '';
+      if (c.kind === 'portal') {
+        const panel = parsePanel(c.panel);
+        if (panel) closed.push({ id: c.id, kind: 'portal', win, at: c.at as number, panel, ...(typeof c.area === 'string' ? { area: c.area } : {}) });
+      } else if (c.kind === 'tab' && isObj(c.tab) && typeof c.tab.id === 'string' && typeof c.panelId === 'string') {
+        const tab = parseTab(c.tab);
+        if (tab) closed.push({ id: c.id, kind: 'tab', win, at: c.at as number, tab, index: isNum(c.index) ? (c.index as number) : 0, panelId: c.panelId, panelName: typeof c.panelName === 'string' ? c.panelName : '' });
+      }
+    }
   return {
+    ...(closed.length ? { closed } : {}),
+    ...(isObj(data.focus) ? { focus: fixRule(data.focus as Partial<FocusRule>) } : {}),
     panels: panels as PanelMeta[],
     layouts: arrangements(data.layouts),
     preferred: arrangements(data.preferred),

@@ -8,6 +8,9 @@ import type { Min, Node, Zone } from './tree';
 import type { Bookmark, Workspace } from './types';
 import * as B from './bookmarks';
 import * as W from './workspace';
+import * as C from './closed';
+import * as F from './focus';
+import type { FocusRule } from './focus';
 import { type Look, setLook } from './look';
 
 type S = { setup: ScreenSetup };
@@ -16,7 +19,11 @@ export type Action =
   | ({ type: 'add'; area?: string; id?: string } & S)
   /** F-134: neue Area als Spalte rechts oder Zeile unten. */
   | ({ type: 'addArea'; side: 'right' | 'bottom' } & S)
-  | { type: 'remove'; id: string }
+  /** F-24: mit `setup` wird das Portal unter „Zuletzt geschlossen“ gemerkt. */
+  | { type: 'remove'; id: string; setup?: ScreenSetup }
+  | { type: 'restore'; setup: ScreenSetup; entry?: string }
+  /** F-29 Rest: Grenzen der Fokusanzeige; null = Voreinstellung. */
+  | { type: 'focusRule'; rule: Partial<FocusRule> | null }
   | { type: 'rename'; id: string; name: string }
   | { type: 'setUrl'; id: string; url: string }
   | { type: 'history'; id: string; step: number }
@@ -91,7 +98,11 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'addArea':
       return W.addArea(ws, a.setup, a.side);
     case 'remove':
-      return W.removePanel(ws, a.id);
+      return a.setup ? C.closePanel(ws, a.id, a.setup) : W.removePanel(ws, a.id);
+    case 'focusRule':
+      return F.setFocusRule(ws, a.rule);
+    case 'restore':
+      return C.restoreClosed(ws, a.setup, a.entry).ws;
     case 'rename':
       return W.renamePanel(ws, a.id, a.name);
     case 'setUrl':
@@ -107,7 +118,7 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'addTab':
       return W.addTab(ws, a.id, a.url);
     case 'closeTab':
-      return W.closeTab(ws, a.id, a.tab);
+      return C.closeTabRemember(ws, a.id, a.tab, (w) => W.closeTab(w, a.id, a.tab));
     case 'selectTab':
       return W.selectTab(ws, a.id, a.tab);
     case 'moveTab':

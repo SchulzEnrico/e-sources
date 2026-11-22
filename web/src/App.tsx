@@ -22,7 +22,7 @@ import { type SearchHit, addSamples, openBookmark } from './workspace/bookmarks'
 import { Search } from './components/Search';
 import { Tooltips } from './components/Tooltip';
 import { FocusMeter, Overview } from './components/Overview';
-import { arrangeText, deskFocusOf, effectOf, focusOf, placeText } from './workspace/focus';
+import { arrangeText, deskFocusOf, effectOf, focusOf, placeText, ruleOf } from './workspace/focus';
 import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
 import { contrastWarning, pickLook, shownAccent, THEMES, resolveTheme, rgbOf } from './workspace/look';
 import { MAIN_NAME, nextWindowName, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
@@ -35,8 +35,11 @@ import { type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace
 import { Design } from './components/Design';
 import type { HelpEntry } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
-import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, tryPlace, viewOf } from './workspace/workspace';
+import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf } from './workspace/workspace';
 import { TERMS } from './workspace/terms';
+import { Closed as ClosedDialog } from './components/Closed';
+import { FocusRule as FocusRuleDialog } from './components/FocusRule';
+import { closedOf, restoreClosed, restoredSaid } from './workspace/closed';
 import { PORTAL_ALONE, nextTabOf, portalSaid, stepIn, tabAlone, tabSaid } from './workspace/cycle';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
@@ -337,6 +340,12 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   const [flash, setFlash] = useState<string | null>(null);
+  /** F-24: Hinweis, an dem der Knopf „Wiederherstellen“ steht (gleich `flash`). */
+  const [undoFor, setUndoFor] = useState<string | null>(null);
+  /** F-24: Dialog „Zuletzt geschlossen“. */
+  const [closedOpen, setClosedOpen] = useState(false);
+  /** F-29 Rest: Dialog „Fokusanzeige anpassen“. */
+  const [ruleOpen, setRuleOpen] = useState(false);
   /** F-155: Größen-Modus (Alt/⌥+A) und seine letzte Ansage. */
   const [sizeMode, setSizeMode] = useState(false);
   const [sizeSaid, setSizeSaid] = useState('');
@@ -349,6 +358,8 @@ export default function App() {
   }, []);
   /** F-23: Ansage nach Tab-/Portal-Wechsel per Kürzel (eigene, immer vorhandene Live-Region). */
   const [cycleSaid, setCycleSaid] = useState('');
+  /** Text in die immer vorhandene Live-Region (gleicher Text zweimal wird erneut angesagt). */
+  const sayLive = (text: string) => setCycleSaid((old) => (old === text ? `${text}\u00a0` : text));
   const cycleKeyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => cycleKeyRef.current(e);
@@ -429,8 +440,9 @@ export default function App() {
   const px = (r: T.FRect) => ({ left: GAP + r.x * iw, top: GAP + r.y * ih, width: Math.max(0, r.w * iw - GAP), height: Math.max(0, r.h * ih - GAP) });
 
   // Lange Hinweise bleiben länger stehen (etwa Lesetempo).
-  const notify = useCallback((text: string, ms = Math.max(3000, text.length * 50)) => {
+  const notify = useCallback((text: string, ms = Math.max(3000, text.length * 50), undo = false) => {
     setFlash(text);
+    setUndoFor(undo ? text : null);
     window.setTimeout(() => setFlash((f) => (f === text ? null : f)), ms);
   }, []);
 
@@ -667,6 +679,37 @@ export default function App() {
   const currentPanel = (): string | null =>
     (active && ws.panels.some((x) => x.id === active) ? active : null) ?? shownView.slots[0]?.front.id ?? null;
 
+  // ---------------------------------------------------------------- F-24 Zuletzt geschlossen
+
+  /** Portal schließen; mit Seite wird es gemerkt und der Hinweis bietet „Wiederherstellen“. */
+  const closePortal = (id: string) => {
+    const p = ws.panels.find((x) => x.id === id);
+    if (!p) return;
+    const here = (p.win ?? '') === (win ?? '');
+    const target = here ? setup : (setupOfWindow(ws, p.win ?? '') ?? setup);
+    dispatch({ type: 'remove', id, setup: target });
+    if (here && p.tabs.some((t) => t.url)) notify(`Portal „${p.name}“ geschlossen.`, 8000, true);
+  };
+  /** Tab schließen; mit Seite wird er gemerkt. */
+  const closeTabOf = (id: string, tabId: string) => {
+    const t = ws.panels.find((x) => x.id === id)?.tabs.find((x) => x.id === tabId);
+    dispatch({ type: 'closeTab', id, tab: tabId });
+    if (t?.url) notify(`Tab ${tabLabel(t)} geschlossen.`, 8000, true);
+  };
+  /** Neuesten (oder gewählten) Eintrag zurückholen, ansagen, Fokus auf den Tab. */
+  const restore = (entry?: string) => {
+    const r = restoreClosed(ws, setup, entry);
+    const text = restoredSaid(r);
+    notify(text);
+    sayLive(text);
+    if (r.result !== 'ok' || !r.panel) return;
+    dispatch({ type: 'restore', setup, entry: r.entry?.id });
+    const id = r.panel;
+    setActive(id);
+    if (mode.kind === 'max') setMode({ kind: 'max', id });
+    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-panel-id="${id}"] [role="tab"][aria-selected="true"]`)?.focus({ preventScroll: true }), 50);
+  };
+
   /** Treffer im zugehörigen Panel öffnen; liegt das Panel im Stapel hinten, kommt es nach vorn. */
   const openHit = (h: SearchHit) => {
     const id = h.panel?.id ?? currentPanel();
@@ -882,15 +925,17 @@ export default function App() {
    * Danach liegt der Tastaturfokus auf dem sichtbaren Tab, die Ansage geht an die Live-Region.
    */
   cycleKeyRef.current = (e: KeyboardEvent) => {
-    if (!e.altKey || e.ctrlKey || e.metaKey || (e.code !== 'KeyT' && e.code !== 'KeyP')) return;
+    if (!e.altKey || e.ctrlKey || e.metaKey || (e.code !== 'KeyT' && e.code !== 'KeyP' && e.code !== 'KeyZ')) return;
     // nicht hinter offenen Dialogen (Hilfe, Design, Hinweis, Tour)
     if (document.querySelector('[aria-modal="true"], dialog:modal')) return;
     e.preventDefault();
     e.stopImmediatePropagation();
+    // F-24: Alt/⌥+Z holt das zuletzt Geschlossene zurück
+    if (e.code === 'KeyZ') return e.repeat ? undefined : restore();
     const dir = e.shiftKey ? -1 : 1;
     const say = (text: string) => {
       // gleicher Text zweimal hintereinander soll erneut angesagt werden
-      setCycleSaid((old) => (old === text ? `${text}\u00a0` : text));
+      sayLive(text);
       if (sizeMode) setSizeSaid(text);
     };
     const focusTab = (id: string) =>
@@ -997,7 +1042,7 @@ export default function App() {
                 onStep: (step) => dispatch({ type: 'stackStep', setup, area: slotOfMeta.id, step }),
                 areaName: areaLabel(ws, slotOfMeta),
                 onRenameArea: (name) => dispatch({ type: 'renameArea', setup, area: slotOfMeta.id, name }),
-                onRemove: (id) => dispatch({ type: 'remove', id }),
+                onRemove: (id) => closePortal(id),
                 onAdd: full ? undefined : () => addPanel(slotOfMeta.id),
                 addFx: fx.panel,
                 onRename: (id, name) => dispatch({ type: 'rename', id, name }),
@@ -1017,7 +1062,7 @@ export default function App() {
         onHistory={(step) => dispatch({ type: 'history', id: meta.id, step })}
         onHome={() => dispatch({ type: 'home', id: meta.id })}
         onAddTab={() => dispatch({ type: 'addTab', id: meta.id })}
-        onCloseTab={(tab) => dispatch({ type: 'closeTab', id: meta.id, tab })}
+        onCloseTab={(tab) => closeTabOf(meta.id, tab)}
         onSelectTab={(tab) => dispatch({ type: 'selectTab', id: meta.id, tab })}
         onMoveTab={(tab, to) => dispatch({ type: 'moveTab', id: meta.id, tab, to })}
         isBlocked={(u) => isBlocked(ws, u)}
@@ -1046,7 +1091,7 @@ export default function App() {
             return notify(`Schon ${TAB_MAX} Tabs offen. Schließe einen Tab oder öffne die Source in einem anderen Portal.`);
           dispatch({ type: 'openBookmark', panel: meta.id, url });
         }}
-        onClose={() => dispatch({ type: 'remove', id: meta.id })}
+        onClose={() => closePortal(meta.id)}
         onStartSwap={() => {
           if (mine.length < 2) return notify('Zum Tauschen braucht es mindestens zwei Portale.');
           setSwapFrom(swapFrom === meta.id ? null : meta.id);
@@ -1154,6 +1199,12 @@ export default function App() {
         return startDesignTour();
       case 'toursAuto':
         return switchAutoTours();
+      case 'restore':
+        return restore();
+      case 'closed':
+        return setClosedOpen(true);
+      case 'focusRule':
+        return setRuleOpen(true);
       case 'search':
         return window.setTimeout(() => document.querySelector<HTMLInputElement>('.search__input')?.focus(), 0);
     }
@@ -1563,6 +1614,24 @@ export default function App() {
               >
                 Desks importieren
               </Item>
+              {/* F-29 Rest */}
+              <Item
+                onClick={() => {
+                  close();
+                  setRuleOpen(true);
+                }}
+              >
+                Fokusanzeige anpassen …
+              </Item>
+              {/* F-24 */}
+              <Item
+                onClick={() => {
+                  close();
+                  setClosedOpen(true);
+                }}
+              >
+                Zuletzt geschlossen …
+              </Item>
               {/* F-95: Tour jederzeit wieder starten */}
               <Item
                 onClick={() => {
@@ -1615,6 +1684,17 @@ export default function App() {
           {tour === 'design' && <Tour key="design" tour="design" auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} />}
         </Design>
       )}
+      {ruleOpen && <FocusRuleDialog rule={ruleOf(ws)} points={focus.points} onChange={(rule) => dispatch({ type: 'focusRule', rule })} onClose={() => setRuleOpen(false)} />}
+      {closedOpen && (
+        <ClosedDialog
+          entries={closedOf(ws, win ?? '')}
+          onRestore={(id) => {
+            setClosedOpen(false);
+            restore(id);
+          }}
+          onClose={() => setClosedOpen(false)}
+        />
+      )}
       {helpAt && <Help at={helpAt.at} onClose={() => setHelpAt(null)} onRun={runHelp} />}
       {overview && (
         <Overview
@@ -1634,7 +1714,7 @@ export default function App() {
           onOpenWindow={(target) => {
             if (!openAppWindow(target)) notify(POPUP_BLOCKED);
           }}
-          onClose={(id) => dispatch({ type: 'remove', id })}
+          onClose={(id) => closePortal(id)}
           onRename={(id, name) => dispatch({ type: 'rename', id, name })}
           moveTargets={targetsFor}
           onMove={moveTo}
@@ -1674,6 +1754,19 @@ export default function App() {
       {flash && !swapFrom && (
         <div className="toast" role="status">
           <span>{flash}</span>
+          {undoFor === flash && (
+            <button
+              type="button"
+              className="toast__undo"
+              onClick={() => {
+                setFlash(null);
+                restore();
+              }}
+              title="Wiederherstellen (Alt/⌥+Z)"
+            >
+              Wiederherstellen
+            </button>
+          )}
           <button type="button" onClick={() => setFlash(null)} aria-label="Hinweis schließen" title="Schließen">
             ×
           </button>

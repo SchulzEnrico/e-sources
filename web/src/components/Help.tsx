@@ -3,8 +3,8 @@
  * Native <dialog> mit showModal: Fokus bleibt im Dialog, Esc schließt, danach springt der Fokus
  * zurück zum Auslöser (NF-03). `at` öffnet die Hilfe an einem Eintrag und hebt ihn hervor.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { HELP, type HelpEntry, searchHelp } from '../workspace/help';
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { HELP, type HelpEntry, QUESTION_TEXT, searchHelp, searchQuestions } from '../workspace/help';
 import { Icon } from './Icon';
 import { helpIcon } from '../workspace/icons';
 
@@ -23,6 +23,37 @@ export function Help({ at, onClose, onRun }: Props) {
   const filterRef = useRef<HTMLInputElement>(null);
   const [filter, setFilter] = useState('');
   const shown = useMemo(() => (filter.trim() ? searchHelp(filter, HELP.length) : HELP), [filter]);
+  // F-186: passende Fragen über der Liste; ↓/↑ im Filterfeld wählt, Enter springt zur Antwort
+  const questions = useMemo(() => searchQuestions(filter, 4), [filter]);
+  const [qSel, setQSel] = useState(-1);
+  // Eintrag, zu dem eine Frage gesprungen ist (hebt ihn hervor wie `at`)
+  const [jumped, setJumped] = useState<string | null>(null);
+  const mark = jumped ?? at;
+  useEffect(() => setQSel(-1), [filter]);
+
+  const answer = (id: string) => {
+    setFilter('');
+    setJumped(id);
+    // nach dem Neuzeichnen der ganzen Liste zum Eintrag springen
+    requestAnimationFrame(() => {
+      const t = dlg.current?.querySelector<HTMLElement>(`#help-${CSS.escape(id)}`);
+      t?.scrollIntoView({ block: 'center' });
+      t?.focus();
+    });
+  };
+
+  const onFilterKey = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    const n = questions.length;
+    if (!n) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const d = e.key === 'ArrowDown' ? 1 : -1;
+      setQSel((i) => (i < 0 ? (d > 0 ? 0 : n - 1) : (i + d + n) % n));
+    } else if (e.key === 'Enter' && qSel >= 0 && questions[qSel]) {
+      e.preventDefault();
+      answer(questions[qSel].entry.id);
+    }
+  };
 
   useEffect(() => {
     const d = dlg.current;
@@ -39,7 +70,7 @@ export function Help({ at, onClose, onRun }: Props) {
   }, [at]);
 
   const entry = (e: HelpEntry) => (
-    <li key={e.id} id={`help-${e.id}`} tabIndex={-1} className={e.id === at ? 'help__item is-at' : 'help__item'} aria-labelledby={`help-${e.id}-name`}>
+    <li key={e.id} id={`help-${e.id}`} tabIndex={-1} className={e.id === mark ? 'help__item is-at' : 'help__item'} aria-labelledby={`help-${e.id}-name`}>
       <div className="help__row">
         <h4 id={`help-${e.id}-name`} className="help__name">
           <Icon name={helpIcon(e.id)} className="icon help__icon" />
@@ -89,12 +120,46 @@ export function Help({ at, onClose, onRun }: Props) {
         value={filter}
         placeholder="In der Hilfe suchen …"
         aria-label="In der Hilfe suchen"
-        aria-controls="help-list"
-        onChange={(e) => setFilter(e.target.value)}
+        aria-controls={questions.length ? 'help-questions' : 'help-list'}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={questions.length > 0}
+        aria-activedescendant={qSel >= 0 && questions[qSel] ? `help-q-${qSel}` : undefined}
+        autoComplete="off"
+        onChange={(e) => {
+          setFilter(e.target.value);
+          setJumped(null);
+        }}
+        onKeyDown={onFilterKey}
       />
       <span className="sr-only" role="status" aria-live="polite">
-        {filter.trim() ? `${shown.length} ${shown.length === 1 ? 'Eintrag' : 'Einträge'}` : ''}
+        {filter.trim() ? `${questions.length ? `${QUESTION_TEXT.count(questions.length)} (Pfeiltasten wählen), ` : ''}${shown.length} ${shown.length === 1 ? 'Eintrag' : 'Einträge'}` : ''}
       </span>
+      {questions.length > 0 && (
+        <div className="help__qs">
+          <h3 id="help-qs-title" className="help__group">
+            {QUESTION_TEXT.headHelp}
+          </h3>
+          <ul id="help-questions" role="listbox" aria-labelledby="help-qs-title" className="help__qlist">
+            {questions.map((h, i) => (
+              <li
+                key={`${h.entry.id}-${h.q}`}
+                id={`help-q-${i}`}
+                role="option"
+                aria-selected={i === qSel}
+                aria-label={QUESTION_TEXT.option(h)}
+                className={i === qSel ? 'help__q is-sel' : 'help__q'}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => answer(h.entry.id)}
+              >
+                <Icon name={helpIcon(h.entry.id)} className="icon help__icon" />
+                <span className="help__q-text">{h.q}</span>
+                <span className="help__q-hint">{QUESTION_TEXT.hint}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="help__body" id="help-list">
         {shown.length === 0 && <p className="help__text">Nichts gefunden.</p>}
         {filter.trim() ? (

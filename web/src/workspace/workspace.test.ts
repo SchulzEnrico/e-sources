@@ -2336,3 +2336,33 @@ describe('F-183 Stufe 2', () => {
     expect(Dis.siteHue('https://a.de')).toBe(Dis.siteHue('https://www.a.de/x'));
   });
 });
+
+describe('F-186 Fragen als Vorschläge', () => {
+  const ids = (q: string) => H.searchQuestions(q, 5).map((h) => h.entry.id);
+  it('findet Fragen nach wenigen Buchstaben und mit anderer Wortform', () => {
+    expect(ids('wie versch')).toContain('swap');
+    expect(ids('portal verschieben')).toContain('swap');
+    expect(ids('chrome')[0]).toBe('importBookmarks');
+    expect(ids('neuen tab')).toContain('launcher');
+  });
+  it('zu kurz oder nur Füllwörter: keine Vorschläge', () => {
+    expect(H.searchQuestions('wi')).toHaveLength(0);
+    expect(H.searchQuestions('wie ich')).toHaveLength(0);
+    expect(H.searchQuestions('xyzq')).toHaveLength(0);
+  });
+  it('Frage, die mit der Eingabe beginnt, steht vorn; höchstens max', () => {
+    expect(H.searchQuestions('wie verschiebe', 3)[0].q).toBe('Wie verschiebe ich ein Portal?');
+    expect(H.searchQuestions('wie', 2).length <= 2).toBe(true);
+  });
+  it('Fragewort erkannt; Fragen zählen in der Hilfesuche mit', () => {
+    expect(H.asksQuestion('Warum öffnet')).toBe(true);
+    expect(H.asksQuestion('wiki')).toBe(false);
+    expect(H.searchHelp('verschiebe').map((e) => e.id)).toContain('swap');
+  });
+  it('jede Frage endet mit ?, keine Frage doppelt', () => {
+    const all = H.HELP.flatMap((e) => e.questions ?? []);
+    expect(all.length).toBeGreaterThan(40);
+    expect(all.every((q) => q.endsWith('?'))).toBe(true);
+    expect(new Set(all).size).toBe(all.length);
+  });
+});

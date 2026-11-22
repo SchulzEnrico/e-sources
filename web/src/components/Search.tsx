@@ -14,7 +14,7 @@ import { type PanelHit, type SearchHit, SEARCH_MAX, bookmarkOf, searchAll, searc
 import { hostOf, isBlocked, tabLabel } from '../workspace/workspace';
 import { type How, HOW_IN, HOW_NAME } from '../workspace/launcher';
 import type { Workspace } from '../workspace/types';
-import { type HelpEntry, searchHelp } from '../workspace/help';
+import { type HelpEntry, type QuestionHit, QUESTION_TEXT, asksQuestion, searchHelp, searchQuestions } from '../workspace/help';
 import { Icon } from './Icon';
 import { helpIcon } from '../workspace/icons';
 
@@ -39,7 +39,7 @@ function tabNames(ws: Workspace, h: PanelHit): string[] {
   return [...new Set(h.tabs.map((t) => bookmarkOf(ws, t.url, h.panel.id)?.title || tabLabel(t)))];
 }
 
-type Item = { kind: 'panel'; hit: PanelHit } | { kind: 'bookmark'; hit: SearchHit } | { kind: 'help'; hit: HelpEntry };
+type Item = { kind: 'panel'; hit: PanelHit } | { kind: 'bookmark'; hit: SearchHit } | { kind: 'help'; hit: HelpEntry } | { kind: 'question'; hit: QuestionHit };
 
 export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, launchHow }: Props) {
   const uid = useId().replace(/:/g, '');
@@ -65,14 +65,23 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
   }, [ws, query]);
   const panelHits = useMemo(() => searchPanels(ws, query), [ws, query]);
   const helpHits = useMemo(() => searchHelp(query, 4), [query]);
-  const items: Item[] = useMemo(
-    () => [
+  // F-186: Fragen als Vorschläge; beginnt die Eingabe mit „wie“, „warum“ …, stehen sie ganz oben
+  const qHits = useMemo(() => searchQuestions(query, 3), [query]);
+  const qFirst = asksQuestion(query);
+  const items: Item[] = useMemo(() => {
+    const qs = qHits.map((hit) => ({ kind: 'question' as const, hit }));
+    return [
+      ...(qFirst ? qs : []),
       ...panelHits.map((hit) => ({ kind: 'panel' as const, hit })),
       ...hits.map((hit) => ({ kind: 'bookmark' as const, hit })),
+      ...(qFirst ? [] : qs),
       ...helpHits.map((hit) => ({ kind: 'help' as const, hit })),
-    ],
-    [panelHits, hits, helpHits],
-  );
+    ];
+  }, [panelHits, hits, helpHits, qHits, qFirst]);
+  // Startnummern der Gruppen in `items` (für die ids der Optionen)
+  const qBase = qFirst ? 0 : panelHits.length + hits.length;
+  const pBase = qFirst ? qHits.length : 0;
+  const helpBase = pBase + panelHits.length + hits.length + (qFirst ? 0 : qHits.length);
   const show = open && query.trim() !== '';
   const cur = Math.min(sel, Math.max(items.length - 1, 0));
 
@@ -117,6 +126,11 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
     input.current?.blur();
     if (it.kind === 'panel') onShowPanel(it.hit.panel.id, it.hit.tabs[0]?.id);
     else if (it.kind === 'bookmark') onOpen(it.hit, swap);
+    // F-186: Frage → Antwort in der Hilfe zeigen
+    else if (it.kind === 'question') {
+      setQuery('');
+      onHelp(it.hit.entry.id);
+    }
     // F-156: Funktion ausführen; Begriffe und Umschalt+Enter öffnen die Hilfe an dieser Stelle
     else {
       // Funktion oder Hilfe: Suchtext leeren, sonst steht „Tour“ o. Ä. danach noch im Feld
@@ -192,7 +206,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
     ? ''
     : items.length === 0
       ? 'Nichts gefunden.'
-      : `${panelHits.length} ${panelHits.length === 1 ? 'Portal' : 'Portale'}, ${hits.length} ${hits.length === 1 ? 'Source' : 'Sources'} in der Library${helpHits.length ? `, ${helpHits.length} ${helpHits.length === 1 ? 'Funktion' : 'Funktionen'}` : ''} gefunden. Pfeiltasten wählen, Enter öffnet${helpHits.length ? ', Umschalt+Enter zeigt die Hilfe' : ''}.`;
+      : `${qHits.length ? `${QUESTION_TEXT.count(qHits.length)}, ` : ''}${panelHits.length} ${panelHits.length === 1 ? 'Portal' : 'Portale'}, ${hits.length} ${hits.length === 1 ? 'Source' : 'Sources'} in der Library${helpHits.length ? `, ${helpHits.length} ${helpHits.length === 1 ? 'Funktion' : 'Funktionen'}` : ''} gefunden. Pfeiltasten wählen, Enter öffnet${helpHits.length ? ', Umschalt+Enter zeigt die Hilfe' : ''}.`;
 
   const option = (i: number, label: string, children: ReactNode, title?: string) => (
     <li
@@ -212,6 +226,32 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
       {children}
     </li>
   );
+
+  const questionBlock = () =>
+    qHits.length > 0 && (
+      <>
+        <li className="search__head" role="presentation">
+          {QUESTION_TEXT.head}
+        </li>
+        {qHits.map((h, j) =>
+          option(
+            qBase + j,
+            QUESTION_TEXT.option(h),
+            <>
+              <span className="search__title">
+                <Icon name={helpIcon(h.entry.id)} className="icon search__icon" />
+                {h.q}
+              </span>
+              <span className="search__where">
+                <span className="search__help-text">{h.entry.text}</span>
+                <span className="search__cat">{QUESTION_TEXT.hint}</span>
+              </span>
+            </>,
+            h.entry.text,
+          ),
+        )}
+      </>
+    );
 
   return (
     <div className="search" ref={box}>
@@ -240,7 +280,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
         onKeyDown={onKeyDown}
       />
       <span id={`${uid}-help`} className="sr-only">
-        Sucht in Portalen (Name, Slot, Case), in der Library (Titel, Adresse, Kategorie, Tags, Herkunft) und in den Funktionen. Pfeiltasten wählen, Enter öffnet oder führt aus, Umschalt+Enter zeigt die Hilfe, Escape schließt. Sources mit „neuer Tab“ oder „neues Fenster“ öffnen außerhalb von E-Sources; Strg/⌘+Enter nimmt die andere Art.
+        Sucht in Portalen (Name, Slot, Case), in der Library (Titel, Adresse, Kategorie, Tags, Herkunft) und in den Funktionen; passende Fragen erscheinen als Vorschläge. Pfeiltasten wählen, Enter öffnet oder führt aus, Umschalt+Enter zeigt die Hilfe, Escape schließt. Sources mit „neuer Tab“ oder „neues Fenster“ öffnen außerhalb von E-Sources; Strg/⌘+Enter nimmt die andere Art.
       </span>
       {/* Ansage für Bildschirmleser, wie viele Treffer es gibt */}
       <span className="sr-only" role="status" aria-live="polite">
@@ -253,14 +293,15 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
               Nichts gefunden.
             </li>
           )}
+          {qFirst && questionBlock()}
           {panelHits.length > 0 && (
             <li className="search__head" role="presentation">
               Portale
             </li>
           )}
-          {panelHits.map((h, i) =>
+          {panelHits.map((h, k) =>
             option(
-              i,
+              pBase + k,
               `Portal ${h.panel.name}${h.tabs.length ? `, geöffnet: ${tabNames(ws, h).join(', ')}` : ''}${h.area ? `, Slot ${h.area}` : ''}${h.scenario ? `, Case ${h.scenario}` : ''}`,
               <>
                 <span className="search__title">
@@ -294,7 +335,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
             </li>
           )}
           {hits.map((h, j) => {
-            const i = panelHits.length + j;
+            const i = pBase + panelHits.length + j;
             const out = isBlocked(ws, h.bookmark.url);
             const where = out ? `↗ ${HOW_NAME[launchHow]}` : h.panel ? h.panel.name : `Library → ${activeName ?? 'aktives Portal'}`;
             const title = h.bookmark.title || hostOf(h.bookmark.url);
@@ -317,13 +358,14 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
               out ? `${h.bookmark.url}\nLässt sich nicht einbetten – öffnet außerhalb (Launcher). Strg/⌘+Enter: ${HOW_NAME[launchHow === 'tab' ? 'window' : 'tab']}` : h.bookmark.url,
             );
           })}
+          {!qFirst && questionBlock()}
           {helpHits.length > 0 && (
             <li className="search__head" role="presentation">
               Funktionen &amp; Hilfe
             </li>
           )}
           {helpHits.map((h, j) => {
-            const i = panelHits.length + hits.length + j;
+            const i = helpBase + j;
             const does = h.run ? 'Enter führt aus, Umschalt+Enter zeigt die Hilfe' : 'Enter zeigt die Hilfe';
             return option(
               i,

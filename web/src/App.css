@@ -4532,3 +4532,15 @@ button.is-off:hover,
   white-space: nowrap;
 }
 .app--compact .win__cat-name { display: none; }
+
+/* F-186: Fragen als Vorschläge in der Hilfe */
+.help__qs { margin: 0 22px 10px; }
+.help__qs .help__group { margin-top: 0; }
+.help__qlist { list-style: none; margin: 0; padding: 0; }
+.help__q { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--text); }
+.help__q .icon { display: inline-block; flex: none; }
+.help__q:hover { background: rgba(var(--tint), 0.05); }
+.help__q.is-sel { background: rgba(var(--tint), 0.1); box-shadow: inset 3px 0 0 rgba(var(--tint), 0.7); }
+.help__q-text { flex: 1; }
+.help__q-hint { flex: none; font-size: 12px; color: var(--muted); }
+@media (forced-colors: active) { .help__q.is-sel { outline: 2px solid Highlight; } }

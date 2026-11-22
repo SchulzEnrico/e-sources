@@ -22,15 +22,15 @@ import { type SearchHit, addSamples, openBookmark } from './workspace/bookmarks'
 import { Search } from './components/Search';
 import { Tooltips } from './components/Tooltip';
 import { FocusMeter, Overview } from './components/Overview';
-import { arrangeText, focusOf, placeText } from './workspace/focus';
+import { arrangeText, deskFocusOf, effectOf, focusOf, placeText } from './workspace/focus';
 import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
 import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
-import { MAIN_NAME, nextWindowName, windowList, windowName, winFromSearch } from './workspace/windows';
+import { MAIN_NAME, nextWindowName, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
 import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
 import { PROBE } from './workspace/probe';
 import type { ScreenSetup } from './workspace/screen';
-import { FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, tryPlace, viewOf } from './workspace/workspace';
+import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, tryPlace, viewOf } from './workspace/workspace';
 import { TERMS } from './workspace/terms';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
@@ -130,7 +130,7 @@ const POPUP_BLOCKED = 'Der Browser hat den Desk blockiert – bitte Pop-ups für
  * F-27: Name des Zusatzfensters in der Kopfleiste. Klick (oder Doppelklick, Enter, F2) öffnet ein
  * Eingabefeld; Enter oder Verlassen speichert, Esc bricht ab. Leerer Name = keine Änderung.
  */
-function WindowName(props: { name: string; onRename: (name: string) => void }) {
+function WindowName(props: { name: string; fx?: { color?: string; text: string }; onRename: (name: string) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
   const done = (save: boolean) => {
@@ -166,8 +166,9 @@ function WindowName(props: { name: string; onRename: (name: string) => void }) {
     <button
       ref={btn}
       type="button"
-      className="tb-win"
-      title={`Dieser Desk: ${props.name} · ${TERMS.desk} · Klick oder F2 zum Umbenennen`}
+      className="tb-win fx-desk"
+      style={{ '--fx': props.fx?.color } as CSSProperties}
+      title={`Dieser Desk: ${props.name} · ${TERMS.desk}${props.fx ? ` · ${props.fx.text}` : ''} · Klick oder F2 zum Umbenennen`}
       aria-label={`Dieser Desk: ${props.name}. Umbenennen`}
       onClick={() => setDraft(props.name)}
       onKeyDown={(e) => {
@@ -192,8 +193,9 @@ export default function App() {
     document.title = win ? `${winLabel} – E-Sources` : 'E-Sources';
   }, [win, winLabel]);
   useEffect(() => {
-    // Hauptfenster wiederfindbar machen (nicht in einer eingebetteten E-Source, F-18).
-    if (!win && window.self === window.top) window.name = windowTarget('');
+    // Fenster über seinen Desk wiederfindbar machen (nicht in einer eingebetteten E-Source, F-18).
+    // F-160: Wechselt ein Fenster den Desk, trägt es danach dessen Namen.
+    if (window.self === window.top) window.name = windowTarget(win);
   }, [win]);
   // F-60, F-61, F-130: Darstellung und Akzentfarbe auf die ganze Seite anwenden; „wie System“ folgt dem Gerät.
   const [systemDark, setSystemDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true);
@@ -221,6 +223,16 @@ export default function App() {
   const meterRef = useRef<HTMLButtonElement>(null);
   /** F-29: Gesamtfokus, ändert sich sofort mit Panels und Tabs. */
   const focus = useMemo(() => focusOf(ws), [ws]);
+  /** F-167: Plus-Knöpfe in der Ampelfarbe danach (+1 Portal bzw. +1 Tab); Desk-Name in der Farbe seines Fokus. */
+  const fx = useMemo(() => {
+    const of = (e: { level: number; text: string }) => ({ color: loadColor(e.level), text: e.text });
+    return { panel: of(effectOf(ws, 1)), tab: of(effectOf(ws, 0, 1)) };
+  }, [ws]);
+  const deskFx = (id: string) => {
+    const f = deskFocusOf(ws, id);
+    const n = f.panels === 1 ? '1 Portal' : `${f.panels} Portale`;
+    return { color: f.level ? loadColor(f.level) : undefined, text: `Fokus dieses Desks: ${f.color}, ${String(f.points).replace('.', ',')} Punkte (${n})`, word: f.color };
+  };
   const toggleOverview = useCallback(() => {
     setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
     setOverview((o) => !o);
@@ -587,6 +599,19 @@ export default function App() {
    * F-27: Panel (whole = ganze Area) in ein Fenster verschieben; null = neues Fenster. Das Ziel
    * öffnet sich bzw. kommt nach vorn – direkt aus dem Klick heraus, sonst blockt der Browser.
    */
+  /**
+   * F-160: anderen Desk zeigen. Ist er schon in einem eigenen Fenster offen, dorthin springen;
+   * sonst zeigt dieses Browserfenster ihn (neu geladen mit seiner Id in der Adresse).
+   */
+  const switchDesk = (target: string) => {
+    if (target === win) return;
+    if (windows.open.has(target)) {
+      if (!openAppWindow(target)) notify(POPUP_BLOCKED);
+      return;
+    }
+    window.location.replace(windowUrl(window.location.href, target));
+  };
+
   const toWindow = (id: string, target: string | null, whole: boolean) => {
     const slot = shownView.slots.find((s) => s.panels.some((m) => m.id === id));
     const ids = whole && slot ? slot.panels.map((m) => m.id) : [id];
@@ -809,6 +834,7 @@ export default function App() {
     return (
       <PanelFrame
         panel={meta}
+        fx={fx}
         share={onArea && { w: onArea.rect.w, h: onArea.rect.h }}
         stack={
           inStack && slotOfMeta
@@ -824,6 +850,7 @@ export default function App() {
                 onRenameArea: (name) => dispatch({ type: 'renameArea', setup, area: slotOfMeta.id, name }),
                 onRemove: (id) => dispatch({ type: 'remove', id }),
                 onAdd: full ? undefined : () => addPanel(slotOfMeta.id),
+                addFx: fx.panel,
                 onRename: (id, name) => dispatch({ type: 'rename', id, name }),
                 onDragStart: onArea ? (e, id) => startStackDrag(e, id, slotOfMeta.id) : undefined,
               }
@@ -1057,18 +1084,46 @@ export default function App() {
         <div className="brand">
           <img className="brand-logo" src={shownTheme === 'dark' ? logoUrl : logoLightUrl} alt="E-Sources" width={366} height={186} />
           {win ? (
-            <WindowName name={winLabel} onRename={(name) => dispatch({ type: 'renameWindow', win, name })} />
+            <WindowName name={winLabel} fx={deskFx(win)} onRename={(name) => dispatch({ type: 'renameWindow', win, name })} />
           ) : (
-            <span className="tb-win tb-win--main" title={`${MAIN_NAME} · ${TERMS.desk}`}>
+            <span className="tb-win tb-win--main fx-desk" title={`${MAIN_NAME} · ${TERMS.desk} · ${deskFx('').text}`} style={{ '--fx': deskFx('').color } as CSSProperties}>
               {MAIN_NAME}
             </span>
+          )}
+          {/* F-160: Desk wechseln – zeigt einen anderen Desk in diesem Browserfenster */}
+          {ws.windows.length > 0 && (
+            <Menu icon={<span className="tb-switch" aria-hidden="true">⇄</span>} label={`Desk wechseln – ${TERMS.switchDesk}`}>
+              {(close) =>
+                windowList(ws).map((d) => {
+                  const here = d.id === win;
+                  const elsewhere = !here && windows.open.has(d.id);
+                  const n = panelsIn(ws.panels, d.id).length;
+                  return (
+                    <Item
+                      key={d.id || 'main'}
+                      disabled={here}
+                      onClick={() => {
+                        close();
+                        switchDesk(d.id);
+                      }}
+                    >
+                      {here ? '● ' : ''}
+                      {d.name} · {n === 1 ? '1 Portal' : `${n} Portale`}
+                      {` · ${deskFx(d.id).word}`}
+                      {here ? ' · hier' : elsewhere ? ' · eigenes Fenster' : ''}
+                    </Item>
+                  );
+                })
+              }
+            </Menu>
           )}
           {/* F-165: leeren Desk anlegen und in eigenem Browserfenster öffnen */}
           <button
             type="button"
-            className="tb-newdesk"
-            title={TERMS.newDesk}
-            aria-label="+ NewDesk"
+            className="tb-newdesk fx"
+            style={{ '--fx': fx.panel.color } as CSSProperties}
+            title={`${TERMS.newDesk} – ${fx.panel.text}`}
+            aria-label={`+ NewDesk, ${fx.panel.text}`}
             onClick={() => {
               const dest = newId();
               const name = nextWindowName(ws.windows);
@@ -1096,7 +1151,7 @@ export default function App() {
                 window.setTimeout(() => window.close(), 150);
               }}
             >
-              ⇤ Alles ins {MAIN_NAME}
+              ⇤<span className="tb-label"> Alles ins {MAIN_NAME}</span>
             </button>
           </>
         )}
@@ -1137,7 +1192,7 @@ export default function App() {
         <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} />
         {/* F-134: „+ Area“ – neue Spalte rechts oder Zeile unten; Panels kommen über die Areas dazu. */}
         {canAddArea(ws, setup) ? (
-          <Menu icon={<span className="tb-add">+<span className="tb-label"> NewSlot</span></span>} label={`Neuen Slot anlegen – ${TERMS.slot}`}>
+          <Menu icon={<span className="tb-add fx" style={{ '--fx': fx.panel.color } as CSSProperties}>+<span className="tb-label"> NewSlot</span></span>} label={`Neuen Slot anlegen – ${TERMS.slot} – ${fx.panel.text}`}>
             {(close) => (
               <>
                 <Item

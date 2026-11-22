@@ -1359,6 +1359,22 @@ describe('F-152 Fokus-Radar als Lagekarte', () => {
   });
 });
 
+describe('F-167 Fokus-Auswirkung der Plus-Knöpfe', () => {
+  it('Farbe danach: +1 Portal, +1 Tab; Fokus je Desk', () => {
+    let ws = W.defaultWorkspace(); // 3 Portale = 3 Punkte
+    expect(F.effectOf(ws, 1).color).toBe('grün');
+    expect(F.effectOf(ws, 1).text).toBe('danach Fokus grün (4 Punkte)');
+    expect(F.effectOf(ws, 0, 1).points).toBe(3.5);
+    for (let i = 0; i < 6; i++) ws = Win.addDesk(ws, `d${i}`, W.newPanel(`P${i}`)); // 9 Punkte
+    expect(F.effectOf(ws, 1).color).toBe('gelb');
+    expect(F.effectOf(ws, 0, 1).color).toBe('gelb');
+    expect(F.effectOf(ws, 8).color).toBe('rot');
+    expect(F.deskFocusOf(ws, '').points).toBe(3);
+    expect(F.deskFocusOf(ws, 'd0').points).toBe(1);
+    expect(F.deskFocusOf(ws, 'gibtsnicht').color).toBe('aus');
+  });
+});
+
 describe('F-165 + NewDesk', () => {
   it('legt einen leeren Desk mit einem neuen Portal an', () => {
     const ws = W.defaultWorkspace();

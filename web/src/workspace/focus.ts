@@ -59,6 +59,30 @@ export function focusOf(ws: Workspace, rule: FocusRule = FOCUS_RULE): Focus {
   return { points, panels, extraTabs, level, color: colorOfLevel(level) };
 }
 
+/**
+ * F-167: Fokus-Auswirkung einer Aktion – wie stünde die Fokusanzeige, wenn `panels` Portale und
+ * `tabs` weitere Tabs dazukämen? Damit färben sich die Plus-Knöpfe in der Ampelfarbe danach.
+ */
+export interface Effect {
+  points: number;
+  level: number;
+  color: FocusColor;
+  /** z. B. „danach Fokus gelb (10,5 Punkte)“ für Tooltip und Bildschirmleser. */
+  text: string;
+}
+
+export function effectOf(ws: Workspace, panels: number, tabs = 0, rule: FocusRule = FOCUS_RULE): Effect {
+  const points = focusOf(ws, rule).points + panels + tabs * rule.tabWeight;
+  const level = focusLevel(points, rule);
+  const color = colorOfLevel(level);
+  return { points, level, color, text: `danach Fokus ${color} (${pointsText(points)} Punkte)` };
+}
+
+/** F-167: Fokus eines einzelnen Desks – gleiche Regel, nur seine Portale und Tabs. */
+export function deskFocusOf(ws: Workspace, win: string, rule: FocusRule = FOCUS_RULE): Focus {
+  return focusOf({ ...ws, panels: panelsIn(ws.panels, win) }, rule);
+}
+
 /** Punktzahl lesbar, mit Komma statt Punkt (z. B. „7,5“). */
 export const pointsText = (n: number) => String(n).replace('.', ',');
 

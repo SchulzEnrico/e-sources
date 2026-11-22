@@ -5,6 +5,7 @@
  */
 export const TERMS = {
   desk: 'Desk = ein Fenster von E-Sources, z. B. für einen zweiten Monitor',
+  switchDesk: 'zeigt einen anderen Desk in diesem Browserfenster; ist er schon in einem eigenen Fenster offen, springt E-Sources dorthin',
   newDesk: '+ NewDesk = neuen, leeren Desk anlegen; er öffnet sich in einem eigenen Browserfenster',
   dashboard: 'Dashboard = alle Slots eines Desks auf einmal',
   view: 'View schaltet um: Dashboard → 2 × 2 → 2 → Solo',

@@ -1,6 +1,6 @@
 import { useRef, useState, type PointerEvent, type TouchEvent, type WheelEvent } from 'react';
 import type { PanelMeta } from '../workspace/types';
-import { StackAddIcon } from './PanelFrame';
+import { type Fx, StackAddIcon } from './PanelFrame';
 import { TERMS } from '../workspace/terms';
 
 /** F-08: Stapel-Leiste rechts am Panel – Klick wählt, Mausrad und Pfeile blättern. */
@@ -13,6 +13,8 @@ export interface StackProps {
   onRemove: (id: string) => void;
   /** F-09: neues Panel auf diese Area legen; fehlt, wenn die Area voll ist. */
   onAdd?: () => void;
+  /** F-167: Fokus-Auswirkung des Plus. */
+  addFx?: Fx;
   /** F-10: Panel direkt in der Stapel-Leiste umbenennen (Doppelklick). */
   onRename: (id: string, name: string) => void;
   /** F-128: Name der Area (leer, solange sie noch keinen hat). */
@@ -22,7 +24,7 @@ export interface StackProps {
   onDragStart?: (e: PointerEvent, id: string) => void;
 }
 
-export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, onRename, onDragStart }: StackProps) {
+export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, addFx, onRename, onDragStart }: StackProps) {
   const lastWheel = useRef(0);
   /** Panel, dessen Name gerade bearbeitet wird; solange hat das Eingabefeld den Fokus und die Leiste bleibt offen. */
   const [editing, setEditing] = useState<string | null>(null);
@@ -125,8 +127,14 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
           ▼
         </button>
         {onAdd && (
-          <button type="button" className="stack__step stack__add" onClick={onAdd} title={`Neues Portal auf „${members[index]?.name ?? ''}“ legen`} aria-label="Neues Portal auf diesen Stack legen">
-            <StackAddIcon />
+          <button
+            type="button"
+            className="stack__step stack__add"
+            onClick={onAdd}
+            title={`Neues Portal auf „${members[index]?.name ?? ''}“ legen${addFx ? ` – ${addFx.text}` : ''}`}
+            aria-label={`Neues Portal auf diesen Stack legen${addFx ? `, ${addFx.text}` : ''}`}
+          >
+            <StackAddIcon color={addFx?.color} />
           </button>
         )}
       </div>

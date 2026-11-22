@@ -28,6 +28,8 @@ interface Props {
   share?: { w: number; h: number };
   /** Gesetzt, wenn das Panel im Stapel liegt (F-08). */
   stack?: StackProps;
+  /** F-167: Fokus-Auswirkung von „neues Portal“ und „neuer Tab“. */
+  fx?: { panel: Fx; tab: Fx };
   active: boolean;
   maximized: boolean;
   swapSource: boolean;
@@ -114,14 +116,21 @@ const SizeIcon = (
  * F-09: Knopf „Panel auf diese Area legen“ – ein Plus im Stil des ES-Logos:
  * roter Verlauf, silberne Lichtkante (wie der E-Sources-Knopf im Portfolio).
  */
-export function StackAddIcon() {
+/** F-167: Farbe und Satz zur Fokus-Auswirkung eines Plus-Knopfs. */
+export interface Fx {
+  color: string;
+  text: string;
+}
+
+/** F-09 Plus zum Stapeln; F-167: mit `color` in der Ampelfarbe der Fokus-Auswirkung. */
+export function StackAddIcon(props: { color?: string } = {}) {
   const id = useId().replace(/:/g, '');
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true" className="icon">
       <defs>
         <linearGradient id={`${id}f`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#a3352a" />
-          <stop offset="1" stopColor="#5a130c" />
+          <stop offset="0" stopColor={props.color ?? '#a3352a'} />
+          <stop offset="1" stopColor={props.color ?? '#5a130c'} stopOpacity={props.color ? 0.7 : 1} />
         </linearGradient>
         <linearGradient id={`${id}e`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#f1f1f4" />
@@ -186,7 +195,8 @@ export function Menu(props: { icon: ReactNode; label: string; children: (close: 
       setPlace({
         up,
         max: Math.max(120, up ? above : below),
-        right: Math.max(gap, window.innerWidth - b.right),
+        // rechtsbündig zum Knopf; ragte die Liste links hinaus (Knopf ganz links), rückt sie nach rechts
+        right: Math.max(gap, Math.min(window.innerWidth - b.right, window.innerWidth - ul.offsetWidth - gap)),
         y: up ? window.innerHeight - b.top + 2 : b.bottom + 2,
         toolbar: !!ref.current?.closest('.toolbar'),
       });
@@ -767,8 +777,14 @@ export function PanelFrame(p: Props) {
             }}
           </Menu>
           {/* F-09, F-140: Stapeln ganz rechts */}
-          <button type="button" className="win__stack-add" onClick={p.onAddHere} title={`Neues Portal auf „${p.panel.name}“ legen (stapeln)`} aria-label={`Neues Portal auf „${p.panel.name}“ legen`}>
-            <StackAddIcon />
+          <button
+            type="button"
+            className="win__stack-add"
+            onClick={p.onAddHere}
+            title={`Neues Portal auf „${p.panel.name}“ legen (stapeln)${p.fx ? ` – ${p.fx.panel.text}` : ''}`}
+            aria-label={`Neues Portal auf „${p.panel.name}“ legen${p.fx ? `, ${p.fx.panel.text}` : ''}`}
+          >
+            <StackAddIcon color={p.fx?.panel.color} />
           </button>
         </header>
         {/* F-21, F-22: Tabs unter der Kopfleiste (die Kopfleiste bleibt der Griff zum Verschieben), Ampel an der unteren Kante (F-26) */}
@@ -810,8 +826,9 @@ export function PanelFrame(p: Props) {
             className="tabs__add"
             onClick={addTab}
             disabled={tabCount >= TAB_MAX}
-            title={tabCount >= TAB_MAX ? `Höchstens ${TAB_MAX} Tabs je Portal` : 'Neuer Tab'}
-            aria-label="Neuer Tab"
+            title={tabCount >= TAB_MAX ? `Höchstens ${TAB_MAX} Tabs je Portal` : `Neuer Tab${p.fx ? ` – ${p.fx.tab.text}` : ''}`}
+            aria-label={`Neuer Tab${p.fx && tabCount < TAB_MAX ? `, ${p.fx.tab.text}` : ''}`}
+            style={p.fx && tabCount < TAB_MAX ? { color: p.fx.tab.color } : undefined}
             onDragOver={(e) => dragTab.current && e.preventDefault()}
             onDrop={(e) => dropTab(e, tabCount - 1)}
           >

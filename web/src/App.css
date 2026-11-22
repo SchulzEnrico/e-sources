@@ -841,6 +841,18 @@ button.is-off:hover,
 .tb-win--main {
   cursor: default;
 }
+/* F-167: Plus-Knöpfe in der Ampelfarbe ihrer Fokus-Auswirkung, Desk-Name in der Farbe seines Fokus */
+.fx { color: var(--fx, inherit); -webkit-text-fill-color: var(--fx, currentColor); }
+/* nur das Plus trägt die Farbe, die Schrift bleibt ruhig (nach Test Enrico: sonst zu hell) */
+.fx .tb-label { color: var(--text); -webkit-text-fill-color: currentColor; }
+.toolbar .tb-newdesk.fx { border-color: color-mix(in srgb, var(--fx, currentColor) 30%, transparent); }
+.toolbar .fx-desk { border-width: 1px; border-color: color-mix(in srgb, var(--fx, rgb(var(--accent-rgb))) 45%, transparent); box-shadow: none; }
+/* F-160: Desk wechseln */
+/* Knöpfe und Eingabe im Desk-Bereich: eigene Schriftfarbe statt des Silberverlaufs von .brand */
+.toolbar > .brand button,
+.toolbar > .brand input { -webkit-text-fill-color: currentColor; }
+.toolbar > .brand > .menu { flex: none; }
+.toolbar > .brand > .menu > button { min-width: 36px; font-size: 16px; line-height: 1; -webkit-text-fill-color: currentColor; }
 /* F-165: „+ NewDesk“ neben dem Desk-Namen (eigene Schriftfarbe statt des Silberverlaufs von .brand) */
 .toolbar .tb-newdesk {
   -webkit-text-fill-color: currentColor;
@@ -2498,6 +2510,11 @@ button.is-off:hover,
     white-space: nowrap;
   }
   .toolbar .tb-newdesk { min-width: 36px; font-size: 18px; line-height: 1; padding: 3px 8px; }
+  /* keine Mittelachse mehr: Desk links, Bedienung füllt den Rest – so läuft nichts übereinander */
+  .toolbar { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .toolbar > .brand { justify-self: start; }
+  .tb-center { justify-self: stretch; }
+  .tb-center .search { flex: 1 1 0; width: auto; min-width: 44px; max-width: 320px; }
   .tb-center .search { width: clamp(110px, 18vw, 240px); }
 }
 @media (max-width: 760px) {

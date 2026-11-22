@@ -34,7 +34,7 @@ export const HELP: HelpEntry[] = [
   // Begriffe – Aufbau: Desk → Slot → Stack → Portal → Tab; ein Portal zeigt eine Source
   { id: 'desk', group: 'Begriffe', name: 'Desk', text: up(def(TERMS.desk)), words: ['Fenster', 'Monitor', 'Bildschirm', 'Arbeitsfläche'] },
   { id: 'slot', group: 'Begriffe', name: 'Slot', text: up(def(TERMS.slot)), words: ['Area', 'Platz', 'Raster', 'Bereich'] },
-  { id: 'stack', group: 'Begriffe', name: 'Stack', text: up(def(TERMS.stack)), keys: '▲/▼ oder Mausrad auf der Stack-Leiste', words: ['Stapel', 'übereinander', 'blättern'] },
+  { id: 'stack', group: 'Begriffe', name: 'Stack', text: up(def(TERMS.stack)), keys: '▲/▼ · Mausrad', words: ['Stapel', 'übereinander', 'blättern'] },
   { id: 'portal', group: 'Begriffe', name: 'Portal', text: up(def(TERMS.portal)), words: ['Panel', 'Rahmen', 'Adresszeile'] },
   { id: 'source', group: 'Begriffe', name: 'Source', text: up(def(TERMS.source)), words: ['Webseite', 'Seite', 'Lesezeichen', 'Link'] },
   { id: 'library', group: 'Begriffe', name: 'Library', text: up(def(TERMS.library)), words: ['Lesezeichen', 'Sammlung', 'Favoriten'] },

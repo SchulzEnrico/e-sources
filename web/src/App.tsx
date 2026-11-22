@@ -22,7 +22,8 @@ import { type SearchHit, addSamples, openBookmark } from './workspace/bookmarks'
 import { Search } from './components/Search';
 import { Tooltips } from './components/Tooltip';
 import { FocusMeter, Overview } from './components/Overview';
-import { focusOf } from './workspace/focus';
+import { arrangeText, focusOf, placeText } from './workspace/focus';
+import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
 import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
 import { MAIN_NAME, windowList, windowName, winFromSearch } from './workspace/windows';
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
@@ -94,19 +95,26 @@ interface Drag {
   stack?: { from: string; ok: boolean; label: string };
 }
 
+/** F-153: Benennung wie im Fokus-Radar – Mitte = tauschen, Rand = an dieser Position einsetzen. */
 const ZONE_LABEL: Record<T.Zone, string> = {
   center: 'Tauschen',
-  left: 'Links andocken',
-  right: 'Rechts andocken',
-  top: 'Oben andocken',
-  bottom: 'Unten andocken',
+  left: 'An dieser Position einsetzen',
+  right: 'An dieser Position einsetzen',
+  top: 'An dieser Position einsetzen',
+  bottom: 'An dieser Position einsetzen',
 };
 const AREA_LABEL: Record<T.Side, string> = {
-  left: 'Links über die ganze Höhe',
-  right: 'Rechts über die ganze Höhe',
-  top: 'Oben über die ganze Breite',
-  bottom: 'Unten über die ganze Breite',
+  left: 'Am Rand einsetzen – links, ganze Höhe',
+  right: 'Am Rand einsetzen – rechts, ganze Höhe',
+  top: 'Am Rand einsetzen – oben, ganze Breite',
+  bottom: 'Am Rand einsetzen – unten, ganze Breite',
 };
+const SIDE_AT: Record<T.Side, string> = { left: 'links an', right: 'rechts an', top: 'oben an', bottom: 'unten an' };
+/** Hinweis am Zeiger, z. B. „links an „Recherche“ einsetzen“. */
+const ghostLabel = (target: string, zone: T.Zone, name: string) =>
+  target === T.AREA ? AREA_LABEL[zone as T.Side] ?? '' : zone === 'center' ? `mit „${name}“ tauschen` : `${SIDE_AT[zone]} „${name}“ einsetzen`;
+/** Hervorhebung wie im Fokus-Radar: einsetzen gestreift in der Akzentfarbe, ablegen blau, tauschen schlicht. */
+const zoneClass = (zone: T.Zone) => (zone === 'center' ? 'drop--swap' : 'drop--dock');
 const dropLabel = (target: string, zone: T.Zone) => (target === T.AREA && zone !== 'center' ? AREA_LABEL[zone] : ZONE_LABEL[zone]);
 const CORNERS: { c: Corner; x: 'left' | 'right'; y: 'top' | 'bottom' }[] = [
   { c: 'tl', x: 'left', y: 'top' },
@@ -228,6 +236,19 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [toggleOverview]);
   const [flash, setFlash] = useState<string | null>(null);
+  /** F-155: Größen-Modus (Strg/⌘+Umschalt+G) und seine letzte Ansage. */
+  const [sizeMode, setSizeMode] = useState(false);
+  const [sizeSaid, setSizeSaid] = useState('');
+  const sizeKeyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => sizeKeyRef.current(e);
+    // Erfassungsphase: im Größen-Modus gehen Pfeile, Esc usw. nicht an andere Kürzel.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+  useEffect(() => {
+    document.body.classList.toggle('sizing', sizeMode);
+  }, [sizeMode]);
   /** Wichtiger Hinweis als Dialog, der bestätigt werden muss (F-26). */
   const [notice, setNotice] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
@@ -642,6 +663,79 @@ export default function App() {
   };
   activateRef.current = activate;
 
+  // ---------------------------------------------------------------- F-155 Größe per Tastatur
+
+  const slotOfPanel = (id: string | null) => (id ? view.slots.find((s) => s.panels.some((m) => m.id === id)) : undefined);
+  const slotName = (s: Slot) => areaLabel(ws, s) || s.front.name;
+  const startSizeMode = (id?: string) => {
+    const target = id ?? currentPanel();
+    const slot = slotOfPanel(target);
+    if (!target || !slot) return notify('Lege zuerst eine Area an.');
+    setActive(target);
+    setSizeMode(true);
+    setSizeSaid(`Größen-Modus für „${slotName(slot)}“ (${placeText(slot.rect)}). Pfeile verschieben die Kante, Umschalt+Pfeil die andere, Enter oder Esc beendet.`);
+  };
+  sizeKeyRef.current = (e: KeyboardEvent) => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.shiftKey && !e.altKey && e.code === 'KeyG') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (sizeMode) setSizeMode(false);
+      else startSizeMode();
+      return;
+    }
+    if (!sizeMode || mod || e.altKey) return;
+    const done = () => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
+    if (e.key === 'Escape' || e.key === 'Enter') {
+      done();
+      setSizeMode(false);
+      return;
+    }
+    const slot = slotOfPanel(currentPanel());
+    if (!slot) return;
+    const name = slotName(slot);
+    if (e.key === 'm' || e.key === 'M') {
+      done();
+      const isMax = mode.kind === 'max';
+      setMode(isMax ? { kind: 'area' } : { kind: 'max', id: slot.front.id });
+      setSizeSaid(isMax ? `„${name}“ wieder auf der Arbeitsfläche.` : `„${name}“ maximiert. M holt die Arbeitsfläche zurück.`);
+      return;
+    }
+    if (e.key === 'Tab') {
+      done();
+      const order = T.readingOrder(view.tree);
+      const i = order.indexOf(slot.id);
+      const next = view.slots.find((s) => s.id === order[(i + (e.shiftKey ? -1 : 1) + order.length) % order.length]);
+      if (!next) return;
+      setActive(next.front.id);
+      if (mode.kind === 'max') setMode({ kind: 'max', id: next.front.id });
+      setSizeSaid(`Jetzt „${slotName(next)}“: ${placeText(next.rect)}.`);
+      return;
+    }
+    const cmd = sizeCmdOf(e);
+    if (!cmd || !view.tree) return;
+    done();
+    if (mode.kind !== 'area') setMode({ kind: 'area' });
+    const next = sizeStep(view.tree, slot.id, cmd, min);
+    if (JSON.stringify(next) === JSON.stringify(view.tree)) {
+      const horiz = cmd.kind === 'edge' && (cmd.dir === 'left' || cmd.dir === 'right');
+      setSizeSaid(
+        cmd.kind === 'edge' && !edgeFor(view.tree, slot.id, cmd.dir, cmd.other)
+          ? cmd.other
+            ? `„${name}“ hat ${horiz ? 'links und rechts' : 'oben und unten'} nur eine bewegliche Kante – ohne Umschalt verschieben.`
+            : `„${name}“ reicht schon über die ganze ${horiz ? 'Breite' : 'Höhe'} – dort gibt es keine Kante.`
+          : `„${name}“ lässt sich so nicht weiter ändern – ein Nachbar ist schon am kleinsten oder die Fläche zu Ende.`,
+      );
+      return;
+    }
+    dispatch({ type: 'setLayout', setup, tree: next });
+    const r = T.rects(next).get(slot.id);
+    if (r) setSizeSaid(arrangeText(name, r));
+  };
+
   /** Panel, das auf einer Area sichtbar ist (beim Stapel das vorderste). */
   const shown = (slotId: string): PanelMeta | null => shownView.slots.find((s) => s.id === slotId)?.front ?? null;
 
@@ -717,6 +811,7 @@ export default function App() {
         }}
         onSetSize={(w, h) => dispatch({ type: 'setSize', setup, id: meta.id, w, h, min })}
         onReset={() => dispatch({ type: 'resetPanel', setup, id: meta.id, min })}
+        onSizeKeys={() => startSizeMode(meta.id)}
         onToggleMaximize={() =>
           setMode(mode.kind === 'max' && mode.id === meta.id ? { kind: 'area' } : { kind: 'max', id: meta.id })
         }
@@ -802,8 +897,8 @@ export default function App() {
               {meta && frame(meta, { slotId: s.id, rect: s.rect })}
               {grips(s.id)}
               {over && (
-                <div className={`drop drop--${over}${drag?.stack && !drag.stack.ok ? ' drop--no' : ''}`}>
-                  <span>{drag?.stack ? (drag.stack.ok ? 'Obendrauf legen' : `Stapel voll (${STACK_MAX})`) : ZONE_LABEL[over]}</span>
+                <div className={`drop drop--${over} ${drag?.stack ? (drag.stack.ok ? 'drop--in' : 'drop--no') : zoneClass(over)}`}>
+                  <span>{drag?.stack ? (drag.stack.ok ? 'Im Panel ablegen' : `Stapel voll (${STACK_MAX})`) : ZONE_LABEL[over]}</span>
                 </div>
               )}
             </div>
@@ -811,7 +906,7 @@ export default function App() {
         })}
         {drag?.target === T.AREA && drag.zone && (
           <div className="area-drop">
-            <div className={`drop drop--${drag.zone}`}>
+            <div className={`drop drop--${drag.zone} drop--dock`}>
               <span>{dropLabel(T.AREA, drag.zone)}</span>
             </div>
           </div>
@@ -821,10 +916,10 @@ export default function App() {
             {drag.stack ? (ws.panels.find((x) => x.id === drag.id)?.name ?? '') : (shown(drag.id)?.name ?? '')}
             {drag.stack
               ? drag.target
-                ? ` → ${drag.stack.ok ? `auf „${drag.stack.label}“ legen` : 'Stapel voll'}`
+                ? ` → ${drag.stack.ok ? `in „${drag.stack.label}“ ablegen` : 'Stapel voll'}`
                 : ''
               : drag.target && drag.zone
-                ? ` → ${dropLabel(drag.target, drag.zone)}`
+                ? ` → ${ghostLabel(drag.target, drag.zone, shown(drag.target)?.name ?? '')}`
                 : ''}
           </div>
         )}
@@ -1160,11 +1255,32 @@ export default function App() {
           moveTargets={targetsFor}
           onMove={moveTo}
           onNewWindow={(id, whole) => toWindow(id, null, whole)}
+          min={min}
+          onLayout={(w, tree) => {
+            // F-153: Anordnung auch für ein anderes Fenster (dessen zuletzt gesehene Einstellung).
+            const s = w === win ? setup : setupOfWindow(ws, w);
+            if (s) dispatch({ type: 'setLayout', setup: s, tree });
+          }}
           onDismiss={() => setOverview(false)}
         />
       )}
       {/* F-142: schnelle Tooltips */}
       <Tooltips />
+      {/* F-155: Größen-Modus – Hilfe und Ansage */}
+      {sizeMode && (
+        <div className="sizebar" role="region" aria-label="Größen-Modus">
+          <strong>Größe</strong>
+          <span className="sizebar__keys">
+            ← → ↑ ↓ Kante verschieben · Umschalt+Pfeil andere Kante · + / − diagonal · 1–9 = 10–90 % · 0 = 100 % · M maximieren · Tab nächstes · Enter/Esc fertig
+          </span>
+          <span className="sizebar__said" role="status">
+            {sizeSaid}
+          </span>
+          <button type="button" onClick={() => setSizeMode(false)} aria-label="Größen-Modus beenden" title="Fertig (Enter/Esc)">
+            ×
+          </button>
+        </div>
+      )}
       {flash && !swapFrom && (
         <div className="toast" role="status">
           <span>{flash}</span>

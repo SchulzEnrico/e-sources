@@ -15,6 +15,7 @@ import { reducer } from './useWorkspace';
 import { layoutKey, parseLayoutKey } from './screen';
 import * as M from './move';
 import * as Probe from './probe';
+import * as S from './sizing';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -1375,5 +1376,75 @@ describe('F-27/F-28 Hierher holen mit Grenze', () => {
     expect(slots).toHaveLength(10);
     expect(slots.every((s) => s.panels.length <= 9)).toBe(true);
     expect(r.ws.panels.filter((p) => p.win === 'w2')).toHaveLength(9);
+  });
+});
+
+describe('F-153 Anordnen im Fokus-Radar', () => {
+  const tree: T.Node = { dir: 'row', children: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], sizes: [1 / 3, 1 / 3, 1 / 3] };
+  const min: T.Min = { w: 0.05, h: 0.05 };
+  it('breiter: rechte Kante, am rechten Rand die linke', () => {
+    const t = F.radarResize(tree, 'a', 'w', true, 0.05, min);
+    expect(Math.round((T.rects(t).get('a')!.w) * 100)).toBe(38);
+    const u = F.radarResize(tree, 'c', 'w', true, 0.05, min);
+    expect(Math.round((T.rects(u).get('c')!.w) * 100)).toBe(38);
+    expect(Math.round((T.rects(u).get('b')!.w) * 100)).toBe(28);
+  });
+  it('schmaler und höher ohne Kante: derselbe Baum', () => {
+    const t = F.radarResize(tree, 'c', 'w', false, 0.05, min);
+    expect(Math.round((T.rects(t).get('c')!.w) * 100)).toBe(28);
+    expect(F.radarResize(tree, 'b', 'h', true, 0.05, min)).toBe(tree);
+  });
+  it('Lage in Worten', () => {
+    expect(F.placeText({ x: 0.66, y: 0, w: 0.34, h: 0.5 })).toBe('rechts oben');
+    expect(F.placeText({ x: 0, y: 0, w: 0.33, h: 1 })).toBe('links, ganze Höhe');
+    expect(F.placeText({ x: 0, y: 0.5, w: 1, h: 0.5 })).toBe('unten, ganze Breite');
+    expect(F.placeText({ x: 0, y: 0, w: 1, h: 1 })).toBe('ganze Fläche');
+    expect(F.arrangeText('X', { x: 0.33, y: 0, w: 0.34, h: 1 })).toBe('„X“ liegt jetzt Mitte, ganze Höhe, 34 % breit.');
+  });
+  it('Lagekarte kennt den Baum dieses Fensters', () => {
+    let ws = W.defaultWorkspace();
+    const setup = W.setupFor(ws, 'monitor', 'landscape');
+    ws = W.addPanel(ws, setup);
+    ws = W.addPanel(ws, setup);
+    const v = W.viewOf(ws, setup);
+    const r = F.radarOf(ws, v.slots, setup);
+    expect(r[0].tree).toEqual(v.tree);
+    const next = T.drop(v.tree!, v.slots[0].id, v.slots[1].id, 'right');
+    const ws2 = reducer(ws, { type: 'setLayout', setup, tree: next });
+    const order = T.readingOrder(W.viewOf(ws2, setup).tree);
+    expect(order.indexOf(v.slots[0].id)).toBe(order.indexOf(v.slots[1].id) + 1);
+  });
+});
+
+describe('F-155 Größe per Tastatur', () => {
+  const tree: T.Node = { dir: 'row', children: [{ id: 'a' }, { id: 'b' }], sizes: [0.5, 0.5] };
+  const min: T.Min = { w: 0.05, h: 0.05 };
+  const w = (t: T.Node, id: string) => Math.round(T.rects(t).get(id)!.w * 100);
+  it('Tasten werden zu Befehlen', () => {
+    expect(S.sizeCmdOf({ key: 'ArrowRight', code: 'ArrowRight', shiftKey: false })).toEqual({ kind: 'edge', dir: 'right', other: false });
+    expect(S.sizeCmdOf({ key: 'ArrowRight', code: 'ArrowRight', shiftKey: true })).toEqual({ kind: 'edge', dir: 'right', other: true });
+    expect(S.sizeCmdOf({ key: '+', code: 'BracketRight', shiftKey: false })).toEqual({ kind: 'diag', grow: true });
+    expect(S.sizeCmdOf({ key: '3', code: 'Digit3', shiftKey: false })).toEqual({ kind: 'set', f: 0.3 });
+    expect(S.sizeCmdOf({ key: '0', code: 'Numpad0', shiftKey: false })).toEqual({ kind: 'set', f: 1 });
+    expect(S.sizeCmdOf({ key: 'x', code: 'KeyX', shiftKey: false })).toBe(null);
+  });
+  it('Pfeil verschiebt die Kante, Umschalt die andere', () => {
+    const e = (dir: T.Side, other = false) => ({ kind: 'edge' as const, dir, other });
+    expect(w(S.sizeStep(tree, 'a', e('right'), min), 'a')).toBe(55);
+    expect(w(S.sizeStep(tree, 'a', e('left'), min), 'a')).toBe(45);
+    expect(w(S.sizeStep(tree, 'b', e('left'), min), 'b')).toBe(55);
+    expect(w(S.sizeStep(tree, 'b', e('right'), min), 'b')).toBe(45);
+    expect(S.sizeStep(tree, 'a', e('right', true), min)).toBe(tree);
+    expect(S.sizeStep(tree, 'a', e('top'), min)).toBe(tree);
+    const mid: T.Node = { dir: 'row', children: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], sizes: [0.3, 0.4, 0.3] };
+    expect(w(S.sizeStep(mid, 'b', e('left', true), min), 'b')).toBe(45);
+    expect(S.edgeFor(mid, 'b', 'left', false)).toBe('right');
+  });
+  it('Zahl setzt Breite (Höhe nur, wenn sie teilbar ist)', () => {
+    expect(w(S.sizeStep(tree, 'a', { kind: 'set', f: 0.3 }, min), 'a')).toBe(30);
+    const grid: T.Node = { dir: 'col', children: [tree, { id: 'c' }], sizes: [0.5, 0.5] };
+    const t = S.sizeStep(grid, 'a', { kind: 'diag', grow: true }, min);
+    expect(w(t, 'a')).toBe(55);
+    expect(Math.round(T.rects(t).get('a')!.h * 100)).toBe(55);
   });
 });

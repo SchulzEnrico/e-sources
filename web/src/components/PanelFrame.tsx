@@ -59,6 +59,8 @@ interface Props {
   onSetSize: (w: number, h: number) => void;
   onReset: () => void;
   onToggleMaximize: () => void;
+  /** F-155: Größen-Modus für dieses Panel starten (Strg/⌘+Umschalt+G). */
+  onSizeKeys?: () => void;
   /** Kurze Meldung für den Nutzer (z. B. „Adresse kopiert“). */
   notify: (text: string) => void;
   /** F-14, F-20, F-30 bis F-32: Lesezeichen und Kategorien der ganzen Arbeitsfläche. */
@@ -332,7 +334,7 @@ function MoveList(props: { targets: MoveTarget[]; here: string; windowName: (win
   const label = (t: MoveTarget) => {
     if (!t.area) return `⧉ Ins ${props.windowName(t.win)}`;
     if (t.area === NEW_AREA) return `▢ Eigene neue Area${t.disabled ? ' – kein Platz' : ''}`;
-    return `▣ Auf „${t.label}“${t.count > 1 ? ` (${t.count})` : ''}${t.disabled ? ' – Stapel voll' : ''}`;
+    return `▣ In „${t.label}“ ablegen${t.count > 1 ? ` (${t.count})` : ''}${t.disabled ? ' – Stapel voll' : ''}`;
   };
   return (
     <>
@@ -618,8 +620,8 @@ export function PanelFrame(p: Props) {
           </button>
           {!p.maximized && (
             <Menu icon={SizeIcon} label="Größe wählen (Voreinstellungen)">
-              {(close) =>
-                SIZE_PRESETS.map((s) => (
+              {(close) => [
+                ...SIZE_PRESETS.map((s) => (
                   <Item
                     key={s.label}
                     onClick={() => {
@@ -629,8 +631,19 @@ export function PanelFrame(p: Props) {
                   >
                     {s.label}
                   </Item>
-                ))
-              }
+                )),
+                p.onSizeKeys && (
+                  <Item
+                    key="keys"
+                    onClick={() => {
+                      close();
+                      p.onSizeKeys?.();
+                    }}
+                  >
+                    Per Tastatur … (Strg/⌘+Umschalt+G)
+                  </Item>
+                ),
+              ]}
             </Menu>
           )}
           <div
@@ -641,7 +654,7 @@ export function PanelFrame(p: Props) {
             onDoubleClick={() => startEdit('panel')}
             title={
               (areaName ? `Area „${areaName}“ · Panel „${p.panel.name}“ · ` : '') +
-              (p.onDragStart ? 'Ziehen: auf die Mitte eines Panels = tauschen, an dessen Rand = andocken · Doppelklick zum Umbenennen' : 'Doppelklick zum Umbenennen')
+              (p.onDragStart ? 'Ziehen: Mitte eines Panels = tauschen, Rand = an dieser Position einsetzen · Doppelklick zum Umbenennen' : 'Doppelklick zum Umbenennen')
             }
           >
             {editing ? (

@@ -84,7 +84,7 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
                 setDraft(m.name);
                 setEditing(m.id);
               }}
-              title={`${m.name} · Doppelklick oder F2: umbenennen · Entf: schließen${onDragStart ? ' · Ziehen: auf eine andere Area legen' : ''}`}
+              title={`${m.name} · Doppelklick oder F2: umbenennen · Entf: schließen${onDragStart ? ' · Ziehen: in einem anderen Panel ablegen' : ''}`}
               aria-keyshortcuts="F2 Delete"
               // NF-03: Das × ist mit der Maus erreichbar; per Tastatur schließt Entf, F2 benennt um.
               onKeyDown={(e) => {

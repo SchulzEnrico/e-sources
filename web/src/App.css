@@ -22,6 +22,7 @@
   --muted: #b4b4bc;
   /* F-61: Akzentfarbe (setzt die App aus der Darstellung); färbt alles Hervorgehobene */
   --accent-rgb: 228, 82, 44;
+  --drop-in-rgb: 77, 163, 255;
   --accent: rgb(var(--accent-rgb));
   --glow: rgba(var(--accent-rgb), 0.3);
   --warn: #e0b060;
@@ -2690,8 +2691,9 @@ button.is-off:hover,
 }
 /* F-151: Ziehen im Fokus-Radar */
 .radar__tile.is-drop {
-  border: 2px dashed rgba(var(--accent-rgb), 1);
-  background: rgba(var(--accent-rgb), 0.22);
+  /* F-153: „Im Panel ablegen“ blau, „An dieser Position einsetzen“ in der Akzentfarbe */
+  border: 2px solid rgb(var(--drop-in-rgb));
+  background: rgba(var(--drop-in-rgb), 0.25);
 }
 .radar__new {
   margin: 0 2px 6px;
@@ -2719,4 +2721,142 @@ button.is-off:hover,
 .radar__tile,
 .radar .overview__go {
   touch-action: none;
+}
+/* F-153: Anordnen im Fokus-Radar – Andocken zeigt die Seite als Balken, nicht nur als Farbe */
+.radar__tile.is-dock,
+.radar__map.is-dock {
+  outline: 2px dashed rgba(var(--accent-rgb), 1);
+  outline-offset: -2px;
+}
+.radar__tile.is-dock::after,
+.radar__map.is-dock::after {
+  content: '';
+  position: absolute;
+  background: repeating-linear-gradient(45deg, rgba(var(--accent-rgb), 0.55) 0 4px, rgba(var(--accent-rgb), 0.3) 4px 8px);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 2;
+}
+.radar__tile.is-dock-left::after { left: 0; top: 0; bottom: 0; width: 40%; }
+.radar__tile.is-dock-right::after { right: 0; top: 0; bottom: 0; width: 40%; }
+.radar__tile.is-dock-top::after { left: 0; right: 0; top: 0; height: 40%; }
+.radar__tile.is-dock-bottom::after { left: 0; right: 0; bottom: 0; height: 40%; }
+.radar__map.is-dock-left::after { left: 0; top: 0; bottom: 0; width: 22%; }
+.radar__map.is-dock-right::after { right: 0; top: 0; bottom: 0; width: 22%; }
+.radar__map.is-dock-top::after { left: 0; right: 0; top: 0; height: 26%; }
+.radar__map.is-dock-bottom::after { left: 0; right: 0; bottom: 0; height: 26%; }
+.radar__edge {
+  position: absolute;
+  z-index: 3;
+  touch-action: none;
+}
+.radar__edge--v { width: 8px; cursor: col-resize; }
+.radar__edge--h { height: 8px; cursor: row-resize; }
+.radar__edge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  border-radius: 2px;
+  background: rgba(var(--accent-rgb), 0.9);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.radar__edge--v::after { width: 3px; }
+.radar__edge--h::after { height: 3px; }
+.radar__edge:hover::after,
+.radar__edge.is-on::after { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .radar__edge::after { transition: none; }
+}
+@media (forced-colors: active) {
+  .radar__edge::after { background: Highlight; }
+  .radar__tile.is-dock::after,
+  .radar__map.is-dock::after { background: Highlight; }
+}
+.radar__droplabel {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: 2px 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+.radar__tile.is-drop .radar__droplabel { background: rgba(var(--drop-in-rgb), 0.55); }
+.radar__tile.is-drop.is-no .radar__droplabel { background: rgba(110, 110, 110, 0.7); }
+.radar__tile.is-dock .radar__droplabel { background: rgba(var(--accent-rgb), 0.35); }
+.radar__map.is-dock::after {
+  content: attr(data-droplabel);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  text-align: center;
+}
+@media (forced-colors: active) {
+  .radar__droplabel { background: Canvas !important; color: CanvasText; text-shadow: none; }
+  .radar__tile.is-drop { border-color: Highlight; }
+}
+/* F-155: Größen-Modus – das aktive Panel trägt einen gestrichelten Rahmen, unten die Hilfe */
+.sizing .win--active {
+  outline: 2px dashed rgba(var(--accent-rgb), 1);
+  outline-offset: -2px;
+}
+.sizebar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 110;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  max-width: min(980px, calc(100vw - 24px));
+  padding: 8px 10px 8px 14px;
+  font-size: 13px;
+  line-height: 1.35;
+  background: rgba(var(--glass), 0.95);
+  border: 1px solid var(--line);
+  border-left: 3px solid rgba(var(--accent-rgb), 1);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(var(--lo), 0.6);
+}
+.sizebar__keys { opacity: 0.8; }
+.sizebar__said { flex-basis: 100%; font-weight: 600; }
+.sizebar__said:empty { display: none; }
+.sizebar button {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0 4px;
+  font-size: 18px;
+}
+@media (forced-colors: active) {
+  .sizing .win--active { outline-color: Highlight; }
+}
+/* F-153: gleiche Hervorhebung wie im Fokus-Radar */
+.drop--dock {
+  background: repeating-linear-gradient(45deg, rgba(var(--accent-rgb), 0.32) 0 6px, rgba(var(--accent-rgb), 0.14) 6px 12px);
+  border: 2px dashed rgba(var(--accent-rgb), 1);
+}
+.drop--in {
+  background: rgba(var(--drop-in-rgb), 0.25);
+  border: 2px solid rgb(var(--drop-in-rgb));
+  box-shadow: 0 0 24px rgba(var(--drop-in-rgb), 0.35);
+}
+.drop--in span { box-shadow: 0 0 0 1px rgba(var(--drop-in-rgb), 0.6); }
+.drop--swap { border: 2px solid rgba(var(--accent-rgb), 0.8); }
+@media (forced-colors: active) {
+  .drop--dock, .drop--in, .drop--swap { border-color: Highlight; }
 }

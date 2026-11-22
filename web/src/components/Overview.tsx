@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import type { Slot, Workspace } from '../workspace/types';
-import { type Focus, type RadarWindow, focusText, pointsText, radarMatches, radarOf } from '../workspace/focus';
+import { type Focus, type RadarWindow, arrangeText, focusText, pointsText, radarMatches, radarOf, radarResize } from '../workspace/focus';
+import * as T from '../workspace/tree';
 import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
-import { NEW_AREA, loadColor } from '../workspace/workspace';
+import { DEFAULT_MIN, NEW_AREA, loadColor } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
 
 /**
@@ -84,14 +85,29 @@ export interface OverviewProps {
   onMove: (id: string, target: MoveTarget, whole: boolean) => void;
   /** F-27/F-28: Panel bzw. ganze Area in ein neues Fenster verschieben. */
   onNewWindow: (id: string, whole: boolean) => void;
+  /** F-153: Mindestgröße einer Area in diesem Fenster (Anteile der Fläche). */
+  min: T.Min;
+  /** F-153: neue Anordnung für ein Fenster übernehmen ('' = Hauptfenster). */
+  onLayout: (win: string, tree: T.Node) => void;
   onDismiss: () => void;
 }
+
+/** F-153: Schrittweite für Alt+Umschalt+Pfeil (Anteil der Fläche). */
+const ARRANGE_STEP = 0.05;
+/** F-153: Randzone einer Kachel fürs Andocken (Anteil ihrer Breite bzw. Höhe). */
+const DOCK_BAND = 0.28;
+/** F-153: Randzone der ganzen Karte in Pixeln (andocken an die ganze Fläche). */
+const MAP_BAND_PX = 7;
+const SIDE_AT: Record<T.Side, string> = { left: 'links an', right: 'rechts an', top: 'oben an', bottom: 'unten an' };
+const SIDE_EDGE: Record<T.Side, string> = { left: 'linken', right: 'rechten', top: 'oberen', bottom: 'unteren' };
+const SIDE_FAR: Record<T.Side, string> = { left: 'links', right: 'rechts', top: 'oben', bottom: 'unten' };
+type Dock = { win: string; leaf: string; target: string; zone: T.Side; label: string };
 
 /** F-28: Text eines Ziels, z. B. „Auf „Recherche“ (3)“ oder „Eigene neue Area – kein Platz“. */
 export function targetText(t: MoveTarget, winName: string): string {
   if (!t.area) return `Ins ${winName}`;
   if (t.area === NEW_AREA) return `Eigene neue Area${t.disabled ? ' – kein Platz' : ''}`;
-  return `Auf „${t.label}“${t.count > 1 ? ` (${t.count})` : ''}${t.disabled ? ' – Stapel voll' : ''}`;
+  return `In „${t.label}“ ablegen${t.count > 1 ? ` (${t.count})` : ''}${t.disabled ? ' – Stapel voll' : ''}`;
 }
 
 /**
@@ -186,7 +202,9 @@ export function Overview(p: OverviewProps) {
   const box = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLInputElement>(null);
   /** F-151: Panel-Zeile (oder ganze Area per Kachel) wird gerade gezogen. */
-  const [drag, setDrag] = useState<{ name: string; whole: boolean; x: number; y: number; over: string | null; target: MoveTarget | null } | null>(null);
+  const [drag, setDrag] = useState<{ name: string; whole: boolean; x: number; y: number; over: string | null; target: MoveTarget | null; dock: Dock | null } | null>(null);
+  /** F-153: Kante wird gerade gezogen (Griffe ausblenden, außer dem gezogenen). */
+  const [sizing, setSizing] = useState<string | null>(null);
   /** Nach einem Ziehen den folgenden Klick nicht als Klick werten. */
   const dragged = useRef(false);
 
@@ -198,6 +216,8 @@ export function Overview(p: OverviewProps) {
     : (selTile?.a.panels ?? []).map((x) => ({ x, t: selTile! }));
   const order = rows.map((r) => r.x.meta.id);
   const focusId = cur && order.includes(cur) ? cur : (order[0] ?? null);
+  /** F-153: echte Area-Id einer Kachel im Baum ihres Fensters; null = Anordnung unbekannt. */
+  const leafOf = (t: { w: RadarWindow; a: RadarWindow['areas'][number] }) => (t.a.rect === null ? null : t.w.here ? t.a.id : t.a.id.slice(t.w.win.length + 1));
   const hits = (t: (typeof tiles)[number]) => t.a.panels.some((x) => radarMatches(t.w, t.a, x, q));
 
   const later = (f: () => void) => requestAnimationFrame(f);
@@ -247,7 +267,7 @@ export function Overview(p: OverviewProps) {
    * Fläche einer Karte = eigene neue Area. Eine Kachel selbst zieht die ganze Area.
    * Tastatur-Ersatz: V bzw. Umschalt+V (NF-03).
    */
-  const startDrag = (e: ReactPointerEvent, id: string, whole: boolean, name: string, fromTile: string) => {
+  const startDrag = (e: ReactPointerEvent, id: string, whole: boolean, name: string, fromTile: string, fromLeaf: string | null = null, fromWin = '') => {
     if (e.button !== 0 || editing) return;
     const x0 = e.clientX;
     const y0 = e.clientY;
@@ -265,7 +285,36 @@ export function Overview(p: OverviewProps) {
       const newEl = el?.closest<HTMLElement>('.radar__new');
       let over: string | null = null;
       let target: MoveTarget | null = null;
-      if (tile && tile.dataset.key !== fromTile) {
+      // F-153: ganze Area am Rand einer anderen Kachel bzw. der Karte desselben Fensters = andocken.
+      let dock: Dock | null = null;
+      const mapEl = el?.closest<HTMLElement>('.radar__map');
+      if (whole && fromLeaf && mapEl && (mapEl.dataset.win ?? '') === fromWin) {
+        const b = mapEl.getBoundingClientRect();
+        const edges: [T.Side, number][] = [
+          ['left', ev.clientX - b.left],
+          ['right', b.right - ev.clientX],
+          ['top', ev.clientY - b.top],
+          ['bottom', b.bottom - ev.clientY],
+        ];
+        edges.sort((m, n) => m[1] - n[1]);
+        if (edges[0][1] < MAP_BAND_PX) dock = { win: fromWin, leaf: fromLeaf, target: T.AREA, zone: edges[0][0], label: '' };
+        else if (tile && tile.dataset.key !== fromTile && tile.dataset.area) {
+          const tb = tile.getBoundingClientRect();
+          const u = (ev.clientX - tb.left) / tb.width;
+          const v = (ev.clientY - tb.top) / tb.height;
+          const d: [T.Side, number][] = [
+            ['left', u],
+            ['right', 1 - u],
+            ['top', v],
+            ['bottom', 1 - v],
+          ];
+          d.sort((m, n) => m[1] - n[1]);
+          if (d[0][1] < DOCK_BAND) dock = { win: fromWin, leaf: fromLeaf, target: tile.dataset.area, zone: d[0][0], label: tile.dataset.title ?? '' };
+        }
+      }
+      if (dock) {
+        over = dock.target === T.AREA ? `map:${fromWin}` : (tile?.dataset.key ?? null);
+      } else if (tile && tile.dataset.key !== fromTile) {
         const w = tile.dataset.win ?? '';
         const a = tile.dataset.area ?? '';
         over = tile.dataset.key ?? null;
@@ -275,7 +324,7 @@ export function Overview(p: OverviewProps) {
         over = `new:${w}`;
         target = targets.find((t) => t.win === w && t.area === NEW_AREA) ?? blocked(w, NEW_AREA);
       }
-      last = { name, whole, x: ev.clientX, y: ev.clientY, over, target };
+      last = { name, whole, x: ev.clientX, y: ev.clientY, over, target, dock };
       setDrag(last);
     };
     const up = () => {
@@ -285,6 +334,19 @@ export function Overview(p: OverviewProps) {
       setDrag(null);
       setTimeout(() => (dragged.current = false), 0);
       const d = last;
+      if (d?.dock) {
+        const k = d.dock;
+        const tree = wins.find((w) => w.win === k.win)?.tree;
+        const next = tree ? T.drop(tree, k.leaf, k.target, k.zone) : null;
+        if (!tree || !next || JSON.stringify(next) === JSON.stringify(tree)) {
+          setSaid(`„${name}“ liegt schon so.`);
+          return;
+        }
+        p.onLayout(k.win, next);
+        const r = T.rects(next).get(k.leaf);
+        if (r) setSaid(arrangeText(name, r));
+        return;
+      }
       if (!d?.target) return;
       const winName = windowName(p.ws, d.target.win);
       if (d.target.disabled) {
@@ -299,15 +361,16 @@ export function Overview(p: OverviewProps) {
     window.addEventListener('pointerup', up);
   };
   const dropText = (d: NonNullable<typeof drag>) => {
+    if (d.dock) return d.dock.target === T.AREA ? ` → am ${SIDE_EDGE[d.dock.zone]} Rand einsetzen` : ` → ${SIDE_AT[d.dock.zone]} „${d.dock.label}“ einsetzen`;
     if (!d.target) return '';
     if (d.target.disabled) return d.target.area === NEW_AREA ? ' → kein Platz für eine neue Area' : ' → Stapel voll';
     if (d.target.area === NEW_AREA) return ' → eigene neue Area';
     if (!d.target.area) return ` → ins ${windowName(p.ws, d.target.win)}`;
-    return ` → auf „${d.target.label}“ legen`;
+    return ` → in „${d.target.label}“ ablegen`;
   };
 
   /** Nächste Kachel in einer Richtung – über alle Fenster, die untereinander stehen. */
-  const neighbour = (from: (typeof tiles)[number], dx: number, dy: number) => {
+  const neighbour = (from: (typeof tiles)[number], dx: number, dy: number, sameWin = false) => {
     const c = (t: (typeof tiles)[number]) => {
       const r = t.a.rect ?? { x: 0, y: 0, w: 1, h: 1 };
       return { x: r.x + r.w / 2, y: t.wi * 1.2 + r.y + r.h / 2 };
@@ -316,7 +379,7 @@ export function Overview(p: OverviewProps) {
     let best: (typeof tiles)[number] | undefined;
     let score = Infinity;
     for (const t of tiles) {
-      if (t === from) continue;
+      if (t === from || (sameWin && t.wi !== from.wi)) continue;
       const v = c(t);
       const along = (v.x - o.x) * dx + (v.y - o.y) * dy;
       if (along <= 0.001) continue;
@@ -330,7 +393,94 @@ export function Overview(p: OverviewProps) {
     return best;
   };
 
+  /**
+   * F-153 Tastatur: Alt+Pfeil dockt die Area hinter der Nachbar-Area in dieser Richtung an (ohne
+   * Nachbarn: an den ganzen Rand), Alt+Umschalt+Pfeil macht sie breiter/schmaler bzw. höher/flacher.
+   */
+  const arrangeKey = (t: (typeof tiles)[number], key: string, resize: boolean) => {
+    const leaf = leafOf(t);
+    const tree = t.w.tree;
+    if (!leaf || !tree) {
+      setSaid(`Die Anordnung von ${t.w.title} ist noch unbekannt – das Fenster war noch nicht offen.`);
+      return;
+    }
+    const dirs: Record<string, [number, number, T.Side]> = { ArrowRight: [1, 0, 'right'], ArrowLeft: [-1, 0, 'left'], ArrowDown: [0, 1, 'bottom'], ArrowUp: [0, -1, 'top'] };
+    const [dx, dy, side] = dirs[key];
+    const min = t.w.here ? p.min : DEFAULT_MIN;
+    let next: T.Node;
+    let none: string;
+    if (resize) {
+      const axis = dx ? 'w' : 'h';
+      const grow = dx > 0 || dy > 0;
+      next = radarResize(tree, leaf, axis, grow, ARRANGE_STEP, min);
+      none = `„${t.a.title}“ lässt sich nicht ${axis === 'w' ? (grow ? 'breiter' : 'schmaler') : grow ? 'höher' : 'flacher'} machen.`;
+    } else {
+      const nb = neighbour(t, dx, dy, true);
+      const nbLeaf = nb ? leafOf(nb) : null;
+      const r = t.a.rect ?? T.FULL;
+      const spans = dx ? r.h > 0.999 && (dx > 0 ? r.x + r.w > 0.999 : r.x < 0.001) : r.w > 0.999 && (dy > 0 ? r.y + r.h > 0.999 : r.y < 0.001);
+      next = nbLeaf ? T.dock(tree, leaf, nbLeaf, side) : spans ? tree : T.dockArea(tree, leaf, side);
+      none = `„${t.a.title}“ liegt schon ganz ${SIDE_FAR[side]}.`;
+    }
+    if (JSON.stringify(next) === JSON.stringify(tree)) {
+      setSaid(none);
+      return;
+    }
+    p.onLayout(t.w.win, next);
+    const r = T.rects(next).get(leaf);
+    if (r) setSaid(arrangeText(t.a.title, r));
+    later(() => tileBtns.current.get(t.a.id)?.focus());
+  };
+
+  /** F-153 Maus: Kante zwischen zwei Kacheln ziehen = Größe ändern; die Arbeitsfläche folgt sofort. */
+  const startResize = (e: ReactPointerEvent, w: RadarWindow, leaf: string, title: string, side: 'right' | 'bottom', key: string) => {
+    const base = w.tree;
+    const mapEl = (e.currentTarget as HTMLElement).parentElement;
+    if (!base || !mapEl || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const b = mapEl.getBoundingClientRect();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const min = w.here ? p.min : DEFAULT_MIN;
+    let last = base;
+    let frame = 0;
+    const at = (ev: PointerEvent) => T.resizeEdges(base, leaf, side === 'right' ? { x: 'right', dx: (ev.clientX - x0) / b.width } : { y: 'bottom', dy: (ev.clientY - y0) / b.height }, min);
+    const move = (ev: PointerEvent) => {
+      last = at(ev);
+      if (!frame)
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          p.onLayout(w.win, last);
+        });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (frame) cancelAnimationFrame(frame);
+      document.body.classList.remove('gesture');
+      document.body.style.cursor = '';
+      setSizing(null);
+      if (last === base) return;
+      p.onLayout(w.win, last);
+      const r = T.rects(last).get(leaf);
+      if (r) setSaid(arrangeText(title, r));
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    document.body.classList.add('gesture');
+    document.body.style.cursor = side === 'right' ? 'col-resize' : 'row-resize';
+    setSizing(key);
+  };
+
   const onTileKey = (e: KeyboardEvent, t: (typeof tiles)[number]) => {
+    // F-153: Alt+Pfeil andocken, Alt+Umschalt+Pfeil Größe (vor den normalen Pfeilen).
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.startsWith('Arrow')) {
+      e.preventDefault();
+      e.stopPropagation();
+      arrangeKey(t, e.key, e.shiftKey);
+      return;
+    }
     const front = t.a.panels.find((x) => x.front) ?? t.a.panels[0];
     const keys: Record<string, () => void> = {
       ArrowRight: () => toTile(neighbour(t, 1, 0)?.a.id),
@@ -508,7 +658,12 @@ export function Overview(p: OverviewProps) {
           ＋ Eigene neue Area{w.here ? '' : ` in ${w.title}`}
         </div>
       )}
-      <div className="radar__map" style={{ ['--ar' as string]: w.aspect }}>
+      <div
+        className={drag?.dock && drag.dock.target === T.AREA && drag.dock.win === w.win ? `radar__map is-dock is-dock-${drag.dock.zone}` : 'radar__map'}
+        data-droplabel="Am Rand einsetzen"
+        data-win={w.win}
+        style={{ ['--ar' as string]: w.aspect }}
+      >
         {w.areas.map((a) => {
           const t = tiles.find((x) => x.a === a)!;
           const r = a.rect ?? { x: 0, y: 0, w: 1, h: 1 };
@@ -516,9 +671,21 @@ export function Overview(p: OverviewProps) {
           const n = a.panels.length;
           const on = a.id === selTile?.a.id;
           const hasActive = a.panels.some((x) => x.meta.id === p.activeId);
-          const over = drag?.over === a.id;
-          const cls = ['radar__tile', on && 'is-sel', hasActive && 'is-active', q && !hits(t) && 'is-miss', q && hits(t) && 'is-hit', over && 'is-drop', over && drag?.target?.disabled && 'is-no'].filter(Boolean).join(' ');
-          const realArea = a.rect === null ? '' : w.here ? a.id : a.id.slice(w.win.length + 1);
+          const realArea = leafOf(t) ?? '';
+          const dockHere = !!drag?.dock && drag.dock.target === realArea && drag.dock.win === w.win;
+          const over = drag?.over === a.id && !dockHere;
+          const cls = [
+            'radar__tile',
+            on && 'is-sel',
+            hasActive && 'is-active',
+            q && !hits(t) && 'is-miss',
+            q && hits(t) && 'is-hit',
+            over && 'is-drop',
+            over && drag?.target?.disabled && 'is-no',
+            dockHere && `is-dock is-dock-${drag!.dock!.zone}`,
+          ]
+            .filter(Boolean)
+            .join(' ');
           return (
             <button
               key={a.id}
@@ -531,12 +698,14 @@ export function Overview(p: OverviewProps) {
               data-key={a.id}
               data-win={w.win}
               data-area={realArea}
+              data-title={a.title}
+              title={realArea ? 'Ziehen: Mitte = im Panel ablegen, Rand = an dieser Position einsetzen · Alt+Pfeil einsetzen, Alt+Umschalt+Pfeil Größe' : undefined}
               style={{ left: `calc(${r.x * 100}% + 2px)`, top: `calc(${r.y * 100}% + 2px)`, width: `calc(${r.w * 100}% - 4px)`, height: `calc(${r.h * 100}% - 4px)` }}
               tabIndex={on ? 0 : -1}
               aria-pressed={on}
               aria-label={`${a.title}, ${n} ${n === 1 ? 'Panel' : 'Panels'}${n > 1 && front ? `, vorn ${front.meta.name}` : ''}${hasActive ? ', enthält das aktive Panel' : ''}`}
               onFocus={() => setSel(a.id)}
-              onPointerDown={(e) => front && n > 0 && startDrag(e, front.meta.id, true, a.title, a.id)}
+              onPointerDown={(e) => front && n > 0 && startDrag(e, front.meta.id, true, a.title, a.id, realArea || null, w.win)}
               onClick={() => {
                 if (dragged.current) return;
                 setSel(a.id);
@@ -545,6 +714,12 @@ export function Overview(p: OverviewProps) {
               onDoubleClick={() => front && toRow(front.meta.id)}
               onKeyDown={(e) => onTileKey(e, t)}
             >
+              {/* F-153: Was beim Loslassen passiert – in Worten, nicht nur als Farbe */}
+              {(over || dockHere) && (
+                <span className="radar__droplabel" aria-hidden="true">
+                  {dockHere ? 'An dieser Position einsetzen' : drag?.target?.disabled ? 'Stapel voll' : 'Im Panel ablegen'}
+                </span>
+              )}
               <span className="radar__title">{a.title}</span>
               {n > 1 && front && <span className="radar__front">{front.meta.name}</span>}
               <span className="radar__eq" aria-hidden="true">
@@ -555,6 +730,34 @@ export function Overview(p: OverviewProps) {
             </button>
           );
         })}
+        {/* F-153: Griffe an den Kanten zwischen Kacheln (Tastatur: Alt+Umschalt+Pfeil auf der Kachel) */}
+        {w.tree &&
+          !drag &&
+          w.areas.flatMap((a) => {
+            const leaf = leafOf({ w, a });
+            const r = a.rect;
+            if (!leaf || !r) return [];
+            return (['right', 'bottom'] as const)
+              .filter((side) => T.canResize(w.tree, leaf, side))
+              .map((side) => {
+                const key = `${a.id}/${side}`;
+                if (sizing && sizing !== key) return null;
+                const style =
+                  side === 'right'
+                    ? { left: `calc(${(r.x + r.w) * 100}% - 4px)`, top: `${r.y * 100}%`, height: `${r.h * 100}%` }
+                    : { top: `calc(${(r.y + r.h) * 100}% - 4px)`, left: `${r.x * 100}%`, width: `${r.w * 100}%` };
+                return (
+                  <div
+                    key={key}
+                    className={`radar__edge radar__edge--${side === 'right' ? 'v' : 'h'}${sizing === key ? ' is-on' : ''}`}
+                    style={style}
+                    aria-hidden="true"
+                    title="Ziehen: Größe ändern"
+                    onPointerDown={(e) => startResize(e, w, leaf, a.title, side, key)}
+                  />
+                );
+              });
+          })}
       </div>
     </section>
   );
@@ -617,7 +820,7 @@ export function Overview(p: OverviewProps) {
           </button>
         </div>
         <p id="overview-help" className="sr-only">
-          Lagekarte: Jedes Fenster zeigt seine Areas an ihrer Stelle auf dem Bildschirm. Pfeiltasten wandern zwischen den Areas, Enter öffnet die Panel-Liste. In der Liste wählen Pfeil hoch und runter ein Panel, Pfeil links geht zurück zur Karte. Enter zeigt das Panel, auch in einem anderen Fenster. V verschiebt das Panel, Umschalt und V die ganze Area. H holt ein Panel aus einem anderen Fenster hierher. Entf schließt es, F2 benennt es um. Mit der Maus lässt sich eine Panel-Zeile auf eine Area der Karte ziehen, auf das Feld „Eigene neue Area“ über einer Karte, und eine Area-Kachel auf eine andere. Das Filterfeld zeigt Treffer aus allen Fenstern. Escape schließt das Fokus-Radar.
+          Lagekarte: Jedes Fenster zeigt seine Areas an ihrer Stelle auf dem Bildschirm. Pfeiltasten wandern zwischen den Areas, Enter öffnet die Panel-Liste. In der Liste wählen Pfeil hoch und runter ein Panel, Pfeil links geht zurück zur Karte. Enter zeigt das Panel, auch in einem anderen Fenster. V verschiebt das Panel, Umschalt und V die ganze Area. H holt ein Panel aus einem anderen Fenster hierher. Entf schließt es, F2 benennt es um. Auf einer Area setzt Alt mit Pfeil sie in diese Richtung an eine neue Position, Alt, Umschalt und Pfeil macht sie breiter, schmaler, höher oder flacher; die Arbeitsfläche des Fensters folgt sofort. Mit der Maus lässt sich eine Panel-Zeile auf eine Area der Karte ziehen, auf das Feld „Eigene neue Area“ über einer Karte, und eine Area-Kachel auf eine andere: in die Mitte = im Panel ablegen, an den Rand = an dieser Position einsetzen. Die Kante zwischen zwei Areas ändert beim Ziehen die Größe. Das Filterfeld zeigt Treffer aus allen Fenstern. Escape schließt das Fokus-Radar.
         </p>
         {moving &&
           (() => {

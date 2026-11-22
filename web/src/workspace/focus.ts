@@ -2,6 +2,7 @@ import type { PanelMeta, Slot, Workspace } from './types';
 import { areaLabel, hostOf, panelUrl, panelsIn, viewOf } from './workspace';
 import { windowList } from './windows';
 import { type ScreenSetup, specOf } from './screen';
+import * as T from './tree';
 import type { FRect } from './tree';
 import { setupOfWindow } from './move';
 
@@ -139,6 +140,8 @@ export interface RadarWindow {
   open: boolean;
   /** Breite : Höhe seines Bildschirms. */
   aspect: number;
+  /** F-153: Teilungsbaum seiner Anordnung (Blätter = echte Area-Ids); null = unbekannt. */
+  tree: T.Node | null;
   areas: RadarArea[];
 }
 
@@ -155,7 +158,8 @@ export function radarOf(ws: Workspace, slots: Slot[], setup: ScreenSetup, open: 
     const panels = panelsIn(ws.panels, w.id);
     if (!here && panels.length === 0) continue;
     const s = here ? setup : setupOfWindow(ws, w.id);
-    const list = here ? slots : s ? viewOf(ws, s).slots : null;
+    const v = s ? viewOf(ws, s) : null;
+    const list = here ? slots : v ? v.slots : null;
     const isOpen = here || open.has(w.id);
     const areas: RadarArea[] = list
       ? list.map((sl, i) => ({
@@ -168,7 +172,7 @@ export function radarOf(ws: Workspace, slots: Slot[], setup: ScreenSetup, open: 
           rect: sl.rect,
         }))
       : [{ id: `win:${w.id}`, win: w.id, other: true, open: isOpen, title: 'Alle Panels', panels: panels.map((p) => rowOf(p, true)), rect: null }];
-    out.push({ win: w.id, title: w.name, here, open: isOpen, aspect: s ? specOf(s).aspect : 1.6, areas });
+    out.push({ win: w.id, title: w.name, here, open: isOpen, aspect: s ? specOf(s).aspect : 1.6, tree: v?.tree ?? null, areas });
   }
   return out.sort((a, b) => Number(b.here) - Number(a.here));
 }
@@ -178,4 +182,43 @@ export function radarMatches(w: RadarWindow, a: RadarArea, x: OverviewPanel, que
   const q = query.trim().toLowerCase();
   if (!q) return true;
   return [x.meta.name, a.title, w.title, x.host].some((t) => t.toLowerCase().includes(q));
+}
+
+// ---------------------------------------------------------------- F-153 Anordnen im Fokus-Radar
+
+/**
+ * F-153 (Tastatur): Area breiter/schmaler bzw. höher/flacher machen. Erst die rechte bzw. untere
+ * Kante, liegt die am Rand der Fläche, die linke bzw. obere. Ohne Wirkung derselbe Baum.
+ */
+export function radarResize(tree: T.Node, leaf: string, axis: 'w' | 'h', grow: boolean, step: number, min: T.Min): T.Node {
+  const far: T.Side = axis === 'w' ? 'right' : 'bottom';
+  const near: T.Side = axis === 'w' ? 'left' : 'top';
+  const d = grow ? step : -step;
+  if (T.canResize(tree, leaf, far)) {
+    const t = T.resizeEdge(tree, leaf, far, d, min);
+    if (t !== tree) return t;
+  }
+  return T.canResize(tree, leaf, near) ? T.resizeEdge(tree, leaf, near, -d, min) : tree;
+}
+
+/** F-153: Lage einer Area in Worten, z. B. „rechts oben“, „Mitte“, „links, ganze Höhe“. */
+export function placeText(r: FRect): string {
+  const third = (from: number, size: number, words: [string, string, string]) => {
+    if (size > 0.9) return '';
+    const c = from + size / 2;
+    return c < 1 / 3 ? words[0] : c > 2 / 3 ? words[2] : words[1];
+  };
+  const h = third(r.x, r.w, ['links', 'Mitte', 'rechts']);
+  const v = third(r.y, r.h, ['oben', 'Mitte', 'unten']);
+  if (!h && !v) return 'ganze Fläche';
+  if (!h) return `${v}, ganze Breite`;
+  if (!v) return `${h}, ganze Höhe`;
+  if (h === 'Mitte' && v === 'Mitte') return 'Mitte';
+  return h === 'Mitte' ? `Mitte ${v}` : v === 'Mitte' ? `${h} Mitte` : `${h} ${v}`;
+}
+
+/** F-153: Ansage nach dem Anordnen, z. B. „„Recherche“ liegt jetzt rechts oben, 33 % breit, 50 % hoch.“ */
+export function arrangeText(name: string, r: FRect): string {
+  const size = [r.w <= 0.9 && `${Math.round(r.w * 100)} % breit`, r.h <= 0.9 && `${Math.round(r.h * 100)} % hoch`].filter(Boolean).join(', ');
+  return `„${name}“ liegt jetzt ${placeText(r)}${size ? `, ${size}` : ''}.`;
 }

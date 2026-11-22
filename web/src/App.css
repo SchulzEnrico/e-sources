@@ -2860,3 +2860,14 @@ button.is-off:hover,
 @media (forced-colors: active) {
   .drop--dock, .drop--in, .drop--swap { border-color: Highlight; }
 }
+/* F-155: Fläche über jedem Panel im Größen-Modus – fängt Mausrad und Klick */
+.sizepad {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  cursor: all-scroll;
+  border-radius: var(--radius);
+  background: rgba(var(--tint), 0.03);
+}
+.sizepad:hover { background: rgba(var(--accent-rgb), 0.06); }
+.sizepad.is-active { background: transparent; }

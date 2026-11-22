@@ -55,11 +55,12 @@ export function sizeStep(tree: T.Node, leaf: string, cmd: SizeCmd, min: T.Min, s
 
 /** Taste → Befehl im Größen-Modus; null = keine Größen-Taste. */
 export function sizeCmdOf(e: { key: string; code: string; shiftKey: boolean }): SizeCmd | null {
-  const sides: Record<string, T.Side> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'top', ArrowDown: 'bottom' };
-  const side = sides[e.key];
+  // Pfeile oder – für die linke Hand, die rechte bleibt an der Maus – W A S D (nach Lage der Taste).
+  const sides: Record<string, T.Side> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'top', ArrowDown: 'bottom', KeyA: 'left', KeyD: 'right', KeyW: 'top', KeyS: 'bottom' };
+  const side = sides[e.key] ?? sides[e.code];
   if (side) return { kind: 'edge', dir: side, other: e.shiftKey };
-  if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') return { kind: 'diag', grow: true };
-  if (e.key === '-' || e.key === '−' || e.code === 'NumpadSubtract') return { kind: 'diag', grow: false };
+  if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd' || e.code === 'KeyE') return { kind: 'diag', grow: true };
+  if (e.key === '-' || e.key === '−' || e.code === 'NumpadSubtract' || e.code === 'KeyQ') return { kind: 'diag', grow: false };
   const m = /^(?:Digit|Numpad)(\d)$/.exec(e.code);
   if (m && !e.shiftKey) return { kind: 'set', f: m[1] === '0' ? 1 : Number(m[1]) / 10 };
   return null;

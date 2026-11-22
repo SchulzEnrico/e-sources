@@ -236,7 +236,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [toggleOverview]);
   const [flash, setFlash] = useState<string | null>(null);
-  /** F-155: Größen-Modus (Strg/⌘+Umschalt+G) und seine letzte Ansage. */
+  /** F-155: Größen-Modus (Alt/⌥+A) und seine letzte Ansage. */
   const [sizeMode, setSizeMode] = useState(false);
   const [sizeSaid, setSizeSaid] = useState('');
   const sizeKeyRef = useRef<(e: KeyboardEvent) => void>(() => {});
@@ -673,23 +673,35 @@ export default function App() {
     if (!target || !slot) return notify('Lege zuerst eine Area an.');
     setActive(target);
     setSizeMode(true);
-    setSizeSaid(`Größen-Modus für „${slotName(slot)}“ (${placeText(slot.rect)}). Pfeile verschieben die Kante, Umschalt+Pfeil die andere, Enter oder Esc beendet.`);
+    setSizeSaid(`Größen-Modus für „${slotName(slot)}“ (${placeText(slot.rect)}). Pfeile oder W A S D verschieben die Kante, Umschalt die andere, Mausrad über einem Panel ebenso. Leertaste, Enter oder Esc beendet.`);
   };
   sizeKeyRef.current = (e: KeyboardEvent) => {
-    const mod = e.ctrlKey || e.metaKey;
-    if (mod && e.shiftKey && !e.altKey && e.code === 'KeyG') {
+    // F-155: Alt+G (Mac ⌥G) bzw. G im Größen-Modus = alle Areas gleich verteilen.
+    const evenly = () => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (mode.kind !== 'area') setMode({ kind: 'area' });
+      dispatch({ type: 'distribute', setup });
+      const text = `Alle ${view.slots.length} Areas gleich verteilt.`;
+      if (sizeMode) setSizeSaid(text);
+      else notify(text);
+    };
+    if (e.altKey && !e.metaKey && e.code === 'KeyG' && !e.repeat) return evenly();
+    if (sizeMode && !e.ctrlKey && !e.metaKey && e.code === 'KeyG') return evenly();
+    // Alt+A (Mac ⌥A) startet und beendet – linke oder rechte Alt-Taste (AltGr meldet zusätzlich Strg).
+    if (e.altKey && !e.metaKey && e.code === 'KeyA' && !e.repeat) {
       e.preventDefault();
       e.stopImmediatePropagation();
       if (sizeMode) setSizeMode(false);
       else startSizeMode();
       return;
     }
-    if (!sizeMode || mod || e.altKey) return;
+    if (!sizeMode || e.ctrlKey || e.metaKey) return;
     const done = () => {
       e.preventDefault();
       e.stopImmediatePropagation();
     };
-    if (e.key === 'Escape' || e.key === 'Enter') {
+    if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
       done();
       setSizeMode(false);
       return;
@@ -697,7 +709,7 @@ export default function App() {
     const slot = slotOfPanel(currentPanel());
     if (!slot) return;
     const name = slotName(slot);
-    if (e.key === 'm' || e.key === 'M') {
+    if (e.code === 'KeyM' || e.code === 'KeyF') {
       done();
       const isMax = mode.kind === 'max';
       setMode(isMax ? { kind: 'area' } : { kind: 'max', id: slot.front.id });
@@ -734,6 +746,56 @@ export default function App() {
     dispatch({ type: 'setLayout', setup, tree: next });
     const r = T.rects(next).get(slot.id);
     if (r) setSizeSaid(arrangeText(name, r));
+  };
+
+  /**
+   * F-155 Mausrad: Im Größen-Modus liegt über jedem Panel eine durchsichtige Fläche (die
+   * eingebettete Seite bekäme das Scrollen sonst selbst). Scrollen verschiebt die Kante in
+   * Scrollrichtung – hoch/runter die untere bzw. obere, links/rechts (Trackpad, Umschalt+Rad) die
+   * rechte bzw. linke. Gesammelt je Bild, damit es flüssig bleibt.
+   */
+  const wheel = useRef<{ leaf: string; dx: number; dy: number; frame: number }>({ leaf: '', dx: 0, dy: 0, frame: 0 });
+  const applyWheelRef = useRef<() => void>(() => {});
+  applyWheelRef.current = () => {
+    const w = wheel.current;
+    w.frame = 0;
+    const slot = view.slots.find((s) => s.id === w.leaf);
+    const tree = view.tree;
+    const { dx, dy } = w;
+    w.dx = 0;
+    w.dy = 0;
+    if (!slot || !tree) return;
+    // Ein Raster des Mausrads (≈ 100 px) ≈ 5 % – wie ein Tastenschritt; Trackpads liefern feinere Schritte.
+    const SPEED = 0.35;
+    let t = tree;
+    if (dx) {
+      const edge = edgeFor(t, slot.id, dx > 0 ? 'right' : 'left', false);
+      if (edge) t = T.resizeEdge(t, slot.id, edge, (dx * SPEED) / iw, min);
+    }
+    if (dy) {
+      const edge = edgeFor(t, slot.id, dy > 0 ? 'bottom' : 'top', false);
+      if (edge) t = T.resizeEdge(t, slot.id, edge, (dy * SPEED) / ih, min);
+    }
+    if (t === tree) return;
+    dispatch({ type: 'setLayout', setup, tree: t });
+    const r = T.rects(t).get(slot.id);
+    if (r) setSizeSaid(arrangeText(slotName(slot), r));
+  };
+  const onSizeWheel = (e: React.WheelEvent, slot: Slot) => {
+    let dx = e.deltaX;
+    let dy = e.deltaY;
+    // Mausrad mit Umschalt = waagrecht (Windows meldet es weiter als deltaY).
+    if (e.shiftKey && !dx) {
+      dx = dy;
+      dy = 0;
+    }
+    const lines = e.deltaMode === 1 ? 16 : 1;
+    const w = wheel.current;
+    if (w.leaf !== slot.id) Object.assign(w, { leaf: slot.id, dx: 0, dy: 0 });
+    w.dx += dx * lines;
+    w.dy += dy * lines;
+    if (active !== slot.front.id) setActive(slot.front.id);
+    if (!w.frame) w.frame = requestAnimationFrame(() => applyWheelRef.current());
   };
 
   /** Panel, das auf einer Area sichtbar ist (beim Stapel das vorderste). */
@@ -896,6 +958,20 @@ export default function App() {
             <div key={s.id} className={`tile${resizing.has(s.id) ? ' tile--resizing' : ''}`} style={px(s.rect)}>
               {meta && frame(meta, { slotId: s.id, rect: s.rect })}
               {grips(s.id)}
+              {/* F-155: im Größen-Modus fängt diese Fläche Mausrad und Klick ab (statt der eingebetteten Seite) */}
+              {sizeMode && (
+                <div
+                  className={`sizepad${meta?.id === active ? ' is-active' : ''}`}
+                  aria-hidden="true"
+                  title="Scrollen: Kante verschieben · Klick: dieses Panel wählen"
+                  onWheel={(e) => onSizeWheel(e, s)}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    if (meta) setActive(meta.id);
+                    setSizeSaid(`Jetzt „${slotName(s)}“: ${placeText(s.rect)}.`);
+                  }}
+                />
+              )}
               {over && (
                 <div className={`drop drop--${over} ${drag?.stack ? (drag.stack.ok ? 'drop--in' : 'drop--no') : zoneClass(over)}`}>
                   <span>{drag?.stack ? (drag.stack.ok ? 'Im Panel ablegen' : `Stapel voll (${STACK_MAX})`) : ZONE_LABEL[over]}</span>
@@ -1028,7 +1104,7 @@ export default function App() {
             Zur Arbeitsfläche
           </button>
         )}
-        <button type="button" className="tb-view" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Gleich verteilen: alle Panels gleich groß, die Anordnung bleibt" aria-label="Gleich verteilen">
+        <button type="button" className="tb-view" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Gleich verteilen (Alt/⌥+G): alle Panels gleich groß, die Anordnung bleibt" aria-label="Gleich verteilen" aria-keyshortcuts="Alt+G">
           {DistributeIcon}
         </button>
         {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
@@ -1271,7 +1347,7 @@ export default function App() {
         <div className="sizebar" role="region" aria-label="Größen-Modus">
           <strong>Größe</strong>
           <span className="sizebar__keys">
-            ← → ↑ ↓ Kante verschieben · Umschalt+Pfeil andere Kante · + / − diagonal · 1–9 = 10–90 % · 0 = 100 % · M maximieren · Tab nächstes · Enter/Esc fertig
+            W A S D / Pfeile: Kante · Umschalt: andere Kante · Mausrad über Panel: Kante · Q / E (− / +) diagonal · G gleich verteilen · 1–9 = 10–90 % · 0 = 100 % · F maximieren · Tab nächstes · Leertaste/Esc fertig
           </span>
           <span className="sizebar__said" role="status">
             {sizeSaid}

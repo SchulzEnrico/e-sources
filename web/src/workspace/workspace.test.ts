@@ -1427,6 +1427,8 @@ describe('F-155 Größe per Tastatur', () => {
     expect(S.sizeCmdOf({ key: '3', code: 'Digit3', shiftKey: false })).toEqual({ kind: 'set', f: 0.3 });
     expect(S.sizeCmdOf({ key: '0', code: 'Numpad0', shiftKey: false })).toEqual({ kind: 'set', f: 1 });
     expect(S.sizeCmdOf({ key: 'x', code: 'KeyX', shiftKey: false })).toBe(null);
+    expect(S.sizeCmdOf({ key: 'D', code: 'KeyD', shiftKey: true })).toEqual({ kind: 'edge', dir: 'right', other: true });
+    expect(S.sizeCmdOf({ key: 'q', code: 'KeyQ', shiftKey: false })).toEqual({ kind: 'diag', grow: false });
   });
   it('Pfeil verschiebt die Kante, Umschalt die andere', () => {
     const e = (dir: T.Side, other = false) => ({ kind: 'edge' as const, dir, other });

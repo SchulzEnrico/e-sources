@@ -59,7 +59,7 @@ interface Props {
   onSetSize: (w: number, h: number) => void;
   onReset: () => void;
   onToggleMaximize: () => void;
-  /** F-155: Größen-Modus für dieses Panel starten (Strg/⌘+Umschalt+G). */
+  /** F-155: Größen-Modus für dieses Panel starten (Alt/⌥+A). */
   onSizeKeys?: () => void;
   /** Kurze Meldung für den Nutzer (z. B. „Adresse kopiert“). */
   notify: (text: string) => void;
@@ -640,7 +640,7 @@ export function PanelFrame(p: Props) {
                       p.onSizeKeys?.();
                     }}
                   >
-                    Per Tastatur … (Strg/⌘+Umschalt+G)
+                    Per Tastatur und Mausrad … (Alt/⌥+A)
                   </Item>
                 ),
               ]}

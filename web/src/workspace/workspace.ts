@@ -828,6 +828,13 @@ export function tryPlace(ws: Workspace, setup: ScreenSetup, ids: string[], targe
     out = withArea(out, { ...t, panels: [...t.panels, ...ids], front: ids[0] });
     // Eine ganze Gruppe auf ein einzelnes Panel: Der Name der Gruppe bleibt, sonst gilt der des Ziels.
     if (ids.length > 1 && t.panels.length === 1) clear = t.panels;
+    // Ein einzelnes Ziel-Panel kann noch den Namen einer anderen Area tragen (unsichtbar, solange
+    // es allein liegt). Gehört der hier noch einer anderen Area, gilt er nicht für den neuen Stapel.
+    else if (t.panels.length === 1) {
+      const own = ws.panels.find((p) => p.id === t.panels[0])?.areaName;
+      const others = new Set(Object.values(out.areas).filter((a) => a.id !== target).flatMap((a) => a.panels));
+      if (own && ws.panels.some((p) => others.has(p.id) && p.areaName === own)) clear = [...ids, ...t.panels];
+    }
   } else {
     // Wer allein auf seiner Area liegt, hat schon eine eigene.
     const sources = new Set(from as string[]);

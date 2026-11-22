@@ -1238,6 +1238,20 @@ describe('F-28 Verschieben und Gruppieren', () => {
     expect(W.viewOf(freed, MONITOR2).slots.map((s) => W.areaLabel(freed, s))).toEqual(['', '', '']);
   });
 
+  it('Einzelnes Ziel mit altem Namen einer anderen Area: neuer Stapel bekommt eigenen Namen', () => {
+    let { ws, a, b, c } = three();
+    ws = W.placePanels(ws, MONITOR2, [a], areaOfId(ws, MONITOR2, b));
+    ws = W.renameArea(ws, MONITOR2, areaOfId(ws, MONITOR2, a), 'Recherche');
+    const rid = ws.panels.find((p) => p.id === a)!.areaName!;
+    // c liegt allein, trägt aber noch den Namen „Recherche“ (z. B. aus einer anderen Einstellung)
+    ws = { ...ws, panels: ws.panels.map((p) => (p.id === c ? { ...p, areaName: rid } : p)) };
+    ws = W.addPanel(ws, MONITOR2, areaOfId(ws, MONITOR2, a));
+    const d = ws.panels.find((p) => ![a, b, c].includes(p.id))!.id;
+    const next = W.placePanels(ws, MONITOR2, [d], areaOfId(ws, MONITOR2, c));
+    const labels = W.viewOf(next, MONITOR2).slots.map((s) => W.areaLabel(next, s)).sort();
+    expect(labels).toEqual(['NewArea 2', 'Recherche']);
+  });
+
   it('Eigene Area nur, solange der Bildschirm Platz hat', () => {
     const { ws, a, b } = three();
     // Smartphone: eine Area, alle im Stapel

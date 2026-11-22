@@ -28,7 +28,7 @@ import { MAIN_NAME, windowList, windowName, winFromSearch } from './workspace/wi
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
 import { type MoveTarget, moveTargets, setupOfWindow } from './workspace/move';
 import type { ScreenSetup } from './workspace/screen';
-import { FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
+import { FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, tryPlace, viewOf } from './workspace/workspace';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -89,6 +89,8 @@ interface Drag {
   y: number;
   target: string | null;
   zone: T.Zone | null;
+  /** F-28: Eintrag aus der Stapel-Leiste – `id` ist dann ein Panel, das Ziel eine Area. */
+  stack?: { from: string; ok: boolean; label: string };
 }
 
 const ZONE_LABEL: Record<T.Zone, string> = {
@@ -474,6 +476,53 @@ export default function App() {
     );
   };
 
+  // ---------------------------------------------------------------- F-28 Aus der Stapel-Leiste ziehen
+
+  /** Area unter dem Zeiger (ohne Randzonen). */
+  const slotAt = (cx: number, cy: number, slots: Slot[]): Slot | null => {
+    const box = areaRef.current?.getBoundingClientRect();
+    if (!box) return null;
+    const x = cx - box.left;
+    const y = cy - box.top;
+    return (
+      slots.find((s) => {
+        const r = px(s.rect);
+        return x >= r.left && x <= r.left + r.width && y >= r.top && y <= r.top + r.height;
+      }) ?? null
+    );
+  };
+
+  /** Panel aus der Stapel-Leiste auf eine andere Area ziehen: Loslassen legt es dort obendrauf. */
+  const startStackDrag = (e: ReactPointerEvent, id: string, from: string) => {
+    if (swapFrom || view.slots.length < 2) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const slots = shownView.slots;
+    let started = false;
+    let last: Drag | null = null;
+    track(
+      (ev) => {
+        if (!started && Math.hypot(ev.clientX - x0, ev.clientY - y0) < DRAG_START_PX) return;
+        if (!started) document.body.style.cursor = 'grabbing';
+        started = true;
+        const s = slotAt(ev.clientX, ev.clientY, slots);
+        const target = s && s.id !== from ? s : null;
+        const ok = !!target && !!tryPlace(ws, setup, [id], target.id);
+        const label = target ? areaLabel(ws, target) || target.front.name : '';
+        last = { id, x: ev.clientX, y: ev.clientY, target: target?.id ?? null, zone: target ? 'center' : null, stack: { from, ok, label } };
+        setDrag(last);
+      },
+      () => {
+        const d = last;
+        if (!d?.target || !d.stack) return;
+        const name = ws.panels.find((x) => x.id === id)?.name ?? '';
+        if (!d.stack.ok) return notify(`Auf „${d.stack.label}“ liegen schon ${STACK_MAX} Panels. Schließe dort eines oder wähle eine andere Area.`);
+        dispatch({ type: 'move', ids: [id], from: setup, win, area: d.target });
+        notify(`„${name}“ liegt jetzt auf „${d.stack.label}“.`);
+      },
+    );
+  };
+
   // ---------------------------------------------------------------- Zentrale Suche (F-34)
 
   /** Aktives Panel, sonst das erste sichtbare. */
@@ -599,6 +648,7 @@ export default function App() {
                 onRemove: (id) => dispatch({ type: 'remove', id }),
                 onAdd: full ? undefined : () => addPanel(slotOfMeta.id),
                 onRename: (id, name) => dispatch({ type: 'rename', id, name }),
+                onDragStart: onArea ? (e, id) => startStackDrag(e, id, slotOfMeta.id) : undefined,
               }
             : undefined
         }
@@ -732,8 +782,8 @@ export default function App() {
               {meta && frame(meta, { slotId: s.id, rect: s.rect })}
               {grips(s.id)}
               {over && (
-                <div className={`drop drop--${over}`}>
-                  <span>{ZONE_LABEL[over]}</span>
+                <div className={`drop drop--${over}${drag?.stack && !drag.stack.ok ? ' drop--no' : ''}`}>
+                  <span>{drag?.stack ? (drag.stack.ok ? 'Obendrauf legen' : `Stapel voll (${STACK_MAX})`) : ZONE_LABEL[over]}</span>
                 </div>
               )}
             </div>
@@ -748,8 +798,14 @@ export default function App() {
         )}
         {drag && (
           <div className="ghost" style={{ left: drag.x + 12, top: drag.y + 12 }}>
-            {shown(drag.id)?.name ?? ''}
-            {drag.target && drag.zone ? ` → ${dropLabel(drag.target, drag.zone)}` : ''}
+            {drag.stack ? (ws.panels.find((x) => x.id === drag.id)?.name ?? '') : (shown(drag.id)?.name ?? '')}
+            {drag.stack
+              ? drag.target
+                ? ` → ${drag.stack.ok ? `auf „${drag.stack.label}“ legen` : 'Stapel voll'}`
+                : ''
+              : drag.target && drag.zone
+                ? ` → ${dropLabel(drag.target, drag.zone)}`
+                : ''}
           </div>
         )}
       </>

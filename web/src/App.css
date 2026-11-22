@@ -343,6 +343,15 @@ select {
 .drop--center {
   inset: 0;
 }
+/* F-28: Ziel geht nicht (Stapel voll) – grau und gestrichelt, nicht nur über die Farbe */
+.drop--no {
+  background: rgba(128, 128, 128, 0.12);
+  outline: 2px dashed rgba(128, 128, 128, 0.6);
+  outline-offset: -2px;
+}
+.drop--no span {
+  box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.5);
+}
 .drop--left {
   left: 0;
   top: 0;

@@ -1,4 +1,4 @@
-import { useRef, useState, type TouchEvent, type WheelEvent } from 'react';
+import { useRef, useState, type PointerEvent, type TouchEvent, type WheelEvent } from 'react';
 import type { PanelMeta } from '../workspace/types';
 import { StackAddIcon } from './PanelFrame';
 
@@ -17,9 +17,11 @@ export interface StackProps {
   /** F-128: Name der Area (leer, solange sie noch keinen hat). */
   areaName: string;
   onRenameArea: (name: string) => void;
+  /** F-28: Eintrag auf eine andere Area ziehen (dort obendrauf legen); fehlt außerhalb der Arbeitsfläche. */
+  onDragStart?: (e: PointerEvent, id: string) => void;
 }
 
-export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, onRename }: StackProps) {
+export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, onRename, onDragStart }: StackProps) {
   const lastWheel = useRef(0);
   /** Panel, dessen Name gerade bearbeitet wird; solange hat das Eingabefeld den Fokus und die Leiste bleibt offen. */
   const [editing, setEditing] = useState<string | null>(null);
@@ -75,11 +77,14 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
               aria-selected={m.id === frontId}
               className={m.id === frontId ? 'stack__item stack__item--on' : 'stack__item'}
               onClick={() => onSelect(m.id)}
+              onPointerDown={(e) => {
+                if (e.button === 0 && !(e.target as HTMLElement).closest('.stack__close')) onDragStart?.(e, m.id);
+              }}
               onDoubleClick={() => {
                 setDraft(m.name);
                 setEditing(m.id);
               }}
-              title={`${m.name} · Doppelklick oder F2: umbenennen · Entf: schließen`}
+              title={`${m.name} · Doppelklick oder F2: umbenennen · Entf: schließen${onDragStart ? ' · Ziehen: auf eine andere Area legen' : ''}`}
               aria-keyshortcuts="F2 Delete"
               // NF-03: Das × ist mit der Maus erreichbar; per Tastatur schließt Entf, F2 benennt um.
               onKeyDown={(e) => {

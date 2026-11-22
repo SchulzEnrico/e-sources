@@ -4,7 +4,7 @@ Stand: 22.11.2026, ca. 15:40 Uhr · Chat V23 abgeschlossen · Nächster Chat: **
 
 ## Startanweisung für den neuen Chat
 
-> Das ist Chat **V24 E-Sources**. Lies diese Übergabedatei. Die Reihenfolge im Lastenheft (Abschnitt „Stand und Reihenfolge“) ist freigegeben. Zuerst **Portfolio „Aktuell“ auffrischen** (siehe „Nächste Schritte“, Punkt 2), danach mit dem **Launcher** weiter (F-40 bis F-42, F-149, F-43 Rest als ein Paket). Halte dich an die Arbeitsregeln am Ende dieser Datei.
+> Das ist Chat **V24 E-Sources**. Lies diese Übergabedatei. Die Reihenfolge im Lastenheft (Abschnitt „Stand und Reihenfolge“) ist freigegeben. Mach mit dem **Launcher** weiter (F-40 bis F-42, F-149, F-43 Rest als ein Paket). Halte dich an die Arbeitsregeln am Ende dieser Datei.
 
 ## Links
 
@@ -27,7 +27,7 @@ Stand Lastenheft danach: **78 fertig, 15 teilweise, 1 ersetzt, 59 offen** (von 1
 ## Nächste Schritte
 
 1. Enrico: e-sources committen (Vorschlag: „F-23 Rest Tab/Portal-Kürzel, F-24 Zuletzt geschlossen, F-29 Rest Fokus-Grenzen einstellbar, Übergabe V23“) und pushen.
-2. **Portfolio „Aktuell“ auffrischen (Wunsch Enrico 22.11.2026):** Auf der Portfolio-Webseite (`~/Projects/SchulzEnrico.github.io`) stehen bei E-Sources noch alte Begriffe („Panels“, „Arbeitsfläche“) und ein veralteter Stand. Mit den Begriffen nach F-154 (Desk → Slot → Stack → Portal → Tab, Source, Library, Cockpit, Fokusanzeige) und dem heutigen Umfang neu schreiben (z. B. mehrere Desks/Monitore, Stacks, Fokusanzeige mit Ampel, Cockpit mit Radar, Library, Suche, Tastaturbedienung und Barrierefreiheit, Designs, Zuletzt geschlossen, Export/Import). Text erst Enrico zur Freigabe zeigen, dann einbauen. Fundstellen: `index.html` Abschnitt `#aktuell` (ca. Zeile 264–281: `step-org`, Liste, Knopf), Magazin-Menü `fm-r-akt` (ca. Zeile 418) und die Bildbeschreibung `#fm-desc` (ca. Zeile 421); dasselbe in `en/index.html` (Englisch). Danach in allen Abschnitten (Profil, Skills, Stationen) nach weiteren E-Sources-Erwähnungen suchen (`grep -n -i "e-source"`).
+2. ~~Portfolio „Aktuell“ auffrischen~~ – erledigt in V23 (E-Sources-Punkt DE und EN neu, sitemap lastmod 22.11.).
 3. Code nach Reihenfolge: **Launcher** (F-40–F-42, F-149, F-43 Rest) → F-36 → F-168 → F-160 Stufe 2 → F-159 → Farben F-161–F-164 (danach F-171 Stufe 2) → F-51/F-52 → F-06.
 4. Fertige Punkte im Lastenheft auf `[✓ Vxx]` setzen (Eintrag und Reihenfolge) und die Zählung im Absatz „Von 153 Einträgen …“ nachziehen.
 5. Füllarbeit vor Übergaben: Zusammenführen im Lastenheft, Begriffe auf F-154, neuere Einträge einsortieren, Ausblick in der Geschichte.

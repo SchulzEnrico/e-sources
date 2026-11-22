@@ -30,6 +30,8 @@ import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWind
 import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
 import { PROBE } from './workspace/probe';
 import { Help } from './components/Help';
+import { Tour } from './components/Tour';
+import { tourSeen } from './workspace/tour';
 import type { HelpEntry } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, tryPlace, viewOf } from './workspace/workspace';
@@ -252,6 +254,14 @@ export default function App() {
   }, [toggleOverview]);
   /** F-156: Hilfe offen (at = Eintrag, zu dem sie springt) oder zu (null). */
   const [helpAt, setHelpAt] = useState<{ at: string | null } | null>(null);
+  /** F-95: Tour – beim ersten Start einmal von selbst (nicht in der Testbelegung, nicht in Zusatz-Desks). */
+  const [tour, setTour] = useState(false);
+  useEffect(() => {
+    if (PROBE || win || tourSeen()) return;
+    const t = window.setTimeout(() => setTour(true), 800);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // F-156: „?“ (außerhalb von Eingabefeldern) öffnet die Hilfe.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1009,6 +1019,8 @@ export default function App() {
         return notify('Neuer Slot rechts angelegt.');
       case 'newDesk':
         return addNewDesk();
+      case 'tour':
+        return setTour(true);
       case 'search':
         return window.setTimeout(() => document.querySelector<HTMLInputElement>('.search__input')?.focus(), 0);
     }
@@ -1439,6 +1451,15 @@ export default function App() {
               >
                 Desks importieren
               </Item>
+              {/* F-95: Tour jederzeit wieder starten */}
+              <Item
+                onClick={() => {
+                  close();
+                  setTour(true);
+                }}
+              >
+                Tour starten
+              </Item>
               {/* F-132 Urheberrechtsvermerk */}
               <li className="menu__sep" role="separator" />
               <li className="menu__copy">© 2026 Enrico Schulz</li>
@@ -1456,6 +1477,7 @@ export default function App() {
           Test: voll · nichts wird gespeichert
         </a>
       )}
+      {tour && <Tour onClose={() => setTour(false)} />}
       {helpAt && <Help at={helpAt.at} onClose={() => setHelpAt(null)} onRun={runHelp} />}
       {overview && (
         <Overview

@@ -794,7 +794,8 @@ button.is-off:hover,
   transition: width 0.12s ease;
 }
 .stack:hover .stack__inner,
-.stack:focus-within .stack__inner {
+.stack:focus-within .stack__inner,
+.stack.is-open .stack__inner {
   width: 150px;
   box-shadow: -10px 0 22px rgba(var(--lo), 0.6);
 }
@@ -818,7 +819,8 @@ button.is-off:hover,
   display: none;
 }
 .stack:hover .stack__add,
-.stack:focus-within .stack__add {
+.stack:focus-within .stack__add,
+.stack.is-open .stack__add {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -829,7 +831,8 @@ button.is-off:hover,
 }
 /* F-154: ausgeklappt steht oben, was die Leiste ist */
 .stack:hover .stack__label,
-.stack:focus-within .stack__label {
+.stack:focus-within .stack__label,
+.stack.is-open .stack__label {
   display: block;
   padding: 1px 4px 3px;
   font-size: 0.72em;
@@ -922,7 +925,8 @@ button.is-off:hover,
   min-width: 0;
 }
 .stack:hover .stack__row > .stack__item,
-.stack:focus-within .stack__row > .stack__item {
+.stack:focus-within .stack__row > .stack__item,
+.stack.is-open .stack__row > .stack__item {
   padding-right: 30px;
 }
 .stack__close {
@@ -947,7 +951,8 @@ button.is-off:hover,
   opacity: 0.85;
 }
 .stack:hover .stack__close,
-.stack:focus-within .stack__close {
+.stack:focus-within .stack__close,
+.stack.is-open .stack__close {
   display: inline-block;
 }
 .stack__close:hover {
@@ -3029,4 +3034,43 @@ button.is-off:hover,
 @media (forced-colors: active) {
   .help { border: 2px solid CanvasText; }
   .help__item.is-at, .help__item:focus-visible { outline: 2px solid Highlight; }
+}
+
+/* ---------- F-95 Tour – ruhig: neutrale Farben statt Akzentrot, gut lesbare Schrift (nach Test Enrico) */
+.tour { position: fixed; inset: 0; z-index: 90; }
+.tour__shade { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
+.tour__ring {
+  position: fixed;
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px rgba(var(--tint), 0.85), 0 0 0 9999px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  transition: all 0.2s ease;
+}
+.tour__card {
+  position: fixed;
+  width: min(420px, calc(100vw - 16px));
+  padding: 18px 20px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--tint), 0.22);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-fill-color: currentColor;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+}
+.tour__count { margin: 0; font-size: 13px; color: var(--muted); }
+.tour__title { margin: 4px 0 8px; font-size: 20px; color: var(--strong); }
+.tour__text { margin: 0 0 16px; font-size: 16px; line-height: 1.55; color: var(--strong); }
+.tour__nav { display: flex; gap: 8px; align-items: center; }
+.tour__nav button { font-size: 15px; padding: 6px 12px; }
+.tour__skip { margin-right: auto; }
+.tour__next { font-weight: 600; }
+/* Fokus deutlich, aber neutral (NF-03) */
+.tour__card button:focus-visible,
+.tour__card button:focus { outline: 2px solid rgba(var(--tint), 0.9); outline-offset: 2px; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+  .tour__ring { transition: none; }
+}
+@media (forced-colors: active) {
+  .tour__ring { outline: 3px solid Highlight; box-shadow: none; }
+  .tour__card { border: 2px solid CanvasText; }
 }

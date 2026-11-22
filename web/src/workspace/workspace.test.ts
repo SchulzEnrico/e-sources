@@ -17,6 +17,7 @@ import * as M from './move';
 import * as Probe from './probe';
 import * as S from './sizing';
 import * as H from './help';
+import * as Tour from './tour';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -1507,5 +1508,19 @@ describe('F-156 Hilfe in der Suche', () => {
   });
   it('Begriffe stammen aus TERMS (kein doppelter Text)', () => {
     expect(H.helpById('slot')?.text.startsWith('Ein Platz im Raster')).toBe(true);
+  });
+});
+
+describe('F-95 Tour', () => {
+  it('überspringt Schritte ohne Ziel, behält die Begrüßung', () => {
+    const steps = Tour.tourSteps((sel) => !sel.includes('.stack'));
+    expect(steps[0].id).toBe('welcome');
+    expect(steps.map((s) => s.id)).not.toContain('stack');
+    expect(Tour.tourSteps(() => false).map((s) => s.id)).toEqual(['welcome']);
+  });
+  it('jeder Schritt hat Text (aus der Hilfe), ids eindeutig; Tour ist in der Suche', () => {
+    expect(Tour.TOUR.every((s) => s.text.trim().length > 20)).toBe(true);
+    expect(new Set(Tour.TOUR.map((s) => s.id)).size).toBe(Tour.TOUR.length);
+    expect(H.searchHelp('Einführung')[0].id).toBe('tour');
   });
 });

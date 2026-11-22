@@ -2,9 +2,10 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalSto
 import { createPortal } from 'react-dom';
 import type { Bookmark, Named, PanelMeta, Workspace } from '../workspace/types';
 import type { Action } from '../workspace/useWorkspace';
+import type { MoveTarget } from '../workspace/move';
 import { bookmarkOf, collectionSize } from '../workspace/bookmarks';
 import { BookmarkEditor, CollectionDrawer, CollectionIcon, draftFor } from './Bookmarks';
-import { FOCUS_WARN, TAB_MAX, rulerShown, activeTab, canGoBack, canGoForward, hostOf, isSelfUrl, loadColor, tabLabel } from '../workspace/workspace';
+import { FOCUS_WARN, NEW_AREA, TAB_MAX, rulerShown, activeTab, canGoBack, canGoForward, hostOf, isSelfUrl, loadColor, tabLabel } from '../workspace/workspace';
 import { StackBar, type StackProps, useSwipe } from './StackBar';
 import { Ruler, RulerIcon } from './Ruler';
 import * as FH from '../workspace/frameHistory';
@@ -69,6 +70,10 @@ interface Props {
   windows: Named[];
   /** F-27: Panel (whole = ganze Area) in ein Fenster verschieben; null = neues Fenster. */
   onToWindow: (win: string | null, whole: boolean) => void;
+  /** F-28: Ziele für dieses Panel (whole = ganze Area) in allen Fenstern. */
+  moveTargets: (whole: boolean) => MoveTarget[];
+  /** F-28: Panel (whole = ganze Area) auf ein Ziel legen. */
+  onMove: (target: MoveTarget, whole: boolean) => void;
 }
 
 /** Seitenleiste im Panel: Sammlung oder Lesezeichen bearbeiten. */
@@ -279,13 +284,78 @@ export function Menu(props: { icon: ReactNode; label: string; children: (close: 
   );
 }
 
-export function Item(props: { onClick: () => void; children: ReactNode }) {
+export function Item(props: { onClick: () => void; children: ReactNode; disabled?: boolean; title?: string }) {
   return (
     <li>
-      <button type="button" role="menuitem" onClick={props.onClick}>
+      <button type="button" role="menuitem" onClick={props.onClick} disabled={props.disabled} title={props.title}>
         {props.children}
       </button>
     </li>
+  );
+}
+
+/** Überschrift einer Gruppe im Menü (z. B. ein Fenster); Bildschirmleser lesen sie mit. */
+export function MenuHead(props: { children: ReactNode }) {
+  return (
+    <li role="presentation" className="menu__head">
+      {props.children}
+    </li>
+  );
+}
+
+/**
+ * F-28: Menü mit mehreren Seiten (z. B. „Verschieben nach …“). Beim Seitenwechsel springt der
+ * Fokus auf den ersten Eintrag der neuen Seite (NF-03); schließt das Menü, beginnt es wieder vorn.
+ */
+export function MenuPages(props: { children: (page: string, go: (page: string) => void) => ReactNode }) {
+  const [page, setPage] = useState('');
+  const mark = useRef<HTMLLIElement>(null);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    mark.current?.closest('ul')?.querySelector<HTMLElement>(`${FOCUSABLE}:not([disabled])`)?.focus();
+  }, [page]);
+  return (
+    <>
+      <li hidden ref={mark} />
+      {props.children(page, setPage)}
+    </>
+  );
+}
+
+/** F-28: Ziele einer Verschiebung als Menüeinträge, nach Fenstern gruppiert. */
+function MoveList(props: { targets: MoveTarget[]; here: string; windowName: (win: string) => string; onPick: (t: MoveTarget) => void; onNewWindow: () => void }) {
+  const wins = [...new Set(props.targets.map((t) => t.win))].sort((a, b) => (a === props.here ? -1 : b === props.here ? 1 : 0));
+  const label = (t: MoveTarget) => {
+    if (!t.area) return `⧉ Ins ${props.windowName(t.win)}`;
+    if (t.area === NEW_AREA) return `▢ Eigene neue Area${t.disabled ? ' – kein Platz' : ''}`;
+    return `▣ Auf „${t.label}“${t.count > 1 ? ` (${t.count})` : ''}${t.disabled ? ' – Stapel voll' : ''}`;
+  };
+  return (
+    <>
+      {wins.map((w) => {
+        // Im eigenen Fenster gibt es dafür „Aus dem Stapel lösen“.
+        const items = props.targets.filter((t) => t.win === w && !(w === props.here && t.area === NEW_AREA));
+        if (items.length === 0) return null;
+        return (
+          <li key={w || 'main'} role="none">
+            <ul role="group" aria-label={w === props.here ? 'Dieses Fenster' : props.windowName(w)} className="menu__group">
+              <MenuHead>{w === props.here ? 'Dieses Fenster' : props.windowName(w)}</MenuHead>
+              {items.map((t) => (
+                <Item key={`${t.win}/${t.area}`} disabled={t.disabled} onClick={() => props.onPick(t)}>
+                  {label(t)}
+                </Item>
+              ))}
+            </ul>
+          </li>
+        );
+      })}
+      <li className="menu__sep" role="separator" />
+      <Item onClick={props.onNewWindow}>⧉ In neues Fenster</Item>
+    </>
   );
 }
 
@@ -613,30 +683,45 @@ export function PanelFrame(p: Props) {
                 close();
               };
               return (
+                <MenuPages>
+                  {(page, go) =>
+                    page ? (
+                      // F-28: zweite Seite „Verschieben nach …“
+                      <>
+                        <Item onClick={() => go('')}>← Zurück</Item>
+                        <MenuHead>{page === 'area' ? `Ganze Area „${areaName || p.panel.name}“ verschieben` : `„${p.panel.name}“ verschieben`}</MenuHead>
+                        <MoveList
+                          targets={p.moveTargets(page === 'area')}
+                          here={p.panel.win ?? ''}
+                          windowName={(w) => [{ id: '', name: 'Hauptfenster' }, ...p.windows].find((x) => x.id === w)?.name ?? w}
+                          onPick={(t) => run(() => p.onMove(t, page === 'area'))()}
+                          onNewWindow={run(() => p.onToWindow(null, page === 'area'))}
+                        />
+                      </>
+                    ) : (
                 <>
                   <Item onClick={run(() => setDrawer({ kind: 'collection' }))}>☰ Sammlung ({ownCount})</Item>
                   {url && <Item onClick={run(() => editCurrent())}>{saved ? '★ Lesezeichen bearbeiten' : '☆ Lesezeichen speichern'}</Item>}
                   <li className="menu__sep" role="separator" />
                   <Item onClick={run(addTab)}>＋ Neuer Tab</Item>
                   <Item onClick={run(p.onAddHere)}>▣ Neues Panel auf „{p.panel.name}“ legen</Item>
-                  {/* F-27: Panel oder ganze Area in ein anderes Fenster (zweiter Monitor) */}
+                  {/* F-27, F-28: Panel oder ganze Area auf eine andere Area, auch in ein anderes Fenster */}
                   <li className="menu__sep" role="separator" />
-                  <Item onClick={run(() => p.onToWindow(null, false))}>⧉ Panel in neues Fenster</Item>
-                  {p.windows.map((w) => (
-                    <Item key={w.id || 'main'} onClick={run(() => p.onToWindow(w.id, false))}>
-                      ⧉ Panel ins {w.name}
-                    </Item>
-                  ))}
-                  {p.stack && (
-                    <>
-                      <Item onClick={run(() => p.onToWindow(null, true))}>⧉ Ganze Area in neues Fenster</Item>
-                      {p.windows.map((w) => (
-                        <Item key={`a-${w.id || 'main'}`} onClick={run(() => p.onToWindow(w.id, true))}>
-                          ⧉ Ganze Area ins {w.name}
+                  <Item onClick={() => go('panel')}>↦ Panel verschieben …</Item>
+                  {p.stack && <Item onClick={() => go('area')}>↦ Ganze Area verschieben …</Item>}
+                  {p.stack &&
+                    (() => {
+                      const own = p.moveTargets(false).find((t) => t.win === (p.panel.win ?? '') && t.area === NEW_AREA);
+                      return (
+                        <Item
+                          disabled={!own || own.disabled}
+                          title={!own || own.disabled ? 'Auf dem Bildschirm ist keine Area mehr frei.' : undefined}
+                          onClick={run(() => own && p.onMove(own, false))}
+                        >
+                          ⇱ Aus dem Stapel lösen{!own || own.disabled ? ' – kein Platz' : ''}
                         </Item>
-                      ))}
-                    </>
-                  )}
+                      );
+                    })()}
                   <li className="menu__sep" role="separator" />
                   <Item onClick={run(() => p.dispatch({ type: 'rulerPanel', id: p.panel.id }))}>
                     {rulerShown(p.ws, p.panel) ? '▭ Lineal in diesem Panel ausblenden' : '▭ Lineal in diesem Panel zeigen'}
@@ -661,6 +746,9 @@ export function PanelFrame(p: Props) {
                     </>
                   )}
                 </>
+                    )
+                  }
+                </MenuPages>
               );
             }}
           </Menu>

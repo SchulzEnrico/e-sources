@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObjec
 import type { Slot, Workspace } from '../workspace/types';
 import { type Focus, type OverviewArea, focusText, overviewOf, pointsText } from '../workspace/focus';
 import { windowName } from '../workspace/windows';
-import { loadColor } from '../workspace/workspace';
+import { NEW_AREA, loadColor } from '../workspace/workspace';
+import type { MoveTarget } from '../workspace/move';
 
 /**
  * F-29: Gesamtfokus als Equalizer-Pegel mit 9 Segmenten (Farben wie F-26/F-68). Ist zugleich der
@@ -74,7 +75,79 @@ export interface OverviewProps {
   onOpenWindow: (win: string) => void;
   onClose: (id: string) => void;
   onRename: (id: string, name: string) => void;
+  /** F-28: Ziele für ein Panel bzw. seine ganze Area (whole). */
+  moveTargets: (id: string, whole: boolean) => MoveTarget[];
+  /** F-28: Panel bzw. ganze Area auf ein Ziel legen. */
+  onMove: (id: string, target: MoveTarget, whole: boolean) => void;
   onDismiss: () => void;
+}
+
+/** F-28: Text eines Ziels, z. B. „Auf „Recherche“ (3)“ oder „Eigene neue Area – kein Platz“. */
+export function targetText(t: MoveTarget, winName: string): string {
+  if (!t.area) return `Ins ${winName}`;
+  if (t.area === NEW_AREA) return `Eigene neue Area${t.disabled ? ' – kein Platz' : ''}`;
+  return `Auf „${t.label}“${t.count > 1 ? ` (${t.count})` : ''}${t.disabled ? ' – Stapel voll' : ''}`;
+}
+
+/**
+ * F-28: Zielauswahl im Master-Panel – Liste aller Ziele, nach Fenstern gruppiert. Tastatur:
+ * ↑/↓/Pos1/Ende wählen, Enter legt ab, Esc bricht ab (Fokus zurück auf die Zeile).
+ */
+function MovePicker(props: { title: string; targets: MoveTarget[]; here: string; winName: (w: string) => string; onPick: (t: MoveTarget) => void; onCancel: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const usable = props.targets.filter((t) => !t.disabled);
+  useEffect(() => {
+    const first = box.current?.querySelector<HTMLButtonElement>('button.overview__target:not(:disabled)');
+    (first ?? box.current?.querySelector<HTMLButtonElement>('button'))?.focus();
+  }, []);
+  const wins = [...new Set(props.targets.map((t) => t.win))].sort((a, b) => (a === props.here ? -1 : b === props.here ? 1 : 0));
+  const onKey = (e: KeyboardEvent) => {
+    const all = [...(box.current?.querySelectorAll<HTMLButtonElement>('button.overview__target:not(:disabled)') ?? [])];
+    const i = all.indexOf(document.activeElement as HTMLButtonElement);
+    const go = (k: number) => all[(k + all.length) % all.length]?.focus();
+    const keys: Record<string, () => void> = {
+      ArrowDown: () => go(i + 1),
+      ArrowUp: () => go(i - 1),
+      Home: () => go(0),
+      End: () => go(all.length - 1),
+      Escape: props.onCancel,
+    };
+    const f = keys[e.key];
+    if (!f) return;
+    e.preventDefault();
+    e.stopPropagation();
+    f();
+  };
+  return (
+    <div ref={box} className="overview__pick" role="group" aria-label={props.title} onKeyDown={onKey}>
+      <div className="overview__pick-head">
+        <strong>{props.title}</strong>
+        <button type="button" className="overview__x" onClick={props.onCancel} title="Abbrechen (Esc)" aria-label="Verschieben abbrechen">
+          ×
+        </button>
+      </div>
+      {usable.length === 0 && <p className="overview__empty">Gerade gibt es kein freies Ziel.</p>}
+      {wins.map((w) => {
+        const items = props.targets.filter((t) => t.win === w);
+        if (items.length === 0) return null;
+        const name = w === props.here ? 'Gleiches Fenster' : props.winName(w);
+        return (
+          <ul key={w || 'main'} className="overview__pick-list" aria-label={name}>
+            <li className="overview__pick-win" aria-hidden="true">
+              {name}
+            </li>
+            {items.map((t) => (
+              <li key={`${t.win}/${t.area}`}>
+                <button type="button" className="overview__target" disabled={t.disabled} onClick={() => props.onPick(t)}>
+                  {targetText(t, props.winName(t.win))}
+                </button>
+              </li>
+            ))}
+          </ul>
+        );
+      })}
+    </div>
+  );
 }
 
 /**
@@ -90,14 +163,16 @@ export function Overview(p: OverviewProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [said, setSaid] = useState('');
+  /** F-28: Panel (oder ganze Area), für das gerade ein Ziel gewählt wird. */
+  const [moving, setMoving] = useState<{ id: string; whole: boolean } | null>(null);
   const btns = useRef(new Map<string, HTMLButtonElement>());
   const box = useRef<HTMLDivElement>(null);
   const focusId = cur && order.includes(cur) ? cur : (order[0] ?? null);
 
   // Fokus beim Öffnen und nach Bewegungen auf das gewählte Panel.
   useEffect(() => {
-    if (!editing && focusId) btns.current.get(focusId)?.focus();
-  }, [focusId, editing]);
+    if (!editing && !moving && focusId) btns.current.get(focusId)?.focus();
+  }, [focusId, editing, moving]);
 
   const dismiss = () => {
     p.onDismiss();
@@ -135,6 +210,9 @@ export function Overview(p: OverviewProps) {
       // F-27: H holt ein Panel aus einem anderen Fenster hierher.
       h: () => other && fetch(id, name),
       H: () => other && fetch(id, name),
+      // F-28: V verschiebt das Panel, Umschalt+V die ganze Area.
+      v: () => setMoving({ id, whole: false }),
+      V: () => setMoving({ id, whole: true }),
       Delete: () => close(id, name),
       Backspace: () => close(id, name),
       Escape: dismiss,
@@ -237,6 +315,16 @@ export function Overview(p: OverviewProps) {
                         <span className="overview__tabs">{tabs}</span>
                         {!x.front && <span className="overview__back">hinten</span>}
                       </button>
+                      <button
+                        type="button"
+                        className="overview__tool"
+                        tabIndex={-1}
+                        title="Verschieben (V, ganze Area: Umschalt+V)"
+                        aria-label={`„${x.meta.name}“ verschieben`}
+                        onClick={(e) => setMoving({ id, whole: e.shiftKey })}
+                      >
+                        ↦
+                      </button>
                       {a.other && (
                         <button
                           type="button"
@@ -312,8 +400,29 @@ export function Overview(p: OverviewProps) {
           </button>
         </div>
         <p id="overview-help" className="sr-only">
-          Pfeil hoch und runter wählt ein Panel, Pfeil links und rechts wechselt die Area. Enter zeigt das Panel, auch in einem anderen Fenster. H holt ein Panel aus einem anderen Fenster hierher. Entf schließt es, F2 benennt es um, Escape schließt die Übersicht.
+          Pfeil hoch und runter wählt ein Panel, Pfeil links und rechts wechselt die Area. Enter zeigt das Panel, auch in einem anderen Fenster. V verschiebt das Panel auf eine andere Area, Umschalt und V die ganze Area. H holt ein Panel aus einem anderen Fenster hierher. Entf schließt es, F2 benennt es um, Escape schließt die Übersicht.
         </p>
+        {moving &&
+          (() => {
+            const m = p.ws.panels.find((x) => x.id === moving.id);
+            if (!m) return null;
+            const title = moving.whole ? `Ganze Area von „${m.name}“ verschieben nach …` : `„${m.name}“ verschieben nach …`;
+            return (
+              <MovePicker
+                title={title}
+                targets={p.moveTargets(moving.id, moving.whole).filter((t) => !(t.area === NEW_AREA && t.disabled && t.win === (m.win ?? '')))}
+                here={m.win ?? ''}
+                winName={(w) => windowName(p.ws, w)}
+                onCancel={() => setMoving(null)}
+                onPick={(t) => {
+                  p.onMove(moving.id, t, moving.whole);
+                  setSaid(`${moving.whole ? 'Area' : `„${m.name}“`} verschoben: ${targetText(t, windowName(p.ws, t.win))}${t.area && t.win !== (m.win ?? '') ? `, ${windowName(p.ws, t.win)}` : ''}.`);
+                  setCur(moving.id);
+                  setMoving(null);
+                }}
+              />
+            );
+          })()}
         {order.length === 0 && <p className="overview__empty">Noch keine Panels – lege oben mit „+ Area“ eine an.</p>}
         {others.length > 0 && <h2 className="overview__win">Dieses Fenster · {windowName(p.ws, p.win)}</h2>}
         <div className="overview__grid">{here.map(card)}</div>

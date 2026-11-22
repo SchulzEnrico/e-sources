@@ -26,7 +26,9 @@ import { focusOf } from './workspace/focus';
 import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
 import { MAIN_NAME, windowList, windowName, winFromSearch } from './workspace/windows';
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
-import { FOCUS_WARN, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
+import { type MoveTarget, moveTargets, setupOfWindow } from './workspace/move';
+import type { ScreenSetup } from './workspace/screen';
+import { FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -215,6 +217,8 @@ export default function App() {
     setActive(id);
     setMode((m) => (m.kind === 'max' && m.id !== id ? { kind: 'max', id } : m));
   });
+  // F-28: Das Fenster merkt sich seine Einstellung, damit andere Fenster seine Areas als Ziel anbieten.
+  useEffect(() => dispatch({ type: 'seen', setup }), [view.key]); // eslint-disable-line react-hooks/exhaustive-deps
   // F-128: Stapel ohne Namen (alte Stände, kleinerer Bildschirm) bekommen „NewArea n“.
   useEffect(() => dispatch({ type: 'ensureAreas', setup }), [view]); // eslint-disable-line react-hooks/exhaustive-deps
   const shownView = useMemo(
@@ -466,6 +470,42 @@ export default function App() {
     notify(`${what} ${dest ? 'im Zusatzfenster' : 'im Hauptfenster'}.`);
   };
 
+  /** F-28: Einstellung, in der ein Panel gerade liegt (eigenes Fenster: diese, sonst die zuletzt gesehene). */
+  const setupOfPanel = (id: string): ScreenSetup | null => {
+    const w = ws.panels.find((x) => x.id === id)?.win ?? '';
+    return w === win ? setup : setupOfWindow(ws, w);
+  };
+  /** F-28: Panel bzw. ganze Area (whole) eines Panels. */
+  const moveIds = (id: string, whole: boolean) => {
+    const from = setupOfPanel(id);
+    const slots = from === setup ? shownView.slots : from ? viewOf(ws, from).slots : [];
+    const slot = slots.find((s) => s.panels.some((m) => m.id === id));
+    return whole && slot ? slot.panels.map((m) => m.id) : [id];
+  };
+  /** F-28: Ziele für ein Panel bzw. seine ganze Area. */
+  const targetsFor = (id: string, whole: boolean): MoveTarget[] => {
+    const from = setupOfPanel(id);
+    return from ? moveTargets(ws, moveIds(id, whole), from) : [];
+  };
+
+  /**
+   * F-28: Panel (whole = ganze Area) auf eine Area legen – auch in einem anderen Fenster, das sich
+   * dann öffnet bzw. nach vorn kommt (direkt aus dem Klick heraus, sonst blockt der Browser).
+   */
+  const moveTo = (id: string, t: MoveTarget, whole: boolean) => {
+    const ids = moveIds(id, whole);
+    const from = setupOfPanel(id);
+    if (t.disabled || !from) return;
+    dispatch({ type: 'move', ids, from, win: t.win, area: t.area });
+    const name = ws.panels.find((x) => x.id === id)?.name ?? '';
+    const what = ids.length > 1 ? `${ids.length} Panels` : `„${name}“`;
+    const where = t.area === NEW_AREA ? 'auf eigener Area' : t.area ? `auf „${t.label}“` : '';
+    if (t.win === win) return notify(`${what} jetzt ${where}.`);
+    const there = `${where ? `${where} ` : ''}im ${windowName(ws, t.win)}`;
+    if (!openAppWindow(t.win)) return notify(`${what} jetzt ${there}. ${POPUP_BLOCKED}`);
+    notify(`${what} jetzt ${there}.`);
+  };
+
   // ---------------------------------------------------------------- Panels
 
   const activate = (id: string) => {
@@ -536,6 +576,8 @@ export default function App() {
         dispatch={dispatch}
         windows={windowList(ws).filter((w) => w.id !== win)}
         onToWindow={(target, whole) => toWindow(meta.id, target, whole)}
+        moveTargets={(whole) => targetsFor(meta.id, whole)}
+        onMove={(t, whole) => moveTo(meta.id, t, whole)}
         onOpenBookmark={(url) => {
           // F-21: als Tab öffnen; bei voller Tab-Leiste (F-26) nur Hinweis
           if (openBookmark(ws, meta.id, url).result === 'full')
@@ -981,6 +1023,8 @@ export default function App() {
           }}
           onClose={(id) => dispatch({ type: 'remove', id })}
           onRename={(id, name) => dispatch({ type: 'rename', id, name })}
+          moveTargets={targetsFor}
+          onMove={moveTo}
           onDismiss={() => setOverview(false)}
         />
       )}

@@ -683,6 +683,21 @@ button.is-off:hover,
   border-top: 1px solid var(--line);
   margin: 4px 2px;
 }
+/* F-28: Gruppen im Menü (je Fenster) mit Überschrift */
+.menu__group {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.menu__head {
+  font-size: 0.8em;
+  color: var(--muted);
+  padding: 6px 10px 2px;
+}
+.menu__list button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 /* ---------- Maximiert und Splitscreen */
 .maximized,
@@ -2422,3 +2437,51 @@ button.is-off:hover,
 /* F-146: Ansicht und Gleich verteilen nur als Symbol */
 .tb-center > .tb-view { padding: 5px 9px; min-width: 36px; justify-content: center; }
 .tb-center > .tb-view .icon { width: 20px; height: 16px; }
+
+/* F-28: Zielauswahl im Master-Panel */
+.overview__pick {
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 8px 10px 10px;
+  margin: 0 0 12px;
+  background: var(--panel, var(--bg));
+}
+.overview__pick-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.overview__pick-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.overview__pick-win {
+  flex-basis: 100%;
+  font-size: 0.8em;
+  color: var(--muted);
+}
+.overview__target {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.overview__target:hover:not(:disabled),
+.overview__target:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.overview__target:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

@@ -10,6 +10,7 @@ import { RULES_TEXT, TERMS } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import type { Action } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
+import { Icon } from './Icon';
 
 /**
  * F-29: Gesamtfokus als Equalizer-Pegel mit 9 Segmenten (Farben wie F-26/F-68). Ist zugleich der
@@ -623,11 +624,11 @@ export function Overview(p: OverviewProps) {
           <span className="overview__back">{stacked && x.front ? 'vorn' : ''}</span>
         </button>
         <button type="button" className="overview__tool" tabIndex={-1} title="Verschieben (V, ganzer Slot: Umschalt+V)" aria-label={`„${x.meta.name}“ verschieben`} onClick={(e) => setMoving({ id, whole: e.shiftKey })}>
-          ↦
+          <Icon name="swap" size={14} />
         </button>
         {a.other && (
           <button type="button" className="overview__tool" tabIndex={-1} title="Hierher holen (H)" aria-label={`„${x.meta.name}“ auf diesen Desk holen`} onClick={() => fetch(id, x.meta.name)}>
-            ⇣
+            <Icon name="import" size={14} />
           </button>
         )}
         <button
@@ -641,7 +642,7 @@ export function Overview(p: OverviewProps) {
             setEditing(id);
           }}
         >
-          ✎
+          <Icon name="rename" size={14} />
         </button>
         <button type="button" className="overview__tool overview__tool--x" tabIndex={-1} title="Portal schließen (Entf)" aria-label={`„${x.meta.name}“ schließen`} onClick={() => close(id, x.meta.name)}>
           ×
@@ -653,7 +654,10 @@ export function Overview(p: OverviewProps) {
   const map = (w: RadarWindow) => (
     <section key={w.win || 'main'} className={w.here ? 'radar__win' : 'radar__win is-other'} aria-label={`${w.here ? 'Dieser Desk' : w.title}${w.here ? '' : w.open ? ', eigenes Fenster' : ', gesammelt'}`}>
       <div className="radar__win-head">
-        <strong>{w.here ? `Dieser Desk · ${w.title}` : w.title}</strong>
+        <strong>
+          <Icon name="desk" className="icon radar__win-icon" />
+          {w.here ? `Dieser Desk · ${w.title}` : w.title}
+        </strong>
         <span className="muted">{((n) => `${n} ${n === 1 ? 'Portal' : 'Portale'}`)(w.areas.reduce((n, a) => n + a.panels.length, 0))}</span>
         {/* F-27: Zustand nicht nur als Farbe, sondern als Wort */}
         {!w.here && (
@@ -848,11 +852,13 @@ export function Overview(p: OverviewProps) {
           {/* F-160: Desks in diesem Fenster sammeln bzw. wieder auf Fenster verteilen */}
           {p.ws.windows.length > 0 && p.onCollect && (
             <button type="button" className="overview__tour" onClick={p.onCollect} title={TERMS.collectDesks}>
+              <Icon name="collect" />
               Hier sammeln
             </button>
           )}
           {p.ws.windows.length > 0 && p.onDistribute && (
             <button type="button" className="overview__tour" onClick={p.onDistribute} title={TERMS.distributeDesks}>
+              <Icon name="spread" />
               Verteilen
             </button>
           )}
@@ -868,11 +874,13 @@ export function Overview(p: OverviewProps) {
                 if (rules) window.setTimeout(() => rulesBtn.current?.focus(), 0);
               }}
             >
+              <Icon name={rules ? 'radar' : 'rules'} />
               {rules ? RULES_TEXT.back : RULES_TEXT.open}
             </button>
           )}
           {p.onTour && (
             <button type="button" className="overview__tour overview__restart" onClick={p.onTour} title="Kurze Einführung ins Cockpit" aria-label="Tour durch das Cockpit starten">
+              <Icon name="tour" />
               Tour
             </button>
           )}

@@ -5,6 +5,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { HELP, type HelpEntry, searchHelp } from '../workspace/help';
+import { Icon } from './Icon';
+import { helpIcon } from '../workspace/icons';
 
 interface Props {
   /** Eintrag, an dem die Hilfe aufgeht (aus der Suche); sonst oben. */
@@ -40,6 +42,7 @@ export function Help({ at, onClose, onRun }: Props) {
     <li key={e.id} id={`help-${e.id}`} tabIndex={-1} className={e.id === at ? 'help__item is-at' : 'help__item'} aria-labelledby={`help-${e.id}-name`}>
       <div className="help__row">
         <h4 id={`help-${e.id}-name`} className="help__name">
+          <Icon name={helpIcon(e.id)} className="icon help__icon" />
           {e.name}
         </h4>
         {e.keys && (

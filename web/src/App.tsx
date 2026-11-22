@@ -58,6 +58,7 @@ import { greetingFor, loadLast, profileOf, saveLast } from './workspace/profile'
 import { BOOKMARKS_FILE_NAME, type BrowserBookmark, bookmarkFileOf, looksLikeBookmarkFile, parseBookmarkFile } from './workspace/browserBookmarks';
 import { closedOf, restoreClosed, restoredSaid } from './workspace/closed';
 import { PORTAL_ALONE, nextTabOf, portalSaid, stepIn, tabAlone, tabSaid } from './workspace/cycle';
+import { Icon } from './components/Icon';
 
 /** Knopf im Hinweis unten (F-162, F-163). */
 interface FlashAction {
@@ -77,28 +78,10 @@ const EDGE_BAND = 0.25;
 /** So nah am Rand der Arbeitsfläche (Pixel) dockt ein Panel an die ganze Fläche an. */
 const AREA_BAND_PX = 22;
 
-/** F-146: Symbol „Gleich verteilen“ – Pfeilkreuz (nach allen Seiten gleich). */
-const DistributeIcon = (
-  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="icon" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M8 1.5v13M1.5 8h13M6 3.5 8 1.5l2 2M6 12.5l2 2 2-2M3.5 6 1.5 8l2 2M12.5 6l2 2-2 2" />
-  </svg>
-);
-
-/** Zurück zum Dashboard: Pfeil im Bogen zurück (steht außerhalb des Dashboards an der Stelle von „Gleich verteilen“). */
-const BackIcon = (
-  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="icon" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M5.5 2.5 2 6l3.5 3.5" />
-    <path d="M2 6h7.5a4.5 4.5 0 0 1 0 9H6" />
-  </svg>
-);
-
-/** F-146: Zahnrad für das Einstellungsmenü. */
-const GearIcon = (
-  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3.2" />
-    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-  </svg>
-);
+/** F-146, F-183: Symbole der Kopfleiste kommen aus dem Symbolsatz (workspace/icons.ts). */
+const DistributeIcon = <Icon name="distribute" />;
+const BackIcon = <Icon name="back" />;
+const GearIcon = <Icon name="settings" size={18} />;
 
 /** F-127: Ansichten des Knopfs „Ansicht“, in der Reihenfolge des Weiterschaltens (wie Hineinzoomen). */
 type ViewKind = 'area' | 4 | 2 | 1;
@@ -1714,7 +1697,7 @@ function DeskApp(props: DeskProps) {
           {/* F-160: Desk wechseln – zeigt einen anderen Desk in diesem Browserfenster; dazu Sammeln und Verteilen */}
           {ws.windows.length > 0 && (
             <span className="tb-desk-switch">
-              <Menu icon={<span className="tb-switch" aria-hidden="true">⇄</span>} label={`Desk wechseln (Alt/⌥+K) – ${TERMS.switchDesk}`}>
+              <Menu icon={<span className="tb-switch" aria-hidden="true"><Icon name="switchDesk" /></span>} label={`Desk wechseln (Alt/⌥+K) – ${TERMS.switchDesk}`}>
                 {(close) => (
                   <>
                     {windowList(ws).map((d) => {
@@ -1892,7 +1875,7 @@ function DeskApp(props: DeskProps) {
           {(close) => (
             <>
               {/* F-125, F-146: Lineal für alle Panels (vorher eigener Knopf in der Kopfleiste) */}
-              <Item
+              <Item icon="ruler"
                 onClick={() => {
                   dispatch({ type: 'rulerAll' });
                   close();
@@ -1901,7 +1884,7 @@ function DeskApp(props: DeskProps) {
                 {ws.ruler.on ? 'Lineal in allen Portalen ausblenden' : 'Lineal in allen Portalen zeigen'}
               </Item>
               <li className="menu__sep" role="separator" />
-              <Item
+              <Item icon="dashboard"
                 onClick={() => {
                   dispatch({ type: 'savePreferred', setup });
                   notify('Wunsch-Anordnung für diese Bildschirm-Einstellung gespeichert.');
@@ -1910,7 +1893,7 @@ function DeskApp(props: DeskProps) {
               >
                 Als Wunsch-Anordnung merken
               </Item>
-              <Item
+              <Item icon="restore"
                 onClick={() => {
                   dispatch({ type: 'resetLayout', setup });
                   setMode({ kind: 'area' });
@@ -1921,7 +1904,7 @@ function DeskApp(props: DeskProps) {
                 {hasPreferred ? 'Auf Wunsch-Anordnung zurücksetzen' : 'Layout zurücksetzen'}
               </Item>
               {hasPreferred && (
-                <Item
+                <Item icon="remove"
                   onClick={() => {
                     dispatch({ type: 'clearPreferred', setup });
                     notify('Wunsch-Anordnung gelöscht; Zurücksetzen nutzt wieder die Standard-Anordnung.');
@@ -1932,7 +1915,7 @@ function DeskApp(props: DeskProps) {
                 </Item>
               )}
               {/* F-145: Beispiel-Lesezeichen zum Ausprobieren */}
-              <Item
+              <Item icon="source"
                 onClick={() => {
                   const n = addSamples(ws, newId).added;
                   if (n) dispatch({ type: 'addSamples' });
@@ -1984,7 +1967,7 @@ function DeskApp(props: DeskProps) {
               )}
               <li className="menu__sep" role="separator" />
               {/* F-174: Darstellung und Akzentfarbe im eigenen Dialog (vorher lose hier) */}
-              <Item
+              <Item icon="design"
                 onClick={() => {
                   close();
                   setDesign(true);
@@ -1993,7 +1976,7 @@ function DeskApp(props: DeskProps) {
                 Design anpassen …
               </Item>
               <li className="menu__sep" role="separator" />
-              <Item
+              <Item icon="transfer"
                 onClick={() => {
                   exportWorkspace();
                   close();
@@ -2001,7 +1984,7 @@ function DeskApp(props: DeskProps) {
               >
                 Desks exportieren
               </Item>
-              <Item
+              <Item icon="transfer"
                 onClick={() => {
                   importRef.current?.click();
                   close();
@@ -2010,7 +1993,7 @@ function DeskApp(props: DeskProps) {
                 Desks importieren
               </Item>
               {/* F-36 */}
-              <Item
+              <Item icon="import"
                 onClick={() => {
                   importBookmarks();
                   close();
@@ -2018,7 +2001,7 @@ function DeskApp(props: DeskProps) {
               >
                 Lesezeichen importieren …
               </Item>
-              <Item
+              <Item icon="export"
                 onClick={() => {
                   exportBookmarks();
                   close();
@@ -2027,7 +2010,7 @@ function DeskApp(props: DeskProps) {
                 Library exportieren
               </Item>
               {/* F-180 */}
-              <Item
+              <Item icon="sort"
                 onClick={() => {
                   close();
                   setSortOpen(true);
@@ -2036,7 +2019,7 @@ function DeskApp(props: DeskProps) {
                 Sortierhilfe …
               </Item>
               {/* F-179 */}
-              <Item
+              <Item icon="profile"
                 onClick={() => {
                   close();
                   setProfileOpen(true);
@@ -2045,7 +2028,7 @@ function DeskApp(props: DeskProps) {
                 Profil …
               </Item>
               {/* F-29 Rest */}
-              <Item
+              <Item icon="sliders"
                 onClick={() => {
                   close();
                   setRuleOpen(true);
@@ -2054,7 +2037,7 @@ function DeskApp(props: DeskProps) {
                 Fokusanzeige anpassen …
               </Item>
               {/* F-24 */}
-              <Item
+              <Item icon="closed"
                 onClick={() => {
                   close();
                   setClosedOpen(true);
@@ -2063,7 +2046,7 @@ function DeskApp(props: DeskProps) {
                 Zuletzt geschlossen …
               </Item>
               {/* F-95: Tour jederzeit wieder starten */}
-              <Item
+              <Item icon="tour"
                 onClick={() => {
                   close();
                   setTour('start');
@@ -2090,12 +2073,7 @@ function DeskApp(props: DeskProps) {
         <div className="tb-end">
           <FocusMeter focus={focus} open={overview} onToggle={toggleOverview} btnRef={meterRef} />
           <button type="button" className="tb-design" onClick={() => setDesign(true)} aria-haspopup="dialog" aria-label="Design anpassen" title="Design anpassen – Darstellung und Akzentfarbe">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.4-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z" />
-              <circle cx="7.5" cy="11" r="1.2" />
-              <circle cx="10" cy="7" r="1.2" />
-              <circle cx="14.5" cy="7" r="1.2" />
-            </svg>
+            <Icon name="design" size={18} />
           </button>
         </div>
       </header>

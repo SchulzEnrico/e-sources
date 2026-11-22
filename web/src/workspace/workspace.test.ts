@@ -28,6 +28,7 @@ import * as Up from './update';
 import * as Ti from './tint';
 import * as Ca from './category';
 import * as Ru from './rules';
+import * as Ic from './icons';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -2272,5 +2273,25 @@ describe('F-164 Regelübersicht', () => {
     ws = Ru.setRuleOn(ws, 'tint:c-vi', false);
     ws = B.deleteCategory(ws, 'c-vi');
     expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))?.rulesOff).toBeUndefined();
+  });
+});
+
+describe('F-183 Symbolsatz', () => {
+  it('jeder Hilfe-Eintrag hat ein eigenes, vorhandenes Symbol', () => {
+    for (const e of H.HELP) {
+      expect(Ic.HELP_ICON[e.id], e.id).toBeDefined();
+      expect(Ic.ICONS[Ic.HELP_ICON[e.id]], e.id).toBeDefined();
+    }
+  });
+  it('keine Zuordnung ohne Hilfe-Eintrag', () => {
+    const ids = new Set(H.HELP.map((e) => e.id));
+    for (const id of Object.keys(Ic.HELP_ICON)) expect(ids.has(id), id).toBe(true);
+  });
+  it('Symbole sind gültige Strichpfade im Raster', () => {
+    for (const [n, def] of Object.entries(Ic.ICONS) as [string, Ic.IconDef][]) {
+      expect(def.d.length, n).toBeGreaterThan(0);
+      for (const d of def.d) expect(/^M[-\d.\s]/.test(d) && !/NaN|undefined/.test(d), `${n}: ${d}`).toBe(true);
+    }
+    expect(Ic.helpIcon('gibtsnicht')).toBe('help');
   });
 });

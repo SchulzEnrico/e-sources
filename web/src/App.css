@@ -4458,3 +4458,16 @@ button.is-off:hover,
 .rules .colors__row .look__swatches { flex-wrap: wrap; }
 .rules__field { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
 .rules__add { margin-top: 6px; }
+
+/* F-183: Symbole neben Namen – gleiche Farbe wie der Text (Kontrast wie Text, ≥ 3:1), nie allein */
+.help__name,
+.radar__win-head strong { display: inline-flex; align-items: center; gap: 6px; }
+.help__icon,
+.search__icon,
+.menu__icon,
+.radar__win-icon { flex: none; display: inline-block; vertical-align: -3px; }
+.search__icon { margin-right: 6px; opacity: 0.85; }
+.menu__icon { margin-right: 8px; opacity: 0.85; }
+.overview__tour { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.overview__tool .icon,
+.tb-switch .icon { display: inline-block; vertical-align: -2px; }

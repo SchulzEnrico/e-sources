@@ -15,6 +15,7 @@ import { NO_CATEGORY } from '../workspace/bookmarks';
 import { TERMS } from '../workspace/terms';
 import type { Bookmark, Workspace } from '../workspace/types';
 import { hostOf } from '../workspace/workspace';
+import { Icon } from './Icon';
 
 interface Props {
   ws: Workspace;
@@ -31,12 +32,7 @@ interface Props {
 }
 
 /** Symbol: Pfeil aus dem Kasten (öffnet außerhalb). */
-export const LauncherIcon = (
-  <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" className="icon">
-    <path d="M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    <path d="M9.5 2.5h4v4M13.3 2.7 7.8 8.2" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+export const LauncherIcon = <Icon name="launcher" size={15} />;
 
 const other = (h: How): How => (h === 'tab' ? 'window' : 'tab');
 const STEP = 20;

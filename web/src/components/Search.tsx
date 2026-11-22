@@ -14,6 +14,8 @@ import { hostOf, isBlocked, tabLabel } from '../workspace/workspace';
 import { type How, HOW_IN, HOW_NAME } from '../workspace/launcher';
 import type { Workspace } from '../workspace/types';
 import { type HelpEntry, searchHelp } from '../workspace/help';
+import { Icon } from './Icon';
+import { helpIcon } from '../workspace/icons';
 
 interface Props {
   ws: Workspace;
@@ -260,6 +262,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
               `Portal ${h.panel.name}${h.tabs.length ? `, geöffnet: ${tabNames(ws, h).join(', ')}` : ''}${h.area ? `, Slot ${h.area}` : ''}${h.scenario ? `, Case ${h.scenario}` : ''}`,
               <>
                 <span className="search__title">
+                  <Icon name="portal" className="icon search__icon" />
                   {h.panel.name}
                   {/* Über einen offenen Tab gefunden: diesen nennen (Klick zeigt ihn) */}
                   {h.tabs.length > 0 && (
@@ -298,7 +301,10 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
               i,
               `Source ${title}, öffnet in ${opens}${h.category ? `, Kategorie ${h.category}` : ''}`,
               <>
-                <span className="search__title">{title}</span>
+                <span className="search__title">
+                  <Icon name={out ? 'launcher' : 'source'} className="icon search__icon" />
+                  {title}
+                </span>
                 <span className="search__where">
                   <span className={out ? 'search__panel search__out' : 'search__panel'}>{where}</span>
                   {h.category && <span className="search__cat">{h.category}</span>}
@@ -321,6 +327,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
               `${h.group === 'Begriffe' ? 'Begriff' : 'Funktion'} ${h.name}${h.keys ? `, Kürzel ${h.keys}` : ''}: ${h.text} ${does}.`,
               <>
                 <span className="search__title">
+                  <Icon name={helpIcon(h.id)} className="icon search__icon" />
                   {h.name}
                   {h.keys && <kbd className="search__kbd">{h.keys}</kbd>}
                 </span>

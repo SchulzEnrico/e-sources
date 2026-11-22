@@ -14,6 +14,8 @@ import * as FH from '../workspace/frameHistory';
 import { CATEGORY_TEXT, TERMS, TINT_TEXT } from '../workspace/terms';
 import type { ShownTint } from '../workspace/tint';
 import { rgbOf } from '../workspace/look';
+import { Icon } from './Icon';
+import type { IconName } from '../workspace/icons';
 
 /** Voreingestellte Größen (F-12) als Anteil von Breite und Höhe der Arbeitsfläche. */
 export const SIZE_PRESETS: { label: string; w: number; h: number }[] = [
@@ -306,7 +308,7 @@ export function Menu(props: { icon: ReactNode; label: string; children: (close: 
   );
 }
 
-export function Item(props: { onClick: () => void; children: ReactNode; disabled?: boolean; title?: string; checked?: boolean }) {
+export function Item(props: { onClick: () => void; children: ReactNode; disabled?: boolean; title?: string; checked?: boolean; icon?: IconName }) {
   // checked gesetzt = Schalter (menuitemcheckbox), Häkchen sichtbar und angesagt
   const check = props.checked !== undefined;
   return (
@@ -317,6 +319,7 @@ export function Item(props: { onClick: () => void; children: ReactNode; disabled
             {props.checked ? '✓' : ''}
           </span>
         )}
+        {props.icon && <Icon name={props.icon} className="icon menu__icon" />}
         {props.children}
       </button>
     </li>

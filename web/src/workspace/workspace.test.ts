@@ -885,7 +885,14 @@ describe('F-60, F-61, F-69, F-130 Darstellung', () => {
     expect(ws.look).toEqual({ theme: 'dark', accent: '#e4522c' });
     expect(L.ACCENTS.map((a) => a.hex)).toContain('#64a970');
     expect(L.ACCENTS.map((a) => a.hex)).toContain('#0a246a');
-    expect(L.THEMES.map((t) => t.id)).toEqual(['dark', 'light', 'system', 'win2000', 'winxp']);
+    expect(L.THEMES.slice(0, 3).map((t) => t.id)).toEqual(['dark', 'light', 'system']);
+    expect(L.THEMES.filter((t) => t.group === 'Modern')).toHaveLength(3);
+    expect(new Set(L.THEMES.map((t) => t.id)).size).toBe(L.THEMES.length);
+    // F-175/F-176: jedes Retro-Design hat eine eigene Akzentfarbe, die dort gut lesbar ist
+    for (const t of L.THEMES.filter((x) => x.group === 'Retro')) {
+      const a = L.ACCENTS.find((x) => x.theme === t.id);
+      expect(!!a && L.contrastWarning(a.hex, t.id as L.Shown) === null ? t.id : `${t.id}: ${a?.hex}`).toBe(t.id);
+    }
   });
 
   it('„wie System“ folgt dem Gerät, die übrigen bleiben', () => {
@@ -908,6 +915,18 @@ describe('F-60, F-61, F-69, F-130 Darstellung', () => {
     expect(L.contrastWarning('#0a246a', 'dark') !== null).toBe(true);
     expect(L.contrastWarning('#0a246a', 'win2000')).toBe(null);
     expect(L.contrastWarning('#0054e3', 'winxp')).toBe(null);
+    // F-175: eigene Akzentfarben der Apple-Designs sind gut lesbar
+    expect(L.contrastWarning('#3e3e94', 'macos9')).toBe(null);
+    expect(L.contrastWarning('#1a5fd0', 'aqua')).toBe(null);
+    expect(L.resolveTheme('aqua', true)).toBe('aqua');
+    // F-178: dunkle Akzentfarbe + Terminal → Terminal-Grün kommt mit; lesbare Farbe bleibt
+    expect(L.pickLook({ theme: 'system7', accent: '#000000' }, { theme: 'terminal' }, false)).toEqual({ theme: 'terminal', accent: '#33ff66' });
+    expect(L.pickLook({ theme: 'dark', accent: '#ffb000' }, { theme: 'terminal' }, false)).toEqual({ theme: 'terminal' });
+    expect(L.shownAccent('#000000', 'terminal')).toBe('#33ff66');
+    expect(L.shownAccent('#000000', 'system7')).toBe('#000000');
+    // Blautöne leuchten aufgehellt hell genug und bleiben blau
+    for (const hex of ['#0054e3', '#0a246a', '#1a5fd0', '#7f8fd0']) expect(L.shownAccent(hex, 'terminal')).toBe(hex);
+    expect(L.phosphor('#000000')).toBe('#666666');
   });
 
   it('Darstellung bleibt beim Speichern erhalten; Unbekanntes fällt auf die Voreinstellung', () => {

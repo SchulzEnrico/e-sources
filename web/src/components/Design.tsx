@@ -63,13 +63,21 @@ export function Design({ look, warning, onLook, onClose, onTour, children }: Pro
           <h3 id="design-theme" className="help__group">
             Darstellung
           </h3>
-          <span className="seg seg--wrap" role="group" aria-labelledby="design-theme">
-            {THEMES.map((t, i) => (
-              <button key={t.id} ref={i === 0 ? first : undefined} type="button" className={look.theme === t.id ? 'on' : ''} aria-pressed={look.theme === t.id} onClick={() => onLook({ theme: t.id })}>
-                {t.label}
-              </button>
-            ))}
-          </span>
+          {/* F-176: Modern und Retro getrennt, damit die lange Liste übersichtlich bleibt */}
+          {(['Modern', 'Retro'] as const).map((g) => (
+            <div key={g} className="design__sub">
+              <h4 id={`design-theme-${g}`} className="design__subhead">
+                {g}
+              </h4>
+              <span className="seg seg--wrap" role="group" aria-labelledby={`design-theme design-theme-${g}`}>
+                {THEMES.filter((t) => t.group === g).map((t) => (
+                  <button key={t.id} ref={t.id === THEMES[0].id ? first : undefined} type="button" className={look.theme === t.id ? 'on' : ''} aria-pressed={look.theme === t.id} onClick={() => onLook({ theme: t.id })}>
+                    {t.label}
+                  </button>
+                ))}
+              </span>
+            </div>
+          ))}
         </section>
         <section className="design__group design__accent" aria-labelledby="design-accent">
           <h3 id="design-accent" className="help__group">

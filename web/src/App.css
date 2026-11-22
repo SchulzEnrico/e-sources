@@ -2248,6 +2248,285 @@ button.is-off:hover,
   box-shadow: none;
 }
 
+/* ================================================================ F-175 Mac OS 9 (Platinum) – nur nachempfunden, ohne Logos/Originalgrafiken */
+:root[data-theme='macos9'] {
+  color-scheme: light;
+  /* blaugrauer Schreibtisch */
+  --bg: #5f5f9a;
+  --bg-image: none;
+  --panel: #dddddd;
+  --panel-2: #ffffff;
+  --text: #000000;
+  --muted: #444444;
+  --warn: #8a6d00;
+  --radius: 0px;
+  --hi: 255, 255, 255;
+  --lo: 0, 0, 0;
+  --tint: 0, 0, 0;
+  --shade: 0, 0, 0;
+  --glass: 221, 221, 221;
+  --strong: #000000;
+  --btn-a: #f4f4f4;
+  --btn-b: #cccccc;
+  --well-a: #ffffff;
+  --well-b: #ffffff;
+  --neu-top: #dddddd;
+  --neu-bottom: #dddddd;
+  --warn-text: #5a4600;
+  --danger-text: #a00000;
+  --line: #999999;
+  --edge: none;
+  --os9-in: inset 1px 1px #888888, inset -1px -1px #ffffff;
+  --raised-sm: inset 1px 1px #ffffff, inset -1px -1px #999999;
+  --pressed: var(--os9-in);
+  font-family: Charcoal, Chicago, Geneva, 'Lucida Grande', Verdana, sans-serif;
+  font-size: 12px;
+}
+:root[data-theme='macos9'] *,
+:root[data-theme='macos9'] *::before,
+:root[data-theme='macos9'] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  text-shadow: none !important;
+}
+:root[data-theme='macos9'] button {
+  color: #000;
+  background: linear-gradient(180deg, #f6f6f6, #d6d6d6 60%, #c4c4c4);
+  border: 1px solid #000000;
+  border-radius: 4px;
+  box-shadow: inset 1px 1px #ffffff, inset -1px -1px #a0a0a0;
+}
+:root[data-theme='macos9'] button:hover:not(:disabled) {
+  color: #000;
+  box-shadow: inset 1px 1px #ffffff, inset -1px -1px #a0a0a0;
+}
+:root[data-theme='macos9'] button:active:not(:disabled),
+:root[data-theme='macos9'] button.on {
+  color: #ffffff;
+  background: linear-gradient(180deg, #5c5c5c, #7a7a7a);
+  box-shadow: inset 1px 1px #333333;
+}
+:root[data-theme='macos9'] button:disabled {
+  opacity: 1;
+  color: #9a9a9a;
+  border-color: #9a9a9a;
+}
+:root[data-theme='macos9'] input,
+:root[data-theme='macos9'] select,
+:root[data-theme='macos9'] textarea {
+  background: #ffffff;
+  color: #000;
+  border: 1px solid #555555;
+  border-radius: 0;
+  box-shadow: var(--os9-in);
+}
+/* Menüleiste oben: hellgrau mit schwarzer Unterkante */
+:root[data-theme='macos9'] .toolbar {
+  background: linear-gradient(180deg, #f2f2f2, #dddddd);
+  border-radius: 0;
+  box-shadow: 0 1px 0 #000000;
+}
+:root[data-theme='macos9'] .win {
+  background: #dddddd;
+  border-radius: 0;
+  box-shadow: 0 0 0 1px #000000, 2px 2px 0 rgba(0, 0, 0, 0.35);
+}
+:root[data-theme='macos9'] .win::before {
+  display: none;
+}
+/* Titelleiste: inaktiv schlicht grau, aktiv mit den typischen Querstreifen; der Name steht auf einem grauen Feld */
+:root[data-theme='macos9'] .win__bar {
+  background: #e4e4e4;
+  border-bottom: 1px solid #8a8a8a;
+  border-radius: 0;
+  box-shadow: none;
+  color: #777777;
+}
+:root[data-theme='macos9'] .win--active .win__bar {
+  background: repeating-linear-gradient(180deg, #eeeeee 0 1px, #a8a8a8 1px 2px);
+  color: #000000;
+}
+:root[data-theme='macos9'] .win--active {
+  box-shadow: 0 0 0 1px #000000, 3px 3px 0 rgba(0, 0, 0, 0.45);
+}
+:root[data-theme='macos9'] .win__name,
+:root[data-theme='macos9'] .win__area {
+  color: inherit;
+  font-weight: 700;
+  background: #e4e4e4;
+  padding: 0 5px;
+}
+:root[data-theme='macos9'] .menu__list,
+:root[data-theme='macos9'] .drawer {
+  background: #ffffff;
+  border: 1px solid #000000;
+  border-radius: 0;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4);
+}
+:root[data-theme='macos9'] .menu__list button {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-theme='macos9'] .menu__list button:hover:not(:disabled) {
+  background: #3e3e94;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+/* ================================================================ F-175 Mac OS X Aqua (10.0–10.4) – nur nachempfunden */
+:root[data-theme='aqua'] {
+  color-scheme: light;
+  /* blauer Schreibtisch mit weichem Verlauf */
+  --bg: #2f6fd0;
+  --bg-image: linear-gradient(160deg, #a9d4ff 0%, #4a90ea 32%, #1e5bbf 66%, #0e2f78 100%);
+  --panel: #ececec;
+  --panel-2: #ffffff;
+  --text: #000000;
+  --muted: #555555;
+  --warn: #a06a00;
+  --radius: 6px;
+  --hi: 255, 255, 255;
+  --lo: 0, 0, 0;
+  --tint: 0, 0, 0;
+  --shade: 0, 0, 0;
+  --glass: 236, 236, 236;
+  --strong: #000000;
+  --btn-a: #ffffff;
+  --btn-b: #dcdcdc;
+  --well-a: #ffffff;
+  --well-b: #ffffff;
+  --neu-top: #ececec;
+  --neu-bottom: #ececec;
+  --warn-text: #6b4700;
+  --danger-text: #a01010;
+  --line: #a5a5a5;
+  --edge: none;
+  --raised-sm: 0 1px 1px rgba(0, 0, 0, 0.2);
+  --pressed: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  /* Nadelstreifen der Fenster */
+  --pinstripe: repeating-linear-gradient(180deg, #f3f3f3 0 2px, #e6e6e6 2px 4px);
+  --gel: linear-gradient(180deg, #d6eeff 0%, #86c6ff 42%, #3c93f0 50%, #6cb8ff 80%, #b8e2ff 100%);
+  font-family: 'Lucida Grande', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 12px;
+}
+:root[data-theme='aqua'] *,
+:root[data-theme='aqua'] *::before,
+:root[data-theme='aqua'] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+/* Pillen-Knöpfe, weiß glänzend; aktiv bzw. gewählt als blaues Gel */
+:root[data-theme='aqua'] button {
+  color: #000;
+  background: linear-gradient(180deg, #ffffff 0%, #f3f3f3 45%, #dedede 50%, #f6f6f6 100%);
+  border: 1px solid #8c8c8c;
+  border-radius: 12px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.22);
+}
+:root[data-theme='aqua'] button:hover:not(:disabled) {
+  color: #000;
+  border-color: #6f6f6f;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+:root[data-theme='aqua'] button:active:not(:disabled),
+:root[data-theme='aqua'] button.on {
+  color: #000;
+  background: var(--gel);
+  border-color: #2a5fa8;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+:root[data-theme='aqua'] button:disabled {
+  opacity: 0.55;
+}
+:root[data-theme='aqua'] input,
+:root[data-theme='aqua'] select,
+:root[data-theme='aqua'] textarea {
+  background: #ffffff;
+  color: #000;
+  border: 1px solid #8c8c8c;
+  border-radius: 4px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+:root[data-theme='aqua'] .search__input {
+  border-radius: 12px;
+}
+/* Kopfleiste: gebürstet wirkender Verlauf */
+:root[data-theme='aqua'] .toolbar {
+  background: linear-gradient(180deg, #f4f4f4, #d2d2d2);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+:root[data-theme='aqua'] .win {
+  background: var(--pinstripe);
+  border-radius: 7px 7px 3px 3px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+:root[data-theme='aqua'] .win--active {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 10px 26px rgba(0, 0, 0, 0.5);
+}
+:root[data-theme='aqua'] .win::before {
+  display: none;
+}
+:root[data-theme='aqua'] .win__bar {
+  background: linear-gradient(180deg, #f7f7f7, #e2e2e2);
+  border-bottom: 1px solid #b0b0b0;
+  border-radius: 7px 7px 0 0;
+  box-shadow: none;
+  color: #8a8a8a;
+}
+:root[data-theme='aqua'] .win--active .win__bar {
+  background: linear-gradient(180deg, #eeeeee, #cfcfcf);
+  color: #000000;
+}
+:root[data-theme='aqua'] .win__name,
+:root[data-theme='aqua'] .win__area {
+  color: inherit;
+  font-weight: 600;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+/* Schließen als roter Gel-Punkt; das × erscheint beim Zeigen oder mit Tastaturfokus */
+:root[data-theme='aqua'] .win__bar .win__close {
+  width: 15px;
+  min-width: 15px;
+  height: 15px;
+  align-self: center;
+  padding: 0;
+  font-size: 10px;
+  line-height: 13px;
+  color: transparent;
+  border-radius: 50%;
+  border: 1px solid #9b2418;
+  background: radial-gradient(circle at 50% 30%, #ffd8cf 0, #ff6a52 42%, #c82a1a 100%);
+}
+:root[data-theme='aqua'] .win__bar .win__close:hover,
+:root[data-theme='aqua'] .win__bar .win__close:focus-visible {
+  color: #4d0a00;
+}
+:root[data-theme='aqua'] .win:not(.win--active) .win__bar .win__close {
+  border-color: #9a9a9a;
+  background: radial-gradient(circle at 50% 30%, #ffffff 0, #d6d6d6 60%, #b4b4b4 100%);
+}
+:root[data-theme='aqua'] .menu__list,
+:root[data-theme='aqua'] .drawer {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #a5a5a5;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+:root[data-theme='aqua'] .menu__list button {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-theme='aqua'] .menu__list button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #5a9bf0, #1f5fc7);
+  color: #ffffff;
+  box-shadow: none;
+}
+
 /* ---------- F-29 Gesamtfokus (Equalizer-Pegel) und F-28 Master-Panel (Übersicht) */
 .focus-meter {
   display: inline-flex;
@@ -2570,7 +2849,17 @@ button.is-off:hover,
   .tb-center .search:focus-within { position: absolute; left: 8px; right: 8px; z-index: 5; }
   .tb-center .search:focus-within .search__input::placeholder { color: var(--muted, #8a8a92); }
 }
-.toolbar > .focus-meter { justify-self: end; }
+.toolbar > .tb-end { justify-self: end; display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* F-177: Knopf „Design“ neben der Fokusanzeige */
+.tb-design { min-width: 36px; display: inline-flex; align-items: center; justify-content: center; padding: 4px 8px; }
+/* schmal: kein Platz – „Design anpassen“ bleibt über Zahnrad, Hilfe und Suche erreichbar */
+/* schmal: „Gleich verteilen“ weicht (Suche, Hilfe, Alt+G), die Fokusanzeige zeigt nur die Zahl – sonst verdeckt das Zahnrad sie */
+@media (max-width: 640px) {
+  .tb-design { display: none; }
+  .tb-center .tb-distribute { display: none; }
+  .toolbar .focus-meter__bars,
+  .toolbar .focus-meter__caret { display: none; }
+}
 .tb-center {
   display: flex;
   align-items: center;
@@ -3146,3 +3435,547 @@ button.is-off:hover,
 .design .look__custom { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 14px; color: var(--text); }
 .design .look__custom input[type='color'] { width: 44px; height: 30px; }
 .design .look__warn { font-size: 14px; }
+/* F-175: In den Retro-Designs ist --bg der Schreibtisch – Dialoge (Hilfe, Design) brauchen die Fensterfarbe */
+:root[data-theme='win2000'] .help,
+:root[data-theme='winxp'] .help,
+:root[data-theme='macos9'] .help {
+  background: var(--panel);
+}
+:root[data-theme='aqua'] .help {
+  background: var(--pinstripe);
+}
+/* Desk-Name: Silberverlauf nur auf dunkler Kopfleiste; auf hellen Kopfleisten normale Schrift (Kontrast, NF-03) */
+:root[data-theme='light'] .toolbar > .brand,
+:root[data-theme='win2000'] .toolbar > .brand,
+:root[data-theme='winxp'] .toolbar > .brand,
+:root[data-theme='macos9'] .toolbar > .brand,
+:root[data-theme='aqua'] .toolbar > .brand {
+  background: none;
+  color: var(--strong);
+  -webkit-text-fill-color: currentColor;
+}
+
+/* ================================================================ F-176 Weitere Retro-Designs (aus einer Vorlage erzeugt, nur nachempfunden) */
+:root[data-theme='beos'] {
+  color-scheme: light;
+  --bg: #336698;
+  --bg-image: none;
+  --panel: #d8d8d8;
+  --panel-2: #d8d8d8;
+  --text: #000;
+  --muted: #444;
+  --warn: #8a5a00;
+  --radius: 0px;
+  --hi: 255, 255, 255;
+  --lo: 0, 0, 0;
+  --tint: 0, 0, 0;
+  --shade: 0, 0, 0;
+  --glass: 216, 216, 216;
+  --strong: #000;
+  --btn-a: #d8d8d8;
+  --btn-b: #d8d8d8;
+  --well-a: #d8d8d8;
+  --well-b: #d8d8d8;
+  --neu-top: #d8d8d8;
+  --neu-bottom: #d8d8d8;
+  --warn-text: #6b4700;
+  --danger-text: #a00000;
+  --line: #808080;
+  --edge: none;
+  --raised-sm: none;
+  --pressed: inset 1px 1px 2px rgba(0, 0, 0, 0.3);
+  font-family: 'Swis721 BT', Verdana, 'DejaVu Sans', sans-serif;
+  font-size: 12px;
+}
+:root[data-theme='beos'] *, :root[data-theme='beos'] *::before, :root[data-theme='beos'] *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; }
+:root[data-theme='beos'] button { color: #000; background: linear-gradient(180deg, #f2f2f2, #cfcfcf); border: 1px solid #6a6a6a; border-radius: 2px; box-shadow: inset 1px 1px #fff; }
+:root[data-theme='beos'] button:hover:not(:disabled) { filter: brightness(1.04); }
+:root[data-theme='beos'] button:active:not(:disabled), :root[data-theme='beos'] button.on { background: linear-gradient(180deg, #bdbdbd, #dcdcdc); box-shadow: inset 1px 1px #888; }
+:root[data-theme='beos'] button:disabled { opacity: 0.55; }
+:root[data-theme='beos'] input, :root[data-theme='beos'] select, :root[data-theme='beos'] textarea { color: #000; background: #fff; border: 1px solid #6a6a6a; border-radius: 0; box-shadow: inset 1px 1px #aaa; }
+:root[data-theme='beos'] .toolbar { background: #d8d8d8; border-radius: 0; box-shadow: 0 0 0 1px #6a6a6a; }
+:root[data-theme='beos'] .win { background: #d8d8d8; border-radius: 0; box-shadow: 0 0 0 1px #6a6a6a, 2px 2px 0 rgba(0,0,0,.3); }
+:root[data-theme='beos'] .win--active { box-shadow: 0 0 0 1px #000, 3px 3px 0 rgba(0,0,0,.35); }
+:root[data-theme='beos'] .win::before { display: none; }
+:root[data-theme='beos'] .win__bar { box-shadow: none; border-radius: 0; background: #d8d8d8; border-bottom: 1px solid #9a9a9a; color: #555; }
+:root[data-theme='beos'] .win--active .win__bar { background: #d8d8d8; color: #000; }
+:root[data-theme='beos'] .win__name, :root[data-theme='beos'] .win__area { background: #e8e0b0; color: #555; border: 1px solid #9a8a40; padding: 1px 8px; }
+:root[data-theme='beos'] .menu__list, :root[data-theme='beos'] .drawer { background: #e8e8e8; border: 1px solid #6a6a6a; border-radius: 0; box-shadow: 2px 2px 0 rgba(0,0,0,.3); }
+:root[data-theme='beos'] .menu__list button { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+:root[data-theme='beos'] .menu__list button:hover:not(:disabled) { background: #ffcb00; color: #000; box-shadow: none; }
+:root[data-theme='beos'] .help { background: var(--panel); }
+:root[data-theme='beos'] .toolbar > .brand { background: none; color: var(--strong); -webkit-text-fill-color: currentColor; }
+:root[data-theme='beos'] .win--active .win__name { background: #ffcb00; color: #000; border-color: #9a7a00; }
+:root[data-theme='next'] {
+  color-scheme: light;
+  --bg: #4a4a4a;
+  --bg-image: none;
+  --panel: #aaaaaa;
+  --panel-2: #aaaaaa;
+  --text: #000;
+  --muted: #222;
+  --warn: #8a5a00;
+  --radius: 0px;
+  --hi: 255, 255, 255;
+  --lo: 0, 0, 0;
+  --tint: 0, 0, 0;
+  --shade: 0, 0, 0;
+  --glass: 170, 170, 170;
+  --strong: #000;
+  --btn-a: #aaaaaa;
+  --btn-b: #aaaaaa;
+  --well-a: #aaaaaa;
+  --well-b: #aaaaaa;
+  --neu-top: #aaaaaa;
+  --neu-bottom: #aaaaaa;
+  --warn-text: #6b4700;
+  --danger-text: #a00000;
+  --line: #555;
+  --edge: none;
+  --raised-sm: none;
+  --pressed: inset 1px 1px 2px rgba(0, 0, 0, 0.3);
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 12px;
+}
+:root[data-theme='next'] *, :root[data-theme='next'] *::before, :root[data-theme='next'] *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; }
+:root[data-theme='next'] button { color: #000; background: #cccccc; border: 1px solid; border-color: #fff #555 #555 #fff; border-radius: 0; box-shadow: none; }
+:root[data-theme='next'] button:hover:not(:disabled) { filter: brightness(1.04); }
+:root[data-theme='next'] button:active:not(:disabled), :root[data-theme='next'] button.on { background: #ffffff; border-color: #555 #fff #fff #555; }
+:root[data-theme='next'] button:disabled { opacity: 0.55; }
+:root[data-theme='next'] input, :root[data-theme='next'] select, :root[data-theme='next'] textarea { color: #000; background: #fff; border: 1px solid; border-color: #555 #fff #fff #555; border-radius: 0; box-shadow: none; }
+:root[data-theme='next'] .toolbar { background: #aaaaaa; border-radius: 0; box-shadow: 0 0 0 1px #000, inset 1px 1px #ddd; }
+:root[data-theme='next'] .win { background: #aaaaaa; border-radius: 0; box-shadow: 0 0 0 1px #000; }
+:root[data-theme='next'] .win--active { box-shadow: 0 0 0 1px #000, 3px 3px 0 rgba(0,0,0,.5); }
+:root[data-theme='next'] .win::before { display: none; }
+:root[data-theme='next'] .win__bar { box-shadow: none; border-radius: 0; background: #555; color: #ddd; border-bottom: 1px solid #000; }
+:root[data-theme='next'] .win--active .win__bar { background: #000; color: #fff; }
+:root[data-theme='next'] .win__name, :root[data-theme='next'] .win__area { color: inherit; font-weight: 700; }
+:root[data-theme='next'] .menu__list, :root[data-theme='next'] .drawer { background: #aaaaaa; border: 1px solid #000; border-radius: 0; box-shadow: none; }
+:root[data-theme='next'] .menu__list button { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+:root[data-theme='next'] .menu__list button:hover:not(:disabled) { background: #fff; color: #000; box-shadow: none; }
+:root[data-theme='next'] .help { background: var(--panel); }
+:root[data-theme='next'] .toolbar > .brand { background: none; color: var(--strong); -webkit-text-fill-color: currentColor; }
+:root[data-theme='next'] .win__bar button { color: #000; }
+:root[data-theme='amiga'] {
+  color-scheme: dark;
+  --bg: #0055aa;
+  --bg-image: none;
+  --panel: #0055aa;
+  --panel-2: #0055aa;
+  --text: #fff;
+  --muted: #cfe0ff;
+  --warn: #ffd27a;
+  --radius: 0px;
+  --hi: 255, 255, 255;
+  --lo: 0, 0, 0;
+  --tint: 255, 255, 255;
+  --shade: 0, 0, 0;
+  --glass: 0, 85, 170;
+  --strong: #fff;
+  --btn-a: #0055aa;
+  --btn-b: #0055aa;
+  --well-a: #0055aa;
+  --well-b: #0055aa;
+  --neu-top: #0055aa;
+  --neu-bottom: #0055aa;
+  --warn-text: #ffd27a;
+  --danger-text: #ffb4a8;
+  --line: #fff;
+  --edge: none;
+  --raised-sm: none;
+  --pressed: inset 1px 1px 2px rgba(0, 0, 0, 0.3);
+  font-family: Topaz, 'Courier New', monospace;
+  font-size: 13px;
+}
+:root[data-theme='amiga'] *, :root[data-theme='amiga'] *::before, :root[data-theme='amiga'] *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; }
+:root[data-theme='amiga'] button { color: #000; color: #000; background: #ffffff; border: 2px solid #000; border-radius: 0; box-shadow: none; }
+:root[data-theme='amiga'] button:hover:not(:disabled) { filter: brightness(1.04); }
+:root[data-theme='amiga'] button:active:not(:disabled), :root[data-theme='amiga'] button.on { color: #000; background: #ffc27a; }
+:root[data-theme='amiga'] button:disabled { opacity: 0.55; }
+:root[data-theme='amiga'] input, :root[data-theme='amiga'] select, :root[data-theme='amiga'] textarea { color: #fff; background: #0055aa; color: #fff; border: 2px solid #fff; border-radius: 0; box-shadow: none; }
+:root[data-theme='amiga'] .toolbar { background: #ffffff; color: #0055aa; border-radius: 0; box-shadow: 0 2px 0 #000; }
+:root[data-theme='amiga'] .win { background: #0055aa; border-radius: 0; box-shadow: 0 0 0 2px #fff; }
+:root[data-theme='amiga'] .win--active { box-shadow: 0 0 0 2px #ffc27a; }
+:root[data-theme='amiga'] .win::before { display: none; }
+:root[data-theme='amiga'] .win__bar { box-shadow: none; border-radius: 0; background: #0055aa; color: #cfe0ff; border-bottom: 2px solid #fff; }
+:root[data-theme='amiga'] .win--active .win__bar { background: #ffffff; color: #0055aa; }
+:root[data-theme='amiga'] .win__name, :root[data-theme='amiga'] .win__area { color: inherit; font-weight: 700; }
+:root[data-theme='amiga'] .menu__list, :root[data-theme='amiga'] .drawer { background: #ffffff; color: #000; border: 2px solid #000; border-radius: 0; box-shadow: none; }
+:root[data-theme='amiga'] .menu__list button { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+:root[data-theme='amiga'] .menu__list button:hover:not(:disabled) { background: #0055aa; color: #fff; box-shadow: none; }
+:root[data-theme='amiga'] .help { background: var(--panel); }
+:root[data-theme='amiga'] .toolbar > .brand { background: none; color: #0055aa; -webkit-text-fill-color: currentColor; }
+:root[data-theme='amiga'] .win__bar button { color: #000; }
+:root[data-theme='aero'] {
+  color-scheme: light;
+  --bg: #1e6fb0;
+  --bg-image: linear-gradient(160deg, #3d8fd0 0%, #0f4a8a 55%, #2a8a5a 100%);
+  --panel: #f0f0f0;
+  --panel-2: #f0f0f0;
+  --text: #000;
+  --muted: #444;
+  --warn: #8a5a00;
+  --radius: 6px;
+  --hi: 255, 255, 255;
+  --lo: 0, 0, 0;
+  --tint: 0, 0, 0;
+  --shade: 0, 0, 0;
+  --glass: 240, 240, 240;
+  --strong: #000;
+  --btn-a: #f0f0f0;
+  --btn-b: #f0f0f0;
+  --well-a: #f0f0f0;
+  --well-b: #f0f0f0;
+  --neu-top: #f0f0f0;
+  --neu-bottom: #f0f0f0;
+  --warn-text: #6b4700;
+  --danger-text: #a00000;
+  --line: #a0b4c8;
+  --edge: none;
+  --raised-sm: none;
+  --pressed: inset 1px 1px 2px rgba(0, 0, 0, 0.3);
+  font-family: 'Segoe UI', 'Segoe UI Variable', Tahoma, sans-serif;
+  font-size: 12px;
+}
+:root[data-theme='aero'] button { color: #000; background: linear-gradient(180deg, #f6f6f6 0%, #e6e6e6 49%, #d6d6d6 50%, #e8e8e8 100%); border: 1px solid #707070; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.7); }
+:root[data-theme='aero'] button:hover:not(:disabled) { filter: brightness(1.04); }
+:root[data-theme='aero'] button:active:not(:disabled), :root[data-theme='aero'] button.on { background: linear-gradient(180deg, #e5f4fc 0%, #c4e5f6 49%, #98d1ef 50%, #b6e0f5 100%); border-color: #2c628b; }
+:root[data-theme='aero'] button:disabled { opacity: 0.55; }
+:root[data-theme='aero'] input, :root[data-theme='aero'] select, :root[data-theme='aero'] textarea { color: #000; background: #fff; border: 1px solid #abadb3; border-radius: 2px; box-shadow: none; }
+:root[data-theme='aero'] .toolbar { background: rgba(185, 215, 245, .7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: 7px; box-shadow: 0 0 0 1px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.7); }
+:root[data-theme='aero'] .win { background: rgba(225, 238, 250, .82); border-radius: 7px; box-shadow: 0 0 0 1px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.6), 0 6px 18px rgba(0,0,0,.35); }
+:root[data-theme='aero'] .win--active { box-shadow: 0 0 0 1px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.7), 0 10px 26px rgba(0,0,0,.5); }
+:root[data-theme='aero'] .win::before { display: none; }
+:root[data-theme='aero'] .win__bar { box-shadow: none; border-radius: 0; background: rgba(200, 220, 240, .55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: #333; border-bottom: 1px solid rgba(255,255,255,.6); }
+:root[data-theme='aero'] .win--active .win__bar { background: rgba(150, 195, 235, .7); color: #000; }
+:root[data-theme='aero'] .win__name, :root[data-theme='aero'] .win__area { color: inherit; text-shadow: 0 0 8px rgba(255,255,255,.9); }
+:root[data-theme='aero'] .menu__list, :root[data-theme='aero'] .drawer { background: #f5f5f5; border: 1px solid #979797; border-radius: 0; box-shadow: 2px 2px 4px rgba(0,0,0,.3); }
+:root[data-theme='aero'] .menu__list button { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+:root[data-theme='aero'] .menu__list button:hover:not(:disabled) { background: #dcecfc; color: #000; box-shadow: inset 0 0 0 1px #7da2ce; box-shadow: none; }
+:root[data-theme='aero'] .help { background: var(--panel); }
+:root[data-theme='aero'] .toolbar > .brand { background: none; color: var(--strong); -webkit-text-fill-color: currentColor; }
+:root[data-theme='aero'] .win__bar .win__close { color: #fff; background: linear-gradient(180deg, #e8a090, #c7432c 50%, #b02010); border: 1px solid #6a1a10; border-radius: 3px; }
+:root[data-theme='ubuntu'] {
+  color-scheme: light;
+  --bg: #5e2750;
+  --bg-image: linear-gradient(150deg, #77216f 0%, #2c001e 100%);
+  --panel: #f2f1f0;
+  --panel-2: #f2f1f0;
+  --text: #3c3c3c;
+  --muted: #5d5d5d;
+  --warn: #8a5a00;
+  --radius: 4px;
+  --hi: 255, 255, 255;
+  --lo: 0, 0, 0;
+  --tint: 0, 0, 0;
+  --shade: 0, 0, 0;
+  --glass: 242, 241, 240;
+  --strong: #3c3c3c;
+  --btn-a: #f2f1f0;
+  --btn-b: #f2f1f0;
+  --well-a: #f2f1f0;
+  --well-b: #f2f1f0;
+  --neu-top: #f2f1f0;
+  --neu-bottom: #f2f1f0;
+  --warn-text: #6b4700;
+  --danger-text: #a00000;
+  --line: #b5b3ae;
+  --edge: none;
+  --raised-sm: none;
+  --pressed: inset 1px 1px 2px rgba(0, 0, 0, 0.3);
+  font-family: Ubuntu, Cantarell, 'DejaVu Sans', sans-serif;
+  font-size: 13px;
+}
+:root[data-theme='ubuntu'] *, :root[data-theme='ubuntu'] *::before, :root[data-theme='ubuntu'] *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; }
+:root[data-theme='ubuntu'] button { color: #3c3c3c; color: #3c3c3c; background: linear-gradient(180deg, #fbfbfa, #e7e6e4); border: 1px solid #b5b3ae; border-radius: 4px; box-shadow: none; }
+:root[data-theme='ubuntu'] button:hover:not(:disabled) { filter: brightness(1.04); }
+:root[data-theme='ubuntu'] button:active:not(:disabled), :root[data-theme='ubuntu'] button.on { color: #fff; background: linear-gradient(180deg, #f07746, #dd4814); border-color: #b33b0e; }
+:root[data-theme='ubuntu'] button:disabled { opacity: 0.55; }
+:root[data-theme='ubuntu'] input, :root[data-theme='ubuntu'] select, :root[data-theme='ubuntu'] textarea { color: #3c3c3c; background: #fff; color: #3c3c3c; border: 1px solid #b5b3ae; border-radius: 3px; box-shadow: inset 0 1px 1px rgba(0,0,0,.1); }
+:root[data-theme='ubuntu'] .toolbar { background: linear-gradient(180deg, #4c4b47, #3c3b37); color: #dfdbd2; border-radius: 0; box-shadow: 0 1px 0 #000; }
+:root[data-theme='ubuntu'] .win { background: #f2f1f0; border-radius: 6px 6px 2px 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.35); }
+:root[data-theme='ubuntu'] .win--active { box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 8px 22px rgba(0,0,0,.5); }
+:root[data-theme='ubuntu'] .win::before { display: none; }
+:root[data-theme='ubuntu'] .win__bar { box-shadow: none; border-radius: 0; background: #5f5e5a; color: #c9c5bd; border-bottom: 0; }
+:root[data-theme='ubuntu'] .win--active .win__bar { background: linear-gradient(180deg, #4c4b47, #3c3b37); color: #dfdbd2; }
+:root[data-theme='ubuntu'] .win__name, :root[data-theme='ubuntu'] .win__area { color: inherit; font-weight: 700; }
+:root[data-theme='ubuntu'] .menu__list, :root[data-theme='ubuntu'] .drawer { background: #f2f1f0; border: 1px solid #b5b3ae; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+:root[data-theme='ubuntu'] .menu__list button { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+:root[data-theme='ubuntu'] .menu__list button:hover:not(:disabled) { background: #f07746; color: #fff; box-shadow: none; }
+:root[data-theme='ubuntu'] .help { background: var(--panel); }
+:root[data-theme='ubuntu'] .toolbar > .brand { background: none; color: #dfdbd2; -webkit-text-fill-color: currentColor; }
+:root[data-theme='ubuntu'] .win__bar button { color: #dfdbd2; background: transparent; border-color: transparent; }
+:root[data-theme='ubuntu'] .win__bar button:hover:not(:disabled) { background: rgba(255,255,255,.12); }
+:root[data-theme='ubuntu'] .win__bar .win__close { width: 16px; min-width: 16px; height: 16px; padding: 0; font-size: 11px; line-height: 14px; align-self: center; border-radius: 50%; color: #3c3b37; background: radial-gradient(circle at 50% 35%, #f7a27a, #f07746 55%, #c8501f); border: 1px solid #8a3510; }
+:root[data-theme='ubuntu'] .win:not(.win--active) .win__bar .win__close { background: #7d7c77; border-color: #555; }
+:root[data-theme='snowleopard'] {
+  color-scheme: light;
+  --bg: #3c2c5c;
+  --bg-image: linear-gradient(160deg, #4b3a70 0%, #1a1030 100%);
+  --panel: #e8e8e8;
+  --panel-2: #e8e8e8;
+  --text: #000;
+  --muted: #555;
+  --warn: #8a5a00;
+  --radius: 5px;
+  --hi: 255, 255, 255;
+  --lo: 0, 0, 0;
+  --tint: 0, 0, 0;
+  --shade: 0, 0, 0;
+  --glass: 232, 232, 232;
+  --strong: #000;
+  --btn-a: #e8e8e8;
+  --btn-b: #e8e8e8;
+  --well-a: #e8e8e8;
+  --well-b: #e8e8e8;
+  --neu-top: #e8e8e8;
+  --neu-bottom: #e8e8e8;
+  --warn-text: #6b4700;
+  --danger-text: #a00000;
+  --line: #999;
+  --edge: none;
+  --raised-sm: none;
+  --pressed: inset 1px 1px 2px rgba(0, 0, 0, 0.3);
+  font-family: 'Lucida Grande', 'Helvetica Neue', Helvetica, sans-serif;
+  font-size: 12px;
+}
+:root[data-theme='snowleopard'] *, :root[data-theme='snowleopard'] *::before, :root[data-theme='snowleopard'] *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; }
+:root[data-theme='snowleopard'] button { color: #000; color: #000; background: linear-gradient(180deg, #fafafa, #d8d8d8); border: 1px solid #6e6e6e; border-radius: 5px; box-shadow: 0 1px 0 rgba(255,255,255,.4); }
+:root[data-theme='snowleopard'] button:hover:not(:disabled) { filter: brightness(1.04); }
+:root[data-theme='snowleopard'] button:active:not(:disabled), :root[data-theme='snowleopard'] button.on { background: linear-gradient(180deg, #bcbcbc, #d9d9d9); box-shadow: inset 0 1px 3px rgba(0,0,0,.35); }
+:root[data-theme='snowleopard'] button:disabled { opacity: 0.55; }
+:root[data-theme='snowleopard'] input, :root[data-theme='snowleopard'] select, :root[data-theme='snowleopard'] textarea { color: #000; background: #fff; border: 1px solid #8a8a8a; border-radius: 3px; box-shadow: inset 0 1px 2px rgba(0,0,0,.2); }
+:root[data-theme='snowleopard'] .toolbar { background: linear-gradient(180deg, #c9c9c9, #959595); border-radius: 6px; box-shadow: 0 0 0 1px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.5), 0 4px 12px rgba(0,0,0,.35); }
+:root[data-theme='snowleopard'] .win { background: #e8e8e8; border-radius: 6px 6px 3px 3px; box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 6px 16px rgba(0,0,0,.35); }
+:root[data-theme='snowleopard'] .win--active { box-shadow: 0 0 0 1px rgba(0,0,0,.55), 0 12px 30px rgba(0,0,0,.55); }
+:root[data-theme='snowleopard'] .win::before { display: none; }
+:root[data-theme='snowleopard'] .win__bar { box-shadow: none; border-radius: 0; background: linear-gradient(180deg, #e9e9e9, #d0d0d0); color: #777; border-bottom: 1px solid #a8a8a8; }
+:root[data-theme='snowleopard'] .win--active .win__bar { background: linear-gradient(180deg, #c9c9c9, #959595); color: #1a1a1a; border-bottom-color: #555; }
+:root[data-theme='snowleopard'] .win__name, :root[data-theme='snowleopard'] .win__area { color: inherit; font-weight: 600; text-shadow: 0 1px 0 rgba(255,255,255,.5); }
+:root[data-theme='snowleopard'] .menu__list, :root[data-theme='snowleopard'] .drawer { background: rgba(255,255,255,.97); border: 1px solid #a0a0a0; border-radius: 5px; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+:root[data-theme='snowleopard'] .menu__list button { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+:root[data-theme='snowleopard'] .menu__list button:hover:not(:disabled) { background: linear-gradient(180deg, #6c8ff5, #2f5fd8); color: #fff; box-shadow: none; }
+:root[data-theme='snowleopard'] .help { background: var(--panel); }
+:root[data-theme='snowleopard'] .toolbar > .brand { background: none; color: var(--strong); -webkit-text-fill-color: currentColor; }
+:root[data-theme='snowleopard'] .win__bar .win__close { width: 14px; min-width: 14px; height: 14px; padding: 0; font-size: 10px; line-height: 12px; align-self: center; border-radius: 50%; color: transparent; background: radial-gradient(circle at 50% 30%, #ffc0b8, #e2463f 55%, #a8221b); border: 1px solid #7a1a14; }
+:root[data-theme='snowleopard'] .win__bar .win__close:hover, :root[data-theme='snowleopard'] .win__bar .win__close:focus-visible { color: #4d0a00; }
+:root[data-theme='snowleopard'] .win:not(.win--active) .win__bar .win__close { background: radial-gradient(circle at 50% 30%, #fff, #c8c8c8 60%, #a0a0a0); border-color: #888; }
+:root[data-theme='system7'] {
+  color-scheme: light;
+  --bg: #888888;
+  --bg-image: repeating-linear-gradient(45deg, #777 0 2px, #aaa 2px 4px);
+  --panel: #ffffff;
+  --panel-2: #ffffff;
+  --text: #000;
+  --muted: #000;
+  --warn: #8a5a00;
+  --radius: 0px;
+  --hi: 255, 255, 255;
+  --lo: 0, 0, 0;
+  --tint: 0, 0, 0;
+  --shade: 0, 0, 0;
+  --glass: 255, 255, 255;
+  --strong: #000;
+  --btn-a: #ffffff;
+  --btn-b: #ffffff;
+  --well-a: #ffffff;
+  --well-b: #ffffff;
+  --neu-top: #ffffff;
+  --neu-bottom: #ffffff;
+  --warn-text: #6b4700;
+  --danger-text: #a00000;
+  --line: #000;
+  --edge: none;
+  --raised-sm: none;
+  --pressed: inset 1px 1px 2px rgba(0, 0, 0, 0.3);
+  font-family: Chicago, Charcoal, Geneva, 'Courier New', monospace;
+  font-size: 12px;
+}
+:root[data-theme='system7'] *, :root[data-theme='system7'] *::before, :root[data-theme='system7'] *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; }
+:root[data-theme='system7'] button { color: #000; color: #000; background: #fff; border: 1px solid #000; border-radius: 5px; box-shadow: none; }
+:root[data-theme='system7'] button:hover:not(:disabled) { filter: brightness(1.04); }
+:root[data-theme='system7'] button:active:not(:disabled), :root[data-theme='system7'] button.on { color: #fff; background: #000; }
+:root[data-theme='system7'] button:disabled { opacity: 0.55; }
+:root[data-theme='system7'] input, :root[data-theme='system7'] select, :root[data-theme='system7'] textarea { color: #000; background: #fff; color: #000; border: 1px solid #000; border-radius: 0; box-shadow: none; }
+:root[data-theme='system7'] .toolbar { background: #fff; border-radius: 0; box-shadow: 0 1px 0 #000; }
+:root[data-theme='system7'] .win { background: #fff; border-radius: 0; box-shadow: 0 0 0 1px #000, 1px 1px 0 1px #000; }
+:root[data-theme='system7'] .win--active { box-shadow: 0 0 0 1px #000, 2px 2px 0 1px #000; }
+:root[data-theme='system7'] .win::before { display: none; }
+:root[data-theme='system7'] .win__bar { box-shadow: none; border-radius: 0; background: #fff; color: #000; border-bottom: 1px solid #000; }
+:root[data-theme='system7'] .win--active .win__bar { background: repeating-linear-gradient(180deg, #fff 0 1px, #000 1px 2px); color: #000; }
+:root[data-theme='system7'] .win__name, :root[data-theme='system7'] .win__area { color: #000; font-weight: 700; background: #fff; padding: 0 5px; }
+:root[data-theme='system7'] .menu__list, :root[data-theme='system7'] .drawer { background: #fff; border: 1px solid #000; border-radius: 0; box-shadow: 1px 1px 0 1px #000; }
+:root[data-theme='system7'] .menu__list button { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+:root[data-theme='system7'] .menu__list button:hover:not(:disabled) { background: #000; color: #fff; box-shadow: none; }
+:root[data-theme='system7'] .help { background: var(--panel); }
+:root[data-theme='system7'] .toolbar > .brand { background: none; color: var(--strong); -webkit-text-fill-color: currentColor; }
+:root[data-theme='system7'] button:disabled { color: #888; border-color: #888; }
+:root[data-theme='atari'] {
+  color-scheme: light;
+  --bg: #008000;
+  --bg-image: none;
+  --panel: #ffffff;
+  --panel-2: #ffffff;
+  --text: #000;
+  --muted: #000;
+  --warn: #8a5a00;
+  --radius: 0px;
+  --hi: 255, 255, 255;
+  --lo: 0, 0, 0;
+  --tint: 0, 0, 0;
+  --shade: 0, 0, 0;
+  --glass: 255, 255, 255;
+  --strong: #000;
+  --btn-a: #ffffff;
+  --btn-b: #ffffff;
+  --well-a: #ffffff;
+  --well-b: #ffffff;
+  --neu-top: #ffffff;
+  --neu-bottom: #ffffff;
+  --warn-text: #6b4700;
+  --danger-text: #a00000;
+  --line: #000;
+  --edge: none;
+  --raised-sm: none;
+  --pressed: inset 1px 1px 2px rgba(0, 0, 0, 0.3);
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+:root[data-theme='atari'] *, :root[data-theme='atari'] *::before, :root[data-theme='atari'] *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; }
+:root[data-theme='atari'] button { color: #000; color: #000; background: #fff; border: 1px solid #000; border-radius: 0; box-shadow: none; }
+:root[data-theme='atari'] button:hover:not(:disabled) { filter: brightness(1.04); }
+:root[data-theme='atari'] button:active:not(:disabled), :root[data-theme='atari'] button.on { color: #fff; background: #000; }
+:root[data-theme='atari'] button:disabled { opacity: 0.55; }
+:root[data-theme='atari'] input, :root[data-theme='atari'] select, :root[data-theme='atari'] textarea { color: #000; background: #fff; color: #000; border: 1px solid #000; border-radius: 0; box-shadow: none; }
+:root[data-theme='atari'] .toolbar { background: #fff; border-radius: 0; box-shadow: 0 1px 0 #000; }
+:root[data-theme='atari'] .win { background: #fff; border-radius: 0; box-shadow: 0 0 0 1px #000; }
+:root[data-theme='atari'] .win--active { box-shadow: 0 0 0 2px #000; }
+:root[data-theme='atari'] .win::before { display: none; }
+:root[data-theme='atari'] .win__bar { box-shadow: none; border-radius: 0; background: #fff; color: #000; border-bottom: 1px solid #000; }
+:root[data-theme='atari'] .win--active .win__bar { background: repeating-linear-gradient(90deg, #fff 0 1px, #bbb 1px 2px); color: #000; }
+:root[data-theme='atari'] .win__name, :root[data-theme='atari'] .win__area { color: #000; font-weight: 700; background: #fff; padding: 0 5px; }
+:root[data-theme='atari'] .menu__list, :root[data-theme='atari'] .drawer { background: #fff; border: 1px solid #000; border-radius: 0; box-shadow: none; }
+:root[data-theme='atari'] .menu__list button { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+:root[data-theme='atari'] .menu__list button:hover:not(:disabled) { background: #000; color: #fff; box-shadow: none; }
+:root[data-theme='atari'] .help { background: var(--panel); }
+:root[data-theme='atari'] .toolbar > .brand { background: none; color: var(--strong); -webkit-text-fill-color: currentColor; }
+:root[data-theme='atari'] button:disabled { color: #888; border-color: #888; }
+.design__sub + .design__sub { margin-top: 10px; }
+.design__subhead { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+:root[data-theme='amiga'] ::placeholder { color: #cfe0ff; opacity: 1; }
+:root[data-theme='amiga'] .toolbar input { background: #ffffff; color: #0055aa; border-color: #000; }
+:root[data-theme='amiga'] .toolbar ::placeholder { color: #3a6ab0; }
+/* Amiga: Kopfleiste ist weiß – darin dunkle statt weißer Schrift */
+:root[data-theme='amiga'] .toolbar { --text: #0055aa; --strong: #0055aa; --muted: #3a6ab0; color: #0055aa; }
+
+/* ================================================================ F-178 Terminal – Leuchtschrift in der Akzentfarbe auf Schwarz */
+:root[data-theme='terminal'] {
+  color-scheme: dark;
+  --bg: #000000;
+  /* feine Rasterlinien wie auf einem Röhrenmonitor (statisch) */
+  --bg-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px);
+  --panel: #000000;
+  --panel-2: #000000;
+  /* Phosphor: Akzentfarbe aufgehellt, damit auch Rot, Blau usw. auf Schwarz hell leuchten; Farbton bleibt */
+  --term: color-mix(in srgb, rgb(var(--accent-rgb)) 60%, #ffffff);
+  --text: var(--term);
+  --muted: color-mix(in srgb, var(--term) 85%, #000000);
+  --strong: var(--term);
+  --warn: #ffd27a;
+  --warn-text: #ffd27a;
+  --danger-text: #ff8a7a;
+  --radius: 0px;
+  --hi: 0, 0, 0;
+  --lo: 0, 0, 0;
+  --tint: var(--accent-rgb);
+  --shade: 0, 0, 0;
+  --glass: 0, 0, 0;
+  --btn-a: #000;
+  --btn-b: #000;
+  --well-a: #000;
+  --well-b: #000;
+  --neu-top: #000;
+  --neu-bottom: #000;
+  --line: color-mix(in srgb, var(--term) 50%, transparent);
+  --edge: none;
+  --raised-sm: none;
+  --pressed: none;
+  --glow: 0 0 4px color-mix(in srgb, var(--term) 55%, transparent);
+  font-family: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--term);
+}
+:root[data-theme='terminal'] *,
+:root[data-theme='terminal'] *::before,
+:root[data-theme='terminal'] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 0 !important;
+}
+:root[data-theme='terminal'] body { text-shadow: var(--glow); }
+:root[data-theme='terminal'] button {
+  color: var(--term);
+  background: #000;
+  border: 1px solid color-mix(in srgb, var(--term) 75%, transparent);
+  box-shadow: none;
+}
+:root[data-theme='terminal'] button:hover:not(:disabled),
+:root[data-theme='terminal'] button:focus-visible {
+  color: #000;
+  background: var(--term);
+  text-shadow: none;
+}
+:root[data-theme='terminal'] button:active:not(:disabled),
+:root[data-theme='terminal'] button.on {
+  color: #000;
+  background: var(--term);
+  text-shadow: none;
+}
+:root[data-theme='terminal'] button:disabled { opacity: 0.4; }
+:root[data-theme='terminal'] input,
+:root[data-theme='terminal'] select,
+:root[data-theme='terminal'] textarea {
+  color: var(--term);
+  background: #000;
+  border: 1px dashed color-mix(in srgb, var(--term) 60%, transparent);
+  box-shadow: none;
+  caret-color: var(--term);
+}
+:root[data-theme='terminal'] ::placeholder { color: var(--muted); opacity: 1; }
+:root[data-theme='terminal'] .toolbar {
+  background: #000;
+  border: 1px solid var(--term);
+  box-shadow: none;
+}
+:root[data-theme='terminal'] .toolbar > .brand { background: none; color: var(--term); -webkit-text-fill-color: currentColor; }
+:root[data-theme='terminal'] .win { background: #000; border: 1px solid color-mix(in srgb, var(--term) 45%, transparent); box-shadow: none; }
+:root[data-theme='terminal'] .win--active { border-color: var(--term); box-shadow: 0 0 10px color-mix(in srgb, var(--term) 30%, transparent); }
+:root[data-theme='terminal'] .win::before { display: none; }
+:root[data-theme='terminal'] .win__bar { background: #000; color: var(--muted); border-bottom: 1px solid color-mix(in srgb, var(--term) 45%, transparent); box-shadow: none; }
+/* aktives Portal: Titelzeile invertiert */
+:root[data-theme='terminal'] .win--active .win__bar { background: var(--term); color: #000; text-shadow: none; }
+:root[data-theme='terminal'] .win--active .win__bar button { color: #000; background: var(--term); border-color: #000; }
+:root[data-theme='terminal'] .win--active .win__bar button:hover:not(:disabled) { color: var(--term); background: #000; }
+:root[data-theme='terminal'] .win--active .win__bar input { color: #000; background: var(--term); border-color: #000; }
+:root[data-theme='terminal'] .win--active .win__bar ::placeholder { color: rgba(0, 0, 0, 0.6); }
+:root[data-theme='terminal'] .win__name,
+:root[data-theme='terminal'] .win__area { color: inherit; font-weight: 700; }
+:root[data-theme='terminal'] .menu__list,
+:root[data-theme='terminal'] .drawer { background: #000; border: 1px solid var(--term); box-shadow: 0 0 12px color-mix(in srgb, var(--term) 25%, transparent); }
+:root[data-theme='terminal'] .menu__list button { background: transparent; border: 0; }
+:root[data-theme='terminal'] .help { background: #000; border: 1px solid var(--term); }
+/* blinkender Cursor hinter dem Desk-Namen – nur ohne „Bewegung reduzieren“ */
+:root[data-theme='terminal'] .toolbar .tb-win--main::after { content: '_'; margin-left: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme='terminal'] .toolbar .tb-win--main::after { animation: term-blink 1.1s steps(1) infinite; }
+}
+@keyframes term-blink { 50% { opacity: 0; } }
+@media (forced-colors: active) {
+  :root[data-theme='terminal'] body { text-shadow: none; }
+}
+/* Terminal: Nebentexte nicht zusätzlich abdunkeln – eine Farbe, volle Helligkeit */
+:root[data-theme='terminal'] .win__hint,
+:root[data-theme='terminal'] .win__placeholder,
+:root[data-theme='terminal'] .win__meta,
+:root[data-theme='terminal'] .muted { color: var(--muted); opacity: 1; }
+:root[data-theme='terminal'] button:disabled { opacity: 0.6; }

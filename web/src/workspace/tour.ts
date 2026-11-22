@@ -42,6 +42,7 @@ export const TOURS: Record<TourId, TourStep[]> = {
     { id: 'view', title: 'View', target: '.tb-center .tb-view', text: t('view') },
     { id: 'search', title: 'Suchen', target: '.tb-center .search', text: t('search') },
     { id: 'focus', title: 'Fokusanzeige', target: '.toolbar .focus-meter', text: `${t('focus')} Ein Klick öffnet das Cockpit (Strg/⌘+.) – dort gibt es eine eigene kurze Tour.` },
+    { id: 'design', title: 'Design', target: '.toolbar .tb-design', text: `${t('design')} Der Knopf öffnet „Design anpassen“ – mit eigener kurzer Tour.` },
     { id: 'help', title: 'Hilfe', target: '.toolbar .tb-help', text: 'Alle Funktionen und Tastenkürzel findest du hier oder mit der Taste ?. Dort kannst du auch diese Tour wieder starten.' },
   ],
   cockpit: [

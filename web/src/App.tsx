@@ -24,7 +24,7 @@ import { Tooltips } from './components/Tooltip';
 import { FocusMeter, Overview } from './components/Overview';
 import { arrangeText, deskFocusOf, effectOf, focusOf, placeText } from './workspace/focus';
 import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
-import { contrastWarning, resolveTheme, rgbOf } from './workspace/look';
+import { contrastWarning, pickLook, shownAccent, THEMES, resolveTheme, rgbOf } from './workspace/look';
 import { MAIN_NAME, nextWindowName, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
 import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
@@ -215,9 +215,13 @@ export default function App() {
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = shownTheme;
-    root.style.setProperty('--accent-rgb', rgbOf(ws.look.accent).join(', '));
+    root.style.setProperty('--accent-rgb', rgbOf(shownAccent(ws.look.accent, shownTheme)).join(', '));
   }, [shownTheme, ws.look.accent]);
-  const lookWarning = contrastWarning(ws.look.accent, shownTheme);
+  const lookWarning = (() => {
+    const w = contrastWarning(ws.look.accent, shownTheme);
+    // F-178: im Terminal sagen, dass ersatzweise Terminal-Grün leuchtet
+    return w && shownTheme === 'terminal' ? `${w} Deshalb leuchtet die Schrift gerade in Terminal-Grün.` : w;
+  })();
   const [active, setActive] = useState<string | null>(mine[0]?.id ?? null);
   const [mode, setMode] = useState<Mode>({ kind: 'area' });
   const [swapFrom, setSwapFrom] = useState<string | null>(null);
@@ -1315,7 +1319,7 @@ export default function App() {
             Zum Dashboard
           </button>
         )}
-        <button type="button" className="tb-view" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Gleich verteilen (Alt/⌥+G): alle Portale gleich groß, die Anordnung bleibt" aria-label="Gleich verteilen" aria-keyshortcuts="Alt+G">
+        <button type="button" className="tb-view tb-distribute" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Gleich verteilen (Alt/⌥+G): alle Portale gleich groß, die Anordnung bleibt" aria-label="Gleich verteilen" aria-keyshortcuts="Alt+G">
           {DistributeIcon}
         </button>
         {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
@@ -1506,7 +1510,18 @@ export default function App() {
         {swapFrom && <span className="hint">Ziel-Portal anklicken · Esc bricht ab</span>}
         </div>
         {/* F-29 Gesamtfokus; Klick klappt das Fokus-Radar (F-28, bisher Master-Panel) aus */}
-        <FocusMeter focus={focus} open={overview} onToggle={toggleOverview} btnRef={meterRef} />
+        {/* F-177: Fokusanzeige und Knopf „Design“ teilen sich die rechte Spalte der Kopfleiste */}
+        <div className="tb-end">
+          <FocusMeter focus={focus} open={overview} onToggle={toggleOverview} btnRef={meterRef} />
+          <button type="button" className="tb-design" onClick={() => setDesign(true)} aria-haspopup="dialog" aria-label="Design anpassen" title="Design anpassen – Darstellung und Akzentfarbe">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.4-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z" />
+              <circle cx="7.5" cy="11" r="1.2" />
+              <circle cx="10" cy="7" r="1.2" />
+              <circle cx="14.5" cy="7" r="1.2" />
+            </svg>
+          </button>
+        </div>
       </header>
       {PROBE && (
         <a className="probe" href={window.location.pathname} title="Testbelegung verlassen (zurück zu deinen eigenen Desks)">
@@ -1515,7 +1530,12 @@ export default function App() {
       )}
       {tour && tour !== 'design' && <Tour key={tour} tour={tour} auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} />}
       {design && (
-        <Design look={ws.look} warning={lookWarning} onLook={(change) => dispatch({ type: 'look', ...change })} onClose={() => setDesign(false)} onTour={startDesignTour}>
+        <Design look={ws.look} warning={lookWarning} onLook={(change) => {
+            // F-178: passende Akzentfarbe mitnehmen, wenn die bisherige im neuen Design schlecht lesbar wäre
+            const next = pickLook(ws.look, change, systemDark);
+            dispatch({ type: 'look', ...next });
+            if (next.accent && !change.accent) notify(`Akzentfarbe an „${THEMES.find((t) => t.id === change.theme)?.label}“ angepasst, damit alles lesbar bleibt.`);
+          }} onClose={() => setDesign(false)} onTour={startDesignTour}>
           {tour === 'design' && <Tour key="design" tour="design" auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} />}
         </Design>
       )}

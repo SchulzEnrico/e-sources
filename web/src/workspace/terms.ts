@@ -67,6 +67,35 @@ export const CATEGORY_TEXT = {
   choose: 'Kategorie wählen …',
   keepNone: 'Ohne',
   done: (portal: string, name: string | null) => (name ? `„${portal}“ gehört jetzt zu „${name}“.` : `„${portal}“ hat keine Kategorie.`),
+  // F-183 Stufe 2: Zeichen je Kategorie
+  icon: 'Zeichen',
+  iconIntro: 'Das Zeichen steht neben dem Namen der Kategorie – im Portal, in der Library und in den Regeln.',
+  iconAuto: (label: string) => `Vorschlag (${label})`,
+  iconDone: (name: string, label: string) => `Kategorie „${name}“ hat jetzt das Zeichen „${label}“.`,
+};
+
+/** F-183 Stufe 2: Namen der Kategorie-Zeichen – für Tooltip und Bildschirmleser (das Zeichen steht nie allein). */
+export const CATEGORY_ICON_LABEL: Record<string, string> = {
+  category: 'Etikett',
+  catEditor: 'Dokument',
+  catMail: 'Brief',
+  catChat: 'Sprechblase',
+  catCalendar: 'Kalender',
+  catVideo: 'Video',
+  catMusic: 'Musik',
+  catCode: 'Code',
+  catJobs: 'Aktentasche',
+  catPeople: 'Menschen',
+  catNews: 'Zeitung',
+  catShop: 'Einkaufswagen',
+  catBook: 'Buch',
+  catTravel: 'Reise',
+  catAi: 'Funke (KI)',
+  catPhoto: 'Kamera',
+  catMoney: 'Geld',
+  catGame: 'Spiel',
+  catHeart: 'Herz',
+  star: 'Stern',
 };
 
 /** F-164: Regelübersicht im Cockpit. */
@@ -126,7 +155,7 @@ export const RULES_TEXT = {
 
 export const TINT_TEXT = {
   title: 'Farben',
-  menu: '◐ Farben …',
+  menu: 'Farben …',
   intro: 'Jedes Portal und jeder Slot kann eine eigene Rahmenfarbe (farbige Linie um das Portal) und Akzentfarbe (Leuchten, Portalname und Hervorhebungen im Portal) haben. Was du nicht wählst, kommt vom Slot, dann von der Kategorie des Portals (Farbregel) und dann vom Desk.',
   portal: (name: string) => `Dieses Portal: ${name}`,
   slot: (name: string) => `Dieser Slot: ${name}`,
@@ -162,3 +191,13 @@ export const ORIGIN_TEXT = {
   workspace: 'aus Import der Arbeitsfläche',
   unknown: 'Herkunft unbekannt (angelegt vor dieser Angabe)',
 } as const;
+
+/** F-183 Stufe 2: Anzeige der Symbole (gilt für diesen Browser, alle Desks). */
+export const DISPLAY_TEXT = {
+  compact: 'Kompakt: nur Symbole',
+  compactOn: 'Kompakt: Kopfleiste und Cockpit zeigen nur noch Symbole. Die Namen stehen im Tooltip.',
+  compactOff: 'Beschriftungen werden wieder gezeigt.',
+  favicons: 'Symbole der Webseiten zeigen',
+  faviconsOn: 'Sources zeigen das Symbol ihrer Webseite – es wird direkt von der Seite geladen.',
+  faviconsOff: 'Sources zeigen den Anfangsbuchstaben ihrer Seite; es wird nichts mehr geladen.',
+};

@@ -101,3 +101,15 @@ export const categoryTint = (ws: Workspace, panel: PanelMeta): Tint | undefined 
   // F-164: ausgeschaltete Farbregel gilt nicht
   return c && !ws.rulesOff?.includes(`tint:${c.id}`) ? c.tint : undefined;
 };
+
+/** F-183 Stufe 2: Zeichen einer Kategorie setzen (null = wieder Vorschlag nach Name). */
+export function setCategoryIcon(ws: Workspace, id: string, icon: string | null): Workspace {
+  const c = ws.categories.find((x) => x.id === id);
+  if (!c || (c.icon ?? null) === icon) return ws;
+  const categories = ws.categories.map((x): Category => {
+    if (x.id !== id) return x;
+    const { icon: _old, ...rest } = x;
+    return icon ? { ...rest, icon } : rest;
+  });
+  return { ...ws, categories };
+}

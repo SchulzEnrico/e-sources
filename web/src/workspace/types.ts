@@ -59,6 +59,8 @@ export interface Tint {
 /** F-30, F-163: Kategorie der Library; ihre Farben gelten für alle Portale dieser Kategorie (Farbregel). */
 export interface Category extends Named {
   tint?: Tint;
+  /** F-183 Stufe 2: gewähltes Zeichen (Name aus CATEGORY_ICONS); fehlt = Vorschlag nach Name. */
+  icon?: string;
 }
 
 /** F-128, F-162: Name eines Slots, mit eigenen Farben. */

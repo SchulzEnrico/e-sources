@@ -6,7 +6,7 @@
 import { TERMS, TINT_TEXT } from './terms';
 
 /** Was die Oberfläche ausführen kann; App.tsx ordnet jedem Wert die passende Aktion zu. */
-export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher' | 'importBookmarks' | 'exportBookmarks' | 'sortHelp' | 'tourImport' | 'profile' | 'reload' | 'collectDesks' | 'distributeDesks' | 'nextDesk' | 'rules';
+export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher' | 'importBookmarks' | 'exportBookmarks' | 'sortHelp' | 'tourImport' | 'profile' | 'reload' | 'collectDesks' | 'distributeDesks' | 'nextDesk' | 'rules' | 'compact' | 'favicons';
 
 export interface HelpEntry {
   id: string;
@@ -52,6 +52,8 @@ export const HELP: HelpEntry[] = [
   { id: 'tourDesign', group: 'Ansicht', name: 'Tour „Design“', text: 'Kurze Einführung in „Design anpassen“: Darstellung, Akzentfarbe und eigene Farbe. Startet beim ersten Öffnen des Dialogs von selbst.', run: 'tourDesign', words: ['Design-Tour', 'Einführung Design', 'Farben erklärt', 'Rundgang'] },
   { id: 'tourImport', group: 'Ansicht', name: 'Tour „Import“', text: 'Kurze Einführung, wie du Lesezeichen aus Chrome, Safari, Firefox oder Edge holst, wie fein die Ordner zu Kategorien werden und was die Sortierhilfe danach tut. Startet beim ersten Import von selbst.', run: 'tourImport', words: ['Import-Tour', 'Einführung Import', 'Lesezeichen übernehmen', 'Browser', 'Chrome', 'Safari', 'Firefox', 'Edge', 'Rundgang'] },
   { id: 'toursAuto', group: 'Ansicht', name: 'Touren automatisch zeigen', text: 'Schaltet ein oder aus, ob Touren beim ersten Mal von selbst starten (Einstellungen, Zahnrad). Von Hand starten geht immer.', run: 'toursAuto', words: ['nicht mehr anzeigen', 'Tour aus', 'Einführung abschalten', 'automatisch'] },
+  { id: 'compact', group: 'Ansicht', name: 'Kompakt: nur Symbole', text: 'Blendet die Beschriftungen in Kopfleiste und Cockpit aus, nur die Symbole bleiben – gut für kleine Bildschirme. Der Name steht weiter im Tooltip und wird vorgelesen (Einstellungen, Zahnrad).', run: 'compact', words: ['kompakt', 'nur Symbole', 'Icons', 'Beschriftung', 'klein', 'schmal'] },
+  { id: 'favicons', group: 'Ansicht', name: 'Symbole der Webseiten', text: 'Zeigt vor jeder Source das Symbol ihrer Webseite (Favicon). Es wird direkt von der jeweiligen Seite geladen, ohne fremden Dienst. Ausgeschaltet steht der Anfangsbuchstabe der Seite da (Einstellungen, Zahnrad).', run: 'favicons', words: ['Favicon', 'Webseitensymbol', 'Logo', 'Symbol der Seite', 'Datenschutz'] },
   { id: 'help', group: 'Ansicht', name: 'Hilfe', text: 'Zeigt alle Funktionen und Begriffe mit Tastenkürzeln.', keys: '?', run: 'help', words: ['Glossar', 'Tastenkürzel', 'Kürzel', 'Erklärung', 'Anleitung'] },
 
   // Anlegen

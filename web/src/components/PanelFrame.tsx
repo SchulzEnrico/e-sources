@@ -41,7 +41,7 @@ interface Props {
   /** F-162: Dialog „Farben“ öffnen. */
   onColors?: () => void;
   /** F-163: Kategorie des Portals – Name und ihre Rahmenfarbe (falls gesetzt), in der Kopfzeile. */
-  category?: { name: string; color?: string };
+  category?: { name: string; color?: string; icon?: IconName };
   /** F-163: „Farben“ mit Fokus auf der Kategorie öffnen (Klick auf die Kategorie in der Kopfzeile). */
   onCategory?: () => void;
   active: boolean;
@@ -362,9 +362,9 @@ export function MenuPages(props: { children: (page: string, go: (page: string) =
 function MoveList(props: { targets: MoveTarget[]; here: string; windowName: (win: string) => string; onPick: (t: MoveTarget) => void; onNewWindow: () => void }) {
   const wins = [...new Set(props.targets.map((t) => t.win))].sort((a, b) => (a === props.here ? -1 : b === props.here ? 1 : 0));
   const label = (t: MoveTarget) => {
-    if (!t.area) return `⧉ Ins ${props.windowName(t.win)}`;
-    if (t.area === NEW_AREA) return `▢ Eigener neuer Slot${t.disabled ? ' – kein Platz' : ''}`;
-    return `▣ In „${t.label}“ ablegen${t.count > 1 ? ` (${t.count})` : ''}${t.disabled ? ' – Stack voll' : ''}`;
+    if (!t.area) return `Ins ${props.windowName(t.win)}`;
+    if (t.area === NEW_AREA) return `Eigener neuer Slot${t.disabled ? ' – kein Platz' : ''}`;
+    return `In „${t.label}“ ablegen${t.count > 1 ? ` (${t.count})` : ''}${t.disabled ? ' – Stack voll' : ''}`;
   };
   return (
     <>
@@ -377,7 +377,7 @@ function MoveList(props: { targets: MoveTarget[]; here: string; windowName: (win
             <ul role="group" aria-label={w === props.here ? 'Dieser Desk' : props.windowName(w)} className="menu__group">
               <MenuHead>{w === props.here ? 'Dieser Desk' : props.windowName(w)}</MenuHead>
               {items.map((t) => (
-                <Item key={`${t.win}/${t.area}`} disabled={t.disabled} onClick={() => props.onPick(t)}>
+                <Item key={`${t.win}/${t.area}`} icon={!t.area ? 'desk' : t.area === NEW_AREA ? 'slot' : 'stack'} disabled={t.disabled} onClick={() => props.onPick(t)}>
                   {label(t)}
                 </Item>
               ))}
@@ -386,7 +386,7 @@ function MoveList(props: { targets: MoveTarget[]; here: string; windowName: (win
         );
       })}
       <li className="menu__sep" role="separator" />
-      <Item onClick={props.onNewWindow}>⧉ Neuer Desk</Item>
+      <Item icon="newDesk" onClick={props.onNewWindow}>Neuer Desk</Item>
     </>
   );
 }
@@ -555,7 +555,7 @@ export function PanelFrame(p: Props) {
         <header className="win__bar">
           {/* F-140: Schließen ganz links */}
           <button type="button" className="win__close" onClick={p.onClose} title="Portal schließen" aria-label="Portal schließen">
-            ×
+            <Icon name="close" size={14} />
           </button>
           <div className="win__nav">
             {/* F-135, NF-03: Nicht verfügbare Knöpfe bleiben erreichbar (aria-disabled) und sagen beim Klick, warum. */}
@@ -650,7 +650,7 @@ export function PanelFrame(p: Props) {
                 title={saved ? 'Source bearbeiten' : 'Source in der Library speichern'}
                 aria-label={saved ? 'Source bearbeiten' : 'Source in der Library speichern'}
               >
-                {saved ? '★' : '☆'}
+                <Icon name={saved ? 'starOn' : 'star'} size={14} />
               </button>
             )}
           </form>
@@ -672,7 +672,7 @@ export function PanelFrame(p: Props) {
             title={p.maximized ? 'Verkleinern (Esc)' : 'Maximieren'}
             aria-label={p.maximized ? 'Verkleinern' : 'Maximieren'}
           >
-            {p.maximized ? '⤡' : '⤢'}
+            <Icon name={p.maximized ? 'minimize' : 'maximize'} size={14} />
           </button>
           {!p.maximized && (
             <Menu icon={SizeIcon} label="Größe wählen (Voreinstellungen)">
@@ -754,11 +754,12 @@ export function PanelFrame(p: Props) {
               onClick={p.onCategory ?? p.onColors}
             >
               {p.category.color && <span className="win__cat-dot" aria-hidden="true" style={{ background: p.category.color }} />}
+              {p.category.icon && <Icon name={p.category.icon} size={14} className="icon win__cat-icon" />}
               <span className="win__cat-name">{p.category.name}</span>
             </button>
           )}
           {/* Panel-Optionen (F-20); Sammlung, Verhalten und Szenarien kommen später dazu. */}
-          <Menu icon="⋮" label="Portal-Optionen">
+          <Menu icon={<Icon name="more" size={16} />} label="Portal-Optionen">
             {(close) => {
               const run = (f: () => void) => () => {
                 f();
@@ -770,7 +771,7 @@ export function PanelFrame(p: Props) {
                     page ? (
                       // F-28: zweite Seite „Verschieben nach …“
                       <>
-                        <Item onClick={() => go('')}>← Zurück</Item>
+                        <Item icon="back" onClick={() => go('')}>Zurück</Item>
                         <MenuHead>{page === 'area' ? `Ganzen Slot „${areaName || p.panel.name}“ verschieben` : `„${p.panel.name}“ verschieben`}</MenuHead>
                         <MoveList
                           targets={p.moveTargets(page === 'area')}
@@ -782,49 +783,50 @@ export function PanelFrame(p: Props) {
                       </>
                     ) : (
                 <>
-                  <Item onClick={run(() => setDrawer({ kind: 'collection' }))}>☰ Library ({ownCount})</Item>
-                  {url && <Item onClick={run(() => editCurrent())}>{saved ? '★ Source bearbeiten' : '☆ Source in der Library speichern'}</Item>}
+                  <Item icon="library" onClick={run(() => setDrawer({ kind: 'collection' }))}>Library ({ownCount})</Item>
+                  {url && <Item icon={saved ? 'starOn' : 'star'} onClick={run(() => editCurrent())}>{saved ? 'Source bearbeiten' : 'Source in der Library speichern'}</Item>}
                   <li className="menu__sep" role="separator" />
-                  <Item onClick={run(addTab)}>＋ Neuer Tab</Item>
-                  <Item onClick={run(p.onAddHere)}>▣ Neues Portal auf „{p.panel.name}“ legen</Item>
+                  <Item icon="newTab" onClick={run(addTab)}>Neuer Tab</Item>
+                  <Item icon="stackOn" onClick={run(p.onAddHere)}>Neues Portal auf „{p.panel.name}“ legen</Item>
                   {/* F-27, F-28: Panel oder ganze Area auf eine andere Area, auch in ein anderes Fenster */}
                   <li className="menu__sep" role="separator" />
-                  <Item onClick={() => go('panel')}>↦ Portal verschieben …</Item>
-                  {p.stack && <Item onClick={() => go('area')}>↦ Ganzen Slot verschieben …</Item>}
+                  <Item icon="move" onClick={() => go('panel')}>Portal verschieben …</Item>
+                  {p.stack && <Item icon="move" onClick={() => go('area')}>Ganzen Slot verschieben …</Item>}
                   {p.stack &&
                     (() => {
                       const own = p.moveTargets(false).find((t) => t.win === (p.panel.win ?? '') && t.area === NEW_AREA);
                       return (
                         <Item
+                          icon="detach"
                           disabled={!own || own.disabled}
                           title={!own || own.disabled ? 'Auf dem Bildschirm ist kein Slot mehr frei.' : undefined}
                           onClick={run(() => own && p.onMove(own, false))}
                         >
-                          ⇱ Aus dem Stack lösen{!own || own.disabled ? ' – kein Platz' : ''}
+                          Aus dem Stack lösen{!own || own.disabled ? ' – kein Platz' : ''}
                         </Item>
                       );
                     })()}
                   <li className="menu__sep" role="separator" />
-                  <Item onClick={run(() => p.dispatch({ type: 'rulerPanel', id: p.panel.id }))}>
-                    {rulerShown(p.ws, p.panel) ? '▭ Lineal in diesem Portal ausblenden' : '▭ Lineal in diesem Portal zeigen'}
+                  <Item icon="ruler" onClick={run(() => p.dispatch({ type: 'rulerPanel', id: p.panel.id }))}>
+                    {rulerShown(p.ws, p.panel) ? 'Lineal in diesem Portal ausblenden' : 'Lineal in diesem Portal zeigen'}
                   </Item>
-                  <Item onClick={run(() => startEdit('panel'))}>✎ Portal umbenennen</Item>
-                  {p.onColors && <Item onClick={run(p.onColors)}>{TINT_TEXT.menu}</Item>}
-                  {p.stack && <Item onClick={run(() => startEdit('area'))}>✎ Slot umbenennen</Item>}
-                  {!p.maximized && <Item onClick={run(p.onStartSwap)}>⇄ Mit anderem Portal tauschen</Item>}
-                  {!p.maximized && <Item onClick={run(p.onReset)}>↺ Portal zurücksetzen</Item>}
-                  <Item onClick={run(p.onToggleMaximize)}>{p.maximized ? '⤡ Verkleinern (Esc)' : '⤢ Maximieren'}</Item>
+                  <Item icon="rename" onClick={run(() => startEdit('panel'))}>Portal umbenennen</Item>
+                  {p.onColors && <Item icon="colors" onClick={run(p.onColors)}>{TINT_TEXT.menu}</Item>}
+                  {p.stack && <Item icon="rename" onClick={run(() => startEdit('area'))}>Slot umbenennen</Item>}
+                  {!p.maximized && <Item icon="swap" onClick={run(p.onStartSwap)}>Mit anderem Portal tauschen</Item>}
+                  {!p.maximized && <Item icon="restore" onClick={run(p.onReset)}>Portal zurücksetzen</Item>}
+                  <Item icon={p.maximized ? 'minimize' : 'maximize'} onClick={run(p.onToggleMaximize)}>{p.maximized ? 'Verkleinern (Esc)' : 'Maximieren'}</Item>
                   {url && (
                     <>
                       <li className="menu__sep" role="separator" />
-                      <Item onClick={run(p.onSetHome)}>⌂ Als Startseite festlegen</Item>
-                      <Item onClick={run(() => void copyUrl())}>⧉ Adresse kopieren</Item>
-                      <Item onClick={run(() => openOutside(url, 'tab'))}>↗ In neuem Tab öffnen</Item>
-                      <Item onClick={run(() => openOutside(url, 'window'))}>⧉ In neuem Browserfenster öffnen</Item>
+                      <Item icon="home" onClick={run(p.onSetHome)}>Als Startseite festlegen</Item>
+                      <Item icon="copy" onClick={run(() => void copyUrl())}>Adresse kopieren</Item>
+                      <Item icon="external" onClick={run(() => openOutside(url, 'tab'))}>In neuem Tab öffnen</Item>
+                      <Item icon="newWindow" onClick={run(() => openOutside(url, 'window'))}>In neuem Browserfenster öffnen</Item>
                       {p.isBlocked(url) ? (
-                        <Item onClick={run(() => p.onEmbed(url, true))}>▣ {hostOf(url)} doch hier anzeigen</Item>
+                        <Item icon="show" onClick={run(() => p.onEmbed(url, true))}>{hostOf(url)} doch hier anzeigen</Item>
                       ) : (
-                        <Item onClick={run(() => p.onEmbed(url, false))}>⊘ Source lädt nicht – {hostOf(url)} als gesperrt merken</Item>
+                        <Item icon="blocked" onClick={run(() => p.onEmbed(url, false))}>Source lädt nicht – {hostOf(url)} als gesperrt merken</Item>
                       )}
                     </>
                   )}
@@ -887,7 +889,7 @@ export function PanelFrame(p: Props) {
                   p.onCloseTab(t.id);
                 }}
               >
-                ×
+                <Icon name="close" size={14} />
               </button>
             </div>
           ))}

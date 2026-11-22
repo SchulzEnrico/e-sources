@@ -13,6 +13,8 @@ import type { TintKind } from '../workspace/tint';
 import type { Workspace } from '../workspace/types';
 import type { Action } from '../workspace/useWorkspace';
 import { Row as TintRow } from './Colors';
+import { Icon } from './Icon';
+import { categoryIcon } from '../workspace/icons';
 
 type Change = Partial<Record<TintKind, string | null>>;
 
@@ -97,6 +99,12 @@ export function Rules(p: Props) {
             <strong>{r.name}</strong>
             {!r.on && <span className="rules__off"> · {RULES_TEXT.off}</span>}
           </label>
+          {r.kind === 'tint' &&
+            (() => {
+              // F-183 Stufe 2: Zeichen der Kategorie vor den Farbpunkten
+              const c = p.ws.categories.find((x) => x.id === r.category);
+              return c ? <Icon name={categoryIcon(c)} size={14} className="icon rules__icon" /> : null;
+            })()}
           {r.kind === 'tint' && r.tint && (
             <span className="rules__dots" aria-hidden="true">
               {r.tint.frame && <span className="rules__dot rules__dot--frame" style={{ borderColor: r.tint.frame }} />}

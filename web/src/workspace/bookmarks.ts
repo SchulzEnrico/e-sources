@@ -172,7 +172,7 @@ export function bookmarkOf(ws: Workspace, url: string | undefined, panelId?: str
 
 export interface Group {
   /** null = ohne Kategorie. */
-  category: Named | null;
+  category: Category | null;
   items: Bookmark[];
 }
 

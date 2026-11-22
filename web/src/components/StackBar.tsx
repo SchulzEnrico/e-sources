@@ -1,6 +1,7 @@
 import { useRef, useState, type PointerEvent, type TouchEvent, type WheelEvent } from 'react';
 import type { PanelMeta } from '../workspace/types';
 import { type Fx, StackAddIcon } from './PanelFrame';
+import { Icon } from './Icon';
 import { TERMS } from '../workspace/terms';
 
 /** F-08: Stapel-Leiste rechts am Panel – Klick wählt, Mausrad und Pfeile blättern. */
@@ -117,7 +118,7 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onRemove(m.id)}
             >
-              ×
+              <Icon name="close" size={14} />
             </button>
             </div>
             ),

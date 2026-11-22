@@ -29,6 +29,7 @@ import * as Ti from './tint';
 import * as Ca from './category';
 import * as Ru from './rules';
 import * as Ic from './icons';
+import * as Dis from './display';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -2293,5 +2294,45 @@ describe('F-183 Symbolsatz', () => {
       for (const d of def.d) expect(/^M[-\d.\s]/.test(d) && !/NaN|undefined/.test(d), `${n}: ${d}`).toBe(true);
     }
     expect(Ic.helpIcon('gibtsnicht')).toBe('help');
+  });
+});
+
+describe('F-183 Stufe 2', () => {
+  it('Kategorie-Zeichen: Vorschlag nach Name, eigene Wahl, zurück auf Vorschlag', () => {
+    expect(Ic.categoryIcon({ name: 'Video' })).toBe('catVideo');
+    expect(Ic.categoryIcon({ name: 'Mail & Kalender' })).toBe('catMail');
+    expect(Ic.categoryIcon({ name: 'Kalender' })).toBe('catCalendar');
+    expect(Ic.categoryIcon({ name: 'KI-Werkzeuge' })).toBe('catAi');
+    expect(Ic.categoryIcon({ name: 'Irgendwas' })).toBe('category');
+    let ws = W.defaultWorkspace();
+    ws = B.addCategory(ws, 'c-ed', 'Editor');
+    expect(Ic.categoryIcon(ws.categories[0])).toBe('catEditor');
+    ws = reducer(ws, { type: 'iconCategory', id: 'c-ed', icon: 'catHeart' });
+    expect(Ic.categoryIcon(ws.categories[0])).toBe('catHeart');
+    const same = reducer(ws, { type: 'iconCategory', id: 'c-ed', icon: 'catHeart' });
+    expect(same).toBe(ws);
+    ws = reducer(ws, { type: 'iconCategory', id: 'c-ed', icon: null });
+    expect(ws.categories[0].icon).toBeUndefined();
+  });
+  it('alle Kategorie-Zeichen gibt es im Satz, und gespeicherte Zeichen werden geprüft', () => {
+    for (const n of Ic.CATEGORY_ICONS) expect(Ic.ICONS[n], n).toBeDefined();
+    let ws = W.defaultWorkspace();
+    ws = B.addCategory(ws, 'c-a', 'A');
+    ws = B.addCategory(ws, 'c-b', 'B');
+    const raw = JSON.parse(JSON.stringify(ws));
+    raw.categories[0].icon = 'catMusic';
+    raw.categories[1].icon = '<script>';
+    const back = parseWorkspace(raw)!;
+    expect(back.categories[0].icon).toBe('catMusic');
+    expect(back.categories[1].icon).toBeUndefined();
+  });
+  it('Webseiten-Symbol direkt von der Seite, sonst Anfangsbuchstabe', () => {
+    expect(Dis.faviconUrl('https://www.youtube.com/watch?v=1')).toBe('https://www.youtube.com/favicon.ico');
+    expect(Dis.faviconUrl('http://localhost:2910/x')).toBe('http://localhost:2910/favicon.ico');
+    expect(Dis.faviconUrl('mailto:a@b.de')).toBeNull();
+    expect(Dis.faviconUrl('kein Link')).toBeNull();
+    expect(Dis.siteLetter('https://www.youtube.com/')).toBe('Y');
+    expect(Dis.siteLetter('https://überall.de/')).toBe('Ü');
+    expect(Dis.siteHue('https://a.de')).toBe(Dis.siteHue('https://www.a.de/x'));
   });
 });

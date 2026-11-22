@@ -12,6 +12,8 @@ export interface IconDef {
   vb?: number;
   /** Strichstärke im eigenen Raster, Standard 1.4. */
   w?: number;
+  /** Fläche füllen (z. B. gefüllter Stern). */
+  fill?: boolean;
 }
 
 const ring = (cx: number, cy: number, r: number) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0z`;
@@ -38,6 +40,7 @@ export const ICONS = {
   help: { d: [ring(8, 8, 6.5), 'M6 6.2a2 2 0 1 1 2.8 1.8c-.6.3-.8.7-.8 1.3', 'M8 11.5h.01'] },
   toggle: { d: ['M5 4.5h6a3.5 3.5 0 0 1 0 7H5a3.5 3.5 0 0 1 0-7z', ring(11, 8, 1.5)] },
   plus: { d: ['M8 3v10', 'M3 8h10'] },
+  newSlot: { d: ['M2 2h12v12H2z', 'M8 2v12', 'M11 6.5v3', 'M9.5 8h3'] },
   newDesk: { d: ['M2 2.5h12v8.5H2z', 'M5.5 14h5', 'M8 11v3', 'M8 4.5v4', 'M6 6.5h4'] },
   switchDesk: { d: ['M2 5h11', 'M10.5 2.5 13 5l-2.5 2.5', 'M14 11H3', 'M5.5 8.5 3 11l2.5 2.5'] },
   collect: { d: ['M2 2l3.5 3.5', 'M14 2l-3.5 3.5', 'M2 14l3.5-3.5', 'M14 14l-3.5-3.5', 'M6 6h4v4H6z'] },
@@ -72,6 +75,41 @@ export const ICONS = {
   profile: { d: [ring(8, 5, 3), 'M2.5 14a5.5 5.5 0 0 1 11 0'] },
   reload: { d: ['M13.5 2.5V6H10', 'M13.1 6A5.5 5.5 0 1 0 13.5 9.5'] },
   back: { d: ['M5.5 2.5 2 6l3.5 3.5', 'M2 6h7.5a4.5 4.5 0 0 1 0 9H6'], w: 1.5 },
+  // F-183 Stufe 2: Glyphen im Portal (bisher ⤢ ⤡ ⋮ ☆ ★ ☰ …)
+  close: { d: ['M4 4l8 8', 'M12 4l-8 8'], w: 1.6 },
+  minimize: { d: ['M6 2v4H2', 'M10 2v4h4', 'M14 10h-4v4', 'M2 10h4v4'] },
+  more: { d: ['M8 3.2h.01', 'M8 8h.01', 'M8 12.8h.01'], w: 2.6 },
+  star: { d: ['M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z'] },
+  starOn: { d: ['M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z'], fill: true },
+  newTab: { d: ['M1.5 13.5h7', 'M2.5 13.5V6h4.5l1-2.5h2', 'M12.5 8.5v5', 'M10 11h5'] },
+  stackOn: { d: ['M5 5h9v9H5z', 'M2.5 11.5V2.5h9', 'M9.5 7.5v4', 'M7.5 9.5h4'] },
+  move: { d: ['M2 8h10', 'M9 5l3 3-3 3', 'M14 3v10'] },
+  detach: { d: ['M2 6V2h4', 'M2 2l5 5', 'M9 2.5h4.5v11h-11V9'] },
+  home: { d: ['M2 7.5 8 2.5l6 5', 'M3.5 6.5V13.5h9V6.5', 'M6.5 13.5V10h3v3.5'] },
+  copy: { d: ['M5.5 5.5h8v8h-8z', 'M3.5 10.5h-1v-8h8v1'] },
+  external: { d: ['M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9', 'M9.5 2.5h4v4', 'M13.3 2.7 7.8 8.2'] },
+  newWindow: { d: ['M1.5 3.5h9v8h-9z', 'M1.5 6h9', 'M12.5 6v8h-9', 'M14.5 4v6'] },
+  blocked: { d: [ring(8, 8, 6), 'M3.8 12.2l8.4-8.4'] },
+  show: { d: ['M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z', ring(8, 8, 2)] },
+  // F-183 Stufe 2: Zeichen zur Wahl je Kategorie (F-163)
+  catEditor: { d: ['M3.5 1.5h6l3 3v10h-9z', 'M9.5 1.5v3h3', 'M5.5 8h5', 'M5.5 10.5h5', 'M5.5 13h3'] },
+  catMail: { d: ['M1.5 3.5h13v9h-13z', 'M1.5 4l6.5 5 6.5-5'] },
+  catChat: { d: ['M2 3h12v8H7l-3.5 3v-3H2z'] },
+  catCalendar: { d: ['M2 3.5h12v10.5H2z', 'M2 6.5h12', 'M5 2v3', 'M11 2v3', 'M5 9h.01', 'M8 9h.01', 'M11 9h.01', 'M5 11.5h.01', 'M8 11.5h.01'] },
+  catVideo: { d: ['M1.5 3.5h13v9h-13z', 'M6.5 6v4l3.5-2z'] },
+  catMusic: { d: ['M6 12V3l7-1.5v9', ring(4.5, 12, 1.5), ring(11.5, 10.5, 1.5)] },
+  catCode: { d: ['M5 4 1.5 8 5 12', 'M11 4l3.5 4L11 12', 'M9.2 2.5 6.8 13.5'] },
+  catJobs: { d: ['M1.5 5h13v8.5h-13z', 'M5.5 5V3h5v2', 'M1.5 8.5h13'] },
+  catPeople: { d: [ring(5.5, 5, 2.2), 'M1.5 13.5a4 4 0 0 1 8 0', ring(11.5, 5.5, 1.8), 'M10.5 9.6a3.4 3.4 0 0 1 4 3.9'] },
+  catNews: { d: ['M1.5 3h10v10.5H3a1.5 1.5 0 0 1-1.5-1.5z', 'M11.5 6h3v6a1.5 1.5 0 0 1-3 0', 'M4 5.5h5', 'M4 8h5', 'M4 10.5h3'] },
+  catShop: { d: ['M1.5 2h2l1.8 8h7.2l1.5-5.5H4.3', ring(6, 13, 1), ring(11.5, 13, 1)] },
+  catBook: { d: ['M8 4C6.5 2.8 4 2.5 1.5 3v10c2.5-.5 5-.2 6.5 1', 'M8 4c1.5-1.2 4-1.5 6.5-1v10c-2.5-.5-5-.2-6.5 1', 'M8 4v10'] },
+  catTravel: { d: ['M14.5 2 7 9.5', 'M14.5 2 10 14.5 7 9.5 1.5 6.5z'] },
+  catAi: { d: ['M8 1.5l1.4 4.1L13.5 7l-4.1 1.4L8 12.5 6.6 8.4 2.5 7l4.1-1.4z', 'M13 11.5v3', 'M11.5 13h3'] },
+  catPhoto: { d: ['M1.5 4.5h3l1.2-2h4.6l1.2 2h3v9h-13z', ring(8, 9, 2.5)] },
+  catMoney: { d: [ring(8, 8, 6.5), 'M10.2 5.6A2.8 2.8 0 0 0 5.8 6.8c0 2.4 4.4 1.2 4.4 3.4A2.8 2.8 0 0 1 5.8 11', 'M8 3.5v9'] },
+  catGame: { d: ['M4.5 4.5h7a3 3 0 0 1 3 3v1.5a2.5 2.5 0 0 1-4.4 1.6L9 9.5H7l-1.1 1.1A2.5 2.5 0 0 1 1.5 9V7.5a3 3 0 0 1 3-3z', 'M4.5 6.5v2', 'M3.5 7.5h2', 'M11 7h.01', 'M12 8.5h.01'] },
+  catHeart: { d: ['M8 13.5S1.5 9.8 1.5 5.6A3.1 3.1 0 0 1 8 4.2a3.1 3.1 0 0 1 6.5 1.4C14.5 9.8 8 13.5 8 13.5z'] },
 } satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;
@@ -81,14 +119,53 @@ export const HELP_ICON: Record<string, IconName> = {
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',
   cockpit: 'cockpit', view: 'view', maximize: 'maximize', search: 'search',
-  tour: 'tour', tourCockpit: 'tour', tourDesign: 'tour', tourImport: 'tour', toursAuto: 'toggle', help: 'help',
-  newSlot: 'slot', newDesk: 'newDesk', newPortal: 'portal', newTab: 'tab',
+  tour: 'tour', tourCockpit: 'tour', tourDesign: 'tour', tourImport: 'tour', toursAuto: 'toggle', help: 'help', compact: 'dashboard', favicons: 'source',
+  newSlot: 'newSlot', newDesk: 'newDesk', newPortal: 'portal', newTab: 'tab',
   switchDesk: 'switchDesk', collectDesks: 'collect', distributeDesks: 'spread',
   design: 'design', colorRules: 'category', rules: 'rules', colors: 'colors',
   adjust: 'adjust', focusRule: 'sliders', restore: 'restore', closed: 'closed',
   nextTab: 'next', nextPortal: 'next', distribute: 'distribute', swap: 'swap', rename: 'rename', stackDelete: 'remove', ruler: 'ruler',
   importBookmarks: 'import', sortHelp: 'sort', exportBookmarks: 'export', profile: 'profile', reload: 'reload', exportDesks: 'transfer',
 };
+
+/** F-183 Stufe 2: Zeichen zur Wahl für Kategorien, in dieser Reihenfolge im Dialog „Farben“. */
+export const CATEGORY_ICONS = [
+  'category', 'catEditor', 'catMail', 'catChat', 'catCalendar', 'catVideo', 'catMusic', 'catCode', 'catJobs',
+  'catPeople', 'catNews', 'catShop', 'catBook', 'catTravel', 'catAi', 'catPhoto', 'catMoney', 'catGame', 'catHeart', 'star',
+] as const satisfies readonly IconName[];
+
+export type CategoryIcon = (typeof CATEGORY_ICONS)[number];
+
+/** Vorschlag je bekanntem Kategorie-Namen (Sortierhilfe F-180 und übliche Namen); Vergleich ohne Groß/klein. */
+const NAME_ICON: [RegExp, CategoryIcon][] = [
+  [/video|film|serie|stream/, 'catVideo'],
+  [/musik|music|podcast|radio/, 'catMusic'],
+  [/mail|e-post/, 'catMail'],
+  [/kalender|calendar|termin/, 'catCalendar'],
+  [/chat|messenger/, 'catChat'],
+  [/entwickl|code|dev|program/, 'catCode'],
+  [/job|bewerb|arbeit|beruf|karriere/, 'catJobs'],
+  [/netzwerk|social|sozial|freunde|community/, 'catPeople'],
+  [/nachricht|news|zeitung|presse/, 'catNews'],
+  [/einkauf|shop|kauf/, 'catShop'],
+  [/wissen|lernen|lexikon|recherche|bildung/, 'catBook'],
+  [/reise|travel|urlaub/, 'catTravel'],
+  [/\bki\b|ki-|ai\b|künstlich/, 'catAi'],
+  [/foto|bild|photo/, 'catPhoto'],
+  [/finanz|geld|bank|money/, 'catMoney'],
+  [/spiel|game/, 'catGame'],
+  [/editor|dokument|text|schreib|office|notiz/, 'catEditor'],
+  [/favorit|lieblings/, 'catHeart'],
+];
+
+const isCategoryIcon = (v: string | undefined): v is CategoryIcon => !!v && (CATEGORY_ICONS as readonly string[]).includes(v);
+
+/** Zeichen einer Kategorie: gewähltes, sonst Vorschlag nach Name, sonst das allgemeine Kategorie-Zeichen. */
+export function categoryIcon(c: { name: string; icon?: string }): CategoryIcon {
+  if (isCategoryIcon(c.icon)) return c.icon;
+  const n = c.name.toLowerCase();
+  return NAME_ICON.find(([re]) => re.test(n))?.[1] ?? 'category';
+}
 
 /** Symbol zu einem Hilfe-Eintrag; ohne Zuordnung das Hilfe-Symbol. */
 export const helpIcon = (id: string): IconName => HELP_ICON[id] ?? 'help';

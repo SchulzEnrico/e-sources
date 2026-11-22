@@ -1,3 +1,4 @@
+import { CATEGORY_ICONS } from './icons';
 import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
 import { parseDeskLooks, parseLook } from './look';
 import { parseTint } from './tint';
@@ -137,9 +138,16 @@ export function parseWorkspace(data: unknown): Workspace | null {
   const lines: Record<string, 1 | 2> = {};
   if (isObj(data.lines)) for (const [k, v] of Object.entries(data.lines)) if (v === 1 || v === 2) lines[k] = v;
   // F-163: Farben der Kategorie prüfen; Unbrauchbares fällt weg
+  // F-183 Stufe 2: Zeichen nur aus dem Satz
   const categories: Category[] = namedList(data.categories).map((c) => {
     const tint = parseTint((c as { tint?: unknown }).tint);
-    return tint ? { id: c.id, name: c.name, tint } : { id: c.id, name: c.name };
+    const icon = (c as { icon?: unknown }).icon;
+    return {
+      id: c.id,
+      name: c.name,
+      ...(tint ? { tint } : {}),
+      ...(typeof icon === 'string' && (CATEGORY_ICONS as readonly string[]).includes(icon) ? { icon } : {}),
+    };
   });
   const catIds = new Set(categories.map((c) => c.id));
   for (const p of panels as PanelMeta[]) if (p.category && !catIds.has(p.category)) delete p.category;

@@ -8,6 +8,7 @@
  * Bild↓/Bild↑ springt 5 weiter · Pos1/Ende erster/letzter Treffer (mit Alt) · Enter öffnet ·
  * Esc leert, ein zweites Esc verlässt das Feld · Tab verlässt das Feld und schließt die Liste.
  */
+import { SiteIcon, useDisplay } from './SiteIcon';
 import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { type PanelHit, type SearchHit, SEARCH_MAX, bookmarkOf, searchAll, searchPanels } from '../workspace/bookmarks';
 import { hostOf, isBlocked, tabLabel } from '../workspace/workspace';
@@ -49,6 +50,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
   const [sel, setSel] = useState(0);
   const box = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const display = useDisplay();
   const list = useRef<HTMLUListElement>(null);
 
   // F-149: Sources, die außerhalb aufgehen, nur einmal zeigen (das Portal spielt für sie keine Rolle)
@@ -303,6 +305,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
               <>
                 <span className="search__title">
                   <Icon name={out ? 'launcher' : 'source'} className="icon search__icon" />
+                  <SiteIcon url={h.bookmark.url} size={14} on={display.favicons} />
                   {title}
                 </span>
                 <span className="search__where">

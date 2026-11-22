@@ -39,7 +39,10 @@ import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf } from './workspace/workspace';
-import { CATEGORY_TEXT, DESK_LOOK_TEXT, TERMS, TINT_TEXT } from './workspace/terms';
+import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_LOOK_TEXT, DISPLAY_TEXT, TERMS, TINT_TEXT } from './workspace/terms';
+import { setCompact, setFavicons } from './workspace/display';
+import { useDisplay } from './components/SiteIcon';
+import { categoryIcon } from './workspace/icons';
 import { clearDeskTints, deskTintCount, shownTint, slotTint, type TintSnapshot } from './workspace/tint';
 import { categoryOf, categoryPortals, categoryTint, suggestCategory } from './workspace/category';
 import { ruleOn, tintRuleId } from './workspace/rules';
@@ -354,6 +357,16 @@ function DeskApp(props: DeskProps) {
   const startDesignTour = () => {
     setDesign(true);
     window.setTimeout(() => setTour('design'), design ? 0 : 150);
+  };
+  // F-183 Stufe 2: Kompakt und Webseiten-Symbole (gelten für diesen Browser)
+  const display = useDisplay();
+  const switchCompact = () => {
+    setCompact(!display.compact);
+    notify(display.compact ? DISPLAY_TEXT.compactOff : DISPLAY_TEXT.compactOn);
+  };
+  const switchFavicons = () => {
+    setFavicons(!display.favicons);
+    notify(display.favicons ? DISPLAY_TEXT.faviconsOff : DISPLAY_TEXT.faviconsOn);
   };
   const switchAutoTours = () => {
     const on = !autoTours;
@@ -1325,7 +1338,7 @@ function DeskApp(props: DeskProps) {
         onCategory={() => (setColorsCat(true), setColorsFor(meta.id))}
         category={(() => {
           const c = categoryOf(ws, meta);
-          return c ? { name: c.name, color: c.tint?.frame ?? c.tint?.accent } : undefined;
+          return c ? { name: c.name, color: c.tint?.frame ?? c.tint?.accent, icon: categoryIcon(c) } : undefined;
         })()}
         share={onArea && { w: onArea.rect.w, h: onArea.rect.h }}
         stack={
@@ -1519,6 +1532,10 @@ function DeskApp(props: DeskProps) {
         return startImportTour();
       case 'toursAuto':
         return switchAutoTours();
+      case 'compact':
+        return switchCompact();
+      case 'favicons':
+        return switchFavicons();
       case 'restore':
         return restore();
       case 'closed':
@@ -1554,7 +1571,7 @@ function DeskApp(props: DeskProps) {
           title={`Neuen Slot anlegen – ${fx.panel.text}`}
           onClick={() => newSlot('right')}
         >
-          +<span className="tb-label"> NewSlot</span>
+          <Icon name="newSlot" size={15} className="icon tb-plus" /><span className="tb-label"> NewSlot</span>
         </button>
         {win && (
           <button type="button" onClick={() => window.close()}>
@@ -1682,7 +1699,7 @@ function DeskApp(props: DeskProps) {
 
 
   return (
-    <div className="app">
+    <div className={display.compact ? 'app app--compact' : 'app'}>
       <header className="toolbar" ref={toolbarRef}>
         {/* F-154: Logo und Name des Desks teilen sich die linke Spalte; der Main Desk heißt fest so, weitere Desks lassen sich umbenennen */}
         <div className="brand">
@@ -1757,7 +1774,7 @@ function DeskApp(props: DeskProps) {
             aria-label={`+ NewDesk, ${fx.panel.text}`}
             onClick={addNewDesk}
           >
-            +<span className="tb-label"> NewDesk</span>
+            <Icon name="newDesk" size={15} className="icon tb-plus" /><span className="tb-label"> NewDesk</span>
           </button>
         </div>
         {/* F-146: Logo links, Bedienelemente mittig, Gesamtfokus ganz rechts */}
@@ -1831,7 +1848,7 @@ function DeskApp(props: DeskProps) {
         })()}
         {/* F-134: „+ Area“ – neue Spalte rechts oder Zeile unten; Panels kommen über die Areas dazu. */}
         {canAddArea(ws, setup) ? (
-          <Menu icon={<span className="tb-add fx" style={{ '--fx': fx.panel.color } as CSSProperties}>+<span className="tb-label"> NewSlot</span></span>} label={`Neuen Slot anlegen – ${TERMS.slot} – ${fx.panel.text}`}>
+          <Menu icon={<span className="tb-add fx" style={{ '--fx': fx.panel.color } as CSSProperties}><Icon name="newSlot" size={15} className="icon tb-plus" /><span className="tb-label"> NewSlot</span></span>} label={`Neuen Slot anlegen – ${TERMS.slot} – ${fx.panel.text}`}>
             {(close) => (
               <>
                 <Item
@@ -1863,7 +1880,7 @@ function DeskApp(props: DeskProps) {
             title={`Bildschirm voll – weitere Portale über das Plus eines Portals anlegen (${fx.panel.text})`}
             onClick={() => notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.capacity} Slots). Weitere Portale legst du über das Plus in der Kopfleiste eines Portals auf seinen Slot.`, 5000)}
           >
-            +<span className="tb-label"> NewSlot</span>
+            <Icon name="newSlot" size={15} className="icon tb-plus" /><span className="tb-label"> NewSlot</span>
           </button>
         )}
         {/* F-156: Hilfe – alle Funktionen und Begriffe mit Kürzeln */}
@@ -2058,6 +2075,13 @@ function DeskApp(props: DeskProps) {
               <Item checked={autoTours} onClick={switchAutoTours}>
                 Touren automatisch zeigen
               </Item>
+              {/* F-183 Stufe 2: Anzeige der Symbole */}
+              <Item checked={display.compact} onClick={switchCompact}>
+                {DISPLAY_TEXT.compact}
+              </Item>
+              <Item checked={display.favicons} onClick={switchFavicons}>
+                {DISPLAY_TEXT.favicons}
+              </Item>
               {/* F-132 Urheberrechtsvermerk */}
               <li className="menu__sep" role="separator" />
               <li className="menu__copy">© 2026 Enrico Schulz</li>
@@ -2150,6 +2174,13 @@ function DeskApp(props: DeskProps) {
               onCategory={(id) => dispatch({ type: 'panelCategory', id: meta.id, category: id, url: activeTab(meta).url })}
               onNewCategory={(name) => dispatch({ type: 'panelNewCategory', id: meta.id, name, catId: newId(), url: activeTab(meta).url })}
               onCategoryTint={(change) => meta.category && dispatch({ type: 'tintCategory', id: meta.category, change })}
+              onCategoryIcon={(icon) => {
+                const c = categoryOf(ws, meta);
+                if (!c) return;
+                dispatch({ type: 'iconCategory', id: c.id, icon });
+                const shown = icon ?? categoryIcon({ name: c.name });
+                sayLive(CATEGORY_TEXT.iconDone(c.name, CATEGORY_ICON_LABEL[shown] ?? shown));
+              }}
               onPortal={(change) => dispatch({ type: 'tintPanel', id: meta.id, change })}
               onSlot={(change) => dispatch({ type: 'tintSlot', setup, area: slot.id, change })}
               onReset={() => {
@@ -2299,7 +2330,7 @@ function DeskApp(props: DeskProps) {
             {sizeSaid}
           </span>
           <button type="button" onClick={() => setSizeMode(false)} aria-label="Adjust beenden" title="Fertig (Enter/Esc)">
-            ×
+            <Icon name="close" size={14} />
           </button>
         </div>
       )}
@@ -2338,7 +2369,7 @@ function DeskApp(props: DeskProps) {
               </button>
             ))}
           <button type="button" onClick={() => setFlash(null)} aria-label="Hinweis schließen" title="Schließen">
-            ×
+            <Icon name="close" size={14} />
           </button>
         </div>
       )}

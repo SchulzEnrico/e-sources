@@ -76,7 +76,7 @@ export function Help({ at, onClose, onRun }: Props) {
       <header className="help__head">
         <h2 id="help-title">Hilfe – Funktionen und Begriffe</h2>
         <button type="button" className="help__x" onClick={onClose} title="Schließen (Esc)" aria-label="Hilfe schließen">
-          ×
+          <Icon name="close" size={14} />
         </button>
       </header>
       <p className="help__intro">

@@ -8,9 +8,11 @@
  */
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { ACCENTS, contrastWarning, type Shown } from '../workspace/look';
-import { CATEGORY_TEXT, TINT_TEXT } from '../workspace/terms';
+import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, TINT_TEXT } from '../workspace/terms';
 import type { TintKind } from '../workspace/tint';
-import type { Named, Tint } from '../workspace/types';
+import type { Category, Tint } from '../workspace/types';
+import { CATEGORY_ICONS, categoryIcon } from '../workspace/icons';
+import { Icon } from './Icon';
 
 type Change = Partial<Record<TintKind, string | null>>;
 
@@ -24,7 +26,7 @@ interface Props {
   onPortal: (change: Change) => void;
   onSlot: (change: Change) => void;
   /** F-163: Kategorien der Library, Kategorie des Portals ('' = ohne, fehlt = noch keine Wahl) und deren Farben. */
-  categories: Named[];
+  categories: Category[];
   category?: string;
   categoryTint?: Tint;
   /** F-164: Farbregel dieser Kategorie ist im Cockpit ausgeschaltet. */
@@ -34,6 +36,8 @@ interface Props {
   onCategory: (id: string) => void;
   onNewCategory: (name: string) => void;
   onCategoryTint: (change: Change) => void;
+  /** F-183 Stufe 2: Zeichen der Kategorie (null = Vorschlag nach Name). */
+  onCategoryIcon: (icon: string | null) => void;
   /** Beim Öffnen auf die Wahl der Kategorie setzen (aus der Frage nach der Kategorie). */
   focusCategory?: boolean;
   /** Portal und Slot auf die Farben des Desks zurücksetzen. */
@@ -141,7 +145,7 @@ export function Colors(props: Props) {
           </button>
         )}
         <button type="button" className="help__x" onClick={props.onClose} title="Schließen (Esc)" aria-label={`${TINT_TEXT.title} schließen`}>
-          ×
+          <Icon name="close" size={14} />
         </button>
       </header>
       <p id="colors-intro" className="help__intro">
@@ -227,10 +231,69 @@ export function Colors(props: Props) {
               {props.categoryOff && <p className="colors__count">{CATEGORY_TEXT.ruleOff}</p>}
               <Row id="colors-cf" label={TINT_TEXT.frame} kind="frame" value={ct?.frame} inherit={TINT_TEXT.noFrame} shown={props.shown} onChange={(v) => props.onCategoryTint({ frame: v })} />
               <Row id="colors-ca" label={TINT_TEXT.accent} kind="accent" value={ct?.accent} inherit={TINT_TEXT.likeDesk} shown={props.shown} onChange={(v) => props.onCategoryTint({ accent: v })} />
+              <IconRow cat={cat} onChange={props.onCategoryIcon} />
             </>
           )}
         </section>
       </div>
     </dialog>
+  );
+}
+
+/**
+ * F-183 Stufe 2: Zeichen der Kategorie wählen. Auswahl als Optionsgruppe (radiogroup): Tab springt
+ * hinein, Pfeiltasten wählen, jedes Zeichen hat seinen Namen als aria-label und Tooltip (NF-03).
+ */
+function IconRow({ cat, onChange }: { cat: Category; onChange: (icon: string | null) => void }) {
+  const auto = categoryIcon({ name: cat.name });
+  const options: (string | null)[] = [null, ...CATEGORY_ICONS];
+  const current = cat.icon ?? null;
+  const at = Math.max(0, options.indexOf(current));
+  const group = useRef<HTMLSpanElement>(null);
+  const label = (o: string | null) => (o ? CATEGORY_ICON_LABEL[o] ?? o : CATEGORY_TEXT.iconAuto(CATEGORY_ICON_LABEL[auto] ?? auto));
+  const pick = (i: number) => {
+    onChange(options[i]);
+    window.setTimeout(() => group.current?.querySelectorAll<HTMLElement>('[role="radio"]')[i]?.focus(), 0);
+  };
+  return (
+    <div className="colors__row">
+      <span id="colors-ci" className="colors__label">
+        {CATEGORY_TEXT.icon}
+      </span>
+      <span
+        ref={group}
+        className="colors__icons"
+        role="radiogroup"
+        aria-labelledby="colors-ci"
+        aria-describedby="colors-ci-note"
+        onKeyDown={(e) => {
+          const n = options.length;
+          const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+          const to = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : step ? (at + step + n) % n : -1;
+          if (to < 0) return;
+          e.preventDefault();
+          pick(to);
+        }}
+      >
+        {options.map((o, i) => (
+          <button
+            key={o ?? 'auto'}
+            type="button"
+            role="radio"
+            aria-checked={i === at}
+            tabIndex={i === at ? 0 : -1}
+            className={i === at ? (o ? 'colors__icon on' : 'colors__inherit colors__icon-auto on') : o ? 'colors__icon' : 'colors__inherit colors__icon-auto'}
+            title={label(o)}
+            aria-label={label(o)}
+            onClick={() => pick(i)}
+          >
+            {o ? <Icon name={o as (typeof CATEGORY_ICONS)[number]} /> : <><Icon name={auto} /> {CATEGORY_TEXT.iconAuto('').replace(' ()', '')}</>}
+          </button>
+        ))}
+      </span>
+      <span id="colors-ci-note" hidden>
+        {CATEGORY_TEXT.iconIntro}
+      </span>
+    </div>
   );
 }

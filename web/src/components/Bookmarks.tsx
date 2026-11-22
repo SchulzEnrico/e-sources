@@ -1,3 +1,6 @@
+import { Icon } from './Icon';
+import { SiteIcon, useDisplay } from './SiteIcon';
+import { categoryIcon } from '../workspace/icons';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { Bookmark, Workspace } from '../workspace/types';
@@ -29,7 +32,7 @@ function Drawer(props: { title: string; onClose: () => void; children: ReactNode
       <header className="drawer__head">
         <h3>{props.title}</h3>
         <button type="button" className="drawer__x" onClick={props.onClose} title="Schließen (Esc)" aria-label="Schließen">
-          ×
+          <Icon name="close" size={14} />
         </button>
       </header>
       <div className="drawer__body">{props.children}</div>
@@ -219,6 +222,7 @@ export function CollectionDrawer(props: {
     setAnnounce(`Kategorie ${name} jetzt an Position ${target + 1} von ${catCount}.`);
   };
   const list = groups(ws, scope === 'panel' ? panelId : null, query);
+  const display = useDisplay();
   const total = list.reduce((n, g) => n + g.items.length, 0);
 
   const endDrag = () => {
@@ -266,7 +270,7 @@ export function CollectionDrawer(props: {
         <input className="bm-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Suchen: Titel, Adresse, Kategorie, #Tag" aria-label="Library durchsuchen" />
         {props.onSaveCurrent && (
           <button type="button" className="bm-save-current" onClick={props.onSaveCurrent}>
-            {props.saved ? '★ Diese Source bearbeiten' : '☆ Diese Source speichern'}
+            <Icon name={props.saved ? 'starOn' : 'star'} className="icon icon--inline" /> {props.saved ? 'Diese Source bearbeiten' : 'Diese Source speichern'}
           </button>
         )}
       </div>
@@ -373,6 +377,7 @@ export function CollectionDrawer(props: {
                 />
               ) : (
                 <span className="bm-cat__name" onDoubleClick={() => g.category && (setEditCat(catId), setCatDraft(g.category.name))}>
+                  {g.category && <Icon name={categoryIcon(g.category)} size={14} className="icon bm-cat__icon" />}
                   {g.category?.name ?? 'Ohne Kategorie'}
                 </span>
               )}
@@ -397,7 +402,7 @@ export function CollectionDrawer(props: {
                     </button>
                   ) : (
                     <button type="button" className="bm-icon" title="Kategorie löschen" aria-label="Kategorie löschen" onClick={() => setDeleteCat(catId)}>
-                      ×
+                      <Icon name="close" size={14} />
                     </button>
                   )}
                 </>
@@ -433,7 +438,10 @@ export function CollectionDrawer(props: {
                       ⋮⋮
                     </span>
                     <button type="button" className="bm-open" onClick={() => props.onOpen(b.url)} title={`${b.url}${b.note ? `\n${b.note}` : ''}`}>
-                      <span className="bm-title">{b.title}</span>
+                      <span className="bm-title">
+                        <SiteIcon url={b.url} on={display.favicons} />
+                        {b.title}
+                      </span>
                       <span className="bm-host">
                         {hostOf(b.url)}
                         {b.tags.length > 0 && ` · ${b.tags.map((t) => `#${t}`).join(' ')}`}
@@ -447,7 +455,7 @@ export function CollectionDrawer(props: {
                       aria-label={mine ? 'Aus diesem Portal nehmen' : 'In dieses Portal aufnehmen'}
                       aria-pressed={mine}
                     >
-                      {mine ? '★' : '☆'}
+                      <Icon name={mine ? 'starOn' : 'star'} size={14} />
                     </button>
                     <button type="button" className="bm-icon" onClick={() => props.onEdit(b)} title="Bearbeiten" aria-label="Bearbeiten">
                       ✎

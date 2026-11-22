@@ -3,6 +3,7 @@
  * weiterer Tabs. Ein Feld gilt beim Verlassen oder mit Enter; unpassende Werte werden geordnet
  * (jede Grenze über der vorigen) und das wird angesagt. Native <dialog> wie die Hilfe (NF-03).
  */
+import { Icon } from './Icon';
 import { useEffect, useRef, useState } from 'react';
 import { FOCUS_MAX, FOCUS_RULE, TAB_WEIGHTS, type FocusRule as Rule, fixRule, focusLevel, colorOfLevel, pointsText, ruleText } from '../workspace/focus';
 import { TERMS } from '../workspace/terms';
@@ -71,7 +72,7 @@ export function FocusRule({ rule, points, onChange, onClose }: Props) {
       <header className="help__head">
         <h2 id="focusrule-title">Fokusanzeige anpassen</h2>
         <button type="button" className="help__x" onClick={onClose} title="Schließen (Esc)" aria-label="Fokusanzeige anpassen schließen">
-          ×
+          <Icon name="close" size={14} />
         </button>
       </header>
       <p className="help__intro" id="focusrule-intro">

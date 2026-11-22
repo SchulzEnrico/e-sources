@@ -1,3 +1,4 @@
+import { Icon } from './Icon';
 import { useEffect, useRef, useState } from 'react';
 import type { RulerSettings } from '../workspace/types';
 import { RULER_COLORS } from '../workspace/workspace';
@@ -78,7 +79,7 @@ export function Ruler(props: { settings: RulerSettings; onStyle: (change: { labe
           123
         </button>
         <button type="button" onClick={props.onClose} title="Lineal in diesem Portal ausblenden" aria-label="Lineal ausblenden">
-          ×
+          <Icon name="close" size={14} />
         </button>
       </div>
     </div>

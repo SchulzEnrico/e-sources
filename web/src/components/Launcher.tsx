@@ -275,7 +275,7 @@ export function Launcher({ ws, state, onState, onOpen, onAdd, say, focusReq }: P
           –
         </button>
         <button type="button" className="launcher__btn" onClick={close} aria-label="Launcher schließen" title="Schließen (Esc · Alt/⌥+L)">
-          ×
+          <Icon name="close" size={14} />
         </button>
       </header>
       <p id={`${uid}-d`} className="launcher__intro">

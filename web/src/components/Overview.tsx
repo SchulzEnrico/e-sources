@@ -162,7 +162,7 @@ function MovePicker(props: { title: string; targets: MoveTarget[]; here: string;
       <div className="overview__pick-head">
         <strong>{props.title}</strong>
         <button type="button" className="overview__x" onClick={props.onCancel} title="Abbrechen (Esc)" aria-label="Verschieben abbrechen">
-          ×
+          <Icon name="close" size={14} />
         </button>
       </div>
       {usable.length === 0 && <p className="overview__empty">Gerade ist kein Slot frei – nur ein neuer Desk.</p>}
@@ -645,7 +645,7 @@ export function Overview(p: OverviewProps) {
           <Icon name="rename" size={14} />
         </button>
         <button type="button" className="overview__tool overview__tool--x" tabIndex={-1} title="Portal schließen (Entf)" aria-label={`„${x.meta.name}“ schließen`} onClick={() => close(id, x.meta.name)}>
-          ×
+          <Icon name="close" size={14} />
         </button>
       </li>
     );
@@ -853,13 +853,13 @@ export function Overview(p: OverviewProps) {
           {p.ws.windows.length > 0 && p.onCollect && (
             <button type="button" className="overview__tour" onClick={p.onCollect} title={TERMS.collectDesks}>
               <Icon name="collect" />
-              Hier sammeln
+              <span className="c-label">Hier sammeln</span>
             </button>
           )}
           {p.ws.windows.length > 0 && p.onDistribute && (
             <button type="button" className="overview__tour" onClick={p.onDistribute} title={TERMS.distributeDesks}>
               <Icon name="spread" />
-              Verteilen
+              <span className="c-label">Verteilen</span>
             </button>
           )}
           {p.dispatch && (
@@ -868,6 +868,7 @@ export function Overview(p: OverviewProps) {
               type="button"
               className="overview__tour overview__rules"
               aria-pressed={rules}
+              aria-label={rules ? RULES_TEXT.back : RULES_TEXT.open}
               title={rules ? RULES_TEXT.backTitle : RULES_TEXT.openTitle}
               onClick={() => {
                 setRules(!rules);
@@ -875,17 +876,17 @@ export function Overview(p: OverviewProps) {
               }}
             >
               <Icon name={rules ? 'radar' : 'rules'} />
-              {rules ? RULES_TEXT.back : RULES_TEXT.open}
+              <span className="c-label">{rules ? RULES_TEXT.back : RULES_TEXT.open}</span>
             </button>
           )}
           {p.onTour && (
             <button type="button" className="overview__tour overview__restart" onClick={p.onTour} title="Kurze Einführung ins Cockpit" aria-label="Tour durch das Cockpit starten">
               <Icon name="tour" />
-              Tour
+              <span className="c-label">Tour</span>
             </button>
           )}
           <button type="button" className="overview__x" onClick={dismiss} title="Cockpit schließen (Esc)" aria-label="Cockpit schließen">
-            ×
+            <Icon name="close" size={14} />
           </button>
         </div>
         <p id="overview-help" className="sr-only">

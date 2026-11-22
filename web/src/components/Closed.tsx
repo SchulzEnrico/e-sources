@@ -3,6 +3,7 @@
  * jeder einzeln wiederherstellbar. Native <dialog> mit showModal wie die Hilfe: Fokus bleibt im
  * Dialog, Esc schließt, danach springt der Fokus zurück (NF-03).
  */
+import { Icon } from './Icon';
 import { useEffect, useRef } from 'react';
 import { agoText, closedLabel } from '../workspace/closed';
 import type { Closed as Entry } from '../workspace/types';
@@ -46,7 +47,7 @@ export function Closed({ entries, onRestore, onClose }: Props) {
       <header className="help__head">
         <h2 id="closed-title">Zuletzt geschlossen</h2>
         <button type="button" className="help__x" onClick={onClose} title="Schließen (Esc)" aria-label="Zuletzt geschlossen schließen">
-          ×
+          <Icon name="close" size={14} />
         </button>
       </header>
       <p className="help__intro">

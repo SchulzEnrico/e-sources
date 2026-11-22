@@ -3,6 +3,7 @@
  * Nimmt den Fokus nicht weg (kein Dialog), wird von App höflich angesagt (NF-03). Verschwindet nach
  * einer Weile von selbst, aber nicht, solange Maus oder Fokus darauf liegen; × schließt sofort.
  */
+import { Icon } from './Icon';
 import { useEffect, useRef, useState } from 'react';
 import type { Profile } from '../workspace/profile';
 import { Avatar } from './Profile';
@@ -69,7 +70,7 @@ export function Greeting({ profile, greeting, last, onContinue, onProfile, onClo
         </div>
       </div>
       <button type="button" className="greeting__x" onClick={onClose} title="Begrüßung schließen (Esc)" aria-label="Begrüßung schließen">
-        ×
+        <Icon name="close" size={14} />
       </button>
     </section>
   );

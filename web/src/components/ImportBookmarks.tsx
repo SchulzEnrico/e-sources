@@ -3,6 +3,7 @@
  * wählen, wie fein die Ordner zu Kategorien werden – damit niemand Hunderte Sources von Hand
  * einsortieren muss. Native <dialog> wie die Hilfe (NF-03): Fokus im Dialog, Esc bricht ab.
  */
+import { Icon } from './Icon';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { type BrowserBookmark, type ImportHow, type ImportPlan, importLabel, planImport } from '../workspace/browserBookmarks';
 import { TERMS } from '../workspace/terms';
@@ -71,7 +72,7 @@ export function ImportBookmarks({ ws, fileName, list, onImport, onClose, onTour,
           Tour
         </button>
         <button type="button" className="help__x" onClick={onClose} title="Abbrechen (Esc)" aria-label="Lesezeichen importieren abbrechen">
-          ×
+          <Icon name="close" size={14} />
         </button>
       </header>
       <div className="help__body import__body">

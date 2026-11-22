@@ -4,6 +4,7 @@
  * (F-163) hinzu. Native <dialog> mit showModal: Fokus bleibt im Dialog, Esc schließt, danach geht
  * der Fokus zurück zum Auslöser (NF-03). Die Tour „Design“ (F-171) läuft in diesem Dialog.
  */
+import { Icon } from './Icon';
 import { type CSSProperties, type ReactNode, useEffect, useRef } from 'react';
 import { ACCENTS, type Look, THEMES } from '../workspace/look';
 import { helpById } from '../workspace/help';
@@ -69,7 +70,7 @@ export function Design({ look, warning, onLook, desk, main, own, onFollowMain, t
           Tour
         </button>
         <button type="button" className="help__x" onClick={onClose} title="Schließen (Esc)" aria-label="Design anpassen schließen">
-          ×
+          <Icon name="close" size={14} />
         </button>
       </header>
       <p id="design-intro" className="help__intro">

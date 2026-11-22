@@ -4,6 +4,7 @@
  * (Kategorie wählen oder neu eintippen, Enter). Nach jedem Schritt springt der Fokus zur nächsten
  * Gruppe, das Ergebnis wird angesagt (NF-03). Native <dialog>, Esc schließt.
  */
+import { Icon } from './Icon';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sortGroups } from '../workspace/sortHelp';
 import { TERMS } from '../workspace/terms';
@@ -79,7 +80,7 @@ export function SortHelp({ ws, onSort, onSortAll, onClose }: Props) {
       <header className="help__head">
         <h2 id="sorthelp-title">Sortierhilfe</h2>
         <button type="button" className="help__x" onClick={onClose} title="Schließen (Esc)" aria-label="Sortierhilfe schließen">
-          ×
+          <Icon name="close" size={14} />
         </button>
       </header>
       <p className="help__intro" id="sorthelp-intro">

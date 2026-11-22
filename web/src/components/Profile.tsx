@@ -3,6 +3,7 @@
  * Änderungen gelten sofort (wie „Design anpassen“). Native <dialog> wie die Hilfe (NF-03):
  * Fokus im Namensfeld, Kennfarben als Radiogruppe (Pfeiltasten), Esc schließt.
  */
+import { Icon } from './Icon';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { NAME_MAX, PROFILE_COLORS, type Profile, initialsOf } from '../workspace/profile';
 import { TERMS } from '../workspace/terms';
@@ -57,7 +58,7 @@ export function ProfileDialog({ profile, onChange, onClose }: Props) {
       <header className="help__head">
         <h2 id="profile-title">Profil</h2>
         <button type="button" className="help__x" onClick={onClose} title="Schließen (Esc)" aria-label="Profil schließen">
-          ×
+          <Icon name="close" size={14} />
         </button>
       </header>
       <div className="help__body profile__body">

@@ -4,7 +4,7 @@
  * Texte kommen aus help.ts/terms.ts (F-156), damit nichts doppelt geschrieben wird.
  * Schritte, deren Ziel gerade fehlt (z. B. kein Stack offen), werden übersprungen.
  */
-import { helpById } from './help';
+import { BROWSER_EXPORT, helpById } from './help';
 
 export interface TourStep {
   id: string;
@@ -16,15 +16,25 @@ export interface TourStep {
   expand?: boolean;
   /** Teil des Ziels, um den der Rahmen liegt (nach dem Aufklappen), sonst das Ziel selbst. */
   ring?: string;
+  /** Schritt nur zeigen, wenn es dieses Element gibt (ohne Rahmen darum), z. B. nur im Import-Dialog. */
+  when?: string;
+  /** Schritt nur zeigen, wenn es dieses Element nicht gibt, z. B. „Datei wählen“ nur ohne offenen Dialog. */
+  unless?: string;
+  /** Aufzählung unter dem Text, z. B. die Wege je Browser. */
+  list?: string[];
+  /** Beschriftung eines Knopfs, der die Tour beendet und den nächsten Schritt selbst ausführt. */
+  action?: string;
 }
 
-export type TourId = 'start' | 'cockpit' | 'design';
+export type TourId = 'start' | 'cockpit' | 'design' | 'import';
 
 const t = (id: string) => helpById(id)?.text ?? '';
 
 /** Cockpit-Elemente liegen im Dialog #overview, Design-Elemente im Dialog #design. */
 const C = '#overview';
 const D = '#design';
+/** Import-Dialog (F-36) */
+const I = 'dialog.import';
 
 export const TOURS: Record<TourId, TourStep[]> = {
   start: [
@@ -94,6 +104,42 @@ export const TOURS: Record<TourId, TourStep[]> = {
       text: 'Über diesen Knopf, die Hilfe (?) oder die Suche („Tour Cockpit“) startest du diese Tour jederzeit wieder. Esc schließt das Cockpit.',
     },
   ],
+  // F-181: vor dem Wählen der Datei (ohne Dialog) und im Import-Dialog; Schritte passen sich an
+  import: [
+    {
+      id: 'intro',
+      title: 'Lesezeichen übernehmen',
+      text: 'Deine Lesezeichen aus dem Browser kommen in drei Schritten in die Library: im Browser als Datei speichern, die Datei hier wählen, festlegen, wie die Ordner zu Kategorien werden. Mit → weiter, mit Esc beenden.',
+    },
+    {
+      id: 'export',
+      title: 'Im Browser als Datei speichern',
+      text: 'Jeder Browser kann seine Lesezeichen als HTML-Datei speichern. So findest du es:',
+      list: BROWSER_EXPORT.map((b) => `${b.browser}: ${b.how}`),
+      action: 'Datei wählen …',
+    },
+    {
+      id: 'choose',
+      title: 'Datei wählen',
+      unless: I,
+      text: 'Wähle die gespeicherte Datei – meist liegt sie im Ordner „Downloads“ und heißt z. B. „bookmarks.html“ oder „favorites.html“. E-Sources liest sie nur, hochgeladen wird nichts.',
+      action: 'Datei wählen …',
+    },
+    { id: 'summary', title: 'Was die Datei bringt', target: `${I} .import__sum`, text: 'Hier steht, wie viele Lesezeichen neu sind. Was schon in der Library ist, wird übersprungen – du kannst also ohne Sorge noch einmal importieren.' },
+    {
+      id: 'how',
+      title: 'Wie fein sortiert?',
+      target: `${I} .import__how`,
+      text: '„Ordner wie im Browser“ macht aus jedem Unterordner eine Kategorie. „Nur oberste Ordnerebene“ gibt weniger, größere Kategorien. „Alles in eine Kategorie“ sammelt alles unter dem heutigen Datum. Pfeiltasten wählen.',
+    },
+    { id: 'go', title: 'Übernehmen', target: `${I} .import__go`, text: 'Übernimmt die neuen Sources in die Library. Portalen wird dabei nichts zugeordnet – deine Desks bleiben, wie sie sind.' },
+    {
+      id: 'sort',
+      title: 'Danach: Sortierhilfe',
+      when: I,
+      text: `${t('sortHelp')} Wieder starten: Knopf „Tour“ im Import-Dialog, Hilfe (?) oder Suche („Tour Import“).`,
+    },
+  ],
   // F-171 Stufe 1: wächst mit F-161 bis F-164 (Farben je Desk, Slot, Portal, Farbregeln)
   design: [
     {
@@ -132,11 +178,11 @@ export const TOUR = TOURS.start;
 
 /** Nur Schritte, deren Ziel es gerade gibt (Schritte ohne Ziel immer). */
 export function tourSteps(has: (selector: string) => boolean, steps: TourStep[] = TOUR): TourStep[] {
-  return steps.filter((s) => !s.target || has(s.target));
+  return steps.filter((s) => (!s.target || has(s.target)) && (!s.when || has(s.when)) && (!s.unless || !has(s.unless)));
 }
 
 /** Speicherschlüssel je Tour; die Starttour behält ihren bisherigen Schlüssel. */
-export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1' };
+export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1' };
 
 /** Wurde die Tour schon gezeigt (beendet oder übersprungen)? */
 export function tourSeen(id: TourId = 'start'): boolean {

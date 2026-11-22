@@ -6,7 +6,7 @@
 import { TERMS } from './terms';
 
 /** Was die Oberfläche ausführen kann; App.tsx ordnet jedem Wert die passende Aktion zu. */
-export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher' | 'importBookmarks' | 'exportBookmarks' | 'sortHelp';
+export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher' | 'importBookmarks' | 'exportBookmarks' | 'sortHelp' | 'tourImport' | 'profile';
 
 export interface HelpEntry {
   id: string;
@@ -50,6 +50,7 @@ export const HELP: HelpEntry[] = [
   { id: 'tour', group: 'Ansicht', name: 'Tour', text: 'Kurze Einführung, die Schritt für Schritt auf die wichtigsten Bedienelemente zeigt. Pfeiltasten blättern, Esc beendet.', run: 'tour', words: ['Einführung', 'Rundgang', 'erste Schritte', 'Anleitung'] },
   { id: 'tourCockpit', group: 'Ansicht', name: 'Tour „Cockpit“', text: 'Kurze Einführung ins Cockpit: Fokusanzeige, Radar, Portale verschieben und holen. Startet beim ersten Öffnen des Cockpits von selbst.', run: 'tourCockpit', words: ['Cockpit-Tour', 'Einführung Cockpit', 'Radar erklärt', 'Rundgang'] },
   { id: 'tourDesign', group: 'Ansicht', name: 'Tour „Design“', text: 'Kurze Einführung in „Design anpassen“: Darstellung, Akzentfarbe und eigene Farbe. Startet beim ersten Öffnen des Dialogs von selbst.', run: 'tourDesign', words: ['Design-Tour', 'Einführung Design', 'Farben erklärt', 'Rundgang'] },
+  { id: 'tourImport', group: 'Ansicht', name: 'Tour „Import“', text: 'Kurze Einführung, wie du Lesezeichen aus Chrome, Safari, Firefox oder Edge holst, wie fein die Ordner zu Kategorien werden und was die Sortierhilfe danach tut. Startet beim ersten Import von selbst.', run: 'tourImport', words: ['Import-Tour', 'Einführung Import', 'Lesezeichen übernehmen', 'Browser', 'Chrome', 'Safari', 'Firefox', 'Edge', 'Rundgang'] },
   { id: 'toursAuto', group: 'Ansicht', name: 'Touren automatisch zeigen', text: 'Schaltet ein oder aus, ob Touren beim ersten Mal von selbst starten (Einstellungen, Zahnrad). Von Hand starten geht immer.', run: 'toursAuto', words: ['nicht mehr anzeigen', 'Tour aus', 'Einführung abschalten', 'automatisch'] },
   { id: 'help', group: 'Ansicht', name: 'Hilfe', text: 'Zeigt alle Funktionen und Begriffe mit Tastenkürzeln.', keys: '?', run: 'help', words: ['Glossar', 'Tastenkürzel', 'Kürzel', 'Erklärung', 'Anleitung'] },
 
@@ -77,8 +78,23 @@ export const HELP: HelpEntry[] = [
   { id: 'importBookmarks', group: 'Bedienung', name: 'Lesezeichen importieren', text: up(def(TERMS.importBookmarks)) + ' Schon vorhandene Sources werden übersprungen (Einstellungen, Zahnrad).', run: 'importBookmarks', words: ['Chrome', 'Safari', 'Firefox', 'Edge', 'Browser', 'übernehmen', 'HTML', 'Favoriten', 'Library füllen'] },
   { id: 'sortHelp', group: 'Bedienung', name: 'Sortierhilfe', text: up(def(TERMS.sortHelp)) + ' „Alle Vorschläge übernehmen“ sortiert alles auf einmal. Öffnet sich nach einem Import mit vielen Sources ohne Kategorie von selbst (Einstellungen, Zahnrad).', run: 'sortHelp', words: ['sortieren', 'einsortieren', 'Kategorien zuordnen', 'aufräumen', 'Ohne Kategorie', 'ordnen', 'Import'] },
   { id: 'exportBookmarks', group: 'Bedienung', name: 'Library exportieren', text: up(def(TERMS.exportBookmarks)), run: 'exportBookmarks', words: ['Lesezeichen exportieren', 'Chrome', 'Safari', 'Firefox', 'Browser', 'HTML', 'sichern'] },
+  { id: 'profile', group: 'Bedienung', name: 'Profil', text: up(def(TERMS.profile)) + ' Name, Kennfarbe und Begrüßung stellst du unter Einstellungen (Zahnrad) › Profil ein; die Begrüßung lässt sich dort abschalten.', run: 'profile', words: ['Name', 'Begrüßung', 'Willkommen', 'Konto', 'Login', 'Anmelden', 'Kennfarbe', 'Initialen', 'Zuletzt offen', 'weitermachen', 'persönlich'] },
   { id: 'exportDesks', group: 'Bedienung', name: 'Desks exportieren / importieren', text: 'Sichert alle Desks als Datei oder lädt sie wieder (Einstellungen, Zahnrad).', words: ['sichern', 'Backup', 'Datei', 'übertragen', 'anderes Gerät'] },
 ];
+
+/**
+ * F-181: So speichert jeder Browser seine Lesezeichen als HTML-Datei – für die Tour „Import“ und
+ * den Hinweis bei einer falschen Datei (eine Stelle für beide).
+ */
+export const BROWSER_EXPORT: { browser: string; how: string }[] = [
+  { browser: 'Chrome', how: 'Menü ⋮ › Lesezeichen und Listen › Lesezeichen-Manager › oben rechts ⋮ › Lesezeichen exportieren' },
+  { browser: 'Edge', how: 'Menü … › Favoriten › … › Favoriten exportieren' },
+  { browser: 'Firefox', how: 'Menü › Lesezeichen › Lesezeichen verwalten › Importieren und Sichern › Lesezeichen nach HTML exportieren' },
+  { browser: 'Safari', how: 'Menü Ablage › Exportieren › Lesezeichen' },
+];
+
+/** Exportwege in einer Zeile, z. B. für Hinweise. */
+export const browserExportLine = (): string => BROWSER_EXPORT.map((b) => `${b.browser}: ${b.how}`).join('; ');
 
 /** Klein, ohne Akzente, ß → ss: „Größe“ findet „grosse“ und „große“. */
 export function fold(s: string): string {

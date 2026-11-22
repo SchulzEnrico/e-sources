@@ -23,6 +23,7 @@ import * as Cl from './closed';
 import * as La from './launcher';
 import * as BB from './browserBookmarks';
 import * as SH from './sortHelp';
+import * as Pr from './profile';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -1591,6 +1592,18 @@ describe('F-172 Tour „Cockpit“', () => {
     expect(H.searchHelp('Tour Cockpit')[0].id).toBe('tourCockpit');
     expect(H.helpById('tourCockpit')?.run).toBe('tourCockpit');
   });
+  it('F-181 Import-Tour: ohne Dialog „Datei wählen“, im Dialog dessen Teile und die Sortierhilfe', () => {
+    const imp = Tour.TOURS.import;
+    expect(Tour.tourSteps(() => false, imp).map((s) => s.id)).toEqual(['intro', 'export', 'choose']);
+    const inDialog = Tour.tourSteps((sel) => sel.startsWith('dialog.import'), imp).map((s) => s.id);
+    expect(inDialog).toEqual(['intro', 'export', 'summary', 'how', 'go', 'sort']);
+    expect(imp.find((s) => s.id === 'export')?.list?.length).toBe(4);
+    expect(H.BROWSER_EXPORT.map((b) => b.browser)).toEqual(['Chrome', 'Edge', 'Firefox', 'Safari']);
+    expect(H.browserExportLine()).toContain('Safari: ');
+    expect(H.searchHelp('Tour Import')[0].id).toBe('tourImport');
+    expect(H.helpById('tourImport')?.run).toBe('tourImport');
+    expect(Tour.TOUR_KEY.import).toBe('esource.tour.import.v1');
+  });
 });
 
 // ---------------------------------------------------------------- F-23 Tab/Portal per Kürzel
@@ -1856,5 +1869,43 @@ describe('F-180 Sortierhilfe', () => {
     expect(SH.looseCount(ws)).toBe(1);
     expect(SH.sortGroups(ws).map((g) => g.domain)).toEqual(['beispiel-firma.de']);
     expect(ws.categories.map((c) => c.name)).toEqual(['Doku', 'Video', 'Wissen']);
+  });
+});
+
+// ---------------------------------------------------------------- F-179 Profil und Begrüßung
+
+describe('F-179 Profil', () => {
+  const base = () => parseWorkspace({ panels: [] }) as Workspace;
+  it('Initialen und Gruß je Tageszeit', () => {
+    expect(Pr.initialsOf('Enrico Schulz')).toBe('ES');
+    expect(Pr.initialsOf('  enrico  ')).toBe('E');
+    expect(Pr.initialsOf('Anna Maria von Berg')).toBe('AB');
+    expect(Pr.initialsOf('')).toBe('');
+    expect(Pr.greetingFor(7, 'Enrico')).toBe('Guten Morgen, Enrico');
+    expect(Pr.greetingFor(13)).toBe('Guten Tag');
+    expect(Pr.greetingFor(20, ' Enrico ')).toBe('Guten Abend, Enrico');
+    expect(Pr.greetingFor(2, 'Enrico')).toBe('Hallo, Enrico');
+  });
+  it('setProfile: Name bereinigt, Voreinstellung fällt weg', () => {
+    const ws = Pr.setProfile(base(), { name: '  Enrico   Schulz ', color: 3 });
+    expect(ws.profile).toEqual({ name: 'Enrico Schulz', color: 3, greet: true });
+    const back = Pr.setProfile(ws, { name: '', color: 0 });
+    expect(back.profile).toBeUndefined();
+    expect(Pr.profileOf(back).greet).toBe(true);
+    expect(Pr.setProfile(base(), { greet: false }).profile?.greet).toBe(false);
+  });
+  it('kommt durch Speichern/Export und verwirft Unbrauchbares', () => {
+    const ws = Pr.setProfile(base(), { name: 'Enrico', color: 2, greet: false });
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))?.profile).toEqual({ name: 'Enrico', color: 2, greet: false });
+    expect(Pr.parseProfile({ name: 5, color: 99 })).toEqual({ name: '', color: 0, greet: true });
+    expect(Pr.parseProfile('x')).toBeUndefined();
+    expect(Pr.parseProfile({ name: 'x'.repeat(80) })?.name).toHaveLength(Pr.NAME_MAX);
+  });
+  it('Reducer und Suche', () => {
+    const ws = reducer(base(), { type: 'profile', change: { name: 'Enrico' } });
+    expect(ws.profile?.name).toBe('Enrico');
+    expect(H.searchHelp('Profil')[0].id).toBe('profile');
+    expect(H.searchHelp('Begrüßung')[0].id).toBe('profile');
+    expect(Pr.PROFILE_COLORS).toHaveLength(8);
   });
 });

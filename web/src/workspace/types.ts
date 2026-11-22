@@ -1,5 +1,6 @@
 import type { FocusRule } from './focus';
 import type { Look } from './look';
+import type { Profile } from './profile';
 import type { FRect, Node } from './tree';
 
 /** Ein Tab im Panel (F-21, F-22): eine geöffnete Seite mit eigenem Verlauf. */
@@ -143,6 +144,8 @@ export interface Workspace {
   closed?: Closed[];
   /** F-29 Rest: eigene Grenzen der Fokusanzeige; fehlt = Voreinstellung FOCUS_RULE. */
   focus?: FocusRule;
+  /** F-179: lokales Profil (Name, Kennfarbe, Begrüßung); fehlt = Voreinstellung. */
+  profile?: Profile;
 }
 
 /** F-24: ein geschlossenes Portal (mit Tabs und Verlauf) oder ein geschlossener Tab. */

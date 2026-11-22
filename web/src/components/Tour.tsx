@@ -14,9 +14,27 @@ const visible = (sel: string) => {
   return r.width > 0 && r.height > 0;
 };
 
-export function Tour({ tour = 'start', auto = false, onClose, onAutoOff }: { tour?: TourId; /** von selbst gestartet → Kästchen „Nicht mehr automatisch anzeigen“ (F-173) */ auto?: boolean; onClose: () => void; onAutoOff?: () => void }) {
+interface Props {
+  tour?: TourId;
+  /** von selbst gestartet → Kästchen „Nicht mehr automatisch anzeigen“ (F-173) */
+  auto?: boolean;
+  onClose: () => void;
+  onAutoOff?: () => void;
+  /** F-181: Knopf eines Schritts mit `action` – beendet die Tour und führt den Schritt aus (z. B. Datei wählen). */
+  onAction?: () => void;
+  /** F-181: Schritte, die schon gezeigt wurden (Teil 1 der Import-Tour vor dem Dialog). */
+  skip?: string[];
+  /** Beim Beenden als gesehen merken (Grundeinstellung); nein für einen Vorlauf, auf den noch ein Teil folgt. */
+  markSeen?: boolean;
+}
+
+export function Tour({ tour = 'start', auto = false, onClose, onAutoOff, onAction, skip, markSeen = true }: Props) {
   // Ziele einmal beim Start prüfen, damit die Zählung „3 von 9“ stabil bleibt.
-  const steps = useMemo<TourStep[]>(() => tourSteps(visible, TOURS[tour]), [tour]);
+  const steps = useMemo<TourStep[]>(() => {
+    const all = tourSteps(visible, TOURS[tour]).filter((s) => !skip?.includes(s.id));
+    return all.length ? all : TOURS[tour].slice(0, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tour]);
   const [i, setI] = useState(0);
   const step = steps[Math.min(i, steps.length - 1)];
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -25,8 +43,9 @@ export function Tour({ tour = 'start', auto = false, onClose, onAutoOff }: { tou
   const [pos, setPos] = useState<CSSProperties>({});
 
   const [noMore, setNoMore] = useState(false);
+  const action = useRef<HTMLButtonElement>(null);
   const end = () => {
-    setTourSeen(true, tour);
+    if (markSeen) setTourSeen(true, tour);
     if (noMore) {
       setToursAuto(false);
       onAutoOff?.();
@@ -82,7 +101,12 @@ export function Tour({ tour = 'start', auto = false, onClose, onAutoOff }: { tou
     setPos({ left, top: Math.max(8, vh - h - 8) });
   }, [rect, step]);
 
-  useEffect(() => next.current?.focus(), [step]);
+  // Fokus auf den Aktionsknopf, sonst auf „Weiter“
+  useEffect(() => (action.current ?? next.current)?.focus(), [step]);
+  const act = () => {
+    end();
+    onAction?.();
+  };
 
   // → / ← blättern, Esc beendet (Erfassungsphase, damit andere Kürzel nicht mitlaufen)
   useEffect(() => {
@@ -135,9 +159,17 @@ export function Tour({ tour = 'start', auto = false, onClose, onAutoOff }: { tou
         <h2 id="tour-title" className="tour__title">
           {step.title}
         </h2>
-        <p id="tour-text" className="tour__text">
-          {step.text}
-        </p>
+        <div id="tour-text">
+          <p className="tour__text">{step.text}</p>
+          {step.list && (
+            <ul className="tour__list">
+              {step.list.map((x) => (
+                // „Chrome: …“ → Name fett, damit man seinen Browser schnell findet
+                <li key={x}>{x.includes(': ') ? <><strong>{x.slice(0, x.indexOf(': '))}</strong>{x.slice(x.indexOf(': '))}</> : x}</li>
+              ))}
+            </ul>
+          )}
+        </div>
         {auto && (
           <label className="tour__nomore">
             <input type="checkbox" checked={noMore} onChange={(e) => setNoMore(e.target.checked)} />
@@ -151,6 +183,11 @@ export function Tour({ tour = 'start', auto = false, onClose, onAutoOff }: { tou
           {i > 0 && (
             <button type="button" onClick={() => setI(i - 1)} aria-label="Zurück (Pfeil links)">
               ← Zurück
+            </button>
+          )}
+          {step.action && onAction && (
+            <button ref={action} type="button" className="tour__action" onClick={act}>
+              {step.action}
             </button>
           )}
           <button ref={next} type="button" className="tour__next" onClick={() => (last ? end() : setI(i + 1))} aria-label={last ? 'Fertig' : 'Weiter (Pfeil rechts)'}>

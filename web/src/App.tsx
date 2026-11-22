@@ -35,14 +35,17 @@ import { Help } from './components/Help';
 import { Tour } from './components/Tour';
 import { type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace/tour';
 import { Design } from './components/Design';
-import type { HelpEntry } from './workspace/help';
+import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
-import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, hostOf, isBlocked, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf } from './workspace/workspace';
+import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf } from './workspace/workspace';
 import { TERMS } from './workspace/terms';
 import { Closed as ClosedDialog } from './components/Closed';
 import { FocusRule as FocusRuleDialog } from './components/FocusRule';
 import { ImportBookmarks } from './components/ImportBookmarks';
 import { SortHelp } from './components/SortHelp';
+import { Greeting } from './components/Greeting';
+import { ProfileDialog } from './components/Profile';
+import { greetingFor, loadLast, profileOf, saveLast } from './workspace/profile';
 import { BOOKMARKS_FILE_NAME, type BrowserBookmark, bookmarkFileOf, looksLikeBookmarkFile, parseBookmarkFile } from './workspace/browserBookmarks';
 import { closedOf, restoreClosed, restoredSaid } from './workspace/closed';
 import { PORTAL_ALONE, nextTabOf, portalSaid, stepIn, tabAlone, tabSaid } from './workspace/cycle';
@@ -316,6 +319,22 @@ export default function App() {
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [design]);
+  /** F-36: gewählte Lesezeichen-Datei → Dialog „Lesezeichen importieren“ */
+  const [bmImport, setBmImport] = useState<{ name: string; list: BrowserBookmark[] } | null>(null);
+  /** F-181: Import-Tour beim ersten Import-Dialog (ohne die Schritte, die vorher schon liefen); Dialog zu → Tour endet mit. */
+  const importOpen = !!bmImport;
+  useEffect(() => {
+    if (!importOpen) {
+      setTour((t) => (t === 'import' ? null : t));
+      return;
+    }
+    // Tour von vorher (ohne Dialog) ist mit „Datei wählen“ schon beendet
+    setTour((t) => (t === 'import' ? null : t));
+    if (PROBE || !tourAutoStart('import')) return;
+    const t = window.setTimeout(() => setTour((x) => x ?? 'import', true), 300);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importOpen]);
   const startDesignTour = () => {
     setDesign(true);
     window.setTimeout(() => setTour('design'), design ? 0 : 150);
@@ -351,6 +370,11 @@ export default function App() {
   const [closedOpen, setClosedOpen] = useState(false);
   /** F-29 Rest: Dialog „Fokusanzeige anpassen“. */
   const [ruleOpen, setRuleOpen] = useState(false);
+  /** F-179: Dialog „Profil“ und Begrüßung beim Start (nicht beim allerersten Start – da läuft die Tour –, nicht in Zusatz-Desks). */
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [greetOn, setGreetOn] = useState(() => !win && !tourAutoStart('start') && profileOf(ws).greet);
+  /** Zuletzt offenes Portal – beim Start gelesen, bevor das aktuelle es überschreibt. */
+  const [lastAtStart] = useState(() => loadLast(win ?? ''));
   /** F-155: Größen-Modus (Alt/⌥+A) und seine letzte Ansage. */
   const [sizeMode, setSizeMode] = useState(false);
   const [sizeSaid, setSizeSaid] = useState('');
@@ -401,7 +425,6 @@ export default function App() {
   const importRef = useRef<HTMLInputElement>(null);
   // F-36: Lesezeichen-Datei aus dem Browser
   const bookmarkFileRef = useRef<HTMLInputElement>(null);
-  const [bmImport, setBmImport] = useState<{ name: string; list: BrowserBookmark[] } | null>(null);
   // F-180
   const [sortOpen, setSortOpen] = useState(false);
   // Testbelegung: so tun, als wäre es ein 49-Zoll-Monitor.
@@ -498,14 +521,29 @@ export default function App() {
     if (!chosen) return;
     const html = await chosen.text();
     if (!looksLikeBookmarkFile(html)) {
-      setNotice(`„${chosen.name}“ ist keine Lesezeichen-Datei. Im Browser „Lesezeichen exportieren“ wählen (Chrome: Lesezeichen-Manager › ⋮ › Lesezeichen exportieren; Safari: Ablage › Exportieren › Lesezeichen; Firefox: Bibliothek › Importieren und Sichern › Lesezeichen nach HTML exportieren) und die HTML-Datei hier wählen.`);
+      setNotice(`„${chosen.name}“ ist keine Lesezeichen-Datei. Im Browser die Lesezeichen als HTML-Datei speichern (${browserExportLine()}) und diese Datei hier wählen. Die Tour „Import“ (Suche oder Hilfe) zeigt es Schritt für Schritt.`);
       return;
     }
     const list = parseBookmarkFile(html);
     if (!list.length) return setNotice(`In „${chosen.name}“ stehen keine Lesezeichen.`);
     setBmImport({ name: chosen.name, list });
   };
-  const importBookmarks = () => bookmarkFileRef.current?.click();
+  /**
+   * F-181: Beim ersten Import zeigt die Tour „Import“ vorher, wie man die Datei im Browser speichert
+   * (Teil 1, ohne „gesehen“ – der Rest folgt im Dialog). Nur einmal je Sitzung, nicht in der Testbelegung.
+   */
+  const [importPre, setImportPre] = useState(false);
+  const importBookmarks = () => {
+    if (!PROBE && !importPre && tourAutoStart('import')) {
+      setImportPre(true);
+      return setTour('import', true);
+    }
+    bookmarkFileRef.current?.click();
+  };
+  const startImportTour = () => {
+    if (!bmImport) setImportPre(true);
+    setTour('import');
+  };
 
   /**
    * Neues Panel mit Ampel-Regel (F-26): Hinweis bei 5, Grenze bei 9 Panels je Area.
@@ -784,6 +822,28 @@ export default function App() {
     dispatch({ type: 'openBookmark', panel: id, url: h.bookmark.url });
     setActive(id);
     if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
+  };
+
+  // F-179: aktives Portal je Desk merken (nur im Browser, nicht im Testmodus)
+  useEffect(() => {
+    if (!PROBE && active) saveLast(win ?? '', active);
+  }, [active, win]);
+  const lastPanel = lastAtStart ? mine.find((x) => x.id === lastAtStart) : undefined;
+  const greetLast = lastPanel ? { name: lastPanel.name, source: hostOf(panelUrl(lastPanel) ?? '') } : null;
+  const greetText = greetingFor(new Date().getHours(), profileOf(ws).name);
+  // Begrüßung höflich ansagen (einmal beim Start)
+  useEffect(() => {
+    if (greetOn) sayLive(`${greetText}.${greetLast ? ` Zuletzt offen: ${greetLast.name}. Weitermachen steht in der Begrüßung oben rechts.` : ''}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const closeGreeting = useCallback(() => setGreetOn(false), []);
+  const continueLast = () => {
+    setGreetOn(false);
+    if (!lastPanel) return;
+    showPanel(lastPanel.id);
+    sayLive(`${lastPanel.name} ist aktiv.`);
+    // Fokus ins Portal (Adresszeile), damit die Tastatur dort weitermacht
+    window.setTimeout(() => document.querySelector<HTMLElement>(`main section[data-panel-id="${lastPanel.id}"] input[aria-label="Adresse"]`)?.focus(), 60);
   };
 
   /** F-141: Panel aus der Suche nach vorn holen und aktiv machen. */
@@ -1279,6 +1339,8 @@ export default function App() {
         return setDesign(true);
       case 'tourDesign':
         return startDesignTour();
+      case 'tourImport':
+        return startImportTour();
       case 'toursAuto':
         return switchAutoTours();
       case 'restore':
@@ -1295,6 +1357,8 @@ export default function App() {
         return exportBookmarks();
       case 'sortHelp':
         return setSortOpen(true);
+      case 'profile':
+        return setProfileOpen(true);
       case 'search':
         return window.setTimeout(() => document.querySelector<HTMLInputElement>('.search__input')?.focus(), 0);
     }
@@ -1749,6 +1813,15 @@ export default function App() {
               >
                 Sortierhilfe …
               </Item>
+              {/* F-179 */}
+              <Item
+                onClick={() => {
+                  close();
+                  setProfileOpen(true);
+                }}
+              >
+                Profil …
+              </Item>
               {/* F-29 Rest */}
               <Item
                 onClick={() => {
@@ -1809,7 +1882,18 @@ export default function App() {
           Test: voll · nichts wird gespeichert
         </a>
       )}
-      {tour && tour !== 'design' && <Tour key={tour} tour={tour} auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} />}
+      {tour && tour !== 'design' && !(tour === 'import' && bmImport) && (
+        <Tour
+          key={tour}
+          tour={tour}
+          auto={tourAuto}
+          onClose={() => setTour(null)}
+          onAutoOff={() => setAutoTours(false)}
+          // F-181: Teil 1 der Import-Tour – „Datei wählen …“ öffnet die Dateiauswahl; gesehen erst nach dem Dialog-Teil
+          onAction={tour === 'import' ? () => bookmarkFileRef.current?.click() : undefined}
+          markSeen={tour !== 'import'}
+        />
+      )}
       {design && (
         <Design look={ws.look} warning={lookWarning} onLook={(change) => {
             // F-178: passende Akzentfarbe mitnehmen, wenn die bisherige im neuen Design schlecht lesbar wäre
@@ -1826,6 +1910,7 @@ export default function App() {
           fileName={bmImport.name}
           list={bmImport.list}
           onClose={() => setBmImport(null)}
+          onTour={() => setTour('import')}
           onImport={(plan) => {
             dispatch({ type: 'importBookmarks', plan });
             setBmImport(null);
@@ -1837,8 +1922,26 @@ export default function App() {
             sayLive(text);
             if (loose >= 5) window.setTimeout(() => setSortOpen(true), 0);
           }}
+        >
+          {tour === 'import' && (
+            <Tour key="import-dialog" tour="import" auto={tourAuto} skip={importPre && tourAuto ? ['intro', 'export'] : undefined} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} />
+          )}
+        </ImportBookmarks>
+      )}
+      {greetOn && !tour && (
+        <Greeting
+          profile={profileOf(ws)}
+          greeting={greetText}
+          last={greetLast}
+          onContinue={continueLast}
+          onProfile={() => {
+            setGreetOn(false);
+            setProfileOpen(true);
+          }}
+          onClose={closeGreeting}
         />
       )}
+      {profileOpen && <ProfileDialog profile={profileOf(ws)} onChange={(change) => dispatch({ type: 'profile', change })} onClose={() => setProfileOpen(false)} />}
       {sortOpen && (
         <SortHelp
           ws={ws}

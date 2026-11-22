@@ -17,6 +17,7 @@ export const TERMS = {
   importBookmarks: 'Lesezeichen importieren = Lesezeichen aus Chrome, Safari, Firefox oder Edge in die Library übernehmen; im Browser vorher „Lesezeichen exportieren“ wählen (HTML-Datei), Ordner werden zu Kategorien',
   exportBookmarks: 'Library exportieren = alle Sources als Lesezeichen-Datei (HTML) speichern, die jeder Browser importieren kann; Kategorien werden Ordner',
   sortHelp: 'Sortierhilfe = Sources ohne Kategorie nach Domain gebündelt einsortieren; eine Entscheidung gilt für die ganze Gruppe, Vorschläge kommen aus deiner Library oder für bekannte Seiten',
+  profile: 'Profil = dein Name und deine Kennfarbe, nur in diesem Browser gespeichert (kein Konto, kein Server); E-Sources begrüßt dich damit beim Start und zeigt, was zuletzt offen war',
   library: 'Library = deine gespeicherten Sources; jedes Portal hat zusätzlich seine eigene Auswahl',
   design: 'Design = Aussehen von E-Sources: Darstellung (hell, dunkel oder wie das System) und Akzentfarbe',
   cockpit: 'Cockpit = Überblick über alle Desks; das Radar darin zeigt die Anordnung der Slots',

@@ -3466,10 +3466,15 @@ button.is-off:hover,
 .tour__count { margin: 0; font-size: 13px; color: var(--muted); }
 .tour__title { margin: 4px 0 8px; font-size: 20px; color: var(--strong); }
 .tour__text { margin: 0 0 16px; font-size: 16px; line-height: 1.55; color: var(--strong); }
-.tour__nav { display: flex; gap: 8px; align-items: center; }
+.tour__nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .tour__nav button { font-size: 15px; padding: 6px 12px; }
 .tour__skip { margin-right: auto; }
 .tour__next { font-weight: 600; }
+/* F-181: Wege je Browser und Knopf „Datei wählen …“ */
+.tour__list { margin: -8px 0 16px; padding-left: 20px; font-size: 15px; line-height: 1.5; color: var(--strong); }
+.tour__list li + li { margin-top: 4px; }
+.tour__card:has(.tour__list) { width: min(540px, calc(100vw - 16px)); }
+.tour__action { font-weight: 600; }
 /* Fokus deutlich, aber neutral (NF-03) */
 .tour__card button:focus-visible,
 .tour__card button:focus { outline: 2px solid rgba(var(--tint), 0.9); outline-offset: 2px; box-shadow: none; }
@@ -4258,3 +4263,29 @@ button.is-off:hover,
 .sorthelp__titles, .sorthelp__why { font-size: 0.88em; opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sorthelp__row { display: flex; gap: 6px; flex-wrap: wrap; }
 .sorthelp__input { flex: 1 1 14em; min-width: 0; }
+
+/* F-179: Profil und Begrüßung */
+.avatar { display: inline-grid; place-items: center; flex: none; border-radius: 50%; color: #fff; -webkit-text-fill-color: #fff; font-weight: 700; letter-spacing: 0.02em; }
+.profile__intro { margin: 0 0 14px; color: var(--text); line-height: 1.5; }
+.profile__who { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.profile__name { display: flex; flex-direction: column; gap: 4px; flex: 1; font-size: 14px; color: var(--muted); }
+.profile__name input { font-size: 16px; padding: 6px 10px; }
+.profile__colors { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; padding: 8px 10px 10px; border: 1px solid rgba(var(--tint), 0.2); border-radius: 8px; }
+.profile__colors legend { padding: 0 4px; font-size: 14px; color: var(--muted); }
+.profile__color { position: relative; cursor: pointer; }
+.profile__color input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.profile__color span { display: block; width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; }
+.profile__color input:checked + span { border-color: var(--strong); box-shadow: 0 0 0 2px var(--bg) inset; }
+.profile__color input:focus-visible + span { outline: 2px solid rgba(var(--tint), 0.9); outline-offset: 2px; }
+.profile__greet { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer; }
+.greeting { position: fixed; z-index: 80; top: 64px; right: 16px; display: flex; gap: 12px; align-items: flex-start; width: min(380px, calc(100vw - 32px)); padding: 14px 14px 14px 16px; border-radius: 12px; border: 1px solid rgba(var(--tint), 0.25); background: var(--bg); color: var(--text); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); animation: greeting-in 0.25s ease-out; }
+.greeting__main { flex: 1; min-width: 0; }
+.greeting__title { margin: 2px 0 4px; font-size: 18px; color: var(--strong); }
+.greeting__last { margin: 0 0 10px; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.greeting__src { color: var(--muted); }
+.greeting__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.greeting__go { font-weight: 600; }
+.greeting__x { align-self: flex-start; padding: 0 6px; font-size: 18px; line-height: 1.2; }
+@keyframes greeting-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .greeting { animation: none; } }
+@media (forced-colors: active) { .greeting { border: 2px solid CanvasText; } .avatar { forced-color-adjust: none; } }

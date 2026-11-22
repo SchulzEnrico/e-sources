@@ -1,5 +1,6 @@
 import type { Arrangement, Bookmark, Closed, Named, PanelMeta, Tab, Workspace } from './types';
 import { parseLook } from './look';
+import { parseProfile } from './profile';
 import { type FocusRule, fixRule } from './focus';
 import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } from './workspace';
 import { demoWorkspace } from './demo';
@@ -159,6 +160,7 @@ export function parseWorkspace(data: unknown): Workspace | null {
   return {
     ...(closed.length ? { closed } : {}),
     ...(isObj(data.focus) ? { focus: fixRule(data.focus as Partial<FocusRule>) } : {}),
+    ...(parseProfile(data.profile) ? { profile: parseProfile(data.profile) } : {}),
     panels: panels as PanelMeta[],
     layouts: arrangements(data.layouts),
     preferred: arrangements(data.preferred),

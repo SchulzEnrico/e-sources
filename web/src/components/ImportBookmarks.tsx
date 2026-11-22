@@ -3,7 +3,7 @@
  * wählen, wie fein die Ordner zu Kategorien werden – damit niemand Hunderte Sources von Hand
  * einsortieren muss. Native <dialog> wie die Hilfe (NF-03): Fokus im Dialog, Esc bricht ab.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { type BrowserBookmark, type ImportHow, type ImportPlan, importLabel, planImport } from '../workspace/browserBookmarks';
 import { TERMS } from '../workspace/terms';
 import type { Workspace } from '../workspace/types';
@@ -14,6 +14,10 @@ interface Props {
   list: BrowserBookmark[];
   onImport: (plan: ImportPlan) => void;
   onClose: () => void;
+  /** F-181: Tour „Import“ starten */
+  onTour: () => void;
+  /** Tour liegt im Dialog, damit sie über ihm (oberste Ebene) erscheint – wie bei „Design anpassen“. */
+  children?: ReactNode;
 }
 
 const HOW: { key: ImportHow; label: string; hint: string }[] = [
@@ -24,7 +28,7 @@ const HOW: { key: ImportHow; label: string; hint: string }[] = [
 
 const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
 
-export function ImportBookmarks({ ws, fileName, list, onImport, onClose }: Props) {
+export function ImportBookmarks({ ws, fileName, list, onImport, onClose, onTour, children }: Props) {
   const dlg = useRef<HTMLDialogElement>(null);
   const label = useMemo(() => importLabel(), []);
   const plans = useMemo(
@@ -63,6 +67,9 @@ export function ImportBookmarks({ ws, fileName, list, onImport, onClose }: Props
     >
       <header className="help__head">
         <h2 id="import-title">Lesezeichen importieren</h2>
+        <button type="button" className="design__tour" onClick={onTour} title="Kurze Einführung in den Import" aria-label="Tour „Import“ starten">
+          Tour
+        </button>
         <button type="button" className="help__x" onClick={onClose} title="Abbrechen (Esc)" aria-label="Lesezeichen importieren abbrechen">
           ×
         </button>
@@ -115,6 +122,7 @@ export function ImportBookmarks({ ws, fileName, list, onImport, onClose }: Props
           </button>
         </div>
       </div>
+      {children}
     </dialog>
   );
 }

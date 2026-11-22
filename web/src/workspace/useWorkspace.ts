@@ -2,6 +2,7 @@ import { useEffect, useReducer, useRef } from 'react';
 import type { Lines, Orientation, ScreenClassId, ScreenSetup } from './screen';
 import { WORKSPACE_KEY, loadWorkspace, parseWorkspace, saveWorkspace } from './storage';
 import { PROBE } from './probe';
+import { type Profile, setProfile } from './profile';
 import * as Win from './windows';
 import * as Mv from './move';
 import type { Min, Node, Zone } from './tree';
@@ -26,6 +27,7 @@ export type Action =
   | { type: 'restore'; setup: ScreenSetup; entry?: string }
   /** F-29 Rest: Grenzen der Fokusanzeige; null = Voreinstellung. */
   | { type: 'focusRule'; rule: Partial<FocusRule> | null }
+  | { type: 'profile'; change: Partial<Profile> }
   | { type: 'rename'; id: string; name: string }
   /** F-36: Lesezeichen aus einer Browser-Datei in die Library übernehmen. */
   | { type: 'importBookmarks'; plan: ImportPlan }
@@ -106,6 +108,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return W.addArea(ws, a.setup, a.side);
     case 'remove':
       return a.setup ? C.closePanel(ws, a.id, a.setup) : W.removePanel(ws, a.id);
+    case 'profile':
+      return setProfile(ws, a.change);
     case 'focusRule':
       return F.setFocusRule(ws, a.rule);
     case 'restore':

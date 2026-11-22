@@ -27,7 +27,7 @@ import { Tooltips } from './components/Tooltip';
 import { FocusMeter, Overview } from './components/Overview';
 import { arrangeText, deskFocusOf, effectOf, focusOf, placeText, ruleOf } from './workspace/focus';
 import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
-import { contrastWarning, pickLook, shownAccent, THEMES, resolveTheme, rgbOf } from './workspace/look';
+import { contrastWarning, hasOwnLook, lookOf, pickLook, shownAccent, THEMES, resolveTheme, rgbOf } from './workspace/look';
 import { MAIN_NAME, collectedDesks, deskRing, deskSaid, nextWindowName, stepDesk, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
 import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
@@ -38,8 +38,10 @@ import { type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace
 import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
-import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf } from './workspace/workspace';
-import { TERMS } from './workspace/terms';
+import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf } from './workspace/workspace';
+import { DESK_LOOK_TEXT, TERMS, TINT_TEXT } from './workspace/terms';
+import { clearDeskTints, deskTintCount, shownTint, slotTint, type TintSnapshot } from './workspace/tint';
+import { Colors } from './components/Colors';
 import { Closed as ClosedDialog } from './components/Closed';
 import { FocusRule as FocusRuleDialog } from './components/FocusRule';
 import { ImportBookmarks } from './components/ImportBookmarks';
@@ -252,14 +254,16 @@ function DeskApp(props: DeskProps) {
     mq.addEventListener('change', on);
     return () => mq.removeEventListener('change', on);
   }, []);
-  const shownTheme = resolveTheme(ws.look.theme, systemDark);
+  // F-161: jedes Fenster zeigt die Farben seines Desks; ein Desk ohne eigene folgt dem Main Desk
+  const look = lookOf(ws, win);
+  const shownTheme = resolveTheme(look.theme, systemDark);
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = shownTheme;
-    root.style.setProperty('--accent-rgb', rgbOf(shownAccent(ws.look.accent, shownTheme)).join(', '));
-  }, [shownTheme, ws.look.accent]);
+    root.style.setProperty('--accent-rgb', rgbOf(shownAccent(look.accent, shownTheme)).join(', '));
+  }, [shownTheme, look.accent]);
   const lookWarning = (() => {
-    const w = contrastWarning(ws.look.accent, shownTheme);
+    const w = contrastWarning(look.accent, shownTheme);
     // F-178: im Terminal sagen, dass ersatzweise Terminal-Grün leuchtet
     return w && shownTheme === 'terminal' ? `${w} Deshalb leuchtet die Schrift gerade in Terminal-Grün.` : w;
   })();
@@ -383,6 +387,12 @@ function DeskApp(props: DeskProps) {
   const [flash, setFlash] = useState<string | null>(null);
   /** F-24: Hinweis, an dem der Knopf „Wiederherstellen“ steht (gleich `flash`). */
   const [undoFor, setUndoFor] = useState<string | null>(null);
+  /** F-162: Knopf im Hinweis (z. B. „Farbe wählen …“ nach dem Anlegen), gilt nur für diesen Hinweis. */
+  const [flashAction, setFlashAction] = useState<{ text: string; label: string; run: () => void } | null>(null);
+  /** F-162: Dialog „Farben“ für dieses Portal (Id). */
+  const [colorsFor, setColorsFor] = useState<string | null>(null);
+  /** F-162: Stand vor „Alle auf Desk-Farben zurücksetzen“, solange der Design-Dialog offen ist. */
+  const [tintUndo, setTintUndo] = useState<TintSnapshot | null>(null);
   /** F-24: Dialog „Zuletzt geschlossen“. */
   const [closedOpen, setClosedOpen] = useState(false);
   /** F-29 Rest: Dialog „Fokusanzeige anpassen“. */
@@ -521,11 +531,22 @@ function DeskApp(props: DeskProps) {
   const px = (r: T.FRect) => ({ left: GAP + r.x * iw, top: GAP + r.y * ih, width: Math.max(0, r.w * iw - GAP), height: Math.max(0, r.h * ih - GAP) });
 
   // Lange Hinweise bleiben länger stehen (etwa Lesetempo).
-  const notify = useCallback((text: string, ms = Math.max(3000, text.length * 50), undo = false) => {
+  const notify = useCallback((text: string, ms = Math.max(3000, text.length * 50), undo = false, action?: { label: string; run: () => void }) => {
     setFlash(text);
     setUndoFor(undo ? text : null);
+    setFlashAction(action ? { text, ...action } : null);
     window.setTimeout(() => setFlash((f) => (f === text ? null : f)), ms);
   }, []);
+
+  // F-162: Nach dem Anlegen bietet der Hinweis die Farbwahl an; das neueste Portal steht hinten in der Liste.
+  const wsNow = useRef(ws);
+  wsNow.current = ws;
+  const offerColors = (text: string, id?: string) =>
+    notify(text, 8000, false, { label: TINT_TEXT.offer, run: () => setColorsFor(id ?? wsNow.current.panels[wsNow.current.panels.length - 1]?.id ?? null) });
+  const newSlot = (side: 'right' | 'bottom') => {
+    dispatch({ type: 'addArea', setup, side });
+    offerColors(side === 'right' ? 'Neuer Slot rechts angelegt.' : 'Neuer Slot unten angelegt.');
+  };
 
   // F-36: Lesezeichen aus Chrome, Safari, Firefox, Edge (HTML-Datei) übernehmen und die Library so ausgeben.
   const exportBookmarks = () => {
@@ -593,6 +614,7 @@ function DeskApp(props: DeskProps) {
     const at = areaIn(arr, added.id);
     const after = at ? arr!.areas[at].panels.length : 1;
     dispatch({ type: 'add', setup, area, id });
+    offerColors(TINT_TEXT.added(`Portal „${added.name}“`), added.id);
     if (after === FOCUS_WARN) {
       // F-114: am neuen Portal, das jetzt vorn auf dem Stack liegt
       setHint({
@@ -1253,6 +1275,8 @@ function DeskApp(props: DeskProps) {
       <PanelFrame
         panel={meta}
         fx={fx}
+        tint={shownTint(meta, slotOfMeta ? slotTint(ws, slotOfMeta) : undefined)}
+        onColors={() => setColorsFor(meta.id)}
         share={onArea && { w: onArea.rect.w, h: onArea.rect.h }}
         stack={
           inStack && slotOfMeta
@@ -1419,8 +1443,7 @@ function DeskApp(props: DeskProps) {
       }
       case 'newSlot':
         if (!canAddArea(ws, setup)) return notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.capacity} Slots). Weitere Portale legst du über das Plus in der Kopfleiste eines Portals auf seinen Slot.`, 5000);
-        dispatch({ type: 'addArea', setup, side: 'right' });
-        return notify('Neuer Slot rechts angelegt.');
+        return newSlot('right');
       case 'newDesk':
         return addNewDesk();
       case 'nextDesk':
@@ -1474,7 +1497,7 @@ function DeskApp(props: DeskProps) {
           className="fx"
           style={{ '--fx': fx.panel.color } as CSSProperties}
           title={`Neuen Slot anlegen – ${fx.panel.text}`}
-          onClick={() => dispatch({ type: 'addArea', setup, side: 'right' })}
+          onClick={() => newSlot('right')}
         >
           +<span className="tb-label"> NewSlot</span>
         </button>
@@ -1637,7 +1660,10 @@ function DeskApp(props: DeskProps) {
                           }}
                         >
                           {here ? '● ' : ''}
+                          {/* F-161: Akzentfarbe des Desks; der Name bleibt das Merkmal (NF-03) */}
+                          <span className="desk-swatch" aria-hidden="true" style={{ '--swatch': lookOf(ws, d.id).accent } as CSSProperties} />
                           {d.name} · {n === 1 ? '1 Portal' : `${n} Portale`}
+                          {hasOwnLook(ws, d.id) ? DESK_LOOK_TEXT.ownShort : ''}
                           {` · ${deskFx(d.id).word}`}
                           {here ? ' · hier' : elsewhere ? ' · eigenes Fenster' : ' · gesammelt'}
                         </Item>
@@ -1755,7 +1781,7 @@ function DeskApp(props: DeskProps) {
               <>
                 <Item
                   onClick={() => {
-                    dispatch({ type: 'addArea', setup, side: 'right' });
+                    newSlot('right');
                     close();
                   }}
                 >
@@ -1763,7 +1789,7 @@ function DeskApp(props: DeskProps) {
                 </Item>
                 <Item
                   onClick={() => {
-                    dispatch({ type: 'addArea', setup, side: 'bottom' });
+                    newSlot('bottom');
                     close();
                   }}
                 >
@@ -2019,15 +2045,67 @@ function DeskApp(props: DeskProps) {
         />
       )}
       {design && (
-        <Design look={ws.look} warning={lookWarning} onLook={(change) => {
+        <Design look={look} warning={lookWarning} desk={winLabel} main={!win} own={hasOwnLook(ws, win)} onLook={(change) => {
             // F-178: passende Akzentfarbe mitnehmen, wenn die bisherige im neuen Design schlecht lesbar wäre
-            const next = pickLook(ws.look, change, systemDark);
-            dispatch({ type: 'look', ...next });
-            if (next.accent && !change.accent) notify(`Akzentfarbe an „${THEMES.find((t) => t.id === change.theme)?.label}“ angepasst, damit alles lesbar bleibt.`);
-          }} onClose={() => setDesign(false)} onTour={startDesignTour}>
+            const next = pickLook(look, change, systemDark);
+            const first = !!win && !hasOwnLook(ws, win);
+            dispatch({ type: 'look', win, ...next });
+            // F-161: Der erste Klick auf einem Zusatz-Desk gibt ihm eigene Farben – das ansagen
+            const msgs = [first ? DESK_LOOK_TEXT.nowOwn(winLabel) : '', next.accent && !change.accent ? `Akzentfarbe an „${THEMES.find((t) => t.id === change.theme)?.label}“ angepasst, damit alles lesbar bleibt.` : ''].filter(Boolean);
+            if (msgs.length) notify(msgs.join(' '));
+          }} tinted={deskTintCount(ws, win)} onResetTints={() => {
+            const { before } = clearDeskTints(ws, win);
+            const n = Object.keys(before.panels).length + Object.keys(before.slots).length;
+            dispatch({ type: 'clearTints', win });
+            setTintUndo(before);
+            notify(TINT_TEXT.resetAllDone(n), 8000, false, { label: TINT_TEXT.undo, run: () => dispatch({ type: 'restoreTints', snap: before }) });
+            // der Knopf wird zu „Rückgängig“ – Fokus dorthin (NF-03)
+            window.setTimeout(() => document.querySelector<HTMLElement>('#design section[aria-labelledby="design-tints"] button')?.focus(), 0);
+          }} onUndoTints={tintUndo ? () => {
+            dispatch({ type: 'restoreTints', snap: tintUndo });
+            setTintUndo(null);
+            setFlash(null);
+            window.setTimeout(() => document.querySelector<HTMLElement>('#design section[aria-labelledby="design-tints"] button')?.focus(), 0);
+          } : undefined} onFollowMain={() => {
+            dispatch({ type: 'followMainLook', win });
+            notify(DESK_LOOK_TEXT.nowFollows(winLabel));
+          }} onClose={() => {
+            setDesign(false);
+            setTintUndo(null);
+          }} onTour={startDesignTour}>
           {tour === 'design' && <Tour key="design" tour="design" auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} />}
         </Design>
       )}
+      {colorsFor &&
+        (() => {
+          // F-162: Portal und sein Slot; fällt das Portal weg, schließt der Dialog von selbst
+          const meta = ws.panels.find((x) => x.id === colorsFor);
+          const slot = shownView.slots.find((s) => s.panels.some((m) => m.id === colorsFor));
+          if (!meta || !slot) return null;
+          const nameId = slotNameId(ws, slot.panels.map((m) => m.id), slot.front.id);
+          const slotName = ws.areaNames.find((n) => n.id === nameId)?.name ?? TINT_TEXT.unnamed;
+          return (
+            <Colors
+              portalName={meta.name}
+              slotName={slotName}
+              portal={meta.tint}
+              slot={slotTint(ws, slot)}
+              shown={shownTheme}
+              onPortal={(change) => dispatch({ type: 'tintPanel', id: meta.id, change })}
+              onSlot={(change) => dispatch({ type: 'tintSlot', setup, area: slot.id, change })}
+              onReset={() => {
+                dispatch({ type: 'tintPanel', id: meta.id, change: { frame: null, accent: null } });
+                dispatch({ type: 'tintSlot', setup, area: slot.id, change: { frame: null, accent: null } });
+                notify(TINT_TEXT.resetOneDone(meta.name));
+              }}
+              onClose={() => {
+                setColorsFor(null);
+                // NF-03: Das Menü ist schon zu – Fokus zurück auf ⋮ dieses Portals
+                window.setTimeout(() => document.querySelector<HTMLElement>(`[data-panel-id="${meta.id}"] [aria-label="Portal-Optionen"]`)?.focus(), 0);
+              }}
+            />
+          );
+        })()}
       {bmImport && (
         <ImportBookmarks
           ws={ws}
@@ -2180,6 +2258,18 @@ function DeskApp(props: DeskProps) {
               title="Wiederherstellen (Alt/⌥+Z)"
             >
               Wiederherstellen
+            </button>
+          )}
+          {flashAction?.text === flash && (
+            <button
+              type="button"
+              className="toast__undo"
+              onClick={() => {
+                setFlash(null);
+                flashAction.run();
+              }}
+            >
+              {flashAction.label}
             </button>
           )}
           <button type="button" onClick={() => setFlash(null)} aria-label="Hinweis schließen" title="Schließen">

@@ -7,19 +7,34 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef } from 'react';
 import { ACCENTS, type Look, THEMES } from '../workspace/look';
 import { helpById } from '../workspace/help';
+import { DESK_LOOK_TEXT, TINT_TEXT } from '../workspace/terms';
 
 interface Props {
   look: Look;
   /** Hinweis bei schwachem Kontrast der Akzentfarbe, sonst leer. */
   warning: string | null;
   onLook: (change: Partial<Look>) => void;
+  /** F-161: Name des Desks, für den der Dialog gilt. */
+  desk: string;
+  /** F-161: Dialog gilt für den Main Desk. */
+  main: boolean;
+  /** F-161: Zusatz-Desk hat eigene Farben (sonst folgt er dem Main Desk). */
+  own: boolean;
+  /** F-161: Zusatz-Desk folgt wieder dem Main Desk. */
+  onFollowMain: () => void;
+  /** F-162: Wie viele Slots und Portale dieses Desks eigene Farben haben. */
+  tinted: number;
+  /** F-162: alle auf Desk-Farben zurücksetzen. */
+  onResetTints: () => void;
+  /** F-162: gesetzt direkt nach dem Zurücksetzen – holt die Farben zurück. */
+  onUndoTints?: () => void;
   onClose: () => void;
   onTour: () => void;
   /** Tour, die im Dialog laufen soll (wird hineingereicht, damit sie über dem Dialog liegt). */
   children?: ReactNode;
 }
 
-export function Design({ look, warning, onLook, onClose, onTour, children }: Props) {
+export function Design({ look, warning, onLook, desk, main, own, onFollowMain, tinted, onResetTints, onUndoTints, onClose, onTour, children }: Props) {
   const dlg = useRef<HTMLDialogElement>(null);
   const first = useRef<HTMLButtonElement>(null);
 
@@ -47,7 +62,9 @@ export function Design({ look, warning, onLook, onClose, onTour, children }: Pro
       onClick={(e) => e.target === dlg.current && onClose()}
     >
       <header className="help__head">
-        <h2 id="design-title">Design anpassen</h2>
+        <h2 id="design-title">
+          Design anpassen <span className="design__desk">· {DESK_LOOK_TEXT.scope(desk)}</span>
+        </h2>
         <button type="button" className="design__tour" onClick={onTour} title="Kurze Einführung in diesen Dialog" aria-label="Tour „Design“ starten">
           Tour
         </button>
@@ -57,6 +74,21 @@ export function Design({ look, warning, onLook, onClose, onTour, children }: Pro
       </header>
       <p id="design-intro" className="help__intro">
         {helpById('design')?.text} Änderungen gelten sofort.
+      </p>
+      {/* F-161: für welchen Desk die Wahl gilt und ob er dem Main Desk folgt */}
+      <p className="design__scope">
+        {main ? DESK_LOOK_TEXT.main : own ? DESK_LOOK_TEXT.own(desk) : DESK_LOOK_TEXT.follows(desk)}
+        {!main && own && (
+          <button type="button" className="design__follow" title={DESK_LOOK_TEXT.followTitle}
+            onClick={() => {
+              onFollowMain();
+              // der Knopf verschwindet – Fokus auf die erste Wahl, damit er nicht verloren geht (NF-03)
+              first.current?.focus();
+            }}
+          >
+            {DESK_LOOK_TEXT.follow}
+          </button>
+        )}
       </p>
       <div className="help__body">
         <section className="design__group design__theme" aria-labelledby="design-theme">
@@ -106,6 +138,32 @@ export function Design({ look, warning, onLook, onClose, onTour, children }: Pro
               {warning}
             </p>
           )}
+        </section>
+        {/* F-162: Farben aller Slots und Portale dieses Desks zurücksetzen */}
+        <section className="design__group" aria-labelledby="design-tints">
+          <h3 id="design-tints" className="help__group">
+            {TINT_TEXT.deskHead}
+          </h3>
+          <p className="colors__note">
+            {tinted ? TINT_TEXT.deskSome(tinted) : TINT_TEXT.deskNone}
+            {tinted > 0 && (
+              <>
+                {' '}
+                <button type="button" className="design__follow" onClick={onResetTints}>
+                  {TINT_TEXT.resetAll}
+                </button>
+              </>
+            )}
+            {/* Der Hinweis unten ist hinter dem Dialog nicht erreichbar – daher „Rückgängig“ auch hier */}
+            {onUndoTints && !tinted && (
+              <>
+                {' '}
+                <button type="button" className="design__follow" onClick={onUndoTints}>
+                  {TINT_TEXT.undo}
+                </button>
+              </>
+            )}
+          </p>
         </section>
       </div>
       {children}

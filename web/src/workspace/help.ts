@@ -3,7 +3,7 @@
  * Tour (F-95). Begriffe kommen aus TERMS (F-154), damit jeder Text nur an einer Stelle steht.
  * Funktionen mit `run` lassen sich aus der Suche ausführen (Enter); Umschalt+Enter öffnet die Hilfe.
  */
-import { TERMS } from './terms';
+import { TERMS, TINT_TEXT } from './terms';
 
 /** Was die Oberfläche ausführen kann; App.tsx ordnet jedem Wert die passende Aktion zu. */
 export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher' | 'importBookmarks' | 'exportBookmarks' | 'sortHelp' | 'tourImport' | 'profile' | 'reload' | 'collectDesks' | 'distributeDesks' | 'nextDesk';
@@ -64,7 +64,9 @@ export const HELP: HelpEntry[] = [
   { id: 'collectDesks', group: 'Anlegen', name: 'Desks hier sammeln', text: up(def(TERMS.collectDesks)) + ' Auch im Umschalter ⇄ und im Cockpit.', run: 'collectDesks', words: ['zusammenführen', 'ein Fenster', 'Notebook', 'Fenster schließen', 'aufräumen'] },
   { id: 'distributeDesks', group: 'Anlegen', name: 'Auf Fenster verteilen', text: up(def(TERMS.distributeDesks)) + ' Lässt der Browser nur ein neues Fenster zu, Pop-ups für E-Sources erlauben. Auch im Umschalter ⇄ und im Cockpit.', run: 'distributeDesks', words: ['zweiter Monitor', 'mehrere Fenster', 'aufteilen', 'öffnen'] },
 
-  { id: 'design', group: 'Ansicht', name: 'Design anpassen', text: up(def(TERMS.design)) + ' Später auch Farben je Desk, Slot und Portal.', run: 'design', words: ['Farbe', 'Akzentfarbe', 'Darstellung', 'Theme', 'hell', 'dunkel', 'Aussehen', 'Look'] },
+  { id: 'design', group: 'Ansicht', name: 'Design anpassen', text: up(def(TERMS.design)) + ' Auf einem Zusatz-Desk gilt die Wahl nur für diesen Desk; „Wie Main Desk“ führt zurück. Unten im Dialog lassen sich die Farben aller Slots und Portale dieses Desks auf einmal zurücksetzen.', run: 'design', words: ['Farbe', 'Akzentfarbe', 'Darstellung', 'Theme', 'hell', 'dunkel', 'Aussehen', 'Look', 'Farbe je Desk', 'privat', 'geschäftlich', 'Desk-Farbe'] },
+
+  { id: 'colors', group: 'Ansicht', name: 'Farben je Slot und Portal', text: TINT_TEXT.intro + ' Öffnen über ⋮ Portal-Optionen → „Farben …“ oder direkt nach dem Anlegen mit „Farbe wählen …“ im Hinweis.', words: ['Rahmen', 'Rahmenfarbe', 'Akzentfarbe', 'Portal-Farbe', 'Slot-Farbe', 'einfärben', 'markieren'] },
 
   // Bedienung
   { id: 'adjust', group: 'Bedienung', name: 'Adjust', text: 'Größen der Portale per Tastatur oder Mausrad ändern: Pfeile oder W A S D verschieben die Kante, Umschalt die andere, Tab wechselt den Slot, M maximiert. Leertaste, Enter oder Esc beendet.', keys: 'Alt/⌥+A', run: 'adjust', words: ['Größe', 'Größen-Modus', 'breiter', 'schmaler', 'höher', 'Kante'] },

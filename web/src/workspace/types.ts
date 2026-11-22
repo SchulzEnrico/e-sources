@@ -41,6 +41,19 @@ export interface PanelMeta {
   ruler?: boolean;
   /** F-27: Zusatzfenster, in dem das Panel liegt (Id aus Workspace.windows); fehlt = Hauptfenster. */
   win?: string;
+  /** F-162: eigene Rahmen- und Akzentfarbe; fehlt = wie Slot bzw. Desk. */
+  tint?: Tint;
+}
+
+/** F-162: Rahmen- und Akzentfarbe (#rrggbb); was fehlt, erbt. */
+export interface Tint {
+  frame?: string;
+  accent?: string;
+}
+
+/** F-128, F-162: Name eines Slots, mit eigenen Farben. */
+export interface SlotName extends Named {
+  tint?: Tint;
 }
 
 /** F-125: Lineal für alle Panels, mit Beschriftung und Strichfarbe (Index in RULER_COLORS). */
@@ -145,9 +158,11 @@ export interface Workspace {
   /** F-125: Lineal (F-15). */
   ruler: RulerSettings;
   /** F-128: Namen der Areas (Stapel). */
-  areaNames: Named[];
+  areaNames: SlotName[];
   /** F-60, F-61: Hell/Dunkel und Akzentfarbe. */
   look: Look;
+  /** F-161: eigene Farben je Zusatz-Desk (Schlüssel = Id aus windows); fehlt = folgt dem Main Desk. */
+  deskLooks?: Record<string, Look>;
   /** F-128: laufende Nummer für den Standardnamen neuer Areas („NewArea 1“ …). */
   nextArea: number;
   /** F-27: Zusatzfenster („Fenster 2“ …); das Hauptfenster steht nicht in der Liste. */

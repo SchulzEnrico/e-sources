@@ -25,6 +25,7 @@ import * as BB from './browserBookmarks';
 import * as SH from './sortHelp';
 import * as Pr from './profile';
 import * as Up from './update';
+import * as Ti from './tint';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -899,9 +900,9 @@ describe('F-128 Area', () => {
 });
 
 describe('F-60, F-61, F-69, F-130 Darstellung', () => {
-  it('Standard: dunkel mit Portfolio-Rot; Chakren-Farben und Windows-Blau stehen zur Wahl', () => {
+  it('Standard: wie System mit Portfolio-Rot (F-161); Chakren-Farben und Windows-Blau stehen zur Wahl', () => {
     const ws = W.defaultWorkspace();
-    expect(ws.look).toEqual({ theme: 'dark', accent: '#e4522c' });
+    expect(ws.look).toEqual({ theme: 'system', accent: '#e4522c' });
     expect(L.ACCENTS.map((a) => a.hex)).toContain('#64a970');
     expect(L.ACCENTS.map((a) => a.hex)).toContain('#0a246a');
     expect(L.THEMES.slice(0, 3).map((t) => t.id)).toEqual(['dark', 'light', 'system']);
@@ -2014,5 +2015,118 @@ describe('F-185 Herkunft einer Source', () => {
       expect(r.file.workspace.bookmarks[1].origin?.via).toBe('sample');
       expect(B.originText(r.file.workspace.bookmarks[0].origin)).toContain('aus Import der Arbeitsfläche (Mac)');
     }
+  });
+});
+
+describe('F-161 Farben je Desk', () => {
+  const twoDesks = () => {
+    const ws = W.defaultWorkspace();
+    return Win.moveToWindow(ws, [ws.panels[0].id], 'w2');
+  };
+
+  it('ein Desk ohne eigene Farben folgt dem Main Desk – auch bei späteren Änderungen', () => {
+    let ws = twoDesks();
+    expect(L.hasOwnLook(ws, 'w2')).toBe(false);
+    ws = reducer(ws, { type: 'look', accent: '#64a970' });
+    expect(L.lookOf(ws, 'w2').accent).toBe('#64a970');
+    expect(L.hasOwnLook(ws, '')).toBe(false);
+  });
+
+  it('Wahl auf einem Zusatz-Desk gilt nur dort; „Wie Main Desk“ führt zurück', () => {
+    let ws = twoDesks();
+    ws = reducer(ws, { type: 'look', win: 'w2', theme: 'light' });
+    expect(L.lookOf(ws, 'w2')).toEqual({ theme: 'light', accent: ws.look.accent });
+    expect(ws.look.theme).toBe('system');
+    ws = reducer(ws, { type: 'look', accent: '#66afe1' });
+    expect(L.lookOf(ws, 'w2').accent).toBe('#e4522c');
+    expect(reducer(ws, { type: 'look', win: 'w2', theme: 'light' })).toBe(ws);
+    ws = reducer(ws, { type: 'followMainLook', win: 'w2' });
+    expect(L.hasOwnLook(ws, 'w2')).toBe(false);
+    expect(ws.deskLooks).toBeUndefined();
+    expect(L.lookOf(ws, 'w2').accent).toBe('#66afe1');
+  });
+
+  it('eigene Farben bleiben beim Speichern; Unbrauchbares und fremde Desks fallen weg', () => {
+    let ws = reducer(twoDesks(), { type: 'look', win: 'w2', theme: 'win2000', accent: '#0a246a' });
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(back.deskLooks).toEqual({ w2: { theme: 'win2000', accent: '#0a246a' } });
+    const bad = JSON.parse(JSON.stringify(ws));
+    bad.deskLooks = { w2: { theme: 'neon', accent: '#000000' }, w9: { theme: 'light', accent: '#000000' } };
+    expect(parseWorkspace(bad)!.deskLooks).toBeUndefined();
+  });
+
+  it('fällt ein Desk weg, fallen seine Farben mit weg', () => {
+    let ws = reducer(twoDesks(), { type: 'look', win: 'w2', theme: 'light' });
+    ws = Win.syncWindows(Win.moveToWindow(ws, [ws.panels[0].id], ''));
+    expect(ws.windows).toHaveLength(0);
+    expect(ws.deskLooks).toBeUndefined();
+  });
+});
+
+describe('F-162 Farben je Slot und Portal', () => {
+  const setup = LAPTOP1;
+  const stackWs = () => {
+    let ws = W.defaultWorkspace();
+    const v = W.viewOf(ws, setup);
+    const area = v.slots[0].id;
+    ws = W.addPanel(ws, setup, area, 'neu');
+    return { ws, area };
+  };
+
+  it('Portal → Slot → Desk, jede Farbe für sich', () => {
+    let { ws, area } = stackWs();
+    ws = reducer(ws, { type: 'tintSlot', setup, area, change: { frame: '#64A970', accent: '#66afe1' } });
+    const slot = W.viewOf(ws, setup).slots.find((s) => s.id === area)!;
+    const t = Ti.slotTint(ws, slot);
+    expect(t).toEqual({ frame: '#64a970', accent: '#66afe1' });
+    const p = slot.front;
+    expect(Ti.shownTint(p, t)).toEqual({ frame: '#64a970', frameFrom: 'slot', accent: '#66afe1', accentFrom: 'slot' });
+    ws = reducer(ws, { type: 'tintPanel', id: p.id, change: { accent: '#b064a6' } });
+    const p2 = ws.panels.find((x) => x.id === p.id)!;
+    expect(Ti.shownTint(p2, t)).toEqual({ frame: '#64a970', frameFrom: 'slot', accent: '#b064a6', accentFrom: 'portal' });
+    expect(Ti.shownTint(p2, undefined).frameFrom).toBe('desk');
+  });
+
+  it('null löscht eine Farbe; leer bleibt nichts zurück; Ungültiges ändert nichts', () => {
+    let ws = W.defaultWorkspace();
+    const id = ws.panels[0].id;
+    ws = Ti.setPanelTint(ws, id, { frame: '#000000' });
+    expect(Ti.setPanelTint(ws, id, { frame: 'rot' })).toBe(ws);
+    ws = Ti.setPanelTint(ws, id, { frame: null });
+    expect(ws.panels[0].tint).toBeUndefined();
+  });
+
+  it('Farben bleiben beim Speichern; Unbrauchbares fällt weg', () => {
+    let { ws, area } = stackWs();
+    ws = reducer(ws, { type: 'tintSlot', setup, area, change: { accent: '#ecb85c' } });
+    ws = reducer(ws, { type: 'tintPanel', id: ws.panels[0].id, change: { frame: '#d3514a' } });
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(back.panels[0].tint).toEqual({ frame: '#d3514a' });
+    expect(back.areaNames.some((a) => a.tint?.accent === '#ecb85c')).toBe(true);
+    const bad = JSON.parse(JSON.stringify(ws));
+    bad.panels[0].tint = { frame: 'grün' };
+    bad.areaNames[0].tint = 5;
+    const b2 = parseWorkspace(bad)!;
+    expect(b2.panels[0].tint).toBeUndefined();
+    expect(b2.areaNames[0].tint).toBeUndefined();
+  });
+});
+
+describe('F-162 Zurücksetzen auf Desk-Farben', () => {
+  it('setzt alle Slots und Portale eines Desks zurück, andere Desks bleiben; Rückgängig stellt her', () => {
+    let ws = W.defaultWorkspace();
+    const [a, b] = ws.panels;
+    ws = Win.moveToWindow(ws, [b.id], 'w2');
+    ws = Ti.setPanelTint(ws, a.id, { frame: '#d3514a' });
+    ws = Ti.setPanelTint(ws, b.id, { accent: '#64a970' });
+    const area = W.viewOf(ws, LAPTOP1).slots.find((s) => s.panels.some((p) => p.id === a.id))!.id;
+    ws = reducer(ws, { type: 'tintSlot', setup: LAPTOP1, area, change: { accent: '#66afe1' } });
+    expect(Ti.deskTintCount(ws, '')).toBe(2);
+    const { ws: cleared, before } = Ti.clearDeskTints(ws, '');
+    expect(Ti.deskTintCount(cleared, '')).toBe(0);
+    expect(cleared.panels.find((p) => p.id === b.id)!.tint).toEqual({ accent: '#64a970' });
+    const back = Ti.restoreTints(cleared, before);
+    expect(Ti.deskTintCount(back, '')).toBe(2);
+    expect(Ti.clearDeskTints(cleared, '').ws).toBe(cleared);
   });
 });

@@ -65,7 +65,8 @@ export const ACCENTS: { name: string; hex: string; theme?: Shown }[] = [
   { name: 'Terminal-Bernstein', hex: '#ffb000' },
 ];
 
-export const LOOK_DEFAULT: Look = { theme: 'dark', accent: ACCENTS[0].hex };
+/** F-161: Neue Nutzer starten mit „wie das System“. */
+export const LOOK_DEFAULT: Look = { theme: 'system', accent: ACCENTS[0].hex };
 
 /** Hintergrund je Modus (wie --bg im Stylesheet); daran misst sich der Kontrast. */
 export const BACKGROUND: Record<Shown, string> = { dark: '#0c0c0f', light: '#eceef2', win2000: '#d4d0c8', winxp: '#ece9d8', macos9: '#dddddd', aqua: '#ececec', beos: '#d8d8d8', next: '#aaaaaa', amiga: '#0055aa', aero: '#f0f0f0', ubuntu: '#f2f1f0', snowleopard: '#e8e8e8', system7: '#ffffff', atari: '#ffffff', terminal: '#000000' };
@@ -152,4 +153,45 @@ export function pickLook(current: Look, change: Partial<Look>, systemDark: boole
 /** F-178: Im Terminal ist die Schrift die Akzentfarbe – eine zu dunkle Farbe wird dort durch Terminal-Grün ersetzt. */
 export function shownAccent(accent: string, shown: Shown): string {
   return shown === 'terminal' && contrastWarning(accent, shown) ? (themeAccent('terminal') ?? accent) : accent;
+}
+
+/** F-161: Farben eines Desks ('' = Main Desk). Ein Desk ohne eigene Farben folgt dem Main Desk. */
+export function lookOf(ws: Workspace, win: string): Look {
+  return (win && ws.deskLooks?.[win]) || ws.look;
+}
+
+/** F-161: Hat der Desk eigene Farben? Der Main Desk zählt nie als „eigen“ – er gibt sie vor. */
+export const hasOwnLook = (ws: Workspace, win: string): boolean => !!win && !!ws.deskLooks?.[win];
+
+/**
+ * F-161: Darstellung oder Farbe eines Desks ändern. Auf dem Main Desk ändert das ws.look (und damit
+ * alle Desks, die ihm folgen); auf einem Zusatz-Desk bekommt dieser ab jetzt eigene Farben.
+ */
+export function setDeskLook(ws: Workspace, win: string, change: Partial<Look>): Workspace {
+  if (!win) return setLook(ws, change);
+  const base = lookOf(ws, win);
+  const theme = change.theme ?? base.theme;
+  const accent = change.accent !== undefined && isHex(change.accent) ? change.accent.toLowerCase() : base.accent;
+  const own = ws.deskLooks?.[win];
+  if (own && own.theme === theme && own.accent === accent) return ws;
+  return { ...ws, deskLooks: { ...ws.deskLooks, [win]: { theme, accent } } };
+}
+
+/** F-161: Desk folgt wieder dem Main Desk. */
+export function followMainLook(ws: Workspace, win: string): Workspace {
+  if (!hasOwnLook(ws, win)) return ws;
+  const { [win]: _gone, ...rest } = ws.deskLooks!;
+  return { ...ws, deskLooks: Object.keys(rest).length ? rest : undefined };
+}
+
+/** F-161: gespeicherte Desk-Farben prüfen; nur bekannte Desks, Unbrauchbares fällt weg. */
+export function parseDeskLooks(v: unknown, ids: ReadonlySet<string>): Record<string, Look> | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const out: Record<string, Look> = {};
+  for (const [k, o] of Object.entries(v as Record<string, unknown>)) {
+    if (!k || !ids.has(k) || !o || typeof o !== 'object') continue;
+    const l = o as Record<string, unknown>;
+    if (THEMES.some((t) => t.id === l.theme) && isHex(l.accent)) out[k] = { theme: l.theme as Theme, accent: l.accent.toLowerCase() };
+  }
+  return Object.keys(out).length ? out : undefined;
 }

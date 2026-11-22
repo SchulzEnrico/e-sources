@@ -420,6 +420,13 @@ select {
 .win--active::before {
   opacity: 1;
 }
+/* F-162: eigene Akzentfarbe – abgeleitete Farben neu berechnen, da --accent-rgb hier überschrieben ist */
+.win--tinted { --accent: rgb(var(--accent-rgb)); --glow: rgba(var(--accent-rgb), 0.3); --name-accent: var(--accent); }
+:root[data-theme='light'] .win--tinted { --name-accent: color-mix(in srgb, var(--accent) 78%, #000000); }
+/* F-162: Rahmenfarbe als deutliche Linie (2 px), auch wenn das Portal nicht aktiv ist */
+.win--framed::before { background: var(--frame); padding: 3px; opacity: 1; }
+.win--framed:not(.win--active)::before { opacity: 0.85; }
+
 .win--active {
   /* Fokus nur als Akzent: Schein in der Akzentfarbe hinter dem Panel (NF-08). */
   /* +25 % gegenüber V05-Entwurf */
@@ -3544,6 +3551,32 @@ button.is-off:hover,
 .design__tour:hover,
 .design__tour:focus-visible { opacity: 1; }
 .design__group { padding: 4px 0 12px; }
+/* F-161: für welchen Desk der Dialog gilt */
+.design__desk { font-weight: 400; color: var(--muted); font-size: 0.8em; }
+.design__scope { margin: -6px 22px 12px; padding: 8px 12px; border-left: 3px solid rgb(var(--accent-rgb)); background: color-mix(in srgb, rgb(var(--accent-rgb)) 8%, transparent); font-size: 14px; line-height: 1.5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.design__follow { font-size: 13px; padding: 3px 10px; }
+/* F-162: Dialog „Farben“ */
+.colors { width: min(680px, calc(100vw - 24px)); }
+.colors .help__intro { font-size: 13px; margin-bottom: 6px; }
+.colors .design__group { padding: 2px 0 6px; }
+.colors .help__group { margin: 6px 0 4px; }
+/* eine Zeile je Farbe: Bezeichnung links, Wahl rechts */
+.colors__row { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 4px 8px; margin: 2px 0; }
+.colors__row .look__warn { grid-column: 2; margin: 0; }
+.colors__label { font-size: 13px; color: var(--muted); }
+.colors__own { flex: 0 0 24px; width: 24px; height: 24px; padding: 0; border: 2px dashed var(--muted); border-radius: 6px; background: transparent; cursor: pointer; }
+.colors__own.on { border: 2px solid var(--text); }
+.colors__own::-webkit-color-swatch-wrapper { padding: 1px; }
+.colors__own::-webkit-color-swatch { border: 0; border-radius: 3px; }
+.colors__inherit { flex: 0 0 auto; min-width: 72px; font-size: 13px; padding: 3px 8px; margin-right: 4px; white-space: nowrap; }
+.colors__row .look__swatches { display: flex; flex-wrap: nowrap; align-items: center; gap: 5px; min-width: 0; }
+@media (max-width: 560px) { .colors__row .look__swatches { flex-wrap: wrap; } }
+.colors .colors__row button.look__swatch { flex: 0 0 24px; width: 24px; height: 24px; min-height: 0; min-width: 0; aspect-ratio: 1; box-sizing: border-box; }
+.colors__row .look__custom { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 0 4px; font-size: 13px; white-space: nowrap; }
+.colors__note { margin: -4px 0 8px; font-size: 13px; color: var(--muted); }
+.colors__reset { margin: 4px 0 0; }
+/* F-161: Akzentfarbe je Desk im Desk-Umschalter (nur Zierde, Name steht daneben) */
+.desk-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; background: var(--swatch); box-shadow: 0 0 0 1px var(--text); }
 .design__group .seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .design__group .seg button { font-size: 14px; padding: 5px 12px; }
 .design .look__swatches { grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); gap: 8px; max-width: 420px; }

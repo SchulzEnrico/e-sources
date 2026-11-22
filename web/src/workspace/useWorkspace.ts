@@ -12,7 +12,8 @@ import * as W from './workspace';
 import * as C from './closed';
 import * as F from './focus';
 import type { FocusRule } from './focus';
-import { type Look, setLook } from './look';
+import { followMainLook, type Look, setDeskLook } from './look';
+import { clearDeskTints, restoreTints, setPanelTint, setSlotTint, type TintKind, type TintSnapshot } from './tint';
 import { type ImportPlan, applyImport } from './browserBookmarks';
 import { sortAll, sortInto } from './sortHelp';
 
@@ -76,7 +77,12 @@ export type Action =
   | { type: 'rulerPanel'; id: string }
   | { type: 'rulerStyle'; labels?: boolean; color?: number }
   /** F-60, F-61: Darstellung. */
-  | ({ type: 'look' } & Partial<Look>)
+  | ({ type: 'look'; win?: string } & Partial<Look>)
+  | { type: 'followMainLook'; win: string }
+  | { type: 'tintPanel'; id: string; change: Partial<Record<TintKind, string | null>> }
+  | { type: 'tintSlot'; setup: ScreenSetup; area: string; change: Partial<Record<TintKind, string | null>> }
+  | { type: 'clearTints'; win: string }
+  | { type: 'restoreTints'; snap: TintSnapshot }
   /** F-121: ganze Arbeitsfläche durch eine importierte ersetzen. */
   | { type: 'replace'; ws: Workspace }
   /** F-27: Stand aus einem anderen Fenster übernehmen (wird hier nicht erneut gespeichert). */
@@ -197,7 +203,17 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'rulerStyle':
       return W.setRulerStyle(ws, { labels: a.labels, color: a.color });
     case 'look':
-      return setLook(ws, { theme: a.theme, accent: a.accent });
+      return setDeskLook(ws, a.win ?? '', { theme: a.theme, accent: a.accent });
+    case 'followMainLook':
+      return followMainLook(ws, a.win);
+    case 'tintPanel':
+      return setPanelTint(ws, a.id, a.change);
+    case 'tintSlot':
+      return setSlotTint(ws, a.setup, a.area, a.change);
+    case 'clearTints':
+      return clearDeskTints(ws, a.win).ws;
+    case 'restoreTints':
+      return restoreTints(ws, a.snap);
     case 'replace':
     case 'remote':
       return a.ws;

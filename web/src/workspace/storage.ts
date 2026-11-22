@@ -1,5 +1,6 @@
 import type { Arrangement, Bookmark, BookmarkOrigin, Closed, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
-import { parseLook } from './look';
+import { parseDeskLooks, parseLook } from './look';
+import { parseTint } from './tint';
 import { parseProfile } from './profile';
 import { type FocusRule, fixRule } from './focus';
 import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } from './workspace';
@@ -67,6 +68,8 @@ function parsePanel(v: unknown): PanelMeta | null {
   if (typeof v.ruler === 'boolean') panel.ruler = v.ruler;
   if (typeof v.areaName === 'string') panel.areaName = v.areaName;
   if (typeof v.win === 'string' && v.win) panel.win = v.win;
+  const tint = parseTint(v.tint);
+  if (tint) panel.tint = tint;
   return panel;
 }
 
@@ -142,7 +145,10 @@ export function parseWorkspace(data: unknown): Workspace | null {
   // F-154: alte Standardnamen („NewArea 3“, „NewSlot 3“) heißen jetzt „Slot 3“.
   const areaNames = namedList(data.areaNames).map((a) => {
     const m = /^New(?:Area|Slot) (\d+)$/.exec(a.name);
-    return m ? { ...a, name: `Slot ${m[1]}` } : a;
+    // F-162: Farben des Slots prüfen; Unbrauchbares fällt weg
+    const tint = parseTint((a as { tint?: unknown }).tint);
+    const entry = { id: a.id, name: m ? `Slot ${m[1]}` : a.name };
+    return tint ? { ...entry, tint } : entry;
   });
   const nameIds = new Set(areaNames.map((a) => a.id));
   for (const p of panels as PanelMeta[]) if (p.areaName && !nameIds.has(p.areaName)) delete p.areaName;
@@ -195,6 +201,7 @@ export function parseWorkspace(data: unknown): Workspace | null {
     look: parseLook(data.look),
     windows,
     winSetup,
+    deskLooks: parseDeskLooks(data.deskLooks, winIds),
   };
 }
 

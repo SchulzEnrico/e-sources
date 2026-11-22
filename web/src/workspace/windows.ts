@@ -55,7 +55,10 @@ export function syncWindows(ws: Workspace): Workspace {
   if (same) return ws;
   const ids = new Set(['', ...windows.map((w) => w.id)]);
   const winSetup = Object.fromEntries(Object.entries(ws.winSetup ?? {}).filter(([k]) => ids.has(k)));
-  return { ...ws, windows, winSetup };
+  // F-161: Farben eines weggefallenen Desks fallen mit weg
+  const looks = Object.entries(ws.deskLooks ?? {}).filter(([k]) => ids.has(k));
+  const deskLooks = looks.length ? Object.fromEntries(looks) : undefined;
+  return { ...ws, windows, winSetup, deskLooks };
 }
 
 /**

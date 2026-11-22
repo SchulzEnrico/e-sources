@@ -601,6 +601,12 @@ function nameIdOf(ws: Workspace, members: string[], front: string): string | und
   return members.map(of).find((a) => a && count.get(a) === best);
 }
 
+/** F-162: Name-Id eines Slots (für seine Farben). */
+export const slotNameId = (ws: Workspace, members: string[], front: string): string | undefined => nameIdOf(ws, members, front);
+
+/** F-162: Slot bekommt einen Namen, falls er noch keinen hat (Grundlage für Slot-Farben). */
+export const claimSlot = (ws: Workspace, members: string[], front: string): Workspace => claimArea(ws, members, front);
+
 /** Name der Area, auf der eine Anzeige-Stelle liegt; leer bei nur einem Panel oder noch ohne Namen. */
 export function areaLabel(ws: Workspace, slot: Slot): string {
   if (slot.panels.length < 2) return '';

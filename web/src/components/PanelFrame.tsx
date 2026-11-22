@@ -11,7 +11,9 @@ import { FOCUS_WARN, NEW_AREA, TAB_MAX, rulerShown, activeTab, canGoBack, canGoF
 import { StackBar, type StackProps, useSwipe } from './StackBar';
 import { Ruler, RulerIcon } from './Ruler';
 import * as FH from '../workspace/frameHistory';
-import { TERMS } from '../workspace/terms';
+import { TERMS, TINT_TEXT } from '../workspace/terms';
+import type { ShownTint } from '../workspace/tint';
+import { rgbOf } from '../workspace/look';
 
 /** Voreingestellte Größen (F-12) als Anteil von Breite und Höhe der Arbeitsfläche. */
 export const SIZE_PRESETS: { label: string; w: number; h: number }[] = [
@@ -32,6 +34,10 @@ interface Props {
   stack?: StackProps;
   /** F-167: Fokus-Auswirkung von „neues Portal“ und „neuer Tab“. */
   fx?: { panel: Fx; tab: Fx };
+  /** F-162: Rahmen- und Akzentfarbe (Portal → Slot → Desk). */
+  tint?: ShownTint;
+  /** F-162: Dialog „Farben“ öffnen. */
+  onColors?: () => void;
   active: boolean;
   maximized: boolean;
   swapSource: boolean;
@@ -517,6 +523,8 @@ export function PanelFrame(p: Props) {
     p.swapTarget && 'win--swap-target',
     p.dragging && 'win--dragging',
     p.hint && 'win--alert',
+    p.tint?.frame && 'win--framed',
+    p.tint?.accent && 'win--tinted',
   ]
     .filter(Boolean)
     .join(' ');
@@ -527,7 +535,14 @@ export function PanelFrame(p: Props) {
       onMouseDown={p.onActivate}
       aria-label={p.panel.name}
       data-panel-id={p.panel.id}
-      style={{ '--load': loadColor(load) } as CSSProperties}
+      style={
+        {
+          '--load': loadColor(load),
+          // F-162: eigene Farben gelten nur in diesem Portal
+          ...(p.tint?.frame ? { '--frame': p.tint.frame } : {}),
+          ...(p.tint?.accent ? { '--accent-rgb': rgbOf(p.tint.accent).join(', ') } : {}),
+        } as CSSProperties
+      }
     >
         {/* Kopfleiste wie im Browser (F-14): Schließen · Zurück · Vor · Neu laden · Home · Adresse · Größen · Name · Menü · Stapeln (F-140) */}
         <header className="win__bar">
@@ -774,6 +789,7 @@ export function PanelFrame(p: Props) {
                     {rulerShown(p.ws, p.panel) ? '▭ Lineal in diesem Portal ausblenden' : '▭ Lineal in diesem Portal zeigen'}
                   </Item>
                   <Item onClick={run(() => startEdit('panel'))}>✎ Portal umbenennen</Item>
+                  {p.onColors && <Item onClick={run(p.onColors)}>{TINT_TEXT.menu}</Item>}
                   {p.stack && <Item onClick={run(() => startEdit('area'))}>✎ Slot umbenennen</Item>}
                   {!p.maximized && <Item onClick={run(p.onStartSwap)}>⇄ Mit anderem Portal tauschen</Item>}
                   {!p.maximized && <Item onClick={run(p.onReset)}>↺ Portal zurücksetzen</Item>}

@@ -1,4 +1,4 @@
-import type { Arrangement, Bookmark, BookmarkOrigin, Closed, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
+import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
 import { parseDeskLooks, parseLook } from './look';
 import { parseTint } from './tint';
 import { parseProfile } from './profile';
@@ -70,6 +70,7 @@ function parsePanel(v: unknown): PanelMeta | null {
   if (typeof v.win === 'string' && v.win) panel.win = v.win;
   const tint = parseTint(v.tint);
   if (tint) panel.tint = tint;
+  if (typeof v.category === 'string') panel.category = v.category;
   return panel;
 }
 
@@ -135,7 +136,15 @@ export function parseWorkspace(data: unknown): Workspace | null {
   if (isObj(data.embed)) for (const [k, v] of Object.entries(data.embed)) if (typeof v === 'boolean') embed[k] = v;
   const lines: Record<string, 1 | 2> = {};
   if (isObj(data.lines)) for (const [k, v] of Object.entries(data.lines)) if (v === 1 || v === 2) lines[k] = v;
-  const categories = namedList(data.categories);
+  // F-163: Farben der Kategorie prüfen; Unbrauchbares fällt weg
+  const categories: Category[] = namedList(data.categories).map((c) => {
+    const tint = parseTint((c as { tint?: unknown }).tint);
+    return tint ? { id: c.id, name: c.name, tint } : { id: c.id, name: c.name };
+  });
+  const catIds = new Set(categories.map((c) => c.id));
+  for (const p of panels as PanelMeta[]) if (p.category && !catIds.has(p.category)) delete p.category;
+  const siteCategory: Record<string, string> = {};
+  if (isObj(data.siteCategory)) for (const [k, v] of Object.entries(data.siteCategory)) if (typeof v === 'string' && (v === '' || catIds.has(v))) siteCategory[k] = v;
   const bookmarks = bookmarkList(
     data.bookmarks,
     new Set((panels as PanelMeta[]).map((p) => p.id)),
@@ -189,6 +198,7 @@ export function parseWorkspace(data: unknown): Workspace | null {
     embed,
     bookmarks,
     categories,
+    ...(Object.keys(siteCategory).length ? { siteCategory } : {}),
     ruler: isObj(data.ruler)
       ? {
           on: data.ruler.on === true,

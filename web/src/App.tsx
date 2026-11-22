@@ -38,9 +38,12 @@ import { type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace
 import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
-import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf } from './workspace/workspace';
-import { DESK_LOOK_TEXT, TERMS, TINT_TEXT } from './workspace/terms';
+import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf } from './workspace/workspace';
+import { CATEGORY_TEXT, DESK_LOOK_TEXT, TERMS, TINT_TEXT } from './workspace/terms';
 import { clearDeskTints, deskTintCount, shownTint, slotTint, type TintSnapshot } from './workspace/tint';
+import { categoryOf, categoryPortals, categoryTint, suggestCategory } from './workspace/category';
+import { domainOf } from './workspace/sortHelp';
+
 import { Colors } from './components/Colors';
 import { Closed as ClosedDialog } from './components/Closed';
 import { FocusRule as FocusRuleDialog } from './components/FocusRule';
@@ -54,6 +57,12 @@ import { greetingFor, loadLast, profileOf, saveLast } from './workspace/profile'
 import { BOOKMARKS_FILE_NAME, type BrowserBookmark, bookmarkFileOf, looksLikeBookmarkFile, parseBookmarkFile } from './workspace/browserBookmarks';
 import { closedOf, restoreClosed, restoredSaid } from './workspace/closed';
 import { PORTAL_ALONE, nextTabOf, portalSaid, stepIn, tabAlone, tabSaid } from './workspace/cycle';
+
+/** Knopf im Hinweis unten (F-162, F-163). */
+interface FlashAction {
+  label: string;
+  run: () => void;
+}
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -388,9 +397,11 @@ function DeskApp(props: DeskProps) {
   /** F-24: Hinweis, an dem der Knopf „Wiederherstellen“ steht (gleich `flash`). */
   const [undoFor, setUndoFor] = useState<string | null>(null);
   /** F-162: Knopf im Hinweis (z. B. „Farbe wählen …“ nach dem Anlegen), gilt nur für diesen Hinweis. */
-  const [flashAction, setFlashAction] = useState<{ text: string; label: string; run: () => void } | null>(null);
+  const [flashAction, setFlashAction] = useState<{ text: string; actions: FlashAction[] } | null>(null);
   /** F-162: Dialog „Farben“ für dieses Portal (Id). */
   const [colorsFor, setColorsFor] = useState<string | null>(null);
+  // F-163: Dialog „Farben“ aus der Frage nach der Kategorie – Fokus auf die Wahl der Kategorie
+  const [colorsCat, setColorsCat] = useState(false);
   /** F-162: Stand vor „Alle auf Desk-Farben zurücksetzen“, solange der Design-Dialog offen ist. */
   const [tintUndo, setTintUndo] = useState<TintSnapshot | null>(null);
   /** F-24: Dialog „Zuletzt geschlossen“. */
@@ -531,10 +542,11 @@ function DeskApp(props: DeskProps) {
   const px = (r: T.FRect) => ({ left: GAP + r.x * iw, top: GAP + r.y * ih, width: Math.max(0, r.w * iw - GAP), height: Math.max(0, r.h * ih - GAP) });
 
   // Lange Hinweise bleiben länger stehen (etwa Lesetempo).
-  const notify = useCallback((text: string, ms = Math.max(3000, text.length * 50), undo = false, action?: { label: string; run: () => void }) => {
+  const notify = useCallback((text: string, ms = Math.max(3000, text.length * 50), undo = false, action?: FlashAction | FlashAction[]) => {
     setFlash(text);
     setUndoFor(undo ? text : null);
-    setFlashAction(action ? { text, ...action } : null);
+    const actions = action ? (Array.isArray(action) ? action : [action]) : [];
+    setFlashAction(actions.length ? { text, actions } : null);
     window.setTimeout(() => setFlash((f) => (f === text ? null : f)), ms);
   }, []);
 
@@ -543,6 +555,48 @@ function DeskApp(props: DeskProps) {
   wsNow.current = ws;
   const offerColors = (text: string, id?: string) =>
     notify(text, 8000, false, { label: TINT_TEXT.offer, run: () => setColorsFor(id ?? wsNow.current.panels[wsNow.current.panels.length - 1]?.id ?? null) });
+  /**
+   * F-163: Bekommt ein Portal dieses Desks eine Adresse und hat noch keine Kategorie, fragt der Hinweis
+   * nach ihr (Vorschlag aus Source, gemerkter Domain, Library oder bekannter Seite). Je Portal und Domain
+   * einmal; Portale, die beim Start schon eine Adresse haben, fragen erst bei einer neuen Domain.
+   */
+  const askedCat = useRef<Map<string, string> | null>(null);
+  useEffect(() => {
+    const here = ws.panels.filter((p) => (p.win ?? '') === (win ?? ''));
+    if (!askedCat.current) {
+      askedCat.current = new Map(here.map((p) => [p.id, domainOf(activeTab(p).url ?? '')]));
+      return;
+    }
+    for (const p of here) {
+      const url = activeTab(p).url;
+      if (p.category !== undefined || !url) continue;
+      const site = domainOf(url);
+      if (askedCat.current.get(p.id) === site) continue;
+      askedCat.current.set(p.id, site);
+      const sug = suggestCategory(ws, url);
+      const set = (id: string, name: string | null) => {
+        dispatch({ type: 'panelCategory', id: p.id, category: id, url });
+        notify(CATEGORY_TEXT.done(p.name, name));
+      };
+      const other = { label: sug ? CATEGORY_TEXT.other : CATEGORY_TEXT.choose, run: () => (setColorsCat(true), setColorsFor(p.id)) };
+      const none = { label: CATEGORY_TEXT.keepNone, run: () => set('', null) };
+      if (!sug) notify(CATEGORY_TEXT.ask(p.name, site, null), 12000, false, [other, none]);
+      else if (sug.id === '') notify(CATEGORY_TEXT.askNone(p.name, site), 12000, false, [none, other]);
+      else {
+        const take = {
+          label: CATEGORY_TEXT.take(sug.name),
+          run: () => {
+            if (sug.id) return set(sug.id, sug.name);
+            dispatch({ type: 'panelNewCategory', id: p.id, name: sug.name, catId: newId(), url });
+            notify(CATEGORY_TEXT.done(p.name, sug.name));
+          },
+        };
+        notify(CATEGORY_TEXT.ask(p.name, site, sug.name), 12000, false, [take, other, none]);
+      }
+      break;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ws.panels]);
   const newSlot = (side: 'right' | 'bottom') => {
     dispatch({ type: 'addArea', setup, side });
     offerColors(side === 'right' ? 'Neuer Slot rechts angelegt.' : 'Neuer Slot unten angelegt.');
@@ -1275,8 +1329,13 @@ function DeskApp(props: DeskProps) {
       <PanelFrame
         panel={meta}
         fx={fx}
-        tint={shownTint(meta, slotOfMeta ? slotTint(ws, slotOfMeta) : undefined)}
+        tint={shownTint(meta, slotOfMeta ? slotTint(ws, slotOfMeta) : undefined, categoryTint(ws, meta))}
         onColors={() => setColorsFor(meta.id)}
+        onCategory={() => (setColorsCat(true), setColorsFor(meta.id))}
+        category={(() => {
+          const c = categoryOf(ws, meta);
+          return c ? { name: c.name, color: c.tint?.frame ?? c.tint?.accent } : undefined;
+        })()}
         share={onArea && { w: onArea.rect.w, h: onArea.rect.h }}
         stack={
           inStack && slotOfMeta
@@ -2091,6 +2150,14 @@ function DeskApp(props: DeskProps) {
               portal={meta.tint}
               slot={slotTint(ws, slot)}
               shown={shownTheme}
+              categories={ws.categories}
+              category={meta.category}
+              categoryTint={categoryTint(ws, meta)}
+              categoryPortals={meta.category ? categoryPortals(ws, meta.category) : 0}
+              focusCategory={colorsCat}
+              onCategory={(id) => dispatch({ type: 'panelCategory', id: meta.id, category: id, url: activeTab(meta).url })}
+              onNewCategory={(name) => dispatch({ type: 'panelNewCategory', id: meta.id, name, catId: newId(), url: activeTab(meta).url })}
+              onCategoryTint={(change) => meta.category && dispatch({ type: 'tintCategory', id: meta.category, change })}
               onPortal={(change) => dispatch({ type: 'tintPanel', id: meta.id, change })}
               onSlot={(change) => dispatch({ type: 'tintSlot', setup, area: slot.id, change })}
               onReset={() => {
@@ -2100,6 +2167,7 @@ function DeskApp(props: DeskProps) {
               }}
               onClose={() => {
                 setColorsFor(null);
+                setColorsCat(false);
                 // NF-03: Das Menü ist schon zu – Fokus zurück auf ⋮ dieses Portals
                 window.setTimeout(() => document.querySelector<HTMLElement>(`[data-panel-id="${meta.id}"] [aria-label="Portal-Optionen"]`)?.focus(), 0);
               }}
@@ -2260,18 +2328,20 @@ function DeskApp(props: DeskProps) {
               Wiederherstellen
             </button>
           )}
-          {flashAction?.text === flash && (
-            <button
-              type="button"
-              className="toast__undo"
-              onClick={() => {
-                setFlash(null);
-                flashAction.run();
-              }}
-            >
-              {flashAction.label}
-            </button>
-          )}
+          {flashAction?.text === flash &&
+            flashAction.actions.map((a) => (
+              <button
+                key={a.label}
+                type="button"
+                className="toast__undo"
+                onClick={() => {
+                  setFlash(null);
+                  a.run();
+                }}
+              >
+                {a.label}
+              </button>
+            ))}
           <button type="button" onClick={() => setFlash(null)} aria-label="Hinweis schließen" title="Schließen">
             ×
           </button>

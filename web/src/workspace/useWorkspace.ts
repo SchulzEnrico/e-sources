@@ -16,6 +16,7 @@ import { followMainLook, type Look, setDeskLook } from './look';
 import { clearDeskTints, restoreTints, setPanelTint, setSlotTint, type TintKind, type TintSnapshot } from './tint';
 import { type ImportPlan, applyImport } from './browserBookmarks';
 import { sortAll, sortInto } from './sortHelp';
+import { setCategoryTint, setPanelCategory, setPanelNewCategory } from './category';
 
 type S = { setup: ScreenSetup };
 
@@ -79,6 +80,9 @@ export type Action =
   /** F-60, F-61: Darstellung. */
   | ({ type: 'look'; win?: string } & Partial<Look>)
   | { type: 'followMainLook'; win: string }
+  | { type: 'panelCategory'; id: string; category: string; url?: string }
+  | { type: 'panelNewCategory'; id: string; name: string; catId: string; url?: string }
+  | { type: 'tintCategory'; id: string; change: Partial<Record<TintKind, string | null>> }
   | { type: 'tintPanel'; id: string; change: Partial<Record<TintKind, string | null>> }
   | { type: 'tintSlot'; setup: ScreenSetup; area: string; change: Partial<Record<TintKind, string | null>> }
   | { type: 'clearTints'; win: string }
@@ -206,6 +210,12 @@ function step(ws: Workspace, a: Action): Workspace {
       return setDeskLook(ws, a.win ?? '', { theme: a.theme, accent: a.accent });
     case 'followMainLook':
       return followMainLook(ws, a.win);
+    case 'panelCategory':
+      return setPanelCategory(ws, a.id, a.category, a.url);
+    case 'panelNewCategory':
+      return setPanelNewCategory(ws, a.id, a.name, () => a.catId, a.url);
+    case 'tintCategory':
+      return setCategoryTint(ws, a.id, a.change);
     case 'tintPanel':
       return setPanelTint(ws, a.id, a.change);
     case 'tintSlot':

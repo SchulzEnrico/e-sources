@@ -45,14 +45,37 @@ export const DESK_LOOK_TEXT = {
 } as const;
 
 /** F-162: Texte zu Rahmen- und Akzentfarbe je Slot und Portal. */
+/** F-163: Farbregeln über Kategorien (Kategorien der Library). */
+export const CATEGORY_TEXT = {
+  head: 'Kategorie',
+  intro: 'Kategorie = Gruppe aus deiner Library (z. B. Video, Editor). Ihre Farben gelten für alle Portale dieser Kategorie, wenn Portal und Slot keine eigenen haben.',
+  label: 'Kategorie dieses Portals',
+  none: 'Ohne Kategorie',
+  create: 'Neue Kategorie …',
+  newName: 'Name der neuen Kategorie',
+  add: 'Anlegen',
+  cancel: 'Abbrechen',
+  portals: (n: number) => (n === 1 ? 'Farben gelten für 1 Portal.' : `Farben gelten für ${n} Portale.`),
+  likeCategory: 'Wie Kategorie',
+  badge: (name: string) => `Kategorie „${name}“ – Farben ändern`,
+  ask: (portal: string, site: string, name: string | null) =>
+    name ? `„${portal}“ zeigt ${site}. Kategorie „${name}“?` : `„${portal}“ zeigt ${site}. Welche Kategorie?`,
+  askNone: (portal: string, site: string) => `„${portal}“ zeigt ${site}. Wie zuletzt ohne Kategorie?`,
+  take: (name: string) => `„${name}“ übernehmen`,
+  other: 'Andere …',
+  choose: 'Kategorie wählen …',
+  keepNone: 'Ohne',
+  done: (portal: string, name: string | null) => (name ? `„${portal}“ gehört jetzt zu „${name}“.` : `„${portal}“ hat keine Kategorie.`),
+};
+
 export const TINT_TEXT = {
   title: 'Farben',
   menu: '◐ Farben …',
-  intro: 'Jedes Portal und jeder Slot kann eine eigene Rahmenfarbe (farbige Linie um das Portal) und Akzentfarbe (Leuchten, Portalname und Hervorhebungen im Portal) haben. Was du nicht wählst, kommt vom Slot und dann vom Desk.',
+  intro: 'Jedes Portal und jeder Slot kann eine eigene Rahmenfarbe (farbige Linie um das Portal) und Akzentfarbe (Leuchten, Portalname und Hervorhebungen im Portal) haben. Was du nicht wählst, kommt vom Slot, dann von der Kategorie des Portals (Farbregel) und dann vom Desk.',
   portal: (name: string) => `Dieses Portal: ${name}`,
   slot: (name: string) => `Dieser Slot: ${name}`,
   slotNote: 'Gilt für alle Portale auf diesem Slot, die keine eigene Farbe haben.',
-  short: 'Rahmen = Linie um das Portal, Akzent = Leuchten und Portalname. Was du nicht wählst, kommt vom Slot, dann vom Desk.',
+  short: 'Rahmen = Linie um das Portal, Akzent = Leuchten und Portalname. Was du nicht wählst, kommt vom Slot, dann von der Kategorie, dann vom Desk.',
   frame: 'Rahmen',
   accent: 'Akzent',
   likeSlot: 'Wie Slot',

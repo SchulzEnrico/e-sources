@@ -26,6 +26,7 @@ import * as SH from './sortHelp';
 import * as Pr from './profile';
 import * as Up from './update';
 import * as Ti from './tint';
+import * as Ca from './category';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -2128,5 +2129,79 @@ describe('F-162 Zurücksetzen auf Desk-Farben', () => {
     const back = Ti.restoreTints(cleared, before);
     expect(Ti.deskTintCount(back, '')).toBe(2);
     expect(Ti.clearDeskTints(cleared, '').ws).toBe(cleared);
+  });
+});
+
+describe('F-163 Farbregeln über Kategorien', () => {
+  const withCats = () => {
+    let ws = W.defaultWorkspace();
+    ws = B.addCategory(ws, 'c-ed', 'Editor');
+    ws = B.addCategory(ws, 'c-vi', 'Video');
+    return ws;
+  };
+
+  it('Vorschlag: Source mit gleicher Adresse, dann gemerkte Domain, dann Library, dann bekannte Seite', () => {
+    let ws = withCats();
+    expect(Ca.suggestCategory(ws, undefined)).toBeNull();
+    expect(Ca.suggestCategory(ws, 'https://example.org/x')).toBeNull();
+    // bekannte Seite, Kategorie gibt es schon
+    expect(Ca.suggestCategory(ws, 'https://www.youtube.com/watch?v=1')).toEqual({ id: 'c-vi', name: 'Video', from: 'known' });
+    // bekannte Seite, Kategorie gibt es noch nicht
+    expect(Ca.suggestCategory(ws, 'https://github.com/a')).toEqual({ name: 'Entwicklung', from: 'known' });
+    // Library: andere Source derselben Domain
+    ws = { ...ws, bookmarks: [{ id: 'b1', title: 'Doc', url: 'https://docs.google.com/a', category: 'c-ed', tags: [], panels: [] }] };
+    expect(Ca.suggestCategory(ws, 'https://docs.google.com/b')).toMatchObject({ id: 'c-ed', from: 'library' });
+    expect(Ca.suggestCategory(ws, 'https://docs.google.com/a')).toMatchObject({ id: 'c-ed', from: 'source' });
+    // gemerkte Wahl schlägt die Library, auch „ohne“
+    ws = Ca.setPanelCategory(ws, ws.panels[0].id, '', 'https://docs.google.com/c');
+    expect(Ca.suggestCategory(ws, 'https://docs.google.com/d')).toEqual({ id: '', name: '', from: 'site' });
+  });
+
+  it('Kategorie setzen merkt die Domain; unbekannte Id ändert nichts; neue Kategorie wird angelegt', () => {
+    let ws = withCats();
+    const id = ws.panels[0].id;
+    expect(Ca.setPanelCategory(ws, id, 'gibt-es-nicht')).toBe(ws);
+    ws = Ca.setPanelCategory(ws, id, 'c-ed', 'https://www.docs.example.com/x');
+    expect(ws.panels[0].category).toBe('c-ed');
+    expect(ws.siteCategory).toEqual({ 'docs.example.com': 'c-ed' });
+    ws = reducer(ws, { type: 'panelNewCategory', id, name: 'Mail', catId: 'c-ma', url: 'https://mail.example.com' });
+    expect(B.categoryByName(ws, 'mail')?.id).toBe('c-ma');
+    expect(ws.panels[0].category).toBe('c-ma');
+    // gleicher Name nimmt die vorhandene
+    ws = Ca.setPanelNewCategory(ws, id, ' editor ', () => 'neu');
+    expect(ws.panels[0].category).toBe('c-ed');
+    expect(ws.categories).toHaveLength(3);
+  });
+
+  it('Vorrang Portal → Slot → Kategorie → Desk', () => {
+    let ws = withCats();
+    const id = ws.panels[0].id;
+    ws = Ca.setPanelCategory(ws, id, 'c-vi');
+    ws = reducer(ws, { type: 'tintCategory', id: 'c-vi', change: { frame: '#D3514A' } });
+    const p = ws.panels[0];
+    const cat = Ca.categoryTint(ws, p);
+    expect(cat).toEqual({ frame: '#d3514a' });
+    expect(Ti.shownTint(p, undefined, cat)).toEqual({ frame: '#d3514a', frameFrom: 'category', accent: undefined, accentFrom: 'desk' });
+    expect(Ti.shownTint(p, { frame: '#64a970' }, cat).frameFrom).toBe('slot');
+    expect(Ti.shownTint({ ...p, tint: { frame: '#000000' } }, { frame: '#64a970' }, cat).frameFrom).toBe('portal');
+    expect(Ca.categoryPortals(ws, 'c-vi')).toBe(1);
+    ws = Ca.setCategoryTint(ws, 'c-vi', { frame: null });
+    expect(ws.categories.find((c) => c.id === 'c-vi')).toEqual({ id: 'c-vi', name: 'Video' });
+  });
+
+  it('Löschen der Kategorie: Portale ohne, gemerkte Domain weg; Speichern prüft alles', () => {
+    let ws = withCats();
+    const id = ws.panels[0].id;
+    ws = Ca.setPanelCategory(ws, id, 'c-vi', 'https://vimeo.com/1');
+    ws = Ca.setCategoryTint(ws, 'c-vi', { frame: '#64a970' });
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(back.panels[0].category).toBe('c-vi');
+    expect(back.categories.find((c) => c.id === 'c-vi')?.tint).toEqual({ frame: '#64a970' });
+    expect(back.siteCategory).toEqual({ 'vimeo.com': 'c-vi' });
+    const broken = parseWorkspace({ ...JSON.parse(JSON.stringify(ws)), siteCategory: { 'a.de': 'weg', 'b.de': '' } })!;
+    expect(broken.siteCategory).toEqual({ 'b.de': '' });
+    ws = B.deleteCategory(ws, 'c-vi');
+    expect(ws.panels[0].category).toBe('');
+    expect(ws.siteCategory).toEqual({});
   });
 });

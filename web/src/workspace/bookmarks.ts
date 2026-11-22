@@ -4,7 +4,7 @@
  */
 import { profileOf } from './profile';
 import { ORIGIN_TEXT } from './terms';
-import type { Bookmark, BookmarkOrigin, Named, OriginVia, PanelMeta, Tab, Workspace } from './types';
+import type { Bookmark, BookmarkOrigin, Category, Named, OriginVia, PanelMeta, Tab, Workspace } from './types';
 import { TAB_MAX, activeTab, addTab, hostOf, navigatePanel, normalizeUrl, selectTab } from './workspace';
 
 /** Kategorie-Id für Lesezeichen ohne Kategorie. */
@@ -43,7 +43,7 @@ export function sameUrl(a: string | undefined, b: string | undefined): boolean {
 // ---------------------------------------------------------------- Kategorien
 
 /** Kategorie mit diesem Namen (Groß-/Kleinschreibung egal). */
-export function categoryByName(ws: Workspace, name: string): Named | undefined {
+export function categoryByName(ws: Workspace, name: string): Category | undefined {
   const n = name.trim().toLowerCase();
   return ws.categories.find((c) => c.name.toLowerCase() === n);
 }
@@ -69,6 +69,9 @@ export function deleteCategory(ws: Workspace, id: string): Workspace {
     ...ws,
     categories: ws.categories.filter((c) => c.id !== id),
     bookmarks: ws.bookmarks.map((b) => (b.category === id ? { ...b, category: NO_CATEGORY } : b)),
+    // F-163: Portale dieser Kategorie sind danach ohne; gemerkte Wahl je Domain fällt weg
+    panels: ws.panels.map((p) => (p.category === id ? { ...p, category: NO_CATEGORY } : p)),
+    ...(ws.siteCategory ? { siteCategory: Object.fromEntries(Object.entries(ws.siteCategory).filter(([, v]) => v !== id)) } : {}),
   };
 }
 

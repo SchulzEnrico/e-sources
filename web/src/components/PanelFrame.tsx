@@ -11,7 +11,7 @@ import { FOCUS_WARN, NEW_AREA, TAB_MAX, rulerShown, activeTab, canGoBack, canGoF
 import { StackBar, type StackProps, useSwipe } from './StackBar';
 import { Ruler, RulerIcon } from './Ruler';
 import * as FH from '../workspace/frameHistory';
-import { TERMS, TINT_TEXT } from '../workspace/terms';
+import { CATEGORY_TEXT, TERMS, TINT_TEXT } from '../workspace/terms';
 import type { ShownTint } from '../workspace/tint';
 import { rgbOf } from '../workspace/look';
 
@@ -38,6 +38,10 @@ interface Props {
   tint?: ShownTint;
   /** F-162: Dialog „Farben“ öffnen. */
   onColors?: () => void;
+  /** F-163: Kategorie des Portals – Name und ihre Rahmenfarbe (falls gesetzt), in der Kopfzeile. */
+  category?: { name: string; color?: string };
+  /** F-163: „Farben“ mit Fokus auf der Kategorie öffnen (Klick auf die Kategorie in der Kopfzeile). */
+  onCategory?: () => void;
   active: boolean;
   maximized: boolean;
   swapSource: boolean;
@@ -737,6 +741,19 @@ export function PanelFrame(p: Props) {
               <span className="win__name">{p.panel.name}</span>
             )}
           </div>
+          {/* F-163: Kategorie nie nur als Farbe – Name steht dabei; Klick öffnet „Farben“ (NF-03) */}
+          {p.category && (
+            <button
+              type="button"
+              className="win__cat"
+              title={CATEGORY_TEXT.badge(p.category.name)}
+              aria-label={CATEGORY_TEXT.badge(p.category.name)}
+              onClick={p.onCategory ?? p.onColors}
+            >
+              {p.category.color && <span className="win__cat-dot" aria-hidden="true" style={{ background: p.category.color }} />}
+              <span className="win__cat-name">{p.category.name}</span>
+            </button>
+          )}
           {/* Panel-Optionen (F-20); Sammlung, Verhalten und Szenarien kommen später dazu. */}
           <Menu icon="⋮" label="Portal-Optionen">
             {(close) => {

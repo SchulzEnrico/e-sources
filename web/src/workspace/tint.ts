@@ -1,5 +1,5 @@
 /**
- * F-162: Rahmen- und Akzentfarbe je Slot und Portal. Jede Farbe erbt für sich: Portal → Slot → Desk.
+ * F-162: Rahmen- und Akzentfarbe je Slot und Portal. Jede Farbe erbt für sich: Portal → Slot → Kategorie (F-163) → Desk.
  * Rahmen ohne Wahl = gewohnter Rand des Designs; Akzent ohne Wahl = Akzentfarbe des Desks (F-161).
  * Die Slot-Farbe hängt am Namen des Slots (Workspace.areaNames, F-128), damit sie in jeder
  * Bildschirm-Einstellung gilt – wie der Name.
@@ -22,7 +22,7 @@ export function parseTint(v: unknown): Tint | undefined {
 }
 
 /** Änderung anwenden: Farbe setzen oder mit null löschen (dann erbt sie wieder). */
-function merge(old: Tint | undefined, change: Partial<Record<TintKind, string | null>>): Tint | undefined {
+export function mergeTint(old: Tint | undefined, change: Partial<Record<TintKind, string | null>>): Tint | undefined {
   const t: Tint = { ...old };
   for (const k of TINT_KINDS) {
     const c = change[k];
@@ -32,14 +32,14 @@ function merge(old: Tint | undefined, change: Partial<Record<TintKind, string | 
   return t.frame || t.accent ? t : undefined;
 }
 
-const same = (a: Tint | undefined, b: Tint | undefined) => a?.frame === b?.frame && a?.accent === b?.accent;
+export const sameTint = (a: Tint | undefined, b: Tint | undefined) => a?.frame === b?.frame && a?.accent === b?.accent;
 
 /** Farben eines Portals ändern. */
 export function setPanelTint(ws: Workspace, id: string, change: Partial<Record<TintKind, string | null>>): Workspace {
   const p = ws.panels.find((x) => x.id === id);
   if (!p) return ws;
-  const tint = merge(p.tint, change);
-  if (same(tint, p.tint)) return ws;
+  const tint = mergeTint(p.tint, change);
+  if (sameTint(tint, p.tint)) return ws;
   const panels = ws.panels.map((x): PanelMeta => {
     if (x.id !== id) return x;
     const { tint: _old, ...rest } = x;
@@ -56,8 +56,8 @@ export function setSlotTint(ws: Workspace, setup: ScreenSetup, areaId: string, c
   const id = slotNameId(named, area.panels, area.front);
   const entry = named.areaNames.find((a) => a.id === id);
   if (!entry) return ws;
-  const tint = merge(entry.tint, change);
-  if (same(tint, entry.tint)) return named === ws ? ws : named;
+  const tint = mergeTint(entry.tint, change);
+  if (sameTint(tint, entry.tint)) return named === ws ? ws : named;
   const areaNames = named.areaNames.map((a) => {
     if (a.id !== id) return a;
     const { tint: _old, ...rest } = a;
@@ -77,7 +77,7 @@ export function slotTint(ws: Workspace, slot: Slot): Tint | undefined {
 }
 
 /** Woher eine Farbe kommt – für Anzeige und Ansage. */
-export type TintFrom = 'portal' | 'slot' | 'desk';
+export type TintFrom = 'portal' | 'slot' | 'category' | 'desk';
 
 export interface ShownTint {
   /** Rahmenfarbe; fehlt = Rand des Designs. */
@@ -88,9 +88,10 @@ export interface ShownTint {
   accentFrom: TintFrom;
 }
 
-/** Tatsächliche Farben eines Portals: Portal → Slot → Desk. */
-export function shownTint(panel: PanelMeta, slot: Tint | undefined): ShownTint {
-  const pick = (k: TintKind): [string | undefined, TintFrom] => (panel.tint?.[k] ? [panel.tint[k], 'portal'] : slot?.[k] ? [slot[k], 'slot'] : [undefined, 'desk']);
+/** Tatsächliche Farben eines Portals: Portal → Slot → Kategorie (F-163) → Desk. */
+export function shownTint(panel: PanelMeta, slot: Tint | undefined, category?: Tint): ShownTint {
+  const pick = (k: TintKind): [string | undefined, TintFrom] =>
+    panel.tint?.[k] ? [panel.tint[k], 'portal'] : slot?.[k] ? [slot[k], 'slot'] : category?.[k] ? [category[k], 'category'] : [undefined, 'desk'];
   const [frame, frameFrom] = pick('frame');
   const [accent, accentFrom] = pick('accent');
   return { frame, frameFrom, accent, accentFrom };

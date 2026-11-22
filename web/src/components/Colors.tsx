@@ -3,12 +3,14 @@
  * (Portal → Slot → Desk). Native <dialog> mit showModal: Fokus bleibt im Dialog, Esc schließt,
  * danach geht der Fokus zurück zum Auslöser (NF-03). Farbe ist nie allein: jedes Feld hat einen
  * Namen (aria-label/Tooltip), die gewählte Wahl ist aria-pressed.
+ * F-163: Oben die Kategorie des Portals (Kategorien der Library) mit ihren Farben – sie gelten für
+ * alle Portale der Kategorie. Vorrang: Portal → Slot → Kategorie → Desk.
  */
-import { type CSSProperties, useEffect, useRef } from 'react';
+import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { ACCENTS, contrastWarning, type Shown } from '../workspace/look';
-import { TINT_TEXT } from '../workspace/terms';
+import { CATEGORY_TEXT, TINT_TEXT } from '../workspace/terms';
 import type { TintKind } from '../workspace/tint';
-import type { Tint } from '../workspace/types';
+import type { Named, Tint } from '../workspace/types';
 
 type Change = Partial<Record<TintKind, string | null>>;
 
@@ -21,6 +23,17 @@ interface Props {
   shown: Shown;
   onPortal: (change: Change) => void;
   onSlot: (change: Change) => void;
+  /** F-163: Kategorien der Library, Kategorie des Portals ('' = ohne, fehlt = noch keine Wahl) und deren Farben. */
+  categories: Named[];
+  category?: string;
+  categoryTint?: Tint;
+  /** Wie viele Portale zur gewählten Kategorie gehören. */
+  categoryPortals: number;
+  onCategory: (id: string) => void;
+  onNewCategory: (name: string) => void;
+  onCategoryTint: (change: Change) => void;
+  /** Beim Öffnen auf die Wahl der Kategorie setzen (aus der Frage nach der Kategorie). */
+  focusCategory?: boolean;
   /** Portal und Slot auf die Farben des Desks zurücksetzen. */
   onReset: () => void;
   onClose: () => void;
@@ -72,14 +85,26 @@ function Row(props: { id: string; label: string; value?: string; inherit: string
   );
 }
 
+const NEW = '\u0000neu';
+
 export function Colors(props: Props) {
   const dlg = useRef<HTMLDialogElement>(null);
+  // F-163: „Neue Kategorie …“ zeigt ein Namensfeld
+  const [draft, setDraft] = useState<string | null>(null);
+  const cat = props.category ? props.categories.find((c) => c.id === props.category) : undefined;
+  const ct = cat ? props.categoryTint : undefined;
+  const commitNew = () => {
+    const n = draft?.trim();
+    if (n) props.onNewCategory(n);
+    setDraft(null);
+    window.setTimeout(() => dlg.current?.querySelector<HTMLElement>('#colors-cat')?.focus(), 0);
+  };
   useEffect(() => {
     const d = dlg.current;
     if (!d) return;
     const back = document.activeElement as HTMLElement | null;
     if (!d.open) d.showModal();
-    d.querySelector<HTMLButtonElement>('.colors__inherit')?.focus();
+    d.querySelector<HTMLElement>(props.focusCategory ? '#colors-cat' : '.colors__inherit')?.focus();
     return () => back?.focus?.();
   }, []);
 
@@ -135,8 +160,72 @@ export function Colors(props: Props) {
           <span id="colors-slot-note" hidden>
             {TINT_TEXT.slotNote}
           </span>
-          <Row id="colors-sf" label={TINT_TEXT.frame} kind="frame" value={props.slot?.frame} inherit={TINT_TEXT.noFrame} shown={props.shown} onChange={(v) => props.onSlot({ frame: v })} />
-          <Row id="colors-sa" label={TINT_TEXT.accent} kind="accent" value={props.slot?.accent} inherit={TINT_TEXT.likeDesk} shown={props.shown} onChange={(v) => props.onSlot({ accent: v })} />
+          <Row id="colors-sf" label={TINT_TEXT.frame} kind="frame" value={props.slot?.frame} inherit={ct?.frame ? CATEGORY_TEXT.likeCategory : TINT_TEXT.noFrame} shown={props.shown} onChange={(v) => props.onSlot({ frame: v })} />
+          <Row id="colors-sa" label={TINT_TEXT.accent} kind="accent" value={props.slot?.accent} inherit={ct?.accent ? CATEGORY_TEXT.likeCategory : TINT_TEXT.likeDesk} shown={props.shown} onChange={(v) => props.onSlot({ accent: v })} />
+        </section>
+        <section className="design__group" aria-labelledby="colors-cathead" aria-describedby="colors-cat-note">
+          <h3 id="colors-cathead" className="help__group" title={CATEGORY_TEXT.intro}>
+            {CATEGORY_TEXT.head}
+          </h3>
+          <span id="colors-cat-note" hidden>
+            {CATEGORY_TEXT.intro}
+          </span>
+          <div className="colors__row">
+            <label htmlFor="colors-cat" className="colors__label">
+              {CATEGORY_TEXT.head}
+            </label>
+            {draft === null ? (
+              <select
+                id="colors-cat"
+                className="colors__select"
+                aria-label={CATEGORY_TEXT.label}
+                value={cat ? cat.id : ''}
+                onChange={(e) => (e.target.value === NEW ? setDraft('') : props.onCategory(e.target.value))}
+              >
+                <option value="">{CATEGORY_TEXT.none}</option>
+                {props.categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value={NEW}>{CATEGORY_TEXT.create}</option>
+              </select>
+            ) : (
+              <span className="colors__new">
+                <input
+                  autoFocus
+                  className="colors__input"
+                  value={draft}
+                  aria-label={CATEGORY_TEXT.newName}
+                  placeholder={CATEGORY_TEXT.newName}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitNew();
+                    if (e.key === 'Escape') {
+                      // Esc bricht nur das Feld ab, nicht den Dialog
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDraft(null);
+                      window.setTimeout(() => dlg.current?.querySelector<HTMLElement>('#colors-cat')?.focus(), 0);
+                    }
+                  }}
+                />
+                <button type="button" className="colors__inherit" onClick={commitNew} disabled={!draft?.trim()}>
+                  {CATEGORY_TEXT.add}
+                </button>
+                <button type="button" className="colors__inherit" onClick={() => setDraft(null)}>
+                  {CATEGORY_TEXT.cancel}
+                </button>
+              </span>
+            )}
+            {cat && <span className="colors__count">{CATEGORY_TEXT.portals(props.categoryPortals)}</span>}
+          </div>
+          {cat && (
+            <>
+              <Row id="colors-cf" label={TINT_TEXT.frame} kind="frame" value={ct?.frame} inherit={TINT_TEXT.noFrame} shown={props.shown} onChange={(v) => props.onCategoryTint({ frame: v })} />
+              <Row id="colors-ca" label={TINT_TEXT.accent} kind="accent" value={ct?.accent} inherit={TINT_TEXT.likeDesk} shown={props.shown} onChange={(v) => props.onCategoryTint({ accent: v })} />
+            </>
+          )}
         </section>
       </div>
     </dialog>

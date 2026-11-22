@@ -43,12 +43,22 @@ export interface PanelMeta {
   win?: string;
   /** F-162: eigene Rahmen- und Akzentfarbe; fehlt = wie Slot bzw. Desk. */
   tint?: Tint;
+  /**
+   * F-163: Kategorie des Portals (Id aus Workspace.categories). '' = bewusst ohne Kategorie;
+   * fehlt = noch nicht gefragt.
+   */
+  category?: string;
 }
 
 /** F-162: Rahmen- und Akzentfarbe (#rrggbb); was fehlt, erbt. */
 export interface Tint {
   frame?: string;
   accent?: string;
+}
+
+/** F-30, F-163: Kategorie der Library; ihre Farben gelten für alle Portale dieser Kategorie (Farbregel). */
+export interface Category extends Named {
+  tint?: Tint;
 }
 
 /** F-128, F-162: Name eines Slots, mit eigenen Farben. */
@@ -154,7 +164,9 @@ export interface Workspace {
   /** F-30 bis F-32: alle Lesezeichen des Nutzers (Gesamtsammlung). */
   bookmarks: Bookmark[];
   /** F-20: frei angelegte Kategorien, in Reihenfolge. */
-  categories: Named[];
+  categories: Category[];
+  /** F-163: gemerkte Wahl je Domain (ohne „www.“) → Kategorie-Id oder '' (ohne); Vorschlag beim nächsten Portal. */
+  siteCategory?: Record<string, string>;
   /** F-125: Lineal (F-15). */
   ruler: RulerSettings;
   /** F-128: Namen der Areas (Stapel). */

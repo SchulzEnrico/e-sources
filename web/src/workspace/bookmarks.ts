@@ -288,3 +288,74 @@ export function searchPanels(ws: Workspace, query: string, max = SEARCH_MAX): Pa
   const inName = (h: PanelHit) => words.every((w) => h.panel.name.toLowerCase().includes(w));
   return [...found.filter(inName), ...found.filter((h) => !inName(h))].slice(0, max);
 }
+
+// ---------------------------------------------------------------- Beispiel-Lesezeichen (F-145)
+
+/** Beispiele in mehreren Kategorien, zum Ausprobieren von Sammlung, Suche und Sortieren. */
+export const SAMPLES: { category: string; links: { title: string; url: string; tags?: string[] }[] }[] = [
+  {
+    category: 'Entwicklung',
+    links: [
+      { title: 'MDN Web Docs', url: 'https://developer.mozilla.org/de/', tags: ['web', 'doku'] },
+      { title: 'React', url: 'https://react.dev/', tags: ['web', 'doku'] },
+      { title: 'TypeScript-Handbuch', url: 'https://www.typescriptlang.org/docs/', tags: ['doku'] },
+      { title: 'Vite', url: 'https://vite.dev/', tags: ['werkzeug'] },
+      { title: 'Can I use', url: 'https://caniuse.com/', tags: ['web'] },
+    ],
+  },
+  {
+    category: 'Hamburg',
+    links: [
+      { title: 'hamburg.de', url: 'https://www.hamburg.de/' },
+      { title: 'HVV Fahrplan', url: 'https://www.hvv.de/', tags: ['unterwegs'] },
+      { title: 'Elbphilharmonie Konzerte', url: 'https://www.elbphilharmonie.de/', tags: ['kultur'] },
+      { title: 'Hamburger Kunsthalle', url: 'https://www.hamburger-kunsthalle.de/', tags: ['kultur'] },
+    ],
+  },
+  {
+    category: 'Jobs',
+    links: [
+      { title: 'Jobbörse der Arbeitsagentur', url: 'https://www.arbeitsagentur.de/jobsuche/', tags: ['bewerbung'] },
+      { title: 'StepStone', url: 'https://www.stepstone.de/', tags: ['bewerbung'] },
+      { title: 'BERUFENET', url: 'https://web.arbeitsagentur.de/berufenet/', tags: ['bewerbung'] },
+    ],
+  },
+  {
+    category: 'Werkzeuge',
+    links: [
+      { title: 'Excalidraw', url: 'https://excalidraw.com/', tags: ['zeichnen'] },
+      { title: 'regex101', url: 'https://regex101.com/', tags: ['werkzeug'] },
+      { title: 'DeepL Übersetzer', url: 'https://www.deepl.com/translator', tags: ['sprache'] },
+    ],
+  },
+  {
+    category: 'Lernen',
+    links: [
+      { title: 'Khan Academy', url: 'https://de.khanacademy.org/' },
+      { title: 'Scrum Guide', url: 'https://scrumguides.org/', tags: ['scrum'] },
+    ],
+  },
+];
+
+/**
+ * F-145: Beispiel-Lesezeichen hinzufügen. Kategorien gleichen Namens werden genutzt, Adressen, die
+ * es schon gibt, übersprungen. Die Beispiele hängen an keinem Panel (stehen unter „Alle“).
+ */
+export function addSamples(ws: Workspace, makeId: () => string): { ws: Workspace; added: number } {
+  let next = ws;
+  let added = 0;
+  for (const group of SAMPLES) {
+    let cat = categoryByName(next, group.category);
+    if (!cat) {
+      next = addCategory(next, makeId(), group.category);
+      cat = categoryByName(next, group.category);
+    }
+    if (!cat) continue;
+    for (const l of group.links) {
+      if (next.bookmarks.some((b) => sameUrl(b.url, l.url))) continue;
+      next = { ...next, bookmarks: [...next.bookmarks, { id: makeId(), title: l.title, url: l.url, category: cat.id, tags: l.tags ?? [], panels: [] }] };
+      added++;
+    }
+  }
+  return { ws: next, added };
+}

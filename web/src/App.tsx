@@ -19,11 +19,11 @@ import type { PanelMeta, Slot } from './workspace/types';
 import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { useWorkspace } from './workspace/useWorkspace';
-import { type SearchHit, openBookmark } from './workspace/bookmarks';
+import { type SearchHit, addSamples, openBookmark } from './workspace/bookmarks';
 import { Search } from './components/Search';
 import { Tooltips } from './components/Tooltip';
 import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
-import { FOCUS_WARN, STACK_MAX, TAB_MAX, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
+import { FOCUS_WARN, STACK_MAX, TAB_MAX, newId, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -739,6 +739,17 @@ export default function App() {
                   Wunsch-Anordnung löschen
                 </Item>
               )}
+              {/* F-145: Beispiel-Lesezeichen zum Ausprobieren */}
+              <Item
+                onClick={() => {
+                  const n = addSamples(ws, newId).added;
+                  if (n) dispatch({ type: 'addSamples' });
+                  notify(n ? `${n} Beispiel-Lesezeichen in 5 Kategorien angelegt – zu finden in der Sammlung unter „Alle“.` : 'Die Beispiel-Lesezeichen sind schon alle da.');
+                  close();
+                }}
+              >
+                Beispiel-Lesezeichen anlegen
+              </Item>
               <li className="menu__sep" role="separator" />
               <li className="menu__field">
                 <label>

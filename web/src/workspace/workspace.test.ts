@@ -1054,3 +1054,31 @@ describe('F-135 Blättern in eingebetteten Seiten', () => {
     expect(FH.hasSteps('a')).toBe(false);
   });
 });
+
+describe('F-144, F-145 Kategorien sortieren, Beispiel-Lesezeichen', () => {
+  it('Beispiele: Kategorien nach Namen wiederverwendet, keine doppelten Adressen, an keinem Panel', () => {
+    let n = 0;
+    const id = () => `x${n++}`;
+    let ws = B.addCategory(W.defaultWorkspace(), 'h', 'hamburg');
+    ws = { ...ws, bookmarks: [{ id: 'm', title: 'MDN', url: 'https://developer.mozilla.org/de/', category: '', tags: [], panels: [] }] };
+    const r = B.addSamples(ws, id);
+    const total = B.SAMPLES.reduce((s, g) => s + g.links.length, 0);
+    expect(r.added).toBe(total - 1);
+    expect(r.ws.categories.filter((c) => c.name.toLowerCase() === 'hamburg')).toHaveLength(1);
+    expect(r.ws.bookmarks.every((b) => b.panels.length === 0)).toBe(true);
+    expect(B.addSamples(r.ws, id).added).toBe(0);
+  });
+
+  it('Kategorie verschieben ändert die Reihenfolge, Grenzen bleiben', () => {
+    let ws = W.defaultWorkspace();
+    for (const c of ['a', 'b', 'c']) ws = B.addCategory(ws, c, c.toUpperCase());
+    expect(B.moveCategory(ws, 'c', 0).categories.map((c) => c.id)).toEqual(['c', 'a', 'b']);
+    expect(B.moveCategory(ws, 'a', 9).categories.map((c) => c.id)).toEqual(['b', 'c', 'a']);
+    expect(B.moveCategory(ws, 'a', -3)).toBe(ws);
+  });
+
+  it('Demo enthält die Beispiele', () => {
+    const d = D.demoWorkspace();
+    expect(d.categories.some((c) => c.name === 'Werkzeuge')).toBe(true);
+  });
+});

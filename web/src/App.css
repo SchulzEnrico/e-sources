@@ -1491,7 +1491,30 @@ button.is-off:hover,
   align-self: flex-start;
 }
 .bm-group {
+  position: relative;
   margin-top: 8px;
+}
+/* F-144: gezogene Kategorie blass, Einfügestelle als kräftige Linie davor oder dahinter */
+.bm-group--dragging {
+  opacity: 0.35;
+}
+.bm-group--before::before,
+.bm-group--after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.7);
+  pointer-events: none;
+}
+.bm-group--before::before {
+  top: -6px;
+}
+.bm-group--after::after {
+  bottom: -5px;
 }
 .bm-cat {
   display: flex;
@@ -1504,6 +1527,20 @@ button.is-off:hover,
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
+}
+.bm-cat[draggable='true'] {
+  cursor: grab;
+}
+.bm-cat__grip {
+  letter-spacing: -2px;
+  font-size: 0.95em;
+  padding: 0 4px 0 2px;
+  color: var(--muted);
+  cursor: grab;
+}
+.bm-cat:hover .bm-cat__grip,
+.bm-cat__grip:focus-visible {
+  color: var(--strong);
 }
 .bm-cat__name {
   flex: 1;

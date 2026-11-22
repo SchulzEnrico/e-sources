@@ -195,11 +195,25 @@ export function CollectionDrawer(props: {
   const [catDraft, setCatDraft] = useState('');
   const [deleteCat, setDeleteCat] = useState<string | null>(null);
   const [newCat, setNewCat] = useState('');
+  // F-144: Kategorie, die gerade gezogen wird, und Ansage für Bildschirmleser
+  const [dragCat, setDragCat] = useState<string | null>(null);
+  /** Wohin die gezogene Kategorie fällt: vor oder hinter diese Kategorie. */
+  const [catDrop, setCatDrop] = useState<{ id: string; after: boolean } | null>(null);
+  const [announce, setAnnounce] = useState('');
+  const catCount = ws.categories.length;
+  const moveCat = (id: string, to: number) => {
+    const target = Math.max(0, Math.min(catCount - 1, to));
+    const name = ws.categories.find((c) => c.id === id)?.name ?? '';
+    props.dispatch({ type: 'moveCategory', id, to: target });
+    setAnnounce(`Kategorie ${name} jetzt an Position ${target + 1} von ${catCount}.`);
+  };
   const list = groups(ws, scope === 'panel' ? panelId : null, query);
   const total = list.reduce((n, g) => n + g.items.length, 0);
 
   const endDrag = () => {
     setDrag(null);
+    setDragCat(null);
+    setCatDrop(null);
     setOver(null);
   };
   const renameCat = () => {
@@ -245,6 +259,9 @@ export function CollectionDrawer(props: {
           </button>
         )}
       </div>
+      <p className="sr-only" role="status" aria-live="polite">
+        {announce}
+      </p>
       {total === 0 && list.length === 0 && (
         <p className="bm-hint">
           {query ? 'Nichts gefunden.' : scope === 'panel' ? 'Diesem Panel ist noch kein Lesezeichen zugeordnet. Unter „Alle“ stehen alle Lesezeichen.' : 'Noch keine Lesezeichen. Mit dem Stern in der Adresszeile speicherst du die aktuelle Seite.'}
@@ -254,9 +271,44 @@ export function CollectionDrawer(props: {
         const catId = g.category?.id ?? NO_CATEGORY;
         const key = `cat:${catId}`;
         return (
-          <section key={key} className="bm-group">
+          <section
+            key={key}
+            className={[
+              'bm-group',
+              dragCat === catId && 'bm-group--dragging',
+              catDrop?.id === catId && (catDrop.after ? 'bm-group--after' : 'bm-group--before'),
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            // F-144: Die ganze Kategorie ist Ziel; obere Hälfte = davor, untere = dahinter
+            onDragOver={(e) => {
+              if (!dragCat || !g.category || dragCat === catId) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              const r = e.currentTarget.getBoundingClientRect();
+              const after = e.clientY > r.top + r.height / 2;
+              if (catDrop?.id !== catId || catDrop.after !== after) setCatDrop({ id: catId, after });
+            }}
+            onDrop={(e) => {
+              if (!dragCat || !catDrop) return;
+              e.preventDefault();
+              const rest = ws.categories.filter((c) => c.id !== dragCat);
+              const at = rest.findIndex((c) => c.id === catDrop.id);
+              if (at >= 0) moveCat(dragCat, at + (catDrop.after ? 1 : 0));
+              endDrag();
+            }}
+          >
             <div
               className={over === key ? 'bm-cat bm-over' : 'bm-cat'}
+              // F-144: Kategorien (nicht „Ohne Kategorie“) lassen sich am Kopf ziehen
+              draggable={!!g.category && editCat !== catId}
+              onDragStart={(e) => {
+                if (!g.category || e.target !== e.currentTarget) return;
+                setDragCat(catId);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', g.category.name);
+              }}
+              onDragEnd={endDrag}
               onDragOver={(e) => {
                 if (!drag) return;
                 e.preventDefault();
@@ -264,11 +316,28 @@ export function CollectionDrawer(props: {
               }}
               onDragLeave={() => setOver((o) => (o === key ? null : o))}
               onDrop={(e) => {
+                if (!drag) return;
                 e.preventDefault();
-                if (drag) props.dispatch({ type: 'moveBookmark', id: drag, to: 0, category: catId });
+                props.dispatch({ type: 'moveBookmark', id: drag, to: 0, category: catId });
                 endDrag();
               }}
             >
+              {g.category && (
+                <button
+                  type="button"
+                  className="bm-icon bm-cat__grip"
+                  title="Ziehen oder ↑/↓: Kategorie verschieben"
+                  aria-label={`Kategorie ${g.category.name} verschieben, Position ${ws.categories.findIndex((c) => c.id === catId) + 1} von ${catCount}. Pfeiltaste hoch oder runter`}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+                    e.preventDefault();
+                    const at = ws.categories.findIndex((c) => c.id === catId);
+                    moveCat(catId, at + (e.key === 'ArrowUp' ? -1 : 1));
+                  }}
+                >
+                  ⋮⋮
+                </button>
+              )}
               {editCat === catId && g.category ? (
                 <input
                   className="bm-cat__input"

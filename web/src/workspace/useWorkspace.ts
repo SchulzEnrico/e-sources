@@ -51,6 +51,7 @@ export type Action =
   | { type: 'renameCategory'; id: string; name: string }
   | { type: 'deleteCategory'; id: string }
   | { type: 'moveCategory'; id: string; to: number }
+  | { type: 'addSamples' }
   /** F-15, F-125: Lineal. */
   | { type: 'rulerAll' }
   | { type: 'rulerPanel'; id: string }
@@ -136,6 +137,8 @@ export function reducer(ws: Workspace, a: Action): Workspace {
       return B.deleteCategory(ws, a.id);
     case 'moveCategory':
       return B.moveCategory(ws, a.id, a.to);
+    case 'addSamples':
+      return B.addSamples(ws, W.newId).ws;
     case 'rulerAll':
       return W.toggleRulerAll(ws);
     case 'rulerPanel':

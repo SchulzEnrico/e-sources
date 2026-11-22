@@ -7,6 +7,7 @@ import { type Lines, type Orientation, SCREEN_CLASSES, allowsTwoLines, layoutKey
 import * as T from './tree';
 import type { Area, Arrangement, Bookmark, Named, PanelMeta, Tab, Workspace } from './types';
 import { defaultWorkspace, newId } from './workspace';
+import { addSamples } from './bookmarks';
 
 interface DemoLink {
   title: string;
@@ -131,5 +132,6 @@ export function demoWorkspace(): Workspace {
         const arr = arrange(groups, spec.capacity, spec.lines, spec.perLine, orientation);
         if (arr) layouts[layoutKey(setup)] = arr;
       }
-  return { ...base, panels, layouts, nextNumber: 1, bookmarks, categories, areaNames, nextArea: 1 };
+  // F-145: dazu Beispiel-Lesezeichen in weiteren Kategorien (unter „Alle“)
+  return addSamples({ ...base, panels, layouts, nextNumber: 1, bookmarks, categories, areaNames, nextArea: 1 }, newId).ws;
 }

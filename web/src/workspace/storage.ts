@@ -2,6 +2,7 @@ import type { Arrangement, Bookmark, Named, PanelMeta, Tab, Workspace } from './
 import { parseLook } from './look';
 import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } from './workspace';
 import { demoWorkspace } from './demo';
+import { parseLayoutKey } from './screen';
 
 /**
  * Stufe 1: Die Arbeitsfläche liegt nur im Browser (localStorage). Später kommt der Server dazu.
@@ -130,6 +131,11 @@ export function parseWorkspace(data: unknown): Workspace | null {
   const windows = namedList(data.windows);
   const winIds = new Set(windows.map((w) => w.id));
   for (const p of panels as PanelMeta[]) if (p.win && !winIds.has(p.win)) delete p.win;
+  // F-28: Einstellung je Fenster; nur bekannte Fenster und gültige Schlüssel des Fensters.
+  const winSetup: Record<string, string> = {};
+  if (isObj(data.winSetup))
+    for (const [k, v] of Object.entries(data.winSetup))
+      if ((k === '' || winIds.has(k)) && typeof v === 'string' && (parseLayoutKey(v)?.win ?? '') === k) winSetup[k] = v;
   return {
     panels: panels as PanelMeta[],
     layouts: arrangements(data.layouts),
@@ -152,6 +158,7 @@ export function parseWorkspace(data: unknown): Workspace | null {
     nextArea: isNum(data.nextArea) && (data.nextArea as number) >= 1 ? Math.floor(data.nextArea as number) : areaNames.length + 1,
     look: parseLook(data.look),
     windows,
+    winSetup,
   };
 }
 

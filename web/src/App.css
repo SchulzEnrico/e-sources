@@ -615,6 +615,23 @@ button.is-off:hover,
   font-size: 0.85em;
   margin: 4px 0 0;
 }
+/* F-150: Hinweis im leeren Panel und Hervorhebung beim Hineinziehen eines Links */
+.win__hint {
+  font-size: 0.9em;
+  margin: 10px 16px 0;
+  text-align: center;
+  max-width: 32ch;
+}
+.win__body--drop {
+  outline: 2px dashed var(--accent);
+  outline-offset: -8px;
+  color: var(--text);
+}
+@media (prefers-contrast: more) {
+  .win__hint {
+    color: var(--text);
+  }
+}
 
 /* ---------- Größenmenü */
 .menu {

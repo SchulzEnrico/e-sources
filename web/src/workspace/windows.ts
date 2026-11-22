@@ -52,7 +52,10 @@ export function syncWindows(ws: Workspace): Workspace {
   let windows = ws.windows.filter((w) => used.has(w.id));
   for (const id of used) if (!windows.some((w) => w.id === id)) windows = [...windows, { id, name: nextWindowName(windows) }];
   const same = windows.length === ws.windows.length && windows.every((w, i) => w === ws.windows[i]);
-  return same ? ws : { ...ws, windows };
+  if (same) return ws;
+  const ids = new Set(['', ...windows.map((w) => w.id)]);
+  const winSetup = Object.fromEntries(Object.entries(ws.winSetup ?? {}).filter(([k]) => ids.has(k)));
+  return { ...ws, windows, winSetup };
 }
 
 /**

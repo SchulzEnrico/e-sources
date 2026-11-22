@@ -44,7 +44,7 @@ export function newPanel(name: string): PanelMeta {
 
 export function defaultWorkspace(): Workspace {
   const panels = [1, 2, 3].map((n) => newPanel(`Panel ${n}`));
-  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, spheres: [], scenarios: [], embed: {}, bookmarks: [], categories: [], ruler: { ...RULER_DEFAULT }, areaNames: [], nextArea: 1, look: { ...LOOK_DEFAULT }, windows: [] };
+  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, spheres: [], scenarios: [], embed: {}, bookmarks: [], categories: [], ruler: { ...RULER_DEFAULT }, areaNames: [], nextArea: 1, look: { ...LOOK_DEFAULT }, windows: [], winSetup: {} };
 }
 
 /** Einstellung aus Klasse und Ausrichtung, ergänzt um die gespeicherte Wahl ein-/zweizeilig. */
@@ -797,4 +797,55 @@ export function setRulerStyle(ws: Workspace, change: { labels?: boolean; color?:
   const n = RULER_COLORS.length;
   const color = change.color === undefined ? ws.ruler.color : ((Math.round(change.color) % n) + n) % n;
   return { ...ws, ruler: { ...ws.ruler, labels: change.labels ?? ws.ruler.labels, color } };
+}
+
+// ---------------------------------------------------------------- F-28 Verschieben und Gruppieren
+
+/** Ziel in einer Anordnung: Id einer vorhandenen Area oder 'new' = eigene neue Area. */
+export type PlaceTarget = string;
+export const NEW_AREA = 'new';
+
+/**
+ * F-28: Legt Panels in einer Einstellung auf eine Area (obendrauf, das erste vorn) oder auf eine
+ * eigene neue Area (`NEW_AREA`). Die Panels müssen schon in diesem Fenster liegen. Geht es nicht –
+ * Ziel unbekannt, schon dort, mehr als STACK_MAX im Stapel, keine freie Area mehr –, kommt null.
+ * `fresh`: Die Panels sind gerade erst in dieses Fenster gekommen; wo sie vorläufig liegen, zählt nicht.
+ */
+export function tryPlace(ws: Workspace, setup: ScreenSetup, ids: string[], target: PlaceTarget, fresh = false): Workspace | null {
+  const v = viewOf(ws, setup);
+  const arr = v.arrangement;
+  if (!arr || ids.length === 0 || new Set(ids).size !== ids.length) return null;
+  const from = ids.map((id) => areaIn(arr, id));
+  if (from.some((a) => !a)) return null;
+  let out: Arrangement | null = arr;
+  let clear = ids;
+  if (target !== NEW_AREA) {
+    const t0 = arr.areas[target];
+    if (!t0 || (!fresh && ids.some((id) => t0.panels.includes(id)))) return null;
+    for (const id of ids) out = out && takeOut(out, id);
+    const t = out?.areas[target];
+    if (!out || !t || t.panels.length + ids.length > STACK_MAX) return null;
+    out = withArea(out, { ...t, panels: [...t.panels, ...ids], front: ids[0] });
+    // Eine ganze Gruppe auf ein einzelnes Panel: Der Name der Gruppe bleibt, sonst gilt der des Ziels.
+    if (ids.length > 1 && t.panels.length === 1) clear = t.panels;
+  } else {
+    // Wer allein auf seiner Area liegt, hat schon eine eigene.
+    const sources = new Set(from as string[]);
+    if (!fresh && [...sources].every((a) => arr.areas[a].panels.every((m) => ids.includes(m)))) return null;
+    for (const id of ids) out = out && takeOut(out, id);
+    if (!out || T.leaves(out.tree).length >= v.spec.capacity) return null;
+    const id = newAreaId(ids[0], out.areas);
+    out = { tree: T.addToLargest(out.tree, id, v.spec.aspect), areas: { ...out.areas, [id]: { id, panels: [...ids], front: ids[0] } } };
+  }
+  const drop = new Set(clear);
+  const panels = ws.panels.map((p): PanelMeta => {
+    if (!drop.has(p.id) || !p.areaName) return p;
+    const { areaName: _old, ...rest } = p;
+    return rest;
+  });
+  return pruneAreaNames(ensureAreaNames(commit({ ...ws, panels }, v.key, out), setup));
+}
+
+export function placePanels(ws: Workspace, setup: ScreenSetup, ids: string[], target: PlaceTarget): Workspace {
+  return tryPlace(ws, setup, ids, target) ?? ws;
 }

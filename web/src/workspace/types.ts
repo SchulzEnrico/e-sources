@@ -133,4 +133,9 @@ export interface Workspace {
   nextArea: number;
   /** F-27: Zusatzfenster („Fenster 2“ …); das Hauptfenster steht nicht in der Liste. */
   windows: Named[];
+  /**
+   * F-28: zuletzt genutzte Bildschirm-Einstellung je Fenster (Schlüssel '' = Hauptfenster, Wert aus
+   * layoutKey). Damit lassen sich die Areas eines anderen Fensters als Ziel anbieten.
+   */
+  winSetup: Record<string, string>;
 }

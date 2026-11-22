@@ -13,6 +13,7 @@ import * as F from './focus';
 import * as Win from './windows';
 import { reducer } from './useWorkspace';
 import { layoutKey, parseLayoutKey } from './screen';
+import * as M from './move';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -917,14 +918,14 @@ describe('F-60, F-61, F-69, F-130 Darstellung', () => {
 });
 
 describe('F-133 Demo-Startbelegung', () => {
-  it('vier Panels mit offenen, einbettbaren Seiten und eigener Lesezeichen-Sammlung', () => {
+  it('vier Panels, leer gestartet (F-150), mit eigener Lesezeichen-Sammlung einbettbarer Seiten', () => {
     const ws = D.demoWorkspace();
     expect(ws.panels).toHaveLength(5);
     expect(W.viewOf(ws, LAPTOP2).slots).toHaveLength(4);
     const ids = new Set(ws.panels.map((p) => p.id));
     const cats = new Set(ws.categories.map((c) => c.id));
     for (const p of ws.panels) {
-      expect(p.tabs.every((t) => !!t.url && !W.isBlocked(ws, t.url))).toBe(true);
+      expect(p.tabs.length === 1 && !p.tabs[0].url && !p.home).toBe(true);
       expect(p.tabs.some((t) => t.id === p.activeTab)).toBe(true);
       expect(B.collectionSize(ws, p.id) > 0).toBe(true);
     }
@@ -1202,5 +1203,119 @@ describe('F-27 Panels herauslösen (Fenster)', () => {
     const fromW2 = F.overviewOf(ws, W.viewOf(ws, W2).slots, 'w2', new Set(['w2']));
     expect(fromW2.filter((a) => a.other).map((a) => a.title)).toEqual(['Hauptfenster']);
     expect(fromW2.filter((a) => a.other)[0].open).toBe(false);
+  });
+});
+
+describe('F-28 Verschieben und Gruppieren', () => {
+  const W2: ScreenSetup = { ...MONITOR2, win: 'w2' };
+  const ids = (ws: Workspace, s: ScreenSetup) => W.viewOf(ws, s).slots.map((x) => x.panels.map((p) => p.id));
+  /** Drei Panels, jedes auf eigener Area. */
+  const three = () => {
+    const ws = W.defaultWorkspace();
+    return { ws, a: ws.panels[0].id, b: ws.panels[1].id, c: ws.panels[2].id };
+  };
+  const areaOfId = (ws: Workspace, s: ScreenSetup, id: string) => W.areaOf(W.viewOf(ws, s), id)!;
+
+  it('Panel auf eine andere Area legen: Stapel entsteht, verschobenes Panel vorn, mit Namen', () => {
+    const { ws, a, b } = three();
+    const next = W.placePanels(ws, MONITOR2, [a], areaOfId(ws, MONITOR2, b));
+    const slots = W.viewOf(next, MONITOR2).slots;
+    expect(slots).toHaveLength(2);
+    const stack = slots.find((s) => s.panels.length === 2)!;
+    expect(stack.panels.map((p) => p.id)).toEqual([b, a]);
+    expect(stack.front.id).toBe(a);
+    expect(W.areaLabel(next, stack)).toBe('NewArea 1');
+  });
+
+  it('Aus dem Stapel lösen: eigene Area; allein liegend geht es nicht', () => {
+    const { ws, a, b } = three();
+    const stacked = W.placePanels(ws, MONITOR2, [a], areaOfId(ws, MONITOR2, b));
+    const freed = W.placePanels(stacked, MONITOR2, [a], W.NEW_AREA);
+    expect(ids(freed, MONITOR2).every((g) => g.length === 1)).toBe(true);
+    expect(ids(freed, MONITOR2)).toHaveLength(3);
+    expect(W.placePanels(ws, MONITOR2, [a], W.NEW_AREA)).toBe(ws);
+    // Ohne Stapel kein Area-Name
+    expect(W.viewOf(freed, MONITOR2).slots.map((s) => W.areaLabel(freed, s))).toEqual(['', '', '']);
+  });
+
+  it('Eigene Area nur, solange der Bildschirm Platz hat', () => {
+    const { ws, a, b } = three();
+    // Smartphone: eine Area, alle im Stapel
+    expect(W.placePanels(ws, PHONE, [a], W.NEW_AREA)).toBe(ws);
+    expect(W.placePanels(ws, PHONE, [b], 'unbekannt')).toBe(ws);
+  });
+
+  it('Ganze Area auf eine andere legen: Namen der Gruppe bleibt, höchstens 9 je Stapel', () => {
+    let { ws, a, b, c } = three();
+    ws = W.placePanels(ws, MONITOR2, [a], areaOfId(ws, MONITOR2, b));
+    ws = W.renameArea(ws, MONITOR2, areaOfId(ws, MONITOR2, a), 'Recherche');
+    const group = W.viewOf(ws, MONITOR2).slots.find((s) => s.panels.length === 2)!.panels.map((p) => p.id);
+    const merged = W.placePanels(ws, MONITOR2, group, areaOfId(ws, MONITOR2, c));
+    const slots = W.viewOf(merged, MONITOR2).slots;
+    expect(slots).toHaveLength(1);
+    expect(slots[0].panels.map((p) => p.id)).toEqual([c, ...group]);
+    expect(W.areaLabel(merged, slots[0])).toBe('Recherche');
+    // Voller Stapel nimmt nichts mehr an
+    let full = ws;
+    for (let i = 0; i < 8; i++) full = W.addPanel(full, MONITOR2, areaOfId(full, MONITOR2, c));
+    expect(W.viewOf(full, MONITOR2).slots.find((s) => s.panels.some((p) => p.id === c))!.panels).toHaveLength(9);
+    expect(W.placePanels(full, MONITOR2, [a], areaOfId(full, MONITOR2, c))).toBe(full);
+  });
+
+  it('Fenster merkt sich seine Einstellung; Speichern behält sie', () => {
+    const base = W.defaultWorkspace();
+    let ws = Win.moveToWindow(base, [base.panels[0].id], 'w2');
+    ws = M.noteSetup(ws, W2);
+    expect(M.noteSetup(ws, W2)).toBe(ws);
+    expect(M.setupOfWindow(ws, 'w2')).toEqual(W2);
+    expect(M.setupOfWindow(ws, '')).toBe(null);
+    const again = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(again.winSetup).toEqual({ w2: 'w2/monitor:landscape:2' });
+    // Falscher Schlüssel für das Fenster fällt weg
+    expect(parseWorkspace({ ...JSON.parse(JSON.stringify(ws)), winSetup: { w2: 'monitor:landscape:2' } })!.winSetup).toEqual({});
+  });
+
+  it('In eine Area eines anderen Fensters verschieben', () => {
+    let { ws, a, b, c } = three();
+    ws = Win.moveToWindow(ws, [c], 'w2');
+    ws = M.noteSetup(M.noteSetup(ws, W2), MONITOR2);
+    const target = areaOfId(ws, W2, c);
+    const next = M.movePanels(ws, [a], MONITOR2, 'w2', target);
+    expect(next.panels.find((p) => p.id === a)!.win).toBe('w2');
+    expect(ids(next, W2)).toEqual([[c, a]]);
+    expect(ids(next, MONITOR2)).toEqual([[b]]);
+    // Eigene neue Area im anderen Fenster
+    const own = M.movePanels(ws, [a], MONITOR2, 'w2', W.NEW_AREA);
+    expect(ids(own, W2).sort()).toEqual([[a], [c]].sort());
+  });
+
+  it('Ganze Area in ein anderes Fenster als eigene Area: bleibt zusammen', () => {
+    let { ws, a, b, c } = three();
+    ws = W.placePanels(ws, MONITOR2, [a], areaOfId(ws, MONITOR2, b));
+    ws = Win.moveToWindow(ws, [c], 'w2');
+    ws = M.noteSetup(ws, W2);
+    const next = M.movePanels(ws, [b, a], MONITOR2, 'w2', W.NEW_AREA);
+    expect(ids(next, W2).map((g) => g.length).sort()).toEqual([1, 2]);
+  });
+
+  it('Ziele: Areas aller Fenster ohne die eigene, Fenster ohne bekannte Einstellung nur als Ganzes', () => {
+    let { ws, a, b, c } = three();
+    ws = Win.moveToWindow(ws, [c], 'w2');
+    let t = M.moveTargets(ws, [a], MONITOR2);
+    expect(t.filter((x) => x.win === '').map((x) => x.area)).toEqual([areaOfId(ws, MONITOR2, b), W.NEW_AREA]);
+    expect(t.find((x) => x.area === W.NEW_AREA && x.win === '')!.disabled).toBe(true);
+    expect(t.filter((x) => x.win === 'w2').map((x) => x.area)).toEqual(['']);
+    ws = M.noteSetup(ws, W2);
+    t = M.moveTargets(ws, [a], MONITOR2);
+    expect(t.filter((x) => x.win === 'w2').map((x) => x.area)).toEqual([areaOfId(ws, W2, c), W.NEW_AREA]);
+    expect(t.find((x) => x.win === 'w2' && x.area !== W.NEW_AREA)!.label).toBe(ws.panels.find((p) => p.id === c)!.name);
+  });
+
+  it('Reducer: Aktionen move und seen', () => {
+    let { ws, a, b } = three();
+    ws = reducer(ws, { type: 'seen', setup: MONITOR2 });
+    expect(ws.winSetup).toEqual({ '': 'monitor:landscape:2' });
+    ws = reducer(ws, { type: 'move', ids: [a], from: MONITOR2, win: '', area: areaOfId(ws, MONITOR2, b) });
+    expect(ids(ws, MONITOR2)).toHaveLength(2);
   });
 });

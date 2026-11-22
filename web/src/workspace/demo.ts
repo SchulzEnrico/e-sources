@@ -1,12 +1,13 @@
 /**
  * F-133 Demo-Startbelegung: Wer E-Source zum ersten Mal öffnet (noch nichts gespeichert), sieht
- * statt leerer Panels ein Beispiel-Layout mit Seiten, die sich einbetten lassen, und passenden
- * Lesezeichen. Gespeicherte Stände werden nie überschrieben (siehe loadWorkspace).
+ * ein Beispiel-Layout mit benannten Panels, einem Stapel und passenden Lesezeichen. F-150: Die
+ * Panels starten leer (keine vorgeladenen Seiten); die Seiten liegen in ihrer Sammlung bereit.
+ * Gespeicherte Stände werden nie überschrieben (siehe loadWorkspace).
  */
 import { type Lines, type Orientation, SCREEN_CLASSES, allowsTwoLines, layoutKey, specOf } from './screen';
 import * as T from './tree';
-import type { Area, Arrangement, Bookmark, Named, PanelMeta, Tab, Workspace } from './types';
-import { defaultWorkspace, newId } from './workspace';
+import type { Area, Arrangement, Bookmark, Named, PanelMeta, Workspace } from './types';
+import { defaultWorkspace, newId, newTab } from './workspace';
 import { addSamples } from './bookmarks';
 
 interface DemoLink {
@@ -17,7 +18,7 @@ interface DemoLink {
 interface DemoPanel {
   name: string;
   category: string;
-  /** Seiten, die als Tabs offen sind; die erste ist auch die Startseite. */
+  /** Seiten, die früher als Tabs vorgeladen waren (F-150: nur noch zur Doku, Panels starten leer). */
   tabs: string[];
   /** Lesezeichen in der Sammlung des Panels. */
   links: DemoLink[];
@@ -79,8 +80,6 @@ export const DEMO: DemoPanel[] = [
   },
 ];
 
-const tabOf = (url: string): Tab => ({ id: newId(), url, history: [url], pos: 0 });
-
 /**
  * Anordnung für eine Bildschirm-Einstellung: jede Gruppe eine Area, überzählige Gruppen kommen
  * auf die letzte Area (wie bei der ersten Anordnung in workspace.ts).
@@ -102,8 +101,9 @@ export function demoWorkspace(): Workspace {
   const groups: string[][] = [];
   const groupOf = new Map<string, string[]>();
   for (const d of DEMO) {
-    const tabs = d.tabs.map(tabOf);
-    const panel: PanelMeta = { id: newId(), name: d.name, tabs, activeTab: tabs[0].id, home: d.tabs[0] };
+    // F-150: leerer Tab statt vorgeladener Seite – sonst wirkt der Einstieg vom Portfolio aus verwirrend.
+    const tabs = [newTab()];
+    const panel: PanelMeta = { id: newId(), name: d.name, tabs, activeTab: tabs[0].id };
     if (d.ruler) panel.ruler = true;
     if (d.area) {
       let named = areaNames.find((a) => a.name === d.area);

@@ -140,6 +140,21 @@ const FOCUSABLE = '[role="menuitem"], button, select, input:not([type="hidden"])
  * Tastatur (NF-03): Öffnen setzt den Fokus auf den ersten Eintrag, ↑/↓/Pos1/Ende wandern,
  * Tab läuft durch die Liste und schließt sie an ihrem Ende; Esc schließt; beides führt zum Knopf zurück.
  */
+/**
+ * F-150: Adresse aus einem hineingezogenen Element – Link aus einem anderen Browser-Tab, der
+ * Lesezeichenleiste oder der Sammlung (text/uri-list), sonst Text, der wie eine Adresse aussieht.
+ */
+export function linkFromDrop(dt: Pick<DataTransfer, 'getData'>): string {
+  const list = dt
+    .getData('text/uri-list')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find((l) => l && !l.startsWith('#'));
+  if (list) return list;
+  const text = dt.getData('text/plain').trim();
+  return /^\S+\.\S+$/.test(text) || /^https?:\/\//.test(text) ? text : '';
+}
+
 export function Menu(props: { icon: ReactNode; label: string; children: (close: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -331,6 +346,18 @@ export function PanelFrame(p: Props) {
   };
   /** Tab, der gerade gezogen wird (F-22). */
   const dragTab = useRef<string | null>(null);
+  /** F-150: Ein Link wird gerade über das leere Panel gezogen. */
+  const [linkOver, setLinkOver] = useState(false);
+  const linkDrag = (e: DragEvent<HTMLDivElement>) =>
+    !url && !dragTab.current && [...e.dataTransfer.types].some((t) => t === 'text/uri-list' || t === 'text/plain');
+  const linkDrop = (e: DragEvent<HTMLDivElement>) => {
+    if (!linkDrag(e)) return;
+    e.preventDefault();
+    setLinkOver(false);
+    const link = linkFromDrop(e.dataTransfer);
+    if (link) p.onNavigate(link);
+    else p.notify('Das ist kein Link – bitte eine Adresse hineinziehen.');
+  };
   const inputRef = useRef<HTMLInputElement>(null);
   const swipe = useSwipe(p.stack?.onStep);
   // E-Source darf sich selbst laden (F-18), aber nur auf oberster Ebene: Eine eingebettete
@@ -693,7 +720,20 @@ export function PanelFrame(p: Props) {
         <div className="win__row">
         <div className="win__main">
         {/* F-124: roter Schatten nach innen, wenn die Seite sich nicht einbetten lässt */}
-        <div className={url && p.isBlocked(url) ? 'win__body win__body--blocked' : 'win__body'} {...swipe}>
+        <div
+          className={['win__body', url && p.isBlocked(url) && 'win__body--blocked', linkOver && 'win__body--drop'].filter(Boolean).join(' ')}
+          {...swipe}
+          onDragOver={(e) => {
+            if (!linkDrag(e)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            setLinkOver(true);
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) setLinkOver(false);
+          }}
+          onDrop={linkDrop}
+        >
           {/* Alle Tabs bleiben geladen (wie im Browser), sichtbar ist nur der aktive. */}
           {p.panel.tabs.map((t) =>
             t.url && !isSelf(t.url) && !p.isBlocked(t.url) ? (
@@ -737,6 +777,8 @@ export function PanelFrame(p: Props) {
           ) : !url ? (
             <>
               <p className="win__placeholder">{p.panel.name}</p>
+              {/* F-150: was man hier tun kann; Tastatur: über die Adresszeile */}
+              <p className="win__hint">{linkOver ? 'Loslassen zum Öffnen' : 'Link in die Adresszeile eingeben oder hier hineinziehen'}</p>
               {p.share && (
                 <p className="win__meta">
                   {pct(p.share.w)} breit × {pct(p.share.h)} hoch{p.stack ? ` · ${p.stack.members.length} Panels im Stapel` : ''}

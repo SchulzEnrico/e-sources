@@ -2,6 +2,7 @@ import { useEffect, useReducer, useRef } from 'react';
 import type { Lines, Orientation, ScreenClassId, ScreenSetup } from './screen';
 import { WORKSPACE_KEY, loadWorkspace, parseWorkspace, saveWorkspace } from './storage';
 import * as Win from './windows';
+import * as Mv from './move';
 import type { Min, Node, Zone } from './tree';
 import type { Bookmark, Workspace } from './types';
 import * as B from './bookmarks';
@@ -66,7 +67,11 @@ export type Action =
   /** F-27: Panels in ein Fenster verschieben ('' = Hauptfenster; unbekannte Id = neues Fenster). */
   | { type: 'toWindow'; ids: string[]; win: string }
   | { type: 'returnAll'; win: string }
-  | { type: 'renameWindow'; win: string; name: string };
+  | { type: 'renameWindow'; win: string; name: string }
+  /** F-28: Panels auf eine Area legen (auch in einem anderen Fenster); area = Id, 'new' oder ''. */
+  | { type: 'move'; ids: string[]; from: ScreenSetup; win: string; area: string }
+  /** F-28: Fenster merkt sich seine Bildschirm-Einstellung. */
+  | { type: 'seen'; setup: ScreenSetup };
 
 export function reducer(ws: Workspace, a: Action): Workspace {
   const next = step(ws, a);
@@ -169,6 +174,10 @@ function step(ws: Workspace, a: Action): Workspace {
       return Win.returnAll(ws, a.win);
     case 'renameWindow':
       return Win.renameWindow(ws, a.win, a.name);
+    case 'move':
+      return Mv.movePanels(ws, a.ids, a.from, a.win, a.area);
+    case 'seen':
+      return Mv.noteSetup(ws, a.setup);
   }
 }
 

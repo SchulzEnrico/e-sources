@@ -1,5 +1,6 @@
 import type { PanelMeta, Slot, Workspace } from './types';
-import { areaLabel, hostOf, panelUrl } from './workspace';
+import { areaLabel, hostOf, panelUrl, panelsIn } from './workspace';
+import { windowList } from './windows';
 
 // ---------------------------------------------------------------- F-29 Gesamtfokus
 
@@ -77,19 +78,45 @@ export interface OverviewPanel {
 
 export interface OverviewArea {
   id: string;
+  /** F-27: Fenster der Karte ('' = Hauptfenster). */
+  win: string;
+  /** F-27: Karte eines anderen Fensters (dessen Anordnung ist hier unbekannt: alle Panels in einer Karte). */
+  other: boolean;
+  /** F-27: Fenster ist gerade offen (nur bei anderen Fenstern aussagekräftig). */
+  open: boolean;
   /** Name der Area (wie in der Kopfleiste nur bei Stapeln); sonst „Area 1“, „Area 2“ … */
   title: string;
   panels: OverviewPanel[];
 }
 
-/** Alle Areas mit ihren Panels für die Übersicht, in der Reihenfolge der Anzeige. */
-export function overviewOf(ws: Workspace, slots: Slot[]): OverviewArea[] {
-  return slots.map((s, i) => ({
+const rowOf = (p: PanelMeta, front: boolean): OverviewPanel => {
+  const url = panelUrl(p);
+  return { meta: p, front, tabs: p.tabs.length, host: url ? hostOf(url) : '' };
+};
+
+/**
+ * Alle Areas mit ihren Panels für die Übersicht, in der Reihenfolge der Anzeige. F-27: Danach je
+ * anderes Fenster eine Karte mit seinen Panels (Hauptfenster zuerst); `open` = offene Fenster.
+ */
+export function overviewOf(ws: Workspace, slots: Slot[], win = '', open: Set<string> = new Set()): OverviewArea[] {
+  const here = slots.map((s, i) => ({
     id: s.id,
+    win,
+    other: false,
+    open: true,
     title: areaLabel(ws, s) || `Area ${i + 1}`,
-    panels: s.panels.map((p) => {
-      const url = panelUrl(p);
-      return { meta: p, front: p.id === s.front.id, tabs: p.tabs.length, host: url ? hostOf(url) : '' };
-    }),
+    panels: s.panels.map((p) => rowOf(p, p.id === s.front.id)),
   }));
+  const others = windowList(ws)
+    .filter((w) => w.id !== win)
+    .map((w) => ({
+      id: `win:${w.id}`,
+      win: w.id,
+      other: true,
+      open: open.has(w.id),
+      title: w.name,
+      panels: panelsIn(ws.panels, w.id).map((p) => rowOf(p, true)),
+    }))
+    .filter((a) => a.panels.length > 0);
+  return [...here, ...others];
 }

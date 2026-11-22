@@ -54,6 +54,8 @@ export interface ScreenSetup {
   cls: ScreenClassId;
   orientation: Orientation;
   lines: Lines;
+  /** F-27: Zusatzfenster (Id aus Workspace.windows); fehlt = Hauptfenster. */
+  win?: string;
 }
 
 /** Eckdaten einer Einstellung für die Anordnung. */
@@ -70,15 +72,21 @@ export interface ScreenSpec {
 
 /** Jede Kombination aus Klasse, Ausrichtung und Reihen hat ihre eigene Anordnung. */
 export function layoutKey(s: ScreenSetup): string {
-  return `${s.cls}:${s.orientation}:${s.lines}`;
+  const base = `${s.cls}:${s.orientation}:${s.lines}`;
+  // F-27: Zusatzfenster haben je Einstellung ihre eigene Anordnung.
+  return s.win ? `${s.win}/${base}` : base;
 }
 
 export function parseLayoutKey(key: string): ScreenSetup | null {
-  const [cls, orientation, lines] = key.split(':');
+  const slash = key.indexOf('/');
+  const win = slash >= 0 ? key.slice(0, slash) : '';
+  const [cls, orientation, lines] = key.slice(slash + 1).split(':');
   if (!SCREEN_CLASSES.some((c) => c.id === cls)) return null;
   if (orientation !== 'landscape' && orientation !== 'portrait') return null;
   if (lines !== '1' && lines !== '2') return null;
-  return { cls: cls as ScreenClassId, orientation, lines: Number(lines) as Lines };
+  const setup: ScreenSetup = { cls: cls as ScreenClassId, orientation, lines: Number(lines) as Lines };
+  if (win) setup.win = win;
+  return setup;
 }
 
 /** Schlüssel für die Wahl ein-/zweizeilig, gilt je Klasse und Ausrichtung. */

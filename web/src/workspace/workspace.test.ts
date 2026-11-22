@@ -10,6 +10,9 @@ import * as L from './look';
 import * as D from './demo';
 import * as FH from './frameHistory';
 import * as F from './focus';
+import * as Win from './windows';
+import { reducer } from './useWorkspace';
+import { layoutKey, parseLayoutKey } from './screen';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -1111,5 +1114,93 @@ describe('F-28/F-29 Gesamtfokus und Übersicht', () => {
     expect(o.flatMap((a) => a.panels).length).toBe(ws.panels.length);
     expect(o[0].panels.filter((p) => p.front)).toHaveLength(1);
     expect(o[0].title.length > 0).toBe(true);
+  });
+});
+
+describe('F-27 Panels herauslösen (Fenster)', () => {
+  const W2: ScreenSetup = { ...MONITOR2, win: 'w2' };
+  /** Arbeitsfläche, deren erstes Panel in Fenster `win` liegt. */
+  const firstIn = (win: string) => {
+    const ws = W.defaultWorkspace();
+    return Win.moveToWindow(ws, [ws.panels[0].id], win);
+  };
+
+  it('Fenster-Id aus der Adresse und Adresse eines Fensters', () => {
+    expect(Win.winFromSearch('?win=w2')).toBe('w2');
+    expect(Win.winFromSearch('')).toBe('');
+    expect(Win.winFromSearch('?win=<b>')).toBe('');
+    expect(Win.windowUrl('https://x.de/app/?a=1#h', 'w2')).toBe('https://x.de/app/?a=1&win=w2');
+    expect(Win.windowUrl('https://x.de/app/?win=w2', '')).toBe('https://x.de/app/');
+  });
+
+  it('Anordnung je Fenster: eigener Schlüssel, der sich zurücklesen lässt', () => {
+    expect(layoutKey(W2)).toBe('w2/monitor:landscape:2');
+    expect(layoutKey(MONITOR2)).toBe('monitor:landscape:2');
+    expect(parseLayoutKey('w2/monitor:landscape:2')).toEqual(W2);
+    expect(parseLayoutKey('monitor:landscape:2')).toEqual(MONITOR2);
+  });
+
+  it('Panel wandert in ein neues Fenster und verschwindet aus dem Hauptfenster', () => {
+    const ws = W.defaultWorkspace();
+    const id = ws.panels[0].id;
+    const next = Win.moveToWindow(ws, [id], 'w2');
+    expect(next.windows).toEqual([{ id: 'w2', name: 'Fenster 2' }]);
+    expect(W.viewOf(next, MONITOR2).slots.flatMap((s) => s.panels.map((p) => p.id))).not.toContain(id);
+    expect(W.viewOf(next, W2).slots.flatMap((s) => s.panels.map((p) => p.id))).toEqual([id]);
+    // Gesamtfokus zählt alle Fenster
+    expect(F.focusOf(next).panels).toBe(3);
+  });
+
+  it('Zurückholen leert das Fenster, die Liste räumt sich auf', () => {
+    const ws = firstIn('x');
+    const moved = ws.panels.find((p) => p.win === 'x')!;
+    const back = Win.returnAll(ws, 'x');
+    expect(back.windows).toHaveLength(0);
+    expect(back.panels.find((p) => p.id === moved.id)!.win).toBe(undefined);
+  });
+
+  it('Nummern: zweites Fenster heißt „Fenster 3“, frei gewordene Nummer wird wieder vergeben', () => {
+    let ws = W.defaultWorkspace();
+    const [a, b] = ws.panels;
+    ws = Win.moveToWindow(ws, [a.id], 'x');
+    ws = Win.moveToWindow(ws, [b.id], 'y');
+    expect(ws.windows.map((w) => w.name)).toEqual(['Fenster 2', 'Fenster 3']);
+    ws = Win.returnAll(ws, 'x');
+    expect(Win.nextWindowName(ws.windows)).toBe('Fenster 2');
+  });
+
+  it('Neues Panel in einem Zusatzfenster gehört zu diesem Fenster', () => {
+    let ws = firstIn('w2');
+    ws = reducer(ws, { type: 'add', setup: W2 });
+    const added = ws.panels[ws.panels.length - 1];
+    expect(added.win).toBe('w2');
+    expect(W.viewOf(ws, W2).slots.flatMap((s) => s.panels)).toHaveLength(2);
+  });
+
+  it('Leeres Fenster mit neuem Panel bekommt seinen Eintrag zurück', () => {
+    let ws = W.defaultWorkspace();
+    ws = reducer(ws, { type: 'addArea', setup: { ...LAPTOP1, win: 'z' }, side: 'right' });
+    expect(ws.windows.map((w) => w.id)).toEqual(['z']);
+  });
+
+  it('Gespeicherter Stand: Fenster bleiben, Panels in unbekannten Fenstern gehen ins Hauptfenster', () => {
+    const ws = firstIn('w2');
+    const again = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(again.windows).toEqual(ws.windows);
+    expect(again.panels.filter((p) => p.win === 'w2')).toHaveLength(1);
+    const broken = parseWorkspace({ ...JSON.parse(JSON.stringify(ws)), windows: [] })!;
+    expect(broken.panels.filter((p) => p.win)).toHaveLength(0);
+  });
+
+  it('Übersicht zeigt andere Fenster als eigene Karten mit Zustand', () => {
+    const ws = firstIn('w2');
+    const o = F.overviewOf(ws, W.viewOf(ws, MONITOR2).slots, '', new Set(['', 'w2']));
+    const other = o.filter((a) => a.other);
+    expect(other).toHaveLength(1);
+    expect(other[0].title).toBe('Fenster 2');
+    expect(other[0].open).toBe(true);
+    const fromW2 = F.overviewOf(ws, W.viewOf(ws, W2).slots, 'w2', new Set(['w2']));
+    expect(fromW2.filter((a) => a.other).map((a) => a.title)).toEqual(['Hauptfenster']);
+    expect(fromW2.filter((a) => a.other)[0].open).toBe(false);
   });
 });

@@ -24,7 +24,9 @@ import { Tooltips } from './components/Tooltip';
 import { FocusMeter, Overview } from './components/Overview';
 import { focusOf } from './workspace/focus';
 import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
-import { FOCUS_WARN, STACK_MAX, TAB_MAX, newId, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
+import { MAIN_NAME, windowList, windowName, winFromSearch } from './workspace/windows';
+import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
+import { FOCUS_WARN, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -108,8 +110,21 @@ const CORNERS: { c: Corner; x: 'left' | 'right'; y: 'top' | 'bottom' }[] = [
   { c: 'br', x: 'right', y: 'bottom' },
 ];
 
+const POPUP_BLOCKED = 'Der Browser hat das Fenster blockiert – bitte Pop-ups für diese Seite erlauben und es im Master-Panel mit „Wieder öffnen“ holen.';
+
 export default function App() {
   const [ws, dispatch] = useWorkspace();
+  /** F-27: dieses Fenster ('' = Hauptfenster, sonst Id aus der Adresse) und seine Panels. */
+  const [win] = useState(() => winFromSearch(window.location.search));
+  const mine = useMemo(() => panelsIn(ws.panels, win), [ws.panels, win]);
+  const winLabel = windowName(ws, win);
+  useEffect(() => {
+    document.title = win ? `${winLabel} – E-Sources` : 'E-Sources';
+  }, [win, winLabel]);
+  useEffect(() => {
+    // Hauptfenster wiederfindbar machen (nicht in einer eingebetteten E-Source, F-18).
+    if (!win && window.self === window.top) window.name = windowTarget('');
+  }, [win]);
   // F-60, F-61, F-130: Darstellung und Akzentfarbe auf die ganze Seite anwenden; „wie System“ folgt dem Gerät.
   const [systemDark, setSystemDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true);
   useEffect(() => {
@@ -126,7 +141,7 @@ export default function App() {
     root.style.setProperty('--accent-rgb', rgbOf(ws.look.accent).join(', '));
   }, [shownTheme, ws.look.accent]);
   const lookWarning = contrastWarning(ws.look.accent, shownTheme);
-  const [active, setActive] = useState<string | null>(ws.panels[0]?.id ?? null);
+  const [active, setActive] = useState<string | null>(mine[0]?.id ?? null);
   const [mode, setMode] = useState<Mode>({ kind: 'area' });
   const [swapFrom, setSwapFrom] = useState<string | null>(null);
   /** F-28: Übersicht aller Panels (ausgeklappte Kopfleiste) und ihr Abstand von oben. */
@@ -191,8 +206,15 @@ export default function App() {
   const detected = detectScreen(area.vw, area.vh);
   const cls = clsOverride === 'auto' ? detected.cls : clsOverride;
   const orientation = oriOverride === 'auto' ? detected.orientation : oriOverride;
-  const setup = setupFor(ws, cls, orientation);
-  const view = useMemo(() => viewOf(ws, setup), [ws, setup.cls, setup.orientation, setup.lines]);
+  const setup = setupFor(ws, cls, orientation, win);
+  const view = useMemo(() => viewOf(ws, setup), [ws, setup.cls, setup.orientation, setup.lines, setup.win]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** F-27: offene Fenster; ein anderes Fenster kann hier ein Panel nach vorn holen lassen. */
+  const windows = useOpenWindows(win, (id) => {
+    if (!mine.some((x) => x.id === id)) return;
+    dispatch({ type: 'stackFront', setup, id });
+    setActive(id);
+    setMode((m) => (m.kind === 'max' && m.id !== id ? { kind: 'max', id } : m));
+  });
   // F-128: Stapel ohne Namen (alte Stände, kleinerer Bildschirm) bekommen „NewArea n“.
   useEffect(() => dispatch({ type: 'ensureAreas', setup }), [view]); // eslint-disable-line react-hooks/exhaustive-deps
   const shownView = useMemo(
@@ -257,11 +279,12 @@ export default function App() {
 
   // Geschlossene Panels aus Ansicht und Fokus entfernen.
   useEffect(() => {
-    const exists = (id: string) => ws.panels.some((p) => p.id === id);
+    // F-27: Auch Panels, die in ein anderes Fenster gewandert sind, verschwinden hier.
+    const exists = (id: string) => mine.some((p) => p.id === id);
     if (mode.kind === 'max' && !exists(mode.id)) setMode({ kind: 'area' });
-    if (active && !exists(active)) setActive(ws.panels[0]?.id ?? null);
+    if (active && !exists(active)) setActive(mine[0]?.id ?? null);
     if (swapFrom && !exists(swapFrom)) setSwapFrom(null);
-  }, [ws.panels, mode, active, swapFrom]);
+  }, [mine, mode, active, swapFrom]);
 
   // Klick in eine eingebettete Seite: Das iframe schluckt das Mausereignis, deshalb
   // erkennen wir den Wechsel am Fokus (Fenster verliert ihn an ein iframe) und fragen
@@ -412,10 +435,35 @@ export default function App() {
 
   /** F-141: Panel aus der Suche nach vorn holen und aktiv machen. */
   const showPanel = (id: string, tabId?: string) => {
+    // F-27: Liegt das Panel in einem anderen Fenster, holt jenes es nach vorn.
+    const other = ws.panels.find((x) => x.id === id && (x.win ?? '') !== win);
+    if (other) {
+      const target = other.win ?? '';
+      if (tabId) dispatch({ type: 'selectTab', id, tab: tabId });
+      windows.show(target, id);
+      if (!openAppWindow(target)) notify(POPUP_BLOCKED);
+      return;
+    }
     dispatch({ type: 'stackFront', setup, id });
     if (tabId) dispatch({ type: 'selectTab', id, tab: tabId });
     setActive(id);
     if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
+  };
+
+  /**
+   * F-27: Panel (whole = ganze Area) in ein Fenster verschieben; null = neues Fenster. Das Ziel
+   * öffnet sich bzw. kommt nach vorn – direkt aus dem Klick heraus, sonst blockt der Browser.
+   */
+  const toWindow = (id: string, target: string | null, whole: boolean) => {
+    const slot = shownView.slots.find((s) => s.panels.some((m) => m.id === id));
+    const ids = whole && slot ? slot.panels.map((m) => m.id) : [id];
+    const dest = target ?? newId();
+    if (dest === win) return;
+    dispatch({ type: 'toWindow', ids, win: dest });
+    const name = ws.panels.find((x) => x.id === id)?.name ?? '';
+    const what = ids.length > 1 ? `${ids.length} Panels` : `„${name}“`;
+    if (!openAppWindow(dest)) return notify(`${what} verschoben. ${POPUP_BLOCKED}`);
+    notify(`${what} ${dest ? 'im Zusatzfenster' : 'im Hauptfenster'}.`);
   };
 
   // ---------------------------------------------------------------- Panels
@@ -486,6 +534,8 @@ export default function App() {
         notify={notify}
         ws={ws}
         dispatch={dispatch}
+        windows={windowList(ws).filter((w) => w.id !== win)}
+        onToWindow={(target, whole) => toWindow(meta.id, target, whole)}
         onOpenBookmark={(url) => {
           // F-21: als Tab öffnen; bei voller Tab-Leiste (F-26) nur Hinweis
           if (openBookmark(ws, meta.id, url).result === 'full')
@@ -494,7 +544,7 @@ export default function App() {
         }}
         onClose={() => dispatch({ type: 'remove', id: meta.id })}
         onStartSwap={() => {
-          if (ws.panels.length < 2) return notify('Zum Tauschen braucht es mindestens zwei Panels.');
+          if (mine.length < 2) return notify('Zum Tauschen braucht es mindestens zwei Panels.');
           setSwapFrom(swapFrom === meta.id ? null : meta.id);
         }}
         onSetSize={(w, h) => dispatch({ type: 'setSize', setup, id: meta.id, w, h, min })}
@@ -543,13 +593,18 @@ export default function App() {
   };
 
   let content: ReactNode;
-  if (ws.panels.length === 0) {
+  if (mine.length === 0) {
     content = (
       <div className="empty">
-        <p>Keine Panels geöffnet.</p>
+        <p>{win ? 'Dieses Fenster ist leer – seine Panels sind wieder im Hauptfenster oder geschlossen.' : 'Keine Panels geöffnet.'}</p>
         <button type="button" onClick={() => dispatch({ type: 'addArea', setup, side: 'right' })}>
           + Area anlegen
         </button>
+        {win && (
+          <button type="button" onClick={() => window.close()}>
+            Fenster schließen
+          </button>
+        )}
       </div>
     );
   } else if (mode.kind === 'max') {
@@ -655,6 +710,27 @@ export default function App() {
         <img className="brand-logo" src={shownTheme === 'dark' ? logoUrl : logoLightUrl} alt="E-Sources" width={366} height={186} />
         {/* F-146: Logo links, Bedienelemente mittig, Gesamtfokus ganz rechts */}
         <div className="tb-center">
+        {/* F-27: Zusatzfenster zeigen ihren Namen und können alles zurückgeben */}
+        {win && (
+          <>
+            <span className="tb-win" title={`Dieses Fenster: ${winLabel}`}>
+              {winLabel}
+            </span>
+            <button
+              type="button"
+              disabled={mine.length === 0}
+              title={`Alle Panels aus ${winLabel} zurück ins ${MAIN_NAME}`}
+              onClick={() => {
+                dispatch({ type: 'returnAll', win });
+                if (!openAppWindow('')) return notify(POPUP_BLOCKED);
+                // Selbst geöffnete Zusatzfenster schließen sich danach; sonst bleibt der Hinweis „leer“.
+                window.setTimeout(() => window.close(), 150);
+              }}
+            >
+              ⇤ Alles ins {MAIN_NAME}
+            </button>
+          </>
+        )}
         {/* F-127: Knopf „Ansicht“ – jeder Klick schaltet weiter: Arbeitsfläche → 2 × 2 → 2 → 1 → Arbeitsfläche */}
         {(() => {
           const now: ViewKind = mode.kind === 'max' ? 1 : mode.kind === 'split' ? mode.count : 'area';
@@ -893,7 +969,16 @@ export default function App() {
           top={overviewTop}
           toggleRef={meterRef}
           info={`${view.slots.length}/${view.spec.capacity} Areas belegt${stacked > 0 ? ` · ${stacked} im Stapel` : ''} · ${screenClass(cls).label}, ${orientation === 'landscape' ? 'quer' : 'hoch'}`}
+          win={win}
+          open={windows.open}
           onShow={showPanel}
+          onFetch={(id) => dispatch({ type: 'toWindow', ids: [id], win })}
+          onFetchAll={(from) =>
+            dispatch({ type: 'toWindow', ids: ws.panels.filter((x) => (x.win ?? '') === from).map((x) => x.id), win })
+          }
+          onOpenWindow={(target) => {
+            if (!openAppWindow(target)) notify(POPUP_BLOCKED);
+          }}
           onClose={(id) => dispatch({ type: 'remove', id })}
           onRename={(id, name) => dispatch({ type: 'rename', id, name })}
           onDismiss={() => setOverview(false)}

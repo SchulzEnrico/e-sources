@@ -653,6 +653,14 @@ button.is-off:hover,
 }
 .menu__list {
   min-width: 210px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Menüliste hängt per Portal an der Seite (Lage misst Menu in PanelFrame.tsx) und liegt über allen Areas */
+.menu__list--float {
+  position: fixed;
+  margin: 0;
+  z-index: 1000;
 }
 .menu__sep {
   border-top: 1px solid var(--line);
@@ -981,7 +989,8 @@ button.is-off:hover,
 .toolbar > .menu > button { min-width: 36px; font-size: 18px; line-height: 1; }
 .toolbar > .menu > button:has(.tb-add) { font-size: inherit; line-height: inherit; }
 .toolbar .muted { white-space: nowrap; font-size: 13px; }
-.toolbar .menu__list { min-width: 250px; z-index: 60; }
+.toolbar .menu__list,
+.menu__list--toolbar { min-width: 250px; z-index: 1000; }
 
 /* ---------- F-34 zentrales Suchfeld */
 .search {
@@ -2307,6 +2316,52 @@ button.is-off:hover,
 }
 .overview__tool--x:hover {
   color: var(--accent);
+}
+/* F-27: Fenster-Gruppen im Master-Panel */
+.overview__win {
+  margin: 14px 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.overview__win:first-of-type {
+  margin-top: 4px;
+}
+.overview__area.is-other {
+  border-style: dashed;
+}
+.overview__state {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+.overview__state.is-open {
+  border-color: rgba(var(--accent-rgb), 0.7);
+}
+.overview__win-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 4px 8px;
+}
+.overview__win-tools button {
+  padding: 3px 9px;
+  font-size: 12px;
+}
+/* F-27: Name des Zusatzfensters in der Kopfleiste */
+.tb-win {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.6);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 .overview__input {
   flex: 1;

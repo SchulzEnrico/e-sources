@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from 'react';
-import type { Bookmark, PanelMeta, Workspace } from '../workspace/types';
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import type { Bookmark, Named, PanelMeta, Workspace } from '../workspace/types';
 import type { Action } from '../workspace/useWorkspace';
 import { bookmarkOf, collectionSize } from '../workspace/bookmarks';
 import { BookmarkEditor, CollectionDrawer, CollectionIcon, draftFor } from './Bookmarks';
@@ -64,6 +65,10 @@ interface Props {
   dispatch: (a: Action) => void;
   /** F-21: Lesezeichen in diesem Panel öffnen. */
   onOpenBookmark: (url: string) => void;
+  /** F-27: andere Fenster, in die sich das Panel verschieben lässt (Hauptfenster: id ''). */
+  windows: Named[];
+  /** F-27: Panel (whole = ganze Area) in ein Fenster verschieben; null = neues Fenster. */
+  onToWindow: (win: string | null, whole: boolean) => void;
 }
 
 /** Seitenleiste im Panel: Sammlung oder Lesezeichen bearbeiten. */
@@ -126,33 +131,135 @@ export function StackAddIcon() {
   );
 }
 
-/** Ausklappmenü in der Kopfleiste (Größen, Panel-Optionen F-20). */
+const FOCUSABLE = '[role="menuitem"], button, select, input:not([type="hidden"]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Ausklappmenü (Größen, Panel-Optionen F-20, Kopfleiste). Die Liste hängt per Portal direkt an der
+ * Seite und liegt mit fester Lage über allen Areas – sonst verschwindet sie unter Nachbar-Panels.
+ * Sie klappt nach unten oder, wenn dort zu wenig Platz ist, nach oben auf und scrollt notfalls.
+ * Tastatur (NF-03): Öffnen setzt den Fokus auf den ersten Eintrag, ↑/↓/Pos1/Ende wandern,
+ * Tab läuft durch die Liste und schließt sie an ihrem Ende; Esc schließt; beides führt zum Knopf zurück.
+ */
 export function Menu(props: { icon: ReactNode; label: string; children: (close: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const [place, setPlace] = useState<{ up: boolean; max: number; right: number; y: number; toolbar: boolean } | null>(null);
+  const close = (focusButton = false) => {
+    setOpen(false);
+    if (focusButton) btn.current?.focus();
+  };
+  useLayoutEffect(() => {
+    if (!open) return setPlace(null);
+    const fit = () => {
+      const b = btn.current?.getBoundingClientRect();
+      const ul = list.current;
+      if (!b || !ul) return;
+      const gap = 8;
+      const below = window.innerHeight - b.bottom - gap;
+      const above = b.top - gap;
+      const up = ul.scrollHeight > below && above > below;
+      setPlace({
+        up,
+        max: Math.max(120, up ? above : below),
+        right: Math.max(gap, window.innerWidth - b.right),
+        y: up ? window.innerHeight - b.top + 2 : b.bottom + 2,
+        toolbar: !!ref.current?.closest('.toolbar'),
+      });
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    window.addEventListener('scroll', fit, true);
+    return () => {
+      window.removeEventListener('resize', fit);
+      window.removeEventListener('scroll', fit, true);
+    };
+  }, [open]);
+  // Fokus auf den ersten Eintrag, sobald die Liste liegt.
+  useEffect(() => {
+    if (open && place) list.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+  }, [open, !!place]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!open) return;
     const away = (e: Event) => {
-      if (!ref.current?.contains(e.target as globalThis.Node)) setOpen(false);
+      const t = e.target as globalThis.Node;
+      if (!ref.current?.contains(t) && !list.current?.contains(t)) setOpen(false);
     };
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     document.addEventListener('pointerdown', away);
-    document.addEventListener('keydown', esc);
-    return () => {
-      document.removeEventListener('pointerdown', away);
-      document.removeEventListener('keydown', esc);
-    };
+    return () => document.removeEventListener('pointerdown', away);
   }, [open]);
+  const onKey = (e: KeyboardEvent<HTMLUListElement>) => {
+    const all = [...(list.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].filter((el) => !el.hasAttribute('disabled'));
+    const at = all.indexOf(document.activeElement as HTMLElement);
+    // Tab wandert durch die Liste; wer sie am Anfang oder Ende verlässt, schließt sie.
+    if (e.key === 'Tab') {
+      if ((e.shiftKey && at <= 0) || (!e.shiftKey && at === all.length - 1)) {
+        e.preventDefault();
+        close(true);
+      }
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      return close(true);
+    }
+    // Pfeiltasten nur auf Menüeinträgen – in Auswahllisten und Feldern behalten sie ihre Wirkung.
+    const target = e.target as HTMLElement;
+    if (target.getAttribute('role') !== 'menuitem') return;
+    const items = all.filter((el) => el.getAttribute('role') === 'menuitem');
+    const i = items.indexOf(target);
+    const go = (k: number) => items[(k + items.length) % items.length]?.focus();
+    const keys: Record<string, () => void> = {
+      ArrowDown: () => go(i + 1),
+      ArrowUp: () => go(i - 1),
+      Home: () => go(0),
+      End: () => go(items.length - 1),
+    };
+    const f = keys[e.key];
+    if (!f) return;
+    e.preventDefault();
+    e.stopPropagation();
+    f();
+  };
   return (
     <div className="menu" ref={ref}>
-      <button type="button" onClick={() => setOpen((v) => !v)} title={props.label} aria-label={props.label} aria-expanded={open}>
+      <button
+        ref={btn}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' && !open) {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
+        title={props.label}
+        aria-label={props.label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
         {props.icon}
       </button>
-      {open && (
-        <ul className="menu__list" role="menu">
-          {props.children(() => setOpen(false))}
-        </ul>
-      )}
+      {open &&
+        createPortal(
+          <ul
+            ref={list}
+            className={`menu__list menu__list--float${place?.up ? ' menu__list--up' : ''}${place?.toolbar ? ' menu__list--toolbar' : ''}`}
+            role="menu"
+            aria-label={props.label}
+            onKeyDown={onKey}
+            style={
+              place
+                ? { right: place.right, maxHeight: place.max, ...(place.up ? { top: 'auto', bottom: place.y } : { top: place.y, bottom: 'auto' }) }
+                : { visibility: 'hidden', top: 0, right: 0 }
+            }
+          >
+            {props.children(() => close(true))}
+          </ul>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -485,6 +592,24 @@ export function PanelFrame(p: Props) {
                   <li className="menu__sep" role="separator" />
                   <Item onClick={run(addTab)}>＋ Neuer Tab</Item>
                   <Item onClick={run(p.onAddHere)}>▣ Neues Panel auf „{p.panel.name}“ legen</Item>
+                  {/* F-27: Panel oder ganze Area in ein anderes Fenster (zweiter Monitor) */}
+                  <li className="menu__sep" role="separator" />
+                  <Item onClick={run(() => p.onToWindow(null, false))}>⧉ Panel in neues Fenster</Item>
+                  {p.windows.map((w) => (
+                    <Item key={w.id || 'main'} onClick={run(() => p.onToWindow(w.id, false))}>
+                      ⧉ Panel ins {w.name}
+                    </Item>
+                  ))}
+                  {p.stack && (
+                    <>
+                      <Item onClick={run(() => p.onToWindow(null, true))}>⧉ Ganze Area in neues Fenster</Item>
+                      {p.windows.map((w) => (
+                        <Item key={`a-${w.id || 'main'}`} onClick={run(() => p.onToWindow(w.id, true))}>
+                          ⧉ Ganze Area ins {w.name}
+                        </Item>
+                      ))}
+                    </>
+                  )}
                   <li className="menu__sep" role="separator" />
                   <Item onClick={run(() => p.dispatch({ type: 'rulerPanel', id: p.panel.id }))}>
                     {rulerShown(p.ws, p.panel) ? '▭ Lineal in diesem Panel ausblenden' : '▭ Lineal in diesem Panel zeigen'}

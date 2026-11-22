@@ -32,6 +32,11 @@ export function newTab(): Tab {
   return { id: newId() };
 }
 
+/** F-27: Panel einem Fenster zuordnen ('' = Hauptfenster). */
+function inWin(p: PanelMeta, win = ''): PanelMeta {
+  return win ? { ...p, win } : p;
+}
+
 export function newPanel(name: string): PanelMeta {
   const tab = newTab();
   return { id: newId(), name, tabs: [tab], activeTab: tab.id };
@@ -39,13 +44,18 @@ export function newPanel(name: string): PanelMeta {
 
 export function defaultWorkspace(): Workspace {
   const panels = [1, 2, 3].map((n) => newPanel(`Panel ${n}`));
-  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, spheres: [], scenarios: [], embed: {}, bookmarks: [], categories: [], ruler: { ...RULER_DEFAULT }, areaNames: [], nextArea: 1, look: { ...LOOK_DEFAULT } };
+  return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, spheres: [], scenarios: [], embed: {}, bookmarks: [], categories: [], ruler: { ...RULER_DEFAULT }, areaNames: [], nextArea: 1, look: { ...LOOK_DEFAULT }, windows: [] };
 }
 
 /** Einstellung aus Klasse und Ausrichtung, ergänzt um die gespeicherte Wahl ein-/zweizeilig. */
-export function setupFor(ws: Workspace, cls: ScreenClassId, orientation: Orientation): ScreenSetup {
+export function setupFor(ws: Workspace, cls: ScreenClassId, orientation: Orientation, win = ''): ScreenSetup {
   const lines: Lines = allowsTwoLines(cls) ? (ws.lines[linesKey(cls, orientation)] ?? 2) : 1;
-  return { cls, orientation, lines };
+  return win ? { cls, orientation, lines, win } : { cls, orientation, lines };
+}
+
+/** F-27: Panels eines Fensters ('' = Hauptfenster). */
+export function panelsIn(panels: PanelMeta[], win = ''): PanelMeta[] {
+  return panels.filter((p) => (p.win ?? '') === win);
 }
 
 export function setLines(ws: Workspace, cls: ScreenClassId, orientation: Orientation, lines: Lines): Workspace {
@@ -187,7 +197,7 @@ export function describe(ws: Workspace, key: string, spec: ScreenSpec, arrangeme
 export function viewOf(ws: Workspace, setup: ScreenSetup): View {
   const key = layoutKey(setup);
   const spec = specOf(setup);
-  return describe(ws, key, spec, normalize(ws.panels, ws.layouts[key], spec));
+  return describe(ws, key, spec, normalize(panelsIn(ws.panels, setup.win), ws.layouts[key], spec));
 }
 
 /** Area, auf der ein Panel in dieser Ansicht liegt. */
@@ -223,7 +233,7 @@ const withTree = (arr: Arrangement, tree: T.Node): Arrangement => ({ ...arr, tre
  * Area gehen nicht (F-26): dann bleibt alles, wie es ist.
  */
 export function addPanel(ws: Workspace, setup: ScreenSetup, onArea?: string): Workspace {
-  const meta = newPanel(`Panel ${ws.nextNumber}`);
+  const meta = inWin(newPanel(`Panel ${ws.nextNumber}`), setup.win);
   const v = viewOf(ws, setup);
   const next: Workspace = { ...ws, panels: [...ws.panels, meta], nextNumber: ws.nextNumber + 1 };
   const target = onArea ? v.arrangement?.areas[onArea] : undefined;
@@ -231,7 +241,7 @@ export function addPanel(ws: Workspace, setup: ScreenSetup, onArea?: string): Wo
   if (target && v.arrangement) {
     arr = withArea(v.arrangement, { ...target, panels: [...target.panels, meta.id], front: meta.id });
   } else {
-    arr = normalize(next.panels, v.arrangement, v.spec);
+    arr = normalize(panelsIn(next.panels, setup.win), v.arrangement, v.spec);
   }
   const pid = areaIn(arr, meta.id);
   const area = pid ? arr!.areas[pid] : null;
@@ -254,10 +264,10 @@ export function canAddArea(ws: Workspace, setup: ScreenSetup): boolean {
  */
 export function addArea(ws: Workspace, setup: ScreenSetup, side: 'right' | 'bottom'): Workspace {
   if (!canAddArea(ws, setup)) return ws;
-  const meta = newPanel(`Panel ${ws.nextNumber}`);
+  const meta = inWin(newPanel(`Panel ${ws.nextNumber}`), setup.win);
   const v = viewOf(ws, setup);
   const next: Workspace = { ...ws, panels: [...ws.panels, meta], nextNumber: ws.nextNumber + 1 };
-  if (!v.arrangement) return ensureAreaNames(commit(next, v.key, normalize(next.panels, null, v.spec)), setup);
+  if (!v.arrangement) return ensureAreaNames(commit(next, v.key, normalize(panelsIn(next.panels, setup.win), null, v.spec)), setup);
   const id = newAreaId(meta.id, v.arrangement.areas);
   const arr: Arrangement = {
     tree: T.addAtEdge(v.arrangement.tree, id, side),
@@ -297,7 +307,7 @@ export function removePanel(ws: Workspace, id: string): Workspace {
   for (const [key, stored] of Object.entries(ws.layouts)) {
     const setup = parseLayoutKey(key);
     if (!setup || !isArrangement(stored)) continue;
-    const fixed = normalize(panels, takeOut(stored, id), specOf(setup));
+    const fixed = normalize(panelsIn(panels, setup.win), takeOut(stored, id), specOf(setup));
     if (fixed) layouts[key] = fixed;
   }
   // F-32: Lesezeichen bleiben in der Gesamtsammlung, nur die Zuordnung zum Panel entfällt.
@@ -726,7 +736,7 @@ export function clearPreferred(ws: Workspace, setup: ScreenSetup): Workspace {
 export function resetLayout(ws: Workspace, setup: ScreenSetup): Workspace {
   const key = layoutKey(setup);
   const pref = ws.preferred[key];
-  return commit(ws, key, pref ? normalize(ws.panels, pref, specOf(setup)) : null);
+  return commit(ws, key, pref ? normalize(panelsIn(ws.panels, setup.win), pref, specOf(setup)) : null);
 }
 
 /** Einzelnes Panel zurücksetzen: auf die Größe seiner Area in der Wunsch-Anordnung, sonst auf Area-Größe. */

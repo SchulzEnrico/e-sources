@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import type { Slot, Workspace } from '../workspace/types';
-import { type Focus, focusText, overviewOf, pointsText } from '../workspace/focus';
+import { type Focus, type OverviewArea, focusText, overviewOf, pointsText } from '../workspace/focus';
+import { windowName } from '../workspace/windows';
 import { loadColor } from '../workspace/workspace';
 
 /**
@@ -60,7 +61,17 @@ export interface OverviewProps {
   toggleRef: RefObject<HTMLButtonElement>;
   /** F-146: belegte Areas, Stapel und Bildschirm (vorher in der Kopfleiste). */
   info: string;
+  /** F-27: dieses Fenster ('' = Hauptfenster) und die gerade offenen Fenster. */
+  win: string;
+  open: Set<string>;
+  /** Panel zeigen – liegt es in einem anderen Fenster, dort. */
   onShow: (id: string) => void;
+  /** F-27: Panel aus einem anderen Fenster hierher holen. */
+  onFetch: (id: string) => void;
+  /** F-27: alle Panels eines anderen Fensters hierher holen. */
+  onFetchAll: (win: string) => void;
+  /** F-27: anderes Fenster nach vorn holen bzw. wieder öffnen. */
+  onOpenWindow: (win: string) => void;
   onClose: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onDismiss: () => void;
@@ -71,7 +82,9 @@ export interface OverviewProps {
  * Tastatur (NF-03): ↑/↓ Panels, ←/→ Areas, Pos1/Ende, Enter springt, Entf schließt, F2 benennt um, Esc.
  */
 export function Overview(p: OverviewProps) {
-  const areas = useMemo(() => overviewOf(p.ws, p.slots), [p.ws, p.slots]);
+  const areas = useMemo(() => overviewOf(p.ws, p.slots, p.win, p.open), [p.ws, p.slots, p.win, p.open]);
+  const here = areas.filter((a) => !a.other);
+  const others = areas.filter((a) => a.other);
   const order = areas.flatMap((a) => a.panels.map((x) => x.meta.id));
   const [cur, setCur] = useState<string | null>(() => (p.activeId && order.includes(p.activeId) ? p.activeId : (order[0] ?? null)));
   const [editing, setEditing] = useState<string | null>(null);
@@ -98,7 +111,12 @@ export function Overview(p: OverviewProps) {
     setEditing(null);
   };
 
-  const onRowKey = (e: KeyboardEvent, id: string, name: string) => {
+  const fetch = (id: string, name: string) => {
+    p.onFetch(id);
+    setSaid(`Panel „${name}“ in dieses Fenster geholt.`);
+  };
+
+  const onRowKey = (e: KeyboardEvent, id: string, name: string, other: boolean) => {
     const i = order.indexOf(id);
     const n = order.length;
     const ai = areaIndex(id);
@@ -114,6 +132,9 @@ export function Overview(p: OverviewProps) {
         setDraft(name);
         setEditing(id);
       },
+      // F-27: H holt ein Panel aus einem anderen Fenster hierher.
+      h: () => other && fetch(id, name),
+      H: () => other && fetch(id, name),
       Delete: () => close(id, name),
       Backspace: () => close(id, name),
       Escape: dismiss,
@@ -132,49 +153,34 @@ export function Overview(p: OverviewProps) {
     setSaid(`Panel „${name}“ geschlossen.`);
   };
 
-  return (
-    <>
-      <div className="overview-backdrop" onClick={dismiss} aria-hidden="true" />
-      <div
-        id="overview"
-        ref={box}
-        className="overview"
-        role="dialog"
-        aria-label="Übersicht aller Panels"
-        aria-describedby="overview-help"
-        style={{ top: p.top }}
-        onBlur={(e) => {
-          // Fokus wandert woanders hin (z. B. Tab ans Ende) → einklappen; nicht beim Knopf selbst (der schaltet um).
-          const to = e.relatedTarget as Node | null;
-          if (to && !box.current?.contains(to) && to !== p.toggleRef.current) p.onDismiss();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.stopPropagation();
-            dismiss();
-          }
-        }}
-      >
-        <div className="overview__head">
-          <strong>Übersicht</strong>
-          <span className="overview__focus">{focusText(p.focus)}</span>
-          <span className="overview__focus">{p.info}</span>
-          <span className="grow" />
-          <button type="button" className="overview__x" onClick={dismiss} title="Übersicht schließen (Esc)" aria-label="Übersicht schließen">
-            ×
-          </button>
-        </div>
-        <p id="overview-help" className="sr-only">
-          Pfeil hoch und runter wählt ein Panel, Pfeil links und rechts wechselt die Area. Enter zeigt das Panel, Entf schließt es, F2 benennt es um, Escape schließt die Übersicht.
-        </p>
-        {order.length === 0 && <p className="overview__empty">Noch keine Panels – lege oben mit „+ Area“ eine an.</p>}
-        <div className="overview__grid">
-          {areas.map((a) => (
-            <section key={a.id} className="overview__area" aria-label={`${a.title}, ${a.panels.length} ${a.panels.length === 1 ? 'Panel' : 'Panels'}`}>
+  const card = (a: OverviewArea) => (
+            <section
+              key={a.id}
+              className={a.other ? 'overview__area is-other' : 'overview__area'}
+              aria-label={`${a.title}${a.other ? (a.open ? ', offen' : ', geschlossen') : ''}, ${a.panels.length} ${a.panels.length === 1 ? 'Panel' : 'Panels'}`}
+            >
               <h3 className="overview__title">
                 {a.title}
                 <span className="muted"> · {a.panels.length}</span>
+                {/* F-27: Zustand nicht nur als Farbe, sondern als Wort */}
+                {a.other && <span className={a.open ? 'overview__state is-open' : 'overview__state'}>{a.open ? 'offen' : 'geschlossen'}</span>}
               </h3>
+              {a.other && (
+                <div className="overview__win-tools">
+                  <button type="button" onClick={() => p.onOpenWindow(a.win)}>
+                    {a.open ? 'Nach vorn holen' : 'Wieder öffnen'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      p.onFetchAll(a.win);
+                      setSaid(`Alle Panels aus ${a.title} in dieses Fenster geholt.`);
+                    }}
+                  >
+                    {p.win ? 'Alle hierher holen' : 'Alle ins Hauptfenster holen'}
+                  </button>
+                </div>
+              )}
               <ul className="overview__list">
                 {a.panels.map((x) => {
                   const id = x.meta.id;
@@ -217,9 +223,9 @@ export function Overview(p: OverviewProps) {
                         className="overview__go"
                         tabIndex={id === focusId ? 0 : -1}
                         aria-current={isActive ? 'true' : undefined}
-                        aria-label={`${x.meta.name}, ${x.host || 'leerer Tab'}, ${tabs}${x.front ? '' : ', im Stapel hinten'}${isActive ? ', aktiv' : ''}`}
+                        aria-label={`${x.meta.name}, ${x.host || 'leerer Tab'}, ${tabs}${x.front ? '' : ', im Stapel hinten'}${isActive ? ', aktiv' : ''}${a.other ? `, in ${a.title}` : ''}`}
                         onFocus={() => setCur(id)}
-                        onKeyDown={(e) => onRowKey(e, id, x.meta.name)}
+                        onKeyDown={(e) => onRowKey(e, id, x.meta.name, a.other)}
                         onClick={() => {
                           p.onShow(id);
                           dismiss();
@@ -231,6 +237,18 @@ export function Overview(p: OverviewProps) {
                         <span className="overview__tabs">{tabs}</span>
                         {!x.front && <span className="overview__back">hinten</span>}
                       </button>
+                      {a.other && (
+                        <button
+                          type="button"
+                          className="overview__tool"
+                          tabIndex={-1}
+                          title="Hierher holen (H)"
+                          aria-label={`„${x.meta.name}“ in dieses Fenster holen`}
+                          onClick={() => fetch(id, x.meta.name)}
+                        >
+                          ⇣
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="overview__tool"
@@ -259,8 +277,52 @@ export function Overview(p: OverviewProps) {
                 })}
               </ul>
             </section>
-          ))}
+  );
+
+  return (
+    <>
+      <div className="overview-backdrop" onClick={dismiss} aria-hidden="true" />
+      <div
+        id="overview"
+        ref={box}
+        className="overview"
+        role="dialog"
+        aria-label="Übersicht aller Panels"
+        aria-describedby="overview-help"
+        style={{ top: p.top }}
+        onBlur={(e) => {
+          // Fokus wandert woanders hin (z. B. Tab ans Ende) → einklappen; nicht beim Knopf selbst (der schaltet um).
+          const to = e.relatedTarget as Node | null;
+          if (to && !box.current?.contains(to) && to !== p.toggleRef.current) p.onDismiss();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.stopPropagation();
+            dismiss();
+          }
+        }}
+      >
+        <div className="overview__head">
+          <strong>Übersicht</strong>
+          <span className="overview__focus">{focusText(p.focus)}</span>
+          <span className="overview__focus">{p.info}</span>
+          <span className="grow" />
+          <button type="button" className="overview__x" onClick={dismiss} title="Übersicht schließen (Esc)" aria-label="Übersicht schließen">
+            ×
+          </button>
         </div>
+        <p id="overview-help" className="sr-only">
+          Pfeil hoch und runter wählt ein Panel, Pfeil links und rechts wechselt die Area. Enter zeigt das Panel, auch in einem anderen Fenster. H holt ein Panel aus einem anderen Fenster hierher. Entf schließt es, F2 benennt es um, Escape schließt die Übersicht.
+        </p>
+        {order.length === 0 && <p className="overview__empty">Noch keine Panels – lege oben mit „+ Area“ eine an.</p>}
+        {others.length > 0 && <h2 className="overview__win">Dieses Fenster · {windowName(p.ws, p.win)}</h2>}
+        <div className="overview__grid">{here.map(card)}</div>
+        {others.length > 0 && (
+          <>
+            <h2 className="overview__win">Andere Fenster</h2>
+            <div className="overview__grid">{others.map(card)}</div>
+          </>
+        )}
         <span className="sr-only" role="status">
           {said}
         </span>

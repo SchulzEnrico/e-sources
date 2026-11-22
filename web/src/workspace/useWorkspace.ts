@@ -1,6 +1,7 @@
-import { useEffect, useReducer } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import type { Lines, Orientation, ScreenClassId, ScreenSetup } from './screen';
-import { loadWorkspace, saveWorkspace } from './storage';
+import { WORKSPACE_KEY, loadWorkspace, parseWorkspace, saveWorkspace } from './storage';
+import * as Win from './windows';
 import type { Min, Node, Zone } from './tree';
 import type { Bookmark, Workspace } from './types';
 import * as B from './bookmarks';
@@ -59,9 +60,21 @@ export type Action =
   /** F-60, F-61: Darstellung. */
   | ({ type: 'look' } & Partial<Look>)
   /** F-121: ganze Arbeitsfläche durch eine importierte ersetzen. */
-  | { type: 'replace'; ws: Workspace };
+  | { type: 'replace'; ws: Workspace }
+  /** F-27: Stand aus einem anderen Fenster übernehmen (wird hier nicht erneut gespeichert). */
+  | { type: 'remote'; ws: Workspace }
+  /** F-27: Panels in ein Fenster verschieben ('' = Hauptfenster; unbekannte Id = neues Fenster). */
+  | { type: 'toWindow'; ids: string[]; win: string }
+  | { type: 'returnAll'; win: string }
+  | { type: 'renameWindow'; win: string; name: string };
 
 export function reducer(ws: Workspace, a: Action): Workspace {
+  const next = step(ws, a);
+  // F-27: Fensterliste passend zu den Panels halten (leere Fenster fallen weg).
+  return a.type === 'remote' || next === ws ? next : Win.syncWindows(next);
+}
+
+function step(ws: Workspace, a: Action): Workspace {
   switch (a.type) {
     case 'add':
       return W.addPanel(ws, a.setup, a.area);
@@ -148,13 +161,43 @@ export function reducer(ws: Workspace, a: Action): Workspace {
     case 'look':
       return setLook(ws, { theme: a.theme, accent: a.accent });
     case 'replace':
+    case 'remote':
       return a.ws;
+    case 'toWindow':
+      return Win.moveToWindow(ws, a.ids, a.win);
+    case 'returnAll':
+      return Win.returnAll(ws, a.win);
+    case 'renameWindow':
+      return Win.renameWindow(ws, a.win, a.name);
   }
 }
 
-/** Arbeitsfläche mit automatischem Speichern im Browser. */
+/**
+ * Arbeitsfläche mit automatischem Speichern im Browser. F-27: Ändert ein anderes Fenster (oder
+ * Tab) der Anwendung den gespeicherten Stand, meldet der Browser das per storage-Ereignis; der
+ * neue Stand wird übernommen, ohne ihn zurückzuschreiben. Es gilt die letzte Änderung.
+ */
 export function useWorkspace() {
   const [ws, dispatch] = useReducer(reducer, undefined, loadWorkspace);
-  useEffect(() => saveWorkspace(ws), [ws]);
+  const remote = useRef<Workspace | null>(null);
+  useEffect(() => {
+    if (ws === remote.current) return;
+    saveWorkspace(ws);
+  }, [ws]);
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== WORKSPACE_KEY || !e.newValue) return;
+      try {
+        const next = parseWorkspace(JSON.parse(e.newValue));
+        if (!next) return;
+        remote.current = next;
+        dispatch({ type: 'remote', ws: next });
+      } catch {
+        // unlesbarer Stand: eigenen behalten
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   return [ws, dispatch] as const;
 }

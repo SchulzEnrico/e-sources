@@ -1,0 +1,90 @@
+import type { Named, PanelMeta, Workspace } from './types';
+
+/**
+ * F-27 Panels herauslösen: Alle Fenster der Anwendung teilen eine Arbeitsfläche. Jedes Panel merkt
+ * sich sein Fenster (`PanelMeta.win`, fehlt = Hauptfenster), jedes Fenster hat seine eigene
+ * Anordnung (Schlüssel mit Fenster-Id, siehe layoutKey). Die Fenster-Id steht in der Adresse
+ * (`?win=…`) und übersteht so ein Neuladen.
+ */
+export const WIN_PARAM = 'win';
+export const MAIN_NAME = 'Hauptfenster';
+
+/** Fenster-Id aus der Adresse; '' = Hauptfenster. */
+export function winFromSearch(search: string): string {
+  const v = new URLSearchParams(search).get(WIN_PARAM) ?? '';
+  return /^[\w-]{1,40}$/.test(v) ? v : '';
+}
+
+/** Adresse eines Fensters: dieselbe Seite, nur mit (oder ohne) Fenster-Id. */
+export function windowUrl(href: string, win: string): string {
+  const u = new URL(href);
+  u.hash = '';
+  if (win) u.searchParams.set(WIN_PARAM, win);
+  else u.searchParams.delete(WIN_PARAM);
+  return u.toString();
+}
+
+/** Hauptfenster und alle Zusatzfenster, in Reihenfolge. */
+export function windowList(ws: Workspace): Named[] {
+  return [{ id: '', name: MAIN_NAME }, ...ws.windows];
+}
+
+export function windowName(ws: Workspace, win: string): string {
+  if (!win) return MAIN_NAME;
+  return ws.windows.find((w) => w.id === win)?.name ?? 'Leeres Fenster';
+}
+
+/** Kleinste freie Nummer ab 2: „Fenster 2“, „Fenster 3“ … */
+export function nextWindowName(windows: Named[]): string {
+  const used = new Set(windows.map((w) => w.name));
+  let n = 2;
+  while (used.has(`Fenster ${n}`)) n++;
+  return `Fenster ${n}`;
+}
+
+/**
+ * Hält die Fensterliste passend zu den Panels: Ein Fenster ohne Panels fällt weg, ein Panel in
+ * einem unbekannten Fenster (z. B. neu angelegt in einem gerade geleerten Fenster) bekommt dessen
+ * Eintrag zurück. Gibt dasselbe Objekt zurück, wenn nichts zu tun ist.
+ */
+export function syncWindows(ws: Workspace): Workspace {
+  const used = new Set(ws.panels.map((p) => p.win).filter((w): w is string => !!w));
+  let windows = ws.windows.filter((w) => used.has(w.id));
+  for (const id of used) if (!windows.some((w) => w.id === id)) windows = [...windows, { id, name: nextWindowName(windows) }];
+  const same = windows.length === ws.windows.length && windows.every((w, i) => w === ws.windows[i]);
+  return same ? ws : { ...ws, windows };
+}
+
+/**
+ * Panels in ein Fenster verschieben ('' = Hauptfenster). Ein noch unbekanntes Fenster wird mit
+ * der nächsten freien Nummer angelegt. In seinem neuen Fenster bekommt ein Panel eine freie Area
+ * oder kommt in den Stapel ganz rechts (wie ein neues Panel); in der alten Anordnung rückt es heraus.
+ */
+export function moveToWindow(ws: Workspace, ids: string[], win: string): Workspace {
+  const set = new Set(ids);
+  if (!ws.panels.some((p) => set.has(p.id) && (p.win ?? '') !== win)) return ws;
+  let windows = ws.windows;
+  if (win && !windows.some((w) => w.id === win)) windows = [...windows, { id: win, name: nextWindowName(windows) }];
+  const panels = ws.panels.map((p): PanelMeta => {
+    if (!set.has(p.id) || (p.win ?? '') === win) return p;
+    const { win: _old, ...rest } = p;
+    return win ? { ...rest, win } : rest;
+  });
+  return syncWindows({ ...ws, panels, windows });
+}
+
+/** Alle Panels eines Zusatzfensters zurück ins Hauptfenster. */
+export function returnAll(ws: Workspace, win: string): Workspace {
+  if (!win) return ws;
+  return moveToWindow(
+    ws,
+    ws.panels.filter((p) => p.win === win).map((p) => p.id),
+    '',
+  );
+}
+
+export function renameWindow(ws: Workspace, win: string, name: string): Workspace {
+  const trimmed = name.trim();
+  if (!win || !trimmed) return ws;
+  return { ...ws, windows: ws.windows.map((w) => (w.id === win ? { ...w, name: trimmed } : w)) };
+}

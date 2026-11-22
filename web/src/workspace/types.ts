@@ -37,6 +37,8 @@ export interface PanelMeta {
   areaName?: string;
   /** F-15, F-125: Lineal nur für dieses Panel ein (true) oder aus (false); fehlt = wie Workspace.ruler.on. */
   ruler?: boolean;
+  /** F-27: Zusatzfenster, in dem das Panel liegt (Id aus Workspace.windows); fehlt = Hauptfenster. */
+  win?: string;
 }
 
 /** F-125: Lineal für alle Panels, mit Beschriftung und Strichfarbe (Index in RULER_COLORS). */
@@ -129,4 +131,6 @@ export interface Workspace {
   look: Look;
   /** F-128: laufende Nummer für den Standardnamen neuer Areas („NewArea 1“ …). */
   nextArea: number;
+  /** F-27: Zusatzfenster („Fenster 2“ …); das Hauptfenster steht nicht in der Liste. */
+  windows: Named[];
 }

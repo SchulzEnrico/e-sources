@@ -11,6 +11,8 @@ import { demoWorkspace } from './demo';
  * Anordnung entsteht neu.
  */
 const KEY = 'esource.workspace.v7';
+/** F-27: Schlüssel, auf dessen Änderung andere Fenster hören (storage-Ereignis). */
+export const WORKSPACE_KEY = KEY;
 const OLD_KEYS = ['esource.workspace.v6', 'esource.workspace.v5', 'esource.workspace.v4'];
 
 const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
@@ -60,6 +62,7 @@ function parsePanel(v: unknown): PanelMeta | null {
   if (typeof v.scenario === 'string') panel.scenario = v.scenario;
   if (typeof v.ruler === 'boolean') panel.ruler = v.ruler;
   if (typeof v.areaName === 'string') panel.areaName = v.areaName;
+  if (typeof v.win === 'string' && v.win) panel.win = v.win;
   return panel;
 }
 
@@ -123,6 +126,10 @@ export function parseWorkspace(data: unknown): Workspace | null {
   const areaNames = namedList(data.areaNames);
   const nameIds = new Set(areaNames.map((a) => a.id));
   for (const p of panels as PanelMeta[]) if (p.areaName && !nameIds.has(p.areaName)) delete p.areaName;
+  // F-27: Panels in unbekannten Fenstern kommen ins Hauptfenster.
+  const windows = namedList(data.windows);
+  const winIds = new Set(windows.map((w) => w.id));
+  for (const p of panels as PanelMeta[]) if (p.win && !winIds.has(p.win)) delete p.win;
   return {
     panels: panels as PanelMeta[],
     layouts: arrangements(data.layouts),
@@ -144,6 +151,7 @@ export function parseWorkspace(data: unknown): Workspace | null {
     areaNames,
     nextArea: isNum(data.nextArea) && (data.nextArea as number) >= 1 ? Math.floor(data.nextArea as number) : areaNames.length + 1,
     look: parseLook(data.look),
+    windows,
   };
 }
 

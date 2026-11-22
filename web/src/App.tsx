@@ -114,6 +114,62 @@ const CORNERS: { c: Corner; x: 'left' | 'right'; y: 'top' | 'bottom' }[] = [
 
 const POPUP_BLOCKED = 'Der Browser hat das Fenster blockiert – bitte Pop-ups für diese Seite erlauben und es im Master-Panel mit „Wieder öffnen“ holen.';
 
+/**
+ * F-27: Name des Zusatzfensters in der Kopfleiste. Klick (oder Doppelklick, Enter, F2) öffnet ein
+ * Eingabefeld; Enter oder Verlassen speichert, Esc bricht ab. Leerer Name = keine Änderung.
+ */
+function WindowName(props: { name: string; onRename: (name: string) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const done = (save: boolean) => {
+    if (save && draft !== null && draft.trim() && draft.trim() !== props.name) props.onRename(draft.trim());
+    setDraft(null);
+    window.setTimeout(() => btn.current?.focus(), 0);
+  };
+  if (draft !== null)
+    return (
+      <input
+        className="tb-win tb-win--edit"
+        value={draft}
+        maxLength={40}
+        autoFocus
+        aria-label="Name dieses Fensters"
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => done(true)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            done(true);
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            done(false);
+          }
+        }}
+      />
+    );
+  return (
+    <button
+      ref={btn}
+      type="button"
+      className="tb-win"
+      title={`Dieses Fenster: ${props.name} · Klick oder F2 zum Umbenennen`}
+      aria-label={`Dieses Fenster: ${props.name}. Umbenennen`}
+      onClick={() => setDraft(props.name)}
+      onKeyDown={(e) => {
+        if (e.key === 'F2') {
+          e.preventDefault();
+          setDraft(props.name);
+        }
+      }}
+    >
+      {props.name}
+    </button>
+  );
+}
+
 export default function App() {
   const [ws, dispatch] = useWorkspace();
   /** F-27: dieses Fenster ('' = Hauptfenster, sonst Id aus der Adresse) und seine Panels. */
@@ -755,9 +811,7 @@ export default function App() {
         {/* F-27: Zusatzfenster zeigen ihren Namen und können alles zurückgeben */}
         {win && (
           <>
-            <span className="tb-win" title={`Dieses Fenster: ${winLabel}`}>
-              {winLabel}
-            </span>
+            <WindowName name={winLabel} onRename={(name) => dispatch({ type: 'renameWindow', win, name })} />
             <button
               type="button"
               disabled={mine.length === 0}

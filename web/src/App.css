@@ -216,7 +216,8 @@ select {
 /* Griffe an Kanten und Ecken: liegen im Spalt zwischen zwei Panels */
 .grip {
   position: absolute;
-  z-index: 5;
+  /* über der ausgeklappten Stapel-Leiste (.stack__inner, z-index 6) */
+  z-index: 8;
   touch-action: none;
 }
 .grip--left,
@@ -251,7 +252,7 @@ select {
 .grip--br {
   width: 20px;
   height: 20px;
-  z-index: 6;
+  z-index: 9;
 }
 .grip--tl {
   top: -12px;
@@ -802,7 +803,12 @@ button.is-off:hover,
   box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.7);
 }
 /* F-138: gleiches Plus wie in der Panel-Kopfleiste */
+/* Das + erscheint erst mit der ausgeklappten Leiste – eingeklappt verwechselt man es mit dem + im Panel-Kopf. */
 .stack__add {
+  display: none;
+}
+.stack:hover .stack__add,
+.stack:focus-within .stack__add {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2394,6 +2400,10 @@ button.is-off:hover,
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
+}
+.tb-win--edit {
+  width: 14ch;
+  font-weight: 600;
 }
 .overview__input {
   flex: 1;

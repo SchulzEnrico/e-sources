@@ -31,9 +31,11 @@ import { contrastWarning, hasOwnLook, lookOf, pickLook, shownAccent, THEMES, res
 import { MAIN_NAME, collectedDesks, deskRing, deskSaid, nextWindowName, stepDesk, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
 import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
-import { PROBE } from './workspace/probe';
+import { PROBE, PROBE_KIND } from './workspace/probe';
 import { Help } from './components/Help';
 import { Tour } from './components/Tour';
+import { SlotMachine } from './components/SlotMachine';
+import type { Cleanup } from './workspace/jackpot';
 import { type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace/tour';
 import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
@@ -936,6 +938,18 @@ function DeskApp(props: DeskProps) {
     dispatch({ type: 'closeTab', id, tab: tabId });
     if (t?.url) notify(`Tab ${tabLabel(t)} geschlossen.`, 8000, true);
   };
+  /** F-170: Slotmaschine offen? */
+  const [jackpot, setJackpot] = useState(false);
+  /** F-170: Duplikate schließen (nach Bestätigung im Dialog); alles wird gemerkt (Zuletzt geschlossen). */
+  const cleanupDuplicates = (c: Cleanup) => {
+    for (const t of c.tabs) dispatch({ type: 'closeTab', id: t.panel, tab: t.tab });
+    for (const id of c.portals) {
+      const p = ws.panels.find((x) => x.id === id);
+      if (!p) continue;
+      const here = (p.win ?? '') === (win ?? '');
+      dispatch({ type: 'remove', id, setup: here ? setup : (setupOfWindow(ws, p.win ?? '') ?? setup) });
+    }
+  };
   /** Neuesten (oder gewählten) Eintrag zurückholen, ansagen, Fokus auf den Tab. */
   const restore = (entry?: string) => {
     const r = restoreClosed(ws, setup, entry);
@@ -1250,13 +1264,15 @@ function DeskApp(props: DeskProps) {
    * Danach liegt der Tastaturfokus auf dem sichtbaren Tab, die Ansage geht an die Live-Region.
    */
   cycleKeyRef.current = (e: KeyboardEvent) => {
-    if (!e.altKey || e.ctrlKey || e.metaKey || (e.code !== 'KeyT' && e.code !== 'KeyP' && e.code !== 'KeyZ' && e.code !== 'KeyL' && e.code !== 'KeyK')) return;
+    if (!e.altKey || e.ctrlKey || e.metaKey || (e.code !== 'KeyT' && e.code !== 'KeyP' && e.code !== 'KeyZ' && e.code !== 'KeyL' && e.code !== 'KeyK' && e.code !== 'KeyJ')) return;
     // nicht hinter offenen Dialogen (Hilfe, Design, Hinweis, Tour)
     if (document.querySelector('[aria-modal="true"], dialog:modal')) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     // F-24: Alt/⌥+Z holt das zuletzt Geschlossene zurück
     if (e.code === 'KeyZ') return e.repeat ? undefined : restore();
+    // F-170: Alt/⌥+J öffnet die Slotmaschine
+    if (e.code === 'KeyJ') return e.repeat ? undefined : setJackpot(true);
     // F-160: Alt/⌥+K nächster, mit Umschalt voriger gesammelter Desk
     if (e.code === 'KeyK') return e.repeat ? undefined : stepDeskHere(e.shiftKey ? -1 : 1);
     // F-40: Alt/⌥+L öffnet den Launcher bzw. geht hinein; steht der Fokus schon darin, schließt er
@@ -1561,6 +1577,9 @@ function DeskApp(props: DeskProps) {
         return setDesign(true);
       case 'tourDesign':
         return startDesignTour();
+      case 'jackpot':
+        setOverview(false);
+        return setJackpot(true);
       case 'tourColors':
         return startColorsTour();
       case 'tourImport':
@@ -2138,7 +2157,7 @@ function DeskApp(props: DeskProps) {
       </header>
       {PROBE && (
         <a className="probe" href={window.location.pathname} title="Testbelegung verlassen (zurück zu deinen eigenen Desks)">
-          Test: voll · nichts wird gespeichert
+          Test: {PROBE_KIND} · nichts wird gespeichert
         </a>
       )}
       {tour && tour !== 'design' && tour !== 'colors' && !(tour === 'import' && bmImport) && (
@@ -2235,6 +2254,7 @@ function DeskApp(props: DeskProps) {
             </Colors>
           );
         })()}
+      {jackpot && <SlotMachine ws={ws} here={win ?? ''} onCleanup={cleanupDuplicates} onClose={() => setJackpot(false)} />}
       {bmImport && (
         <ImportBookmarks
           ws={ws}
@@ -2349,6 +2369,11 @@ function DeskApp(props: DeskProps) {
           }}
           onDismiss={() => (setOverview(false), setOverviewRules(false))}
           onTour={startCockpitTour}
+          onJackpot={() => {
+            setOverview(false);
+            setOverviewRules(false);
+            setJackpot(true);
+          }}
           keepOpen={tour === 'cockpit'}
           dispatch={dispatch}
           shown={shownTheme}

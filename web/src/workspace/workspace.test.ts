@@ -30,6 +30,7 @@ import * as Ca from './category';
 import * as Ru from './rules';
 import * as Ic from './icons';
 import * as Dis from './display';
+import * as Jp from './jackpot';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -2384,5 +2385,50 @@ describe('F-186 Fragen als Vorschläge', () => {
     expect(all.length).toBeGreaterThan(40);
     expect(all.every((q) => q.endsWith('?'))).toBe(true);
     expect(new Set(all).size).toBe(all.length);
+  });
+});
+
+describe('F-170 Slotmaschine', () => {
+  const build = () => {
+    let ws = W.defaultWorkspace();
+    while (ws.panels.length < 3) ws = W.addPanel(ws, LAPTOP1);
+    const [a, b, c] = ws.panels.map((p) => p.id);
+    ws = W.navigatePanel(ws, a, 'wikipedia.org');
+    ws = W.addTab(ws, a, 'example.com'); // a: wikipedia, example (vorn)
+    ws = W.navigatePanel(ws, b, 'https://WIKIPEDIA.org/'); // gleiche Seite, andere Schreibweise
+    ws = W.navigatePanel(ws, c, 'example.com');
+    return { ws, a, b, c };
+  };
+  it('findet doppelt offene Sources und lässt den sichtbaren Fundort stehen', () => {
+    const { ws, a, b } = build();
+    const g = Jp.duplicatesOf(ws);
+    expect(g).toHaveLength(2);
+    const wiki = g.find((x) => x.url.includes('wikipedia'))!;
+    // a zeigt example vorn, wikipedia liegt im Hintergrund → b (vorn) bleibt
+    expect(wiki.keep.panel).toBe(b);
+    expect(wiki.extra.map((h) => h.panel)).toEqual([a]);
+    expect(Jp.duplicatesOf(W.defaultWorkspace())).toHaveLength(0);
+  });
+  it('schließt ganze Portale nur, wenn alle Tabs überzählig sind, und rechnet den Fokus', () => {
+    const { ws, a, c } = build();
+    const g = Jp.duplicatesOf(ws);
+    const all = Jp.cleanupOf(ws, g);
+    expect(all.count).toBe(2);
+    // example: a (vorn) bleibt, c geht ganz; wikipedia: Tab in a geht
+    expect(all.portals).toEqual([c]);
+    expect(all.tabs).toHaveLength(1);
+    expect(all.tabs[0].panel).toBe(a);
+    const f = Jp.cleanupFocus(ws, all);
+    expect(f.saved).toBe(1 + F.ruleOf(ws).tabWeight);
+    const after = Jp.afterCleanup(ws, all);
+    expect(Jp.duplicatesOf(after)).toHaveLength(0);
+    // abgewählte Gruppe bleibt offen
+    const onlyWiki = Jp.cleanupOf(ws, g, new Set([g.find((x) => x.url.includes('example'))!.key]));
+    expect(onlyWiki.portals).toHaveLength(0);
+    expect(onlyWiki.count).toBe(1);
+  });
+  it('Hilfe, Suche und Symbol', () => {
+    expect(H.searchHelp('Duplikate')[0].id).toBe('jackpot');
+    expect(Ic.HELP_ICON.jackpot).toBe('jackpot');
   });
 });

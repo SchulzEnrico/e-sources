@@ -26,18 +26,20 @@ export function parseTags(input: string | string[]): string[] {
   return out;
 }
 
+/** Schlüssel einer Adresse: ohne Schreibweise des Hosts und ohne abschließenden Schrägstrich (F-170: auch zum Gruppieren). */
+export function sameUrlKey(u: string): string {
+  try {
+    const x = new URL(normalizeUrl(u));
+    return `${x.protocol}//${x.host.toLowerCase()}${x.pathname.replace(/\/+$/, '')}${x.search}${x.hash}`;
+  } catch {
+    return u.trim().replace(/\/+$/, '');
+  }
+}
+
 /** Gleiche Seite? Ohne Schreibweise des Hosts und ohne abschließenden Schrägstrich. */
 export function sameUrl(a: string | undefined, b: string | undefined): boolean {
   if (!a || !b) return false;
-  const key = (u: string) => {
-    try {
-      const x = new URL(normalizeUrl(u));
-      return `${x.protocol}//${x.host.toLowerCase()}${x.pathname.replace(/\/+$/, '')}${x.search}${x.hash}`;
-    } catch {
-      return u.trim().replace(/\/+$/, '');
-    }
-  };
-  return key(a) === key(b);
+  return sameUrlKey(a) === sameUrlKey(b);
 }
 
 // ---------------------------------------------------------------- Kategorien

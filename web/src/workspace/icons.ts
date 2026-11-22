@@ -28,6 +28,8 @@ export const ICONS = {
   source: { d: [ring(8, 8, 6), 'M2 8h12', 'M8 2c2.2 2.2 2.2 9.8 0 12', 'M8 2c-2.2 2.2-2.2 9.8 0 12'] },
   library: { d: ['M2.5 2.5h3v11h-3z', 'M6.5 2.5h3v11h-3z', 'M10.3 3.4l2.4-.7 2 9.9-2.4.7z'] },
   category: { d: ['M2 2.5h5.5l6.5 6.5-5 5L2.5 7.5z', 'M5 5.2h.01'] },
+  // F-170: Slotmaschine – Gehäuse mit drei Walzen und Hebel
+  jackpot: { d: ['M1.5 5h9v9h-9z', 'M4 8v3', 'M6 8v3', 'M8 8v3', 'M10.5 10.5h2.5V4', ring(13, 2.8, 1.2)] },
   launcher: { d: ['M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9', 'M9.5 2.5h4v4', 'M13.3 2.7 7.8 8.2'], w: 1.3 },
   cockpit: { d: ['M2 11a6 6 0 0 1 12 0', 'M8 11l3-3.5', 'M2.5 13.5h11'] },
   radar: { d: [ring(8, 8, 6), ring(8, 8, 3), 'M8 8l4.2-4.2'] },
@@ -119,7 +121,7 @@ export const HELP_ICON: Record<string, IconName> = {
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',
   cockpit: 'cockpit', view: 'view', maximize: 'maximize', search: 'search',
-  tour: 'tour', tourCockpit: 'tour', tourDesign: 'tour', tourColors: 'tour', tourImport: 'tour', toursAuto: 'toggle', help: 'help', compact: 'dashboard', favicons: 'source',
+  tour: 'tour', tourCockpit: 'tour', tourDesign: 'tour', tourColors: 'tour', tourImport: 'tour', toursAuto: 'toggle', help: 'help', compact: 'dashboard', favicons: 'source', jackpot: 'jackpot',
   newSlot: 'newSlot', newDesk: 'newDesk', newPortal: 'portal', newTab: 'tab',
   switchDesk: 'switchDesk', collectDesks: 'collect', distributeDesks: 'spread',
   design: 'design', colorRules: 'category', rules: 'rules', colors: 'colors',

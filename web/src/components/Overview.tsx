@@ -6,7 +6,7 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { RULES_TEXT, TERMS } from '../workspace/terms';
+import { JACKPOT_TEXT, RULES_TEXT, TERMS } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import type { Action } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
@@ -102,6 +102,8 @@ export interface OverviewProps {
   onDismiss: () => void;
   /** F-172: Cockpit-Tour starten (Knopf im Kopf). */
   onTour?: () => void;
+  /** F-170: Slotmaschine öffnen. */
+  onJackpot?: () => void;
   /** F-172: Während einer Tour nicht einklappen, wenn der Fokus ins Hinweisfenster wandert. */
   keepOpen?: boolean;
   /** F-164: Regelübersicht – Änderungen am Workspace, Design für Kontrasthinweise, gleich mit Regeln öffnen. */
@@ -860,6 +862,12 @@ export function Overview(p: OverviewProps) {
             <button type="button" className="overview__tour" onClick={p.onDistribute} title={TERMS.distributeDesks}>
               <Icon name="spread" />
               <span className="c-label">Verteilen</span>
+            </button>
+          )}
+          {/* F-170: Hebel der Slotmaschine – klein, nur Symbol (Name im Tooltip und aria-label) */}
+          {p.onJackpot && !rules && (
+            <button type="button" className="overview__tour overview__jackpot" onClick={p.onJackpot} title={JACKPOT_TEXT.openTitle} aria-label={JACKPOT_TEXT.openTitle}>
+              <Icon name="jackpot" />
             </button>
           )}
           {p.dispatch && (

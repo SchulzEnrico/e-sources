@@ -28,6 +28,7 @@ export const TERMS = {
   focus: 'Fokusanzeige = wie viel gerade offen ist; Grün heißt gut überschaubar',
   update: 'Neue Version = E-Sources wurde inzwischen verbessert; „Neu laden“ holt sie, deine Desks, Portale und Library bleiben erhalten',
   adjust: 'Adjust = Größen der Portale per Tastatur oder Mausrad ändern (Alt/⌥+A)',
+  jackpot: 'Slotmaschine = eine Runde, die doppelt geöffnete Sources findet – gleiche Adresse in mehreren Tabs oder Portalen, über alle Desks; geschlossen wird erst nach deiner Bestätigung',
   origin: 'Herkunft = wer eine Source angelegt hat, wann und woher (von Hand, Launcher, Lesezeichen-Import mit Datei und Ordner, Beispiele oder Import der Arbeitsfläche); steht im Bearbeiten-Dialog und lässt sich suchen, z. B. „Import 22.11.2026“',
 } as const;
 
@@ -180,6 +181,29 @@ export const TINT_TEXT = {
   undo: 'Rückgängig',
   added: (what: string) => `${what} angelegt.`,
   said: (where: string, kind: string, value: string) => `${where}: ${kind} ${value}.`,
+} as const;
+
+/** F-170: Texte der Slotmaschine. */
+export const JACKPOT_TEXT = {
+  title: 'Slotmaschine',
+  open: 'Slotmaschine',
+  openTitle: 'Slotmaschine: doppelt geöffnete Sources finden (Alt/⌥+J)',
+  lever: 'Hebel ziehen',
+  again: 'Noch eine Runde',
+  spinning: 'Die Walzen laufen …',
+  jackpot: (n: number, sources: number) => `Jackpot! ${n === 1 ? '1 Duplikat' : `${n} Duplikate`} von ${sources === 1 ? '1 Source' : `${sources} Sources`} gefunden.`,
+  none: 'Kein Treffer – alles aufgeräumt. Keine Source ist doppelt offen.',
+  times: (n: number) => `${n}× offen`,
+  keep: 'bleibt',
+  close: 'schließen',
+  where: (portal: string, tabNo: number, tabs: number, desk: string) => `${portal}${tabs > 1 ? ` · Tab ${tabNo}` : ''} (${desk})`,
+  wholePortal: 'ganzes Portal',
+  more: (n: number) => `+ ${n} weitere zeigen`,
+  saves: (points: string, from: string, to: string) => (from === to ? `Spart ${points} Punkte – Fokus bleibt ${to}.` : `Spart ${points} Punkte – Fokus von ${from} auf ${to}.`),
+  nothingChosen: 'Nichts ausgewählt – Haken setzen, was geschlossen werden soll.',
+  closeAll: (n: number) => (n === 1 ? '1 Duplikat schließen' : `${n} Duplikate schließen`),
+  done: (n: number, color: string, points: string) => `${n === 1 ? '1 Duplikat' : `${n} Duplikate`} geschlossen – Fokus jetzt ${color} (${points} Punkte). Zurückholen: Einstellungen › Zuletzt geschlossen oder Alt/⌥+Z.`,
+  reels: 'Walzen der Slotmaschine',
 } as const;
 
 /** F-185: Herkunft einer Source in Worten (ORIGIN_TEXT[via]). */

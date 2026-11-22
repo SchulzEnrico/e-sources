@@ -12,6 +12,8 @@ import * as C from './closed';
 import * as F from './focus';
 import type { FocusRule } from './focus';
 import { type Look, setLook } from './look';
+import { type ImportPlan, applyImport } from './browserBookmarks';
+import { sortAll, sortInto } from './sortHelp';
 
 type S = { setup: ScreenSetup };
 
@@ -25,6 +27,11 @@ export type Action =
   /** F-29 Rest: Grenzen der Fokusanzeige; null = Voreinstellung. */
   | { type: 'focusRule'; rule: Partial<FocusRule> | null }
   | { type: 'rename'; id: string; name: string }
+  /** F-36: Lesezeichen aus einer Browser-Datei in die Library übernehmen. */
+  | { type: 'importBookmarks'; plan: ImportPlan }
+  /** F-180: Sortierhilfe – Sources in eine Kategorie (per Name, wird bei Bedarf angelegt) bzw. alle Vorschläge. */
+  | { type: 'sortInto'; ids: string[]; name: string }
+  | { type: 'sortAll' }
   | { type: 'setUrl'; id: string; url: string }
   | { type: 'history'; id: string; step: number }
   | { type: 'home'; id: string }
@@ -171,6 +178,12 @@ function step(ws: Workspace, a: Action): Workspace {
       return B.deleteCategory(ws, a.id);
     case 'moveCategory':
       return B.moveCategory(ws, a.id, a.to);
+    case 'importBookmarks':
+      return applyImport(ws, a.plan, W.newId);
+    case 'sortInto':
+      return sortInto(ws, a.ids, a.name, W.newId);
+    case 'sortAll':
+      return sortAll(ws, W.newId);
     case 'addSamples':
       return B.addSamples(ws, W.newId).ws;
     case 'rulerAll':

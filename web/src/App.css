@@ -4232,3 +4232,29 @@ button.is-off:hover,
 /* F-149: Kennzeichen „neuer Tab“ in der Suche */
 .search__out { color: var(--warn-text); }
 .fallback__launch { display: inline-flex; align-items: center; gap: 6px; }
+
+/* F-36: Dialog „Lesezeichen importieren“ */
+.import__body { display: grid; gap: 12px; padding-bottom: 18px; }
+.import__sum, .import__note, .import__term { margin: 0; }
+.import__term { opacity: 0.75; font-size: 0.9em; }
+.import__how { border: 1px solid rgba(var(--tint), 0.18); border-radius: 10px; padding: 8px 12px 10px; margin: 0; display: grid; gap: 8px; }
+.import__how legend { padding: 0 4px; font-weight: 600; }
+.import__opt { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.import__opt input { margin-top: 3px; }
+.import__opt-name { display: block; font-weight: 600; }
+.import__opt-hint { display: block; opacity: 0.8; font-size: 0.92em; }
+.import__go:disabled { opacity: 0.5; cursor: default; }
+.bm-import { margin: 0 0 8px; }
+
+/* F-180: Sortierhilfe */
+.sorthelp__body { display: grid; gap: 10px; padding-bottom: 18px; }
+.sorthelp__all { justify-self: start; font-weight: 600; }
+.sorthelp__left, .sorthelp__empty { margin: 0; }
+.sorthelp__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 52vh; overflow: auto; }
+.sorthelp__group { border: 1px solid rgba(var(--tint), 0.16); border-radius: 10px; padding: 8px 10px; display: grid; gap: 6px; }
+.sorthelp__head { display: grid; gap: 2px; }
+.sorthelp__domain { font-weight: 600; }
+.sorthelp__count { font-weight: 400; opacity: 0.8; }
+.sorthelp__titles, .sorthelp__why { font-size: 0.88em; opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sorthelp__row { display: flex; gap: 6px; flex-wrap: wrap; }
+.sorthelp__input { flex: 1 1 14em; min-width: 0; }

@@ -72,13 +72,60 @@ export function Launcher({ ws, state, onState, onOpen, onAdd, say, focusReq }: P
     const p = clampPos(state.x, state.y, r.width, r.height, window.innerWidth, window.innerHeight);
     if (p.x !== state.x || p.y !== state.y) onState(p);
   };
-  useLayoutEffect(keepInside);
+  /**
+   * Ohne eigene Lage (nie verschoben) öffnet der Launcher direkt unter seinem Knopf in der
+   * Kopfleiste – auf breiten Monitoren sonst weite Mauswege bis in die Ecke. Wird nicht
+   * gespeichert, damit er dem Knopf folgt, wenn sich die Fenstergröße ändert.
+   */
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+  const placeAtButton = () => {
+    if (state.x >= 0) return;
+    const btn = document.querySelector<HTMLElement>('.tb-launcher')?.getBoundingClientRect();
+    const el = box.current?.getBoundingClientRect();
+    if (!btn || !el) return;
+    const p = clampPos(btn.left + btn.width / 2 - el.width / 2, btn.bottom + 8, el.width, el.height, window.innerWidth, window.innerHeight);
+    if (!anchor || Math.abs(anchor.x - p.x) > 0.5 || Math.abs(anchor.y - p.y) > 0.5) setAnchor(p);
+  };
+  useLayoutEffect(() => {
+    keepInside();
+    placeAtButton();
+  });
   useEffect(() => {
-    window.addEventListener('resize', keepInside);
-    return () => window.removeEventListener('resize', keepInside);
+    const onResize = () => {
+      keepInside();
+      placeAtButton();
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   });
 
-  const pos: CSSProperties = state.x < 0 ? {} : { left: state.x, top: state.y, right: 'auto' };
+  // Klick außerhalb (auch in eine eingebettete Seite) schließt den aufgeklappten Launcher; der Fokus bleibt, wo geklickt wurde.
+  useEffect(() => {
+    if (state.min) return;
+    const outside = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (!t || box.current?.contains(t) || t.closest('.tb-launcher, dialog, .toast')) return;
+      onState({ open: false });
+      say('Launcher geschlossen.');
+    };
+    // Klicks in ein iframe erreichen das Dokument nicht – dort verliert nur das Fenster den Fokus.
+    const blur = () =>
+      window.setTimeout(() => {
+        if (document.activeElement?.tagName === 'IFRAME') {
+          onState({ open: false });
+          say('Launcher geschlossen.');
+        }
+      }, 0);
+    document.addEventListener('pointerdown', outside, true);
+    window.addEventListener('blur', blur);
+    return () => {
+      document.removeEventListener('pointerdown', outside, true);
+      window.removeEventListener('blur', blur);
+    };
+  }, [state.min, onState, say]);
+
+  const pos: CSSProperties =
+    state.x >= 0 ? { left: state.x, top: state.y, right: 'auto' } : anchor ? { left: anchor.x, top: anchor.y, right: 'auto' } : { visibility: 'hidden' };
 
   /** Aktuelle Lage in Pixeln (auch wenn noch die Vorgabe oben rechts gilt). */
   const here = () => {
@@ -102,7 +149,16 @@ export function Launcher({ ws, state, onState, onOpen, onAdd, say, focusReq }: P
   const endDrag = () => (drag.current = null);
 
   /** Griff: Pfeiltasten verschieben (mit Umschalt in großen Schritten). */
+  /** Zurück an den Knopf in der Kopfleiste (Doppelklick auf den Kopf, Pos1 auf dem Griff). */
+  const toButton = () => {
+    onState({ x: -1, y: -1 });
+    say('Launcher wieder am Knopf in der Kopfleiste.');
+  };
   const gripKeys = (e: ReactKeyboardEvent) => {
+    if (e.key === 'Home') {
+      e.preventDefault();
+      return toButton();
+    }
     const step = e.shiftKey ? STEP * 5 : STEP;
     const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
     if (!d) return;
@@ -208,11 +264,12 @@ export function Launcher({ ws, state, onState, onOpen, onAdd, say, focusReq }: P
       aria-labelledby={`${uid}-t`}
       aria-describedby={`${uid}-d`}
       onKeyDown={onKeyDown}
-      // Zeiger bleibt im Launcher, damit darunter nichts zieht oder wischt
-      onPointerDownCapture={(e) => e.stopPropagation()}
+      // Zeiger bleibt im Launcher, damit darunter nichts zieht oder wischt. Erst beim Aufsteigen stoppen –
+      // in der Capture-Phase käme das Drücken nie beim Kopf an und der Launcher ließe sich nicht ziehen.
+      onPointerDown={(e) => e.stopPropagation()}
     >
-      <header className="launcher__head" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
-        <button type="button" className="launcher__grip" onKeyDown={gripKeys} aria-label="Launcher verschieben: Pfeiltasten, mit Umschalt in großen Schritten" title="Ziehen oder Pfeiltasten: Launcher verschieben">
+      <header className="launcher__head" onDoubleClick={(e) => !(e.target as HTMLElement).closest('button:not(.launcher__grip), input, select') && toButton()} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
+        <button type="button" className="launcher__grip" onKeyDown={gripKeys} aria-label="Launcher verschieben: Pfeiltasten, mit Umschalt in großen Schritten; Pos1 = zurück an den Knopf" title="Ziehen oder Pfeiltasten: Launcher verschieben · Doppelklick auf den Kopf oder Pos1: zurück an den Knopf">
           ⠿
         </button>
         <h2 id={`${uid}-t`} className="launcher__title">

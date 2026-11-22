@@ -67,6 +67,8 @@ interface Props {
   onEmbed: (url: string, ok: boolean) => void;
   /** F-43 Rest: gesperrte Source in den Launcher verschieben (speichern, Tab schließen). */
   onToLauncher: (tab: string, url: string) => void;
+  /** F-36: Lesezeichen aus dem Browser importieren. */
+  onImportBookmarks?: () => void;
   onClose: () => void;
   onStartSwap: () => void;
   onSetSize: (w: number, h: number) => void;
@@ -961,6 +963,14 @@ export function PanelFrame(p: Props) {
               }}
               onEdit={(b) => setDrawer({ kind: 'edit', bookmark: b, isNew: false, back: true })}
               onSaveCurrent={url ? () => editCurrent(true) : undefined}
+              onImport={
+                p.onImportBookmarks
+                  ? () => {
+                      setDrawer(null);
+                      p.onImportBookmarks?.();
+                    }
+                  : undefined
+              }
               onClose={() => setDrawer(null)}
             />
           )}

@@ -3,6 +3,7 @@ import type { Action } from '../workspace/useWorkspace';
 import type { Bookmark, Workspace } from '../workspace/types';
 import { NO_CATEGORY, categoryByName, collectionSize, groups } from '../workspace/bookmarks';
 import { hostOf, newId } from '../workspace/workspace';
+import { TERMS } from '../workspace/terms';
 
 /** Zuletzt gewählte Kategorie, damit mehrere Lesezeichen hintereinander schnell in dieselbe gehen. */
 let lastCategory = NO_CATEGORY;
@@ -183,6 +184,8 @@ export function CollectionDrawer(props: {
   onOpen: (url: string) => void;
   onEdit: (b: Bookmark) => void;
   onSaveCurrent?: () => void;
+  /** F-36: Lesezeichen aus dem Browser übernehmen. */
+  onImport?: () => void;
   onClose: () => void;
 }) {
   const { ws, panelId } = props;
@@ -266,6 +269,12 @@ export function CollectionDrawer(props: {
         <p className="bm-hint">
           {query ? 'Nichts gefunden.' : scope === 'panel' ? 'Diesem Portal ist noch keine Source zugeordnet. Unter „Alle“ steht die ganze Library.' : 'Die Library ist noch leer. Mit dem Stern in der Adresszeile speicherst du die aktuelle Source.'}
         </p>
+      )}
+      {/* F-36: eine leere Library lässt sich mit den eigenen Lesezeichen füllen */}
+      {!query && ws.bookmarks.length === 0 && props.onImport && (
+        <button type="button" className="bm-import" onClick={props.onImport} title={TERMS.importBookmarks}>
+          Lesezeichen aus dem Browser importieren …
+        </button>
       )}
       {list.map((g) => {
         const catId = g.category?.id ?? NO_CATEGORY;

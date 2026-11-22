@@ -41,6 +41,9 @@ import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, a
 import { TERMS } from './workspace/terms';
 import { Closed as ClosedDialog } from './components/Closed';
 import { FocusRule as FocusRuleDialog } from './components/FocusRule';
+import { ImportBookmarks } from './components/ImportBookmarks';
+import { SortHelp } from './components/SortHelp';
+import { BOOKMARKS_FILE_NAME, type BrowserBookmark, bookmarkFileOf, looksLikeBookmarkFile, parseBookmarkFile } from './workspace/browserBookmarks';
 import { closedOf, restoreClosed, restoredSaid } from './workspace/closed';
 import { PORTAL_ALONE, nextTabOf, portalSaid, stepIn, tabAlone, tabSaid } from './workspace/cycle';
 
@@ -396,6 +399,11 @@ export default function App() {
   /** F-114: Hinweis an einem Portal (statt Dialog über der Fläche). */
   const [hint, setHint] = useState<{ id: string; text: string } | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
+  // F-36: Lesezeichen-Datei aus dem Browser
+  const bookmarkFileRef = useRef<HTMLInputElement>(null);
+  const [bmImport, setBmImport] = useState<{ name: string; list: BrowserBookmark[] } | null>(null);
+  // F-180
+  const [sortOpen, setSortOpen] = useState(false);
   // Testbelegung: so tun, als wäre es ein 49-Zoll-Monitor.
   const [clsOverride, setClsOverride] = useState<ScreenClassId | 'auto'>(PROBE ? 'superwide' : 'auto');
   const [oriOverride, setOriOverride] = useState<Orientation | 'auto'>('auto');
@@ -467,6 +475,37 @@ export default function App() {
     setUndoFor(undo ? text : null);
     window.setTimeout(() => setFlash((f) => (f === text ? null : f)), ms);
   }, []);
+
+  // F-36: Lesezeichen aus Chrome, Safari, Firefox, Edge (HTML-Datei) übernehmen und die Library so ausgeben.
+  const exportBookmarks = () => {
+    if (!ws.bookmarks.length) return notify('Die Library ist noch leer – es gibt nichts zu exportieren.');
+    const blob = new Blob([bookmarkFileOf(ws)], { type: 'text/html' });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = BOOKMARKS_FILE_NAME;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+    const text = `${ws.bookmarks.length} Sources als ${BOOKMARKS_FILE_NAME} gespeichert. Im Browser über „Lesezeichen importieren“ einlesen.`;
+    notify(text);
+    sayLive(text);
+  };
+  const chooseBookmarkFile = async (input: HTMLInputElement) => {
+    const chosen = input.files?.[0];
+    input.value = '';
+    if (!chosen) return;
+    const html = await chosen.text();
+    if (!looksLikeBookmarkFile(html)) {
+      setNotice(`„${chosen.name}“ ist keine Lesezeichen-Datei. Im Browser „Lesezeichen exportieren“ wählen (Chrome: Lesezeichen-Manager › ⋮ › Lesezeichen exportieren; Safari: Ablage › Exportieren › Lesezeichen; Firefox: Bibliothek › Importieren und Sichern › Lesezeichen nach HTML exportieren) und die HTML-Datei hier wählen.`);
+      return;
+    }
+    const list = parseBookmarkFile(html);
+    if (!list.length) return setNotice(`In „${chosen.name}“ stehen keine Lesezeichen.`);
+    setBmImport({ name: chosen.name, list });
+  };
+  const importBookmarks = () => bookmarkFileRef.current?.click();
 
   /**
    * Neues Panel mit Ampel-Regel (F-26): Hinweis bei 5, Grenze bei 9 Panels je Area.
@@ -1104,6 +1143,7 @@ export default function App() {
           dispatch({ type: 'embed', url, ok });
           if (!ok) notify('Gemerkt: Diese Domain öffnet ab jetzt außerhalb. Gespeicherte Sources davon stehen im Launcher (Alt/⌥+L).');
         }}
+        onImportBookmarks={importBookmarks}
         onToLauncher={(tabId, url) => {
           // F-43 Rest: als Source speichern (falls noch nicht da), Tab schließen, Launcher zeigen
           const known = bookmarkOf(ws, url);
@@ -1249,6 +1289,12 @@ export default function App() {
         return setRuleOpen(true);
       case 'launcher':
         return showLauncher();
+      case 'importBookmarks':
+        return importBookmarks();
+      case 'exportBookmarks':
+        return exportBookmarks();
+      case 'sortHelp':
+        return setSortOpen(true);
       case 'search':
         return window.setTimeout(() => document.querySelector<HTMLInputElement>('.search__input')?.focus(), 0);
     }
@@ -1391,6 +1437,7 @@ export default function App() {
     setMode({ kind: 'area' });
     notify(`Stand übernommen (${file.device}, ${when}).`);
   };
+
 
   return (
     <div className="app">
@@ -1676,6 +1723,32 @@ export default function App() {
               >
                 Desks importieren
               </Item>
+              {/* F-36 */}
+              <Item
+                onClick={() => {
+                  importBookmarks();
+                  close();
+                }}
+              >
+                Lesezeichen importieren …
+              </Item>
+              <Item
+                onClick={() => {
+                  exportBookmarks();
+                  close();
+                }}
+              >
+                Library exportieren
+              </Item>
+              {/* F-180 */}
+              <Item
+                onClick={() => {
+                  close();
+                  setSortOpen(true);
+                }}
+              >
+                Sortierhilfe …
+              </Item>
               {/* F-29 Rest */}
               <Item
                 onClick={() => {
@@ -1714,6 +1787,7 @@ export default function App() {
           )}
         </Menu>
         <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={(e) => void importWorkspace(e.currentTarget)} />
+        <input ref={bookmarkFileRef} type="file" accept="text/html,.html,.htm" hidden aria-label="Lesezeichen-Datei wählen" onChange={(e) => void chooseBookmarkFile(e.currentTarget)} />
         {swapFrom && <span className="hint">Ziel-Portal anklicken · Esc bricht ab</span>}
         </div>
         {/* F-29 Gesamtfokus; Klick klappt das Fokus-Radar (F-28, bisher Master-Panel) aus */}
@@ -1745,6 +1819,33 @@ export default function App() {
           }} onClose={() => setDesign(false)} onTour={startDesignTour}>
           {tour === 'design' && <Tour key="design" tour="design" auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} />}
         </Design>
+      )}
+      {bmImport && (
+        <ImportBookmarks
+          ws={ws}
+          fileName={bmImport.name}
+          list={bmImport.list}
+          onClose={() => setBmImport(null)}
+          onImport={(plan) => {
+            dispatch({ type: 'importBookmarks', plan });
+            setBmImport(null);
+            const cats = plan.newCategories.length;
+            const loose = plan.fresh.filter((b) => !b.category).length;
+            // F-180: viele Sources ohne Kategorie → gleich die Sortierhilfe anbieten
+            const text = `${plan.fresh.length} Sources in die Library übernommen${cats ? `, ${cats} ${cats === 1 ? 'Kategorie' : 'Kategorien'} neu` : ''}.${loose >= 5 ? ` Die Sortierhilfe bündelt die ${loose} ohne Kategorie.` : ''}`;
+            notify(text);
+            sayLive(text);
+            if (loose >= 5) window.setTimeout(() => setSortOpen(true), 0);
+          }}
+        />
+      )}
+      {sortOpen && (
+        <SortHelp
+          ws={ws}
+          onSort={(ids, name) => dispatch({ type: 'sortInto', ids, name })}
+          onSortAll={() => dispatch({ type: 'sortAll' })}
+          onClose={() => setSortOpen(false)}
+        />
       )}
       {ruleOpen && <FocusRuleDialog rule={ruleOf(ws)} points={focus.points} onChange={(rule) => dispatch({ type: 'focusRule', rule })} onClose={() => setRuleOpen(false)} />}
       {closedOpen && (

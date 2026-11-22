@@ -21,6 +21,8 @@ import * as Tour from './tour';
 import * as C from './cycle';
 import * as Cl from './closed';
 import * as La from './launcher';
+import * as BB from './browserBookmarks';
+import * as SH from './sortHelp';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -1739,5 +1741,120 @@ describe('F-40 bis F-42, F-149 Launcher', () => {
     expect(La.clampPos(900, 700, 300, 200, 1000, 800)).toEqual({ x: 692, y: 592 });
     expect(La.clampPos(-50, -5, 300, 200, 1000, 800)).toEqual({ x: 8, y: 8 });
     expect(La.clampPos(100, 100, 2000, 200, 1000, 800)).toEqual({ x: 8, y: 100 });
+  });
+});
+
+describe('F-36 Lesezeichen aus dem Browser', () => {
+  // Aufbau wie ein Export aus Chrome (Lesezeichenleiste) mit Firefox-Tags und einem Unterordner
+  const FILE = `<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+<TITLE>Bookmarks</TITLE>
+<H1>Bookmarks</H1>
+<DL><p>
+    <DT><H3 ADD_DATE="1" PERSONAL_TOOLBAR_FOLDER="true">Lesezeichenleiste</H3>
+    <DL><p>
+        <DT><A HREF="https://github.com/" ADD_DATE="1">GitHub</A>
+        <DT><H3>Doku</H3>
+        <DL><p>
+            <DT><A HREF="https://developer.mozilla.org/de/" TAGS="css,html">MDN &amp; Web</A>
+            <DT><H3>React</H3>
+            <DL><p>
+                <DT><A HREF="https://react.dev/">React</A>
+            </DL><p>
+        </DL><p>
+        <DT><A HREF="javascript:alert(1)">Bookmarklet</A>
+    </DL><p>
+    <DT><A HREF="https://github.com">GitHub doppelt</A>
+    <DT><H3>Jobs</H3>
+    <DL><p>
+        <DT><A HREF="https://www.stepstone.de/">StepStone</A>
+    </DL><p>
+</DL><p>`;
+  let n = 0;
+  const id = () => `id${++n}`;
+
+  it('liest Ordnerpfade ohne Wurzelordner, Tags und Zeichen', () => {
+    const list = BB.parseBookmarkFile(FILE);
+    expect(BB.looksLikeBookmarkFile(FILE)).toBe(true);
+    expect(BB.looksLikeBookmarkFile('{"a":1}')).toBe(false);
+    expect(list.map((b) => b.title)).toEqual(['GitHub', 'MDN & Web', 'React', 'Bookmarklet', 'GitHub doppelt', 'StepStone']);
+    expect(list[0].path).toEqual([]);
+    expect(list[1]).toMatchObject({ path: ['Doku'], tags: ['css', 'html'] });
+    expect(list[2].path).toEqual(['Doku', 'React']);
+    expect(list[5].path).toEqual(['Jobs']);
+  });
+
+  it('plant ohne Doppelte, ohne Vorhandene und ohne unbrauchbare Adressen', () => {
+    let ws = W.defaultWorkspace();
+    ws = B.addCategory(ws, 'j', 'jobs');
+    ws = B.saveBookmark(ws, { id: 'x', title: '', url: 'https://www.stepstone.de', category: '', tags: [], panels: [] });
+    const plan = BB.planImport(ws, BB.parseBookmarkFile(FILE));
+    expect(plan.fresh.map((b) => b.title)).toEqual(['GitHub', 'MDN & Web', 'React']);
+    expect(plan.known).toBe(2);
+    expect(plan.unusable).toBe(1);
+    expect(plan.newCategories).toEqual(['Doku', 'Doku › React']);
+    const next = BB.applyImport(ws, plan, id);
+    expect(next.bookmarks).toHaveLength(4);
+    expect(next.categories.map((c) => c.name)).toEqual(['jobs', 'Doku', 'Doku › React']);
+    const mdn = next.bookmarks.find((b) => b.title === 'MDN & Web')!;
+    expect(next.categories.find((c) => c.id === mdn.category)?.name).toBe('Doku');
+    expect(mdn.panels).toEqual([]);
+    // weniger fein: nur oberste Ebene bzw. alles in eine Kategorie
+    const list = BB.parseBookmarkFile(FILE);
+    expect(BB.planImport(ws, list, 'top').newCategories).toEqual(['Doku']);
+    const one = BB.planImport(ws, list, 'one', 'Import 22.11.2026');
+    expect(one.newCategories).toEqual(['Import 22.11.2026']);
+    expect(one.fresh.every((b) => b.category === 'Import 22.11.2026')).toBe(true);
+    // ein zweiter Import derselben Datei ändert nichts mehr
+    expect(BB.planImport(next, BB.parseBookmarkFile(FILE)).fresh).toHaveLength(0);
+  });
+
+  it('gibt die Library als Datei aus, die sich wieder einlesen lässt', () => {
+    const ws = BB.applyImport(W.defaultWorkspace(), BB.planImport(W.defaultWorkspace(), BB.parseBookmarkFile(FILE)), id);
+    const html = BB.bookmarkFileOf(ws);
+    expect(html.startsWith('<!DOCTYPE NETSCAPE-Bookmark-file-1>')).toBe(true);
+    expect(html).toContain('MDN &amp; Web');
+    expect(html).toContain('TAGS="css,html"');
+    const again = BB.parseBookmarkFile(html);
+    expect(again.map((b) => [b.title, b.path.join('/')])).toEqual([
+      ['GitHub', ''],
+      ['MDN & Web', 'Doku'],
+      ['React', 'Doku/React'],
+      ['StepStone', 'Jobs'],
+    ]);
+  });
+});
+
+describe('F-180 Sortierhilfe', () => {
+  let n = 0;
+  const id = () => `s${++n}`;
+  const bm = (bid: string, url: string, category = '') => ({ id: bid, title: '', url, category, tags: [], panels: [] });
+  const base = () => {
+    let ws = B.addCategory(W.defaultWorkspace(), 'doku', 'Doku');
+    for (const b of [bm('a', 'https://www.youtube.com/watch?v=1'), bm('b', 'https://youtube.com/watch?v=2'), bm('c', 'https://github.com/x', 'doku'), bm('d', 'https://github.com/y'), bm('e', 'https://beispiel-firma.de/'), bm('f', 'https://de.wikipedia.org/wiki/Hamburg')])
+      ws = B.saveBookmark(ws, b);
+    return ws;
+  };
+  it('bündelt nach Domain, lernt aus der Library, schlägt Bekanntes vor', () => {
+    const g = SH.sortGroups(base());
+    expect(SH.looseCount(base())).toBe(5);
+    expect(g.map((x) => [x.domain, x.items.length, x.suggestion, x.learned])).toEqual([
+      ['youtube.com', 2, 'Video', false],
+      ['de.wikipedia.org', 1, 'Wissen', false],
+      ['github.com', 1, 'Doku', true],
+      ['beispiel-firma.de', 1, null, false],
+    ]);
+  });
+  it('sortiert eine Gruppe ein und legt die Kategorie bei Bedarf an', () => {
+    const ws = SH.sortInto(base(), ['a', 'b'], 'video', id);
+    expect(ws.categories.map((c) => c.name)).toEqual(['Doku', 'video']);
+    expect(ws.bookmarks.filter((b) => b.category === ws.categories[1].id).map((b) => b.id)).toEqual(['a', 'b']);
+    expect(SH.sortInto(ws, ['d'], 'DOKU', id).categories).toHaveLength(2);
+  });
+  it('übernimmt alle Vorschläge, Unbekanntes bleibt', () => {
+    const ws = SH.sortAll(base(), id);
+    expect(SH.looseCount(ws)).toBe(1);
+    expect(SH.sortGroups(ws).map((g) => g.domain)).toEqual(['beispiel-firma.de']);
+    expect(ws.categories.map((c) => c.name)).toEqual(['Doku', 'Video', 'Wissen']);
   });
 });

@@ -6,7 +6,7 @@
 import { TERMS } from './terms';
 
 /** Was die Oberfläche ausführen kann; App.tsx ordnet jedem Wert die passende Aktion zu. */
-export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher';
+export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher' | 'importBookmarks' | 'exportBookmarks' | 'sortHelp';
 
 export interface HelpEntry {
   id: string;
@@ -38,7 +38,7 @@ export const HELP: HelpEntry[] = [
   { id: 'portal', group: 'Begriffe', name: 'Portal', text: up(def(TERMS.portal)), words: ['Panel', 'Rahmen', 'Adresszeile'] },
   { id: 'source', group: 'Begriffe', name: 'Source', text: up(def(TERMS.source)), words: ['Webseite', 'Seite', 'Lesezeichen', 'Link'] },
   { id: 'library', group: 'Begriffe', name: 'Library', text: up(def(TERMS.library)), words: ['Lesezeichen', 'Sammlung', 'Favoriten'] },
-  { id: 'launcher', group: 'Begriffe', name: 'Launcher', text: up(def(TERMS.launcher)) + ' Sources der Library landen von selbst darin, wenn sich ihre Seite nicht einbetten lässt. Verschiebbar und zu einem Symbol einklappbar; in der Suche mit „neuer Tab“ gekennzeichnet.', keys: 'Alt/⌥+L', run: 'launcher', words: ['Ablage', 'nur im neuen Tab', 'gesperrt', 'extern', 'außerhalb', 'nicht einbettbar', 'Menü'] },
+  { id: 'launcher', group: 'Begriffe', name: 'Launcher', text: up(def(TERMS.launcher)) + ' Sources der Library landen von selbst darin, wenn sich ihre Seite nicht einbetten lässt. Öffnet sich direkt unter seinem Knopf; verschiebbar (Doppelklick auf den Kopf holt ihn zurück zum Knopf), schließt bei Klick daneben und lässt sich zu einem Symbol einklappen; in der Suche mit „neuer Tab“ gekennzeichnet.', keys: 'Alt/⌥+L', run: 'launcher', words: ['Ablage', 'nur im neuen Tab', 'gesperrt', 'extern', 'außerhalb', 'nicht einbettbar', 'Menü'] },
   { id: 'dashboard', group: 'Begriffe', name: 'Dashboard', text: up(def(TERMS.dashboard)), keys: 'Esc', words: ['Übersicht', 'alle', 'Arbeitsfläche'] },
   { id: 'focus', group: 'Begriffe', name: 'Fokusanzeige', text: up(def(TERMS.focus)) + ' Ein Portal zählt 1 Punkt, jeder weitere Tab 0,5; voreingestellt grün bis 9, gelb bis 13, orange bis 16, darüber rot. Änderbar unter „Fokusanzeige anpassen“.', words: ['Fokus', 'Ampel', 'Punkte', 'grün', 'gelb', 'rot', 'Gesamtfokus'] },
 
@@ -74,6 +74,9 @@ export const HELP: HelpEntry[] = [
   { id: 'rename', group: 'Bedienung', name: 'Umbenennen', text: 'Doppelklick auf den Namen eines Portals oder Stack-Eintrags; den Desk-Namen per Klick.', keys: 'F2', words: ['Name', 'benennen'] },
   { id: 'stackDelete', group: 'Bedienung', name: 'Portal aus dem Stack entfernen', text: 'In der Stack-Leiste den Eintrag wählen und Entf drücken.', keys: 'Entf', words: ['löschen', 'schließen', 'Stapel'] },
   { id: 'ruler', group: 'Bedienung', name: 'Lineal', text: 'Blendet ein Lineal über der Seite ein – für ein einzelnes Portal oder über die Einstellungen für alle.', words: ['messen', 'Raster', 'Maß'] },
+  { id: 'importBookmarks', group: 'Bedienung', name: 'Lesezeichen importieren', text: up(def(TERMS.importBookmarks)) + ' Schon vorhandene Sources werden übersprungen (Einstellungen, Zahnrad).', run: 'importBookmarks', words: ['Chrome', 'Safari', 'Firefox', 'Edge', 'Browser', 'übernehmen', 'HTML', 'Favoriten', 'Library füllen'] },
+  { id: 'sortHelp', group: 'Bedienung', name: 'Sortierhilfe', text: up(def(TERMS.sortHelp)) + ' „Alle Vorschläge übernehmen“ sortiert alles auf einmal. Öffnet sich nach einem Import mit vielen Sources ohne Kategorie von selbst (Einstellungen, Zahnrad).', run: 'sortHelp', words: ['sortieren', 'einsortieren', 'Kategorien zuordnen', 'aufräumen', 'Ohne Kategorie', 'ordnen', 'Import'] },
+  { id: 'exportBookmarks', group: 'Bedienung', name: 'Library exportieren', text: up(def(TERMS.exportBookmarks)), run: 'exportBookmarks', words: ['Lesezeichen exportieren', 'Chrome', 'Safari', 'Firefox', 'Browser', 'HTML', 'sichern'] },
   { id: 'exportDesks', group: 'Bedienung', name: 'Desks exportieren / importieren', text: 'Sichert alle Desks als Datei oder lädt sie wieder (Einstellungen, Zahnrad).', words: ['sichern', 'Backup', 'Datei', 'übertragen', 'anderes Gerät'] },
 ];
 

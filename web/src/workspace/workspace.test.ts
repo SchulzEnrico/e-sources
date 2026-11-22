@@ -16,6 +16,7 @@ import { layoutKey, parseLayoutKey } from './screen';
 import * as M from './move';
 import * as Probe from './probe';
 import * as S from './sizing';
+import * as H from './help';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -1480,5 +1481,31 @@ describe('F-155 Größe per Tastatur', () => {
     const t = S.sizeStep(grid, 'a', { kind: 'diag', grow: true }, min);
     expect(w(t, 'a')).toBe(55);
     expect(Math.round(T.rects(t).get('a')!.h * 100)).toBe(55);
+  });
+});
+
+describe('F-156 Hilfe in der Suche', () => {
+  it('findet Funktionen über Alltagswörter, ohne Rücksicht auf Umlaute', () => {
+    expect(H.searchHelp('Größe').map((e) => e.id)).toContain('adjust');
+    expect(H.searchHelp('grosse').map((e) => e.id)).toContain('adjust');
+    expect(H.searchHelp('Stapel')[0].id).toBe('stack');
+  });
+  it('Name vor Suchwort vor Erklärung', () => {
+    expect(H.searchHelp('cockpit')[0].id).toBe('cockpit');
+    expect(H.searchHelp('newdesk')[0].id).toBe('newDesk');
+  });
+  it('mehrere Wörter müssen alle vorkommen; leer findet nichts', () => {
+    expect(H.searchHelp('gleich verteilen')[0].id).toBe('distribute');
+    expect(H.searchHelp('gleich xyzq')).toHaveLength(0);
+    expect(H.searchHelp('  ')).toHaveLength(0);
+  });
+  it('höchstens max Treffer; jede Funktion hat Erklärung, eindeutige id', () => {
+    expect(H.searchHelp('e', 3).length <= 3).toBe(true);
+    const ids = H.HELP.map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(H.HELP.every((e) => e.text.length > 10 && !/^[^ ]+ =/.test(e.text))).toBe(true);
+  });
+  it('Begriffe stammen aus TERMS (kein doppelter Text)', () => {
+    expect(H.helpById('slot')?.text.startsWith('Ein Platz im Raster')).toBe(true);
   });
 });

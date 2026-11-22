@@ -846,7 +846,13 @@ button.is-off:hover,
 /* nur das Plus trägt die Farbe, die Schrift bleibt ruhig (nach Test Enrico: sonst zu hell) */
 .fx .tb-label { color: var(--text); -webkit-text-fill-color: currentColor; }
 .toolbar .tb-newdesk.fx { border-color: color-mix(in srgb, var(--fx, currentColor) 30%, transparent); }
+/* „+ NewSlot“: Rahmen in der Ampelfarbe wie „+ NewDesk“ – auch gesperrt (Bildschirm voll), dann blass */
+.toolbar .menu > button:has(.tb-add.fx),
+.toolbar .tb-newslot.fx { border-color: color-mix(in srgb, var(--fx-slot, currentColor) 30%, transparent); }
 .toolbar .fx-desk { border-width: 1px; border-color: color-mix(in srgb, var(--fx, rgb(var(--accent-rgb))) 45%, transparent); box-shadow: none; }
+/* gesperrt (Bildschirm voll): das Plus behält seine Ampelfarbe, nur Schrift und Rahmen werden blass */
+.toolbar .tb-newslot.is-off { opacity: 1; border-style: dashed; }
+.toolbar .tb-newslot.is-off .tb-label { opacity: 0.45; }
 /* F-160: Desk wechseln */
 /* Knöpfe und Eingabe im Desk-Bereich: eigene Schriftfarbe statt des Silberverlaufs von .brand */
 .toolbar > .brand button,
@@ -2620,9 +2626,14 @@ button.is-off:hover,
 }
 
 /* Testbelegung (?test=voll): deutlich als Test erkennbar */
+/* liegt nicht im Raster der Kopfleiste (sonst rutscht die Fokusanzeige in eine zweite Zeile), sondern unten links */
 .probe {
-  flex: 0 0 auto;
-  margin-right: 8px;
+  position: fixed;
+  left: 8px;
+  bottom: 8px;
+  z-index: 60;
+  background: var(--bg, #111);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   padding: 2px 8px;
   border-radius: 8px;
   border: 1px dashed var(--accent);
@@ -2962,3 +2973,60 @@ button.is-off:hover,
 }
 .sizepad:hover { background: rgba(var(--accent-rgb), 0.06); }
 .sizepad.is-active { background: transparent; }
+
+/* ---------- F-156 Hilfe in der Suche und Hilfe-Dialog */
+.search__kbd,
+.help__kbd {
+  margin-left: 8px;
+  padding: 0 5px;
+  border: 1px solid rgba(var(--tint), 0.28);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font: 600 0.8em/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--strong);
+  white-space: nowrap;
+}
+.search__help-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search__help-text + .search__cat { flex: none; }
+.help {
+  width: min(680px, calc(100vw - 24px));
+  max-height: min(80vh, 760px);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-fill-color: currentColor;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+}
+.help:not([open]) { display: none; }
+.help::backdrop { background: rgba(0, 0, 0, 0.55); }
+.help__head { display: flex; align-items: center; gap: 8px; padding: 14px 18px 4px; }
+.help__head h2 { margin: 0; flex: 1; font-size: 1.1rem; color: var(--strong); }
+.help__x { min-width: 32px; font-size: 18px; }
+.help__intro { margin: 4px 18px 10px; font-size: 0.85rem; color: var(--muted); }
+.help__filter { margin: 0 18px 8px; padding: 6px 10px; border-radius: 8px; }
+.help__body { overflow: auto; padding: 0 18px 16px; }
+.help__group { margin: 14px 0 4px; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.help__list { list-style: none; margin: 0; padding: 0; }
+.help__item { padding: 8px 10px; border-radius: 8px; }
+.help__item + .help__item { border-top: 1px solid rgba(var(--tint), 0.08); }
+.help__item:focus { outline: none; }
+.help__item:focus-visible,
+.help__item.is-at { background: rgba(var(--tint), 0.12); box-shadow: inset 4px 0 0 var(--accent); }
+.help__row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.help__name { margin: 0; font-size: 0.95rem; color: var(--strong); }
+.help__kbd { margin-left: 4px; }
+.help__run { margin-left: auto; padding: 2px 10px; font-size: 0.8rem; }
+.help__text { margin: 3px 0 0; font-size: 0.85rem; line-height: 1.45; }
+@media (forced-colors: active) {
+  .help { border: 2px solid CanvasText; }
+  .help__item.is-at, .help__item:focus-visible { outline: 2px solid Highlight; }
+}

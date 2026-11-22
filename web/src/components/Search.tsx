@@ -12,6 +12,7 @@ import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, us
 import { type PanelHit, type SearchHit, SEARCH_MAX, bookmarkOf, searchAll, searchPanels } from '../workspace/bookmarks';
 import { hostOf, tabLabel } from '../workspace/workspace';
 import type { Workspace } from '../workspace/types';
+import { type HelpEntry, searchHelp } from '../workspace/help';
 
 interface Props {
   ws: Workspace;
@@ -20,6 +21,10 @@ interface Props {
   onOpen: (hit: SearchHit) => void;
   /** F-141: Panel nach vorn holen; mit tabId auch diesen Tab zeigen. */
   onShowPanel: (panelId: string, tabId?: string) => void;
+  /** F-156: Funktion ausführen (Enter auf einem Funktions-Treffer). */
+  onRun: (entry: HelpEntry) => void;
+  /** F-156: Hilfe an dieser Stelle öffnen (Umschalt+Enter, oder Enter bei Begriffen). */
+  onHelp: (id: string) => void;
 }
 
 /** Name eines offenen Tabs: Titel des Lesezeichens, sonst die Domain; ohne Doppelte. */
@@ -27,9 +32,9 @@ function tabNames(ws: Workspace, h: PanelHit): string[] {
   return [...new Set(h.tabs.map((t) => bookmarkOf(ws, t.url, h.panel.id)?.title || tabLabel(t)))];
 }
 
-type Item = { kind: 'panel'; hit: PanelHit } | { kind: 'bookmark'; hit: SearchHit };
+type Item = { kind: 'panel'; hit: PanelHit } | { kind: 'bookmark'; hit: SearchHit } | { kind: 'help'; hit: HelpEntry };
 
-export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
+export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp }: Props) {
   const uid = useId().replace(/:/g, '');
   const listId = `${uid}-list`;
   const optId = (i: number) => `${uid}-opt-${i}`;
@@ -42,9 +47,14 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
 
   const hits = useMemo(() => searchAll(ws, query), [ws, query]);
   const panelHits = useMemo(() => searchPanels(ws, query), [ws, query]);
+  const helpHits = useMemo(() => searchHelp(query, 4), [query]);
   const items: Item[] = useMemo(
-    () => [...panelHits.map((hit) => ({ kind: 'panel' as const, hit })), ...hits.map((hit) => ({ kind: 'bookmark' as const, hit }))],
-    [panelHits, hits],
+    () => [
+      ...panelHits.map((hit) => ({ kind: 'panel' as const, hit })),
+      ...hits.map((hit) => ({ kind: 'bookmark' as const, hit })),
+      ...helpHits.map((hit) => ({ kind: 'help' as const, hit })),
+    ],
+    [panelHits, hits, helpHits],
   );
   const show = open && query.trim() !== '';
   const cur = Math.min(sel, Math.max(items.length - 1, 0));
@@ -84,12 +94,15 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
     return () => window.removeEventListener('pointerdown', onDown);
   }, [open]);
 
-  const choose = (it: Item | undefined) => {
+  const choose = (it: Item | undefined, help = false) => {
     if (!it) return;
-    if (it.kind === 'panel') onShowPanel(it.hit.panel.id, it.hit.tabs[0]?.id);
-    else onOpen(it.hit);
     setOpen(false);
     input.current?.blur();
+    if (it.kind === 'panel') onShowPanel(it.hit.panel.id, it.hit.tabs[0]?.id);
+    else if (it.kind === 'bookmark') onOpen(it.hit);
+    // F-156: Funktion ausführen; Begriffe und Umschalt+Enter öffnen die Hilfe an dieser Stelle
+    else if (help || !it.hit.run) onHelp(it.hit.id);
+    else onRun(it.hit);
   };
 
   const move = (to: number) => {
@@ -137,7 +150,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
       case 'Enter':
         if (show && items[cur]) {
           e.preventDefault();
-          choose(items[cur]);
+          choose(items[cur], e.shiftKey);
         }
         break;
       case 'Escape':
@@ -158,7 +171,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
     ? ''
     : items.length === 0
       ? 'Nichts gefunden.'
-      : `${panelHits.length} ${panelHits.length === 1 ? 'Portal' : 'Portale'}, ${hits.length} ${hits.length === 1 ? 'Source' : 'Sources'} in der Library gefunden. Pfeiltasten wählen, Enter öffnet.`;
+      : `${panelHits.length} ${panelHits.length === 1 ? 'Portal' : 'Portale'}, ${hits.length} ${hits.length === 1 ? 'Source' : 'Sources'} in der Library${helpHits.length ? `, ${helpHits.length} ${helpHits.length === 1 ? 'Funktion' : 'Funktionen'}` : ''} gefunden. Pfeiltasten wählen, Enter öffnet${helpHits.length ? ', Umschalt+Enter zeigt die Hilfe' : ''}.`;
 
   const option = (i: number, label: string, children: ReactNode, title?: string) => (
     <li
@@ -173,7 +186,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
       onMouseMove={() => i !== cur && setSel(i)}
       // Mausklick darf den Fokus nicht aus dem Feld nehmen.
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => choose(items[i])}
+      onClick={(e) => choose(items[i], e.shiftKey)}
     >
       {children}
     </li>
@@ -187,8 +200,8 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
         type="search"
         value={query}
         placeholder="Suchen …"
-        title="Portale und Library durchsuchen (Strg/⌘+K oder /)"
-        aria-label="Portale und Library durchsuchen"
+        title="Portale, Library und Funktionen durchsuchen (Strg/⌘+K oder /)"
+        aria-label="Portale, Library und Funktionen durchsuchen"
         aria-describedby={`${uid}-help`}
         role="combobox"
         aria-autocomplete="list"
@@ -206,7 +219,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
         onKeyDown={onKeyDown}
       />
       <span id={`${uid}-help`} className="sr-only">
-        Sucht in Portalen (Name, Slot, Case) und in der Library (Titel, Adresse, Kategorie, Tags). Pfeiltasten wählen, Enter öffnet, Escape schließt.
+        Sucht in Portalen (Name, Slot, Case), in der Library (Titel, Adresse, Kategorie, Tags) und in den Funktionen. Pfeiltasten wählen, Enter öffnet oder führt aus, Umschalt+Enter zeigt die Hilfe, Escape schließt.
       </span>
       {/* Ansage für Bildschirmleser, wie viele Treffer es gibt */}
       <span className="sr-only" role="status" aria-live="polite">
@@ -274,6 +287,30 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
                 </span>
               </>,
               h.bookmark.url,
+            );
+          })}
+          {helpHits.length > 0 && (
+            <li className="search__head" role="presentation">
+              Funktionen &amp; Hilfe
+            </li>
+          )}
+          {helpHits.map((h, j) => {
+            const i = panelHits.length + hits.length + j;
+            const does = h.run ? 'Enter führt aus, Umschalt+Enter zeigt die Hilfe' : 'Enter zeigt die Hilfe';
+            return option(
+              i,
+              `${h.group === 'Begriffe' ? 'Begriff' : 'Funktion'} ${h.name}${h.keys ? `, Kürzel ${h.keys}` : ''}: ${h.text} ${does}.`,
+              <>
+                <span className="search__title">
+                  {h.name}
+                  {h.keys && <kbd className="search__kbd">{h.keys}</kbd>}
+                </span>
+                <span className="search__where">
+                  <span className="search__help-text">{h.text}</span>
+                  <span className="search__cat">{h.run ? '↵ ausführen · ⇧↵ Hilfe' : '↵ Hilfe'}</span>
+                </span>
+              </>,
+              h.text,
             );
           })}
           {hits.length >= SEARCH_MAX && (

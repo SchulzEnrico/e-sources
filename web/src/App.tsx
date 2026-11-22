@@ -29,6 +29,8 @@ import { MAIN_NAME, nextWindowName, windowList, windowName, windowUrl, winFromSe
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
 import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
 import { PROBE } from './workspace/probe';
+import { Help } from './components/Help';
+import type { HelpEntry } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, tryPlace, viewOf } from './workspace/workspace';
 import { TERMS } from './workspace/terms';
@@ -248,6 +250,21 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [toggleOverview]);
+  /** F-156: Hilfe offen (at = Eintrag, zu dem sie springt) oder zu (null). */
+  const [helpAt, setHelpAt] = useState<{ at: string | null } | null>(null);
+  // F-156: „?“ (außerhalb von Eingabefeldern) öffnet die Hilfe.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+      if (e.key === '?' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setHelpAt({ at: null });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [flash, setFlash] = useState<string | null>(null);
   /** F-155: Größen-Modus (Alt/⌥+A) und seine letzte Ansage. */
   const [sizeMode, setSizeMode] = useState(false);
@@ -945,13 +962,71 @@ export default function App() {
     return out;
   };
 
+  /** F-127: View weiterschalten – Dashboard → 2 × 2 → 2 → Solo → Dashboard (Knopf und Hilfe). */
+  const viewNow: ViewKind = mode.kind === 'max' ? 1 : mode.kind === 'split' ? mode.count : 'area';
+  const cycleView = () => {
+    const next = VIEW_NEXT[viewNow];
+    if (next === 'area') return setMode({ kind: 'area' });
+    if (next === 1) {
+      const id = (active && ws.panels.some((x) => x.id === active) ? active : null) ?? shownView.slots[0]?.front.id;
+      return setMode(id ? { kind: 'max', id } : { kind: 'area' });
+    }
+    setMode({ kind: 'split', count: next });
+  };
+  /** F-165: leeren Desk anlegen und in eigenem Browserfenster öffnen. */
+  const addNewDesk = () => {
+    const dest = newId();
+    const name = nextWindowName(ws.windows);
+    dispatch({ type: 'addDesk', win: dest });
+    if (!openAppWindow(dest)) return notify(`„${name}“ angelegt. ${POPUP_BLOCKED}`);
+    notify(`„${name}“ angelegt und in neuem Browserfenster geöffnet.`);
+  };
+  /** F-156: Funktion aus Suche oder Hilfe ausführen. */
+  const runHelp = (e: HelpEntry) => {
+    // aus dem Hilfe-Dialog: erst schließen, dann ausführen
+    setHelpAt(null);
+    switch (e.run) {
+      case 'help':
+        return setHelpAt({ at: null });
+      case 'cockpit':
+        return toggleOverview();
+      case 'view':
+        cycleView();
+        return notify(`View: ${VIEW_NAME[VIEW_NEXT[viewNow]]}.`);
+      case 'adjust':
+        return startSizeMode();
+      case 'distribute':
+        dispatch({ type: 'distribute', setup });
+        return notify(`Alle ${view.slots.length} Slots gleich verteilt.`);
+      case 'maximize': {
+        const id = currentPanel() ?? shownView.slots[0]?.front.id;
+        if (!id) return notify('Kein Portal zum Maximieren offen.');
+        return setMode({ kind: 'max', id });
+      }
+      case 'newSlot':
+        if (!canAddArea(ws, setup)) return notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.capacity} Slots). Weitere Portale legst du über das Plus in der Kopfleiste eines Portals auf seinen Slot.`, 5000);
+        dispatch({ type: 'addArea', setup, side: 'right' });
+        return notify('Neuer Slot rechts angelegt.');
+      case 'newDesk':
+        return addNewDesk();
+      case 'search':
+        return window.setTimeout(() => document.querySelector<HTMLInputElement>('.search__input')?.focus(), 0);
+    }
+  };
+
   let content: ReactNode;
   if (mine.length === 0) {
     content = (
       <div className="empty">
         <p>{win ? 'Dieser Desk ist leer – seine Portale sind wieder auf dem Main Desk oder geschlossen.' : 'Keine Portale geöffnet.'}</p>
-        <button type="button" onClick={() => dispatch({ type: 'addArea', setup, side: 'right' })}>
-          + NewSlot
+        <button
+          type="button"
+          className="fx"
+          style={{ '--fx': fx.panel.color } as CSSProperties}
+          title={`Neuen Slot anlegen – ${fx.panel.text}`}
+          onClick={() => dispatch({ type: 'addArea', setup, side: 'right' })}
+        >
+          +<span className="tb-label"> NewSlot</span>
         </button>
         {win && (
           <button type="button" onClick={() => window.close()}>
@@ -1124,19 +1199,13 @@ export default function App() {
             style={{ '--fx': fx.panel.color } as CSSProperties}
             title={`${TERMS.newDesk} – ${fx.panel.text}`}
             aria-label={`+ NewDesk, ${fx.panel.text}`}
-            onClick={() => {
-              const dest = newId();
-              const name = nextWindowName(ws.windows);
-              dispatch({ type: 'addDesk', win: dest });
-              if (!openAppWindow(dest)) return notify(`„${name}“ angelegt. ${POPUP_BLOCKED}`);
-              notify(`„${name}“ angelegt und in neuem Browserfenster geöffnet.`);
-            }}
+            onClick={addNewDesk}
           >
             +<span className="tb-label"> NewDesk</span>
           </button>
         </div>
         {/* F-146: Logo links, Bedienelemente mittig, Gesamtfokus ganz rechts */}
-        <div className="tb-center">
+        <div className="tb-center" style={{ '--fx-slot': fx.panel.color } as CSSProperties}>
         {/* F-27: Zusatzfenster zeigen ihren Namen und können alles zurückgeben */}
         {win && (
           <>
@@ -1157,16 +1226,9 @@ export default function App() {
         )}
         {/* F-127: Knopf „Ansicht“ – jeder Klick schaltet weiter: Arbeitsfläche → 2 × 2 → 2 → 1 → Arbeitsfläche */}
         {(() => {
-          const now: ViewKind = mode.kind === 'max' ? 1 : mode.kind === 'split' ? mode.count : 'area';
+          const now = viewNow;
           const next = VIEW_NEXT[now];
-          const go = () => {
-            if (next === 'area') return setMode({ kind: 'area' });
-            if (next === 1) {
-              const id = (active && ws.panels.some((x) => x.id === active) ? active : null) ?? shownView.slots[0]?.front.id;
-              return setMode(id ? { kind: 'max', id } : { kind: 'area' });
-            }
-            setMode({ kind: 'split', count: next });
-          };
+          const go = cycleView;
           return (
             <button
               type="button"
@@ -1189,7 +1251,7 @@ export default function App() {
           {DistributeIcon}
         </button>
         {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
-        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} />
+        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} onRun={runHelp} onHelp={(id) => setHelpAt({ at: id })} />
         {/* F-134: „+ Area“ – neue Spalte rechts oder Zeile unten; Panels kommen über die Areas dazu. */}
         {canAddArea(ws, setup) ? (
           <Menu icon={<span className="tb-add fx" style={{ '--fx': fx.panel.color } as CSSProperties}>+<span className="tb-label"> NewSlot</span></span>} label={`Neuen Slot anlegen – ${TERMS.slot} – ${fx.panel.text}`}>
@@ -1218,14 +1280,19 @@ export default function App() {
           // NF-03: bleibt erreichbar und sagt beim Klick, warum keine Area mehr dazukommt
           <button
             type="button"
-            className="is-off"
+            className="is-off tb-newslot fx"
+            style={{ '--fx': fx.panel.color } as CSSProperties}
             aria-disabled="true"
-            title="Bildschirm voll – weitere Portale über das Plus eines Slots anlegen"
-            onClick={() => notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.capacity} Slots). Weitere Portale legst du über das rote Plus in der Kopfleiste eines Portals auf diesen Slot.`, 5000)}
+            title={`Bildschirm voll – weitere Portale über das Plus eines Portals anlegen (${fx.panel.text})`}
+            onClick={() => notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.capacity} Slots). Weitere Portale legst du über das Plus in der Kopfleiste eines Portals auf seinen Slot.`, 5000)}
           >
             +<span className="tb-label"> NewSlot</span>
           </button>
         )}
+        {/* F-156: Hilfe – alle Funktionen und Begriffe mit Kürzeln */}
+        <button type="button" className="tb-help" onClick={() => setHelpAt({ at: null })} title="Hilfe: alle Funktionen und Begriffe mit Tastenkürzeln (?)" aria-label="Hilfe" aria-haspopup="dialog">
+          ?
+        </button>
         {/* F-66: Selten Gebrauchtes im Menü, damit die Kopfleiste schlank bleibt */}
         <Menu icon={GearIcon} label="Einstellungen">
           {(close) => (
@@ -1382,13 +1449,14 @@ export default function App() {
         {swapFrom && <span className="hint">Ziel-Portal anklicken · Esc bricht ab</span>}
         </div>
         {/* F-29 Gesamtfokus; Klick klappt das Fokus-Radar (F-28, bisher Master-Panel) aus */}
-        {PROBE && (
-          <a className="probe" href={window.location.pathname} title="Testbelegung verlassen (zurück zu deinen eigenen Desks)">
-            Test: voll · nichts wird gespeichert
-          </a>
-        )}
         <FocusMeter focus={focus} open={overview} onToggle={toggleOverview} btnRef={meterRef} />
       </header>
+      {PROBE && (
+        <a className="probe" href={window.location.pathname} title="Testbelegung verlassen (zurück zu deinen eigenen Desks)">
+          Test: voll · nichts wird gespeichert
+        </a>
+      )}
+      {helpAt && <Help at={helpAt.at} onClose={() => setHelpAt(null)} onRun={runHelp} />}
       {overview && (
         <Overview
           ws={ws}

@@ -91,6 +91,10 @@ export interface OverviewProps {
   /** F-153: neue Anordnung für ein Fenster übernehmen ('' = Hauptfenster). */
   onLayout: (win: string, tree: T.Node) => void;
   onDismiss: () => void;
+  /** F-172: Cockpit-Tour starten (Knopf im Kopf). */
+  onTour?: () => void;
+  /** F-172: Während einer Tour nicht einklappen, wenn der Fokus ins Hinweisfenster wandert. */
+  keepOpen?: boolean;
 }
 
 /** F-153: Schrittweite für Alt+Umschalt+Pfeil (Anteil der Fläche). */
@@ -783,7 +787,7 @@ export function Overview(p: OverviewProps) {
         onBlur={(e) => {
           // Fokus wandert woanders hin (z. B. Tab ans Ende) → einklappen; nicht beim Knopf selbst (der schaltet um).
           const to = e.relatedTarget as Node | null;
-          if (to && !box.current?.contains(to) && to !== p.toggleRef.current) p.onDismiss();
+          if (!p.keepOpen && to && !box.current?.contains(to) && to !== p.toggleRef.current) p.onDismiss();
         }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
@@ -816,6 +820,11 @@ export function Overview(p: OverviewProps) {
               }
             }}
           />
+          {p.onTour && (
+            <button type="button" className="overview__tour" onClick={p.onTour} title="Kurze Einführung ins Cockpit" aria-label="Tour durch das Cockpit starten">
+              Tour
+            </button>
+          )}
           <button type="button" className="overview__x" onClick={dismiss} title="Cockpit schließen (Esc)" aria-label="Cockpit schließen">
             ×
           </button>

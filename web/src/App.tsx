@@ -24,14 +24,15 @@ import { Tooltips } from './components/Tooltip';
 import { FocusMeter, Overview } from './components/Overview';
 import { arrangeText, deskFocusOf, effectOf, focusOf, placeText } from './workspace/focus';
 import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
-import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
+import { contrastWarning, resolveTheme, rgbOf } from './workspace/look';
 import { MAIN_NAME, nextWindowName, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
 import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
 import { PROBE } from './workspace/probe';
 import { Help } from './components/Help';
 import { Tour } from './components/Tour';
-import { tourSeen } from './workspace/tour';
+import { type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace/tour';
+import { Design } from './components/Design';
 import type { HelpEntry } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, tryPlace, viewOf } from './workspace/workspace';
@@ -255,13 +256,60 @@ export default function App() {
   /** F-156: Hilfe offen (at = Eintrag, zu dem sie springt) oder zu (null). */
   const [helpAt, setHelpAt] = useState<{ at: string | null } | null>(null);
   /** F-95: Tour – beim ersten Start einmal von selbst (nicht in der Testbelegung, nicht in Zusatz-Desks). */
-  const [tour, setTour] = useState(false);
+  const [tour, setTourId] = useState<TourId | null>(null);
+  /** F-173: Tour von selbst gestartet (zeigt „Nicht mehr automatisch anzeigen“). */
+  const [tourAuto, setTourAuto] = useState(false);
+  const [autoTours, setAutoTours] = useState(toursAuto);
+  const setTour = (id: TourId | null | ((t: TourId | null) => TourId | null), auto = false) => {
+    setTourId(id);
+    setTourAuto(auto);
+  };
+  /** F-174: Dialog „Design anpassen“. */
+  const [design, setDesign] = useState(false);
   useEffect(() => {
-    if (PROBE || win || tourSeen()) return;
-    const t = window.setTimeout(() => setTour(true), 800);
+    if (PROBE || win || !tourAutoStart('start')) return;
+    const t = window.setTimeout(() => setTour('start', true), 800);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  /** F-172: Cockpit-Tour beim ersten Öffnen des Cockpits einmal von selbst (nicht in der Testbelegung). */
+  useEffect(() => {
+    if (!overview) {
+      // Cockpit zu → seine Tour endet mit (ihre Ziele sind weg)
+      setTour((t) => (t === 'cockpit' ? null : t));
+      return;
+    }
+    if (PROBE || tour || !tourAutoStart('cockpit')) return;
+    const t = window.setTimeout(() => setTour((x) => x ?? 'cockpit', true), 450);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overview]);
+  /** F-171: Design-Tour beim ersten Öffnen von „Design anpassen“; Dialog zu → Tour endet mit. */
+  useEffect(() => {
+    if (!design) {
+      setTour((t) => (t === 'design' ? null : t));
+      return;
+    }
+    if (PROBE || tour || !tourAutoStart('design')) return;
+    const t = window.setTimeout(() => setTour((x) => x ?? 'design', true), 300);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [design]);
+  const startDesignTour = () => {
+    setDesign(true);
+    window.setTimeout(() => setTour('design'), design ? 0 : 150);
+  };
+  const switchAutoTours = () => {
+    const on = !autoTours;
+    setToursAuto(on);
+    setAutoTours(on);
+    notify(on ? 'Touren starten beim ersten Mal wieder von selbst.' : 'Touren starten nicht mehr von selbst – über Hilfe, Suche oder Einstellungen jederzeit.');
+  };
+  /** F-172: Cockpit-Tour von Hand – Cockpit erst öffnen, dann (nach dem Aufbau) die Tour. */
+  const startCockpitTour = () => {
+    if (!overview) toggleOverview();
+    window.setTimeout(() => setTour('cockpit'), overview ? 0 : 250);
+  };
   // F-156: „?“ (außerhalb von Eingabefeldern) öffnet die Hilfe.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1020,7 +1068,15 @@ export default function App() {
       case 'newDesk':
         return addNewDesk();
       case 'tour':
-        return setTour(true);
+        return setTour('start');
+      case 'tourCockpit':
+        return startCockpitTour();
+      case 'design':
+        return setDesign(true);
+      case 'tourDesign':
+        return startDesignTour();
+      case 'toursAuto':
+        return switchAutoTours();
       case 'search':
         return window.setTimeout(() => document.querySelector<HTMLInputElement>('.search__input')?.focus(), 0);
     }
@@ -1401,39 +1457,15 @@ export default function App() {
                 </li>
               )}
               <li className="menu__sep" role="separator" />
-              {/* F-60, F-61, F-69, F-130: Darstellung */}
-              <li className="menu__field">
-                <label>Darstellung</label>
-                <span className="seg seg--wrap" role="group" aria-label="Darstellung">
-                  {THEMES.map((t) => (
-                    <button key={t.id} type="button" className={ws.look.theme === t.id ? 'on' : ''} onClick={() => dispatch({ type: 'look', theme: t.id })}>
-                      {t.label}
-                    </button>
-                  ))}
-                </span>
-              </li>
-              <li className="menu__field">
-                <label>Akzentfarbe</label>
-                <span className="look__swatches" role="group" aria-label="Akzentfarbe">
-                  {ACCENTS.map((a) => (
-                    <button
-                      key={a.hex}
-                      type="button"
-                      className={ws.look.accent === a.hex ? 'look__swatch on' : 'look__swatch'}
-                      style={{ '--swatch': a.hex } as CSSProperties}
-                      title={a.name}
-                      aria-label={a.name}
-                      aria-pressed={ws.look.accent === a.hex}
-                      onClick={() => dispatch({ type: 'look', accent: a.hex })}
-                    />
-                  ))}
-                </span>
-                <label className="look__custom">
-                  Eigene Farbe
-                  <input type="color" value={ws.look.accent} onChange={(e) => dispatch({ type: 'look', accent: e.target.value })} />
-                </label>
-                {lookWarning && <p className="look__warn">{lookWarning}</p>}
-              </li>
+              {/* F-174: Darstellung und Akzentfarbe im eigenen Dialog (vorher lose hier) */}
+              <Item
+                onClick={() => {
+                  close();
+                  setDesign(true);
+                }}
+              >
+                Design anpassen …
+              </Item>
               <li className="menu__sep" role="separator" />
               <Item
                 onClick={() => {
@@ -1455,10 +1487,14 @@ export default function App() {
               <Item
                 onClick={() => {
                   close();
-                  setTour(true);
+                  setTour('start');
                 }}
               >
                 Tour starten
+              </Item>
+              {/* F-173: Touren beim ersten Mal von selbst starten – ein/aus */}
+              <Item checked={autoTours} onClick={switchAutoTours}>
+                Touren automatisch zeigen
               </Item>
               {/* F-132 Urheberrechtsvermerk */}
               <li className="menu__sep" role="separator" />
@@ -1477,7 +1513,12 @@ export default function App() {
           Test: voll · nichts wird gespeichert
         </a>
       )}
-      {tour && <Tour onClose={() => setTour(false)} />}
+      {tour && tour !== 'design' && <Tour key={tour} tour={tour} auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} />}
+      {design && (
+        <Design look={ws.look} warning={lookWarning} onLook={(change) => dispatch({ type: 'look', ...change })} onClose={() => setDesign(false)} onTour={startDesignTour}>
+          {tour === 'design' && <Tour key="design" tour="design" auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} />}
+        </Design>
+      )}
       {helpAt && <Help at={helpAt.at} onClose={() => setHelpAt(null)} onRun={runHelp} />}
       {overview && (
         <Overview
@@ -1509,6 +1550,8 @@ export default function App() {
             if (s) dispatch({ type: 'setLayout', setup: s, tree });
           }}
           onDismiss={() => setOverview(false)}
+          onTour={startCockpitTour}
+          keepOpen={tour === 'cockpit'}
         />
       )}
       {/* F-142: schnelle Tooltips */}

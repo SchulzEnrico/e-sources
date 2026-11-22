@@ -1524,3 +1524,35 @@ describe('F-95 Tour', () => {
     expect(H.searchHelp('Einführung')[0].id).toBe('tour');
   });
 });
+
+describe('F-172 Tour „Cockpit“', () => {
+  it('eigene Schritte im Cockpit, Begrüßung ohne Ziel bleibt', () => {
+    const c = Tour.TOURS.cockpit;
+    expect(c[0].target).toBe(undefined);
+    expect(c.slice(1).every((s) => (s.target ?? '').startsWith('#overview'))).toBe(true);
+    expect(new Set(c.map((s) => s.id)).size).toBe(c.length);
+    expect(c.every((s) => s.text.trim().length > 20)).toBe(true);
+    expect(Tour.tourSteps(() => false, c).map((s) => s.id)).toEqual(['cockpit']);
+  });
+  it('Starttour unverändert erreichbar, eigene Merker je Tour', () => {
+    expect(Tour.TOUR).toBe(Tour.TOURS.start);
+    expect(Tour.TOUR_KEY.start).toBe('esource.tour.v1');
+    expect(Tour.TOUR_KEY.cockpit === Tour.TOUR_KEY.start).toBe(false);
+  });
+  it('F-171 Design-Tour im Dialog #design, F-174 Design in der Suche', () => {
+    const d = Tour.TOURS.design;
+    expect(d.filter((s) => s.target).every((s) => (s.target ?? '').startsWith('#design'))).toBe(true);
+    expect(H.searchHelp('Tour Design')[0].id).toBe('tourDesign');
+    expect(H.searchHelp('Akzentfarbe')[0].id).toBe('design');
+    expect(Tour.TOUR_KEY.design).toBe('esource.tour.design.v1');
+  });
+  it('F-173 Schalter: ohne Speicher keine Autostarts', () => {
+    expect(Tour.toursAuto()).toBe(false);
+    expect(Tour.tourAutoStart('start')).toBe(false);
+    expect(H.searchHelp('nicht mehr anzeigen')[0].id).toBe('toursAuto');
+  });
+  it('in Suche und Hilfe: „Tour Cockpit“', () => {
+    expect(H.searchHelp('Tour Cockpit')[0].id).toBe('tourCockpit');
+    expect(H.helpById('tourCockpit')?.run).toBe('tourCockpit');
+  });
+});

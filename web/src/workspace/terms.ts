@@ -14,6 +14,7 @@ export const TERMS = {
   portal: 'Portal = Rahmen mit Adresszeile und Tabs, der eine Source zeigt',
   source: 'Source = eine Webseite, die in einem Portal läuft',
   library: 'Library = deine gespeicherten Sources; jedes Portal hat zusätzlich seine eigene Auswahl',
+  design: 'Design = Aussehen von E-Sources: Darstellung (hell, dunkel oder wie das System) und Akzentfarbe',
   cockpit: 'Cockpit = Überblick über alle Desks; das Radar darin zeigt die Anordnung der Slots',
   focus: 'Fokusanzeige = wie viel gerade offen ist; Grün heißt gut überschaubar',
   adjust: 'Adjust = Größen der Portale per Tastatur oder Mausrad ändern (Alt/⌥+A)',

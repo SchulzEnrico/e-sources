@@ -6,7 +6,7 @@
 import { TERMS } from './terms';
 
 /** Was die Oberfläche ausführen kann; App.tsx ordnet jedem Wert die passende Aktion zu. */
-export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour';
+export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto';
 
 export interface HelpEntry {
   id: string;
@@ -47,6 +47,9 @@ export const HELP: HelpEntry[] = [
   { id: 'maximize', group: 'Ansicht', name: 'Portal maximieren', text: 'Zeigt das aktive Portal allein auf dem ganzen Desk (Knopf ⤢ im Portal). Esc führt zurück.', keys: 'M im Adjust', run: 'maximize', words: ['groß', 'Vollbild', 'Solo', 'ganzer Bildschirm'] },
   { id: 'search', group: 'Ansicht', name: 'Suchen', text: 'Findet Portale, Sources der Library und Funktionen. Pfeiltasten wählen, Enter öffnet, Umschalt+Enter zeigt die Hilfe.', keys: 'Strg/⌘+K oder /', run: 'search', words: ['finden', 'Suche'] },
   { id: 'tour', group: 'Ansicht', name: 'Tour', text: 'Kurze Einführung, die Schritt für Schritt auf die wichtigsten Bedienelemente zeigt. Pfeiltasten blättern, Esc beendet.', run: 'tour', words: ['Einführung', 'Rundgang', 'erste Schritte', 'Anleitung'] },
+  { id: 'tourCockpit', group: 'Ansicht', name: 'Tour „Cockpit“', text: 'Kurze Einführung ins Cockpit: Fokusanzeige, Radar, Portale verschieben und holen. Startet beim ersten Öffnen des Cockpits von selbst.', run: 'tourCockpit', words: ['Cockpit-Tour', 'Einführung Cockpit', 'Radar erklärt', 'Rundgang'] },
+  { id: 'tourDesign', group: 'Ansicht', name: 'Tour „Design“', text: 'Kurze Einführung in „Design anpassen“: Darstellung, Akzentfarbe und eigene Farbe. Startet beim ersten Öffnen des Dialogs von selbst.', run: 'tourDesign', words: ['Design-Tour', 'Einführung Design', 'Farben erklärt', 'Rundgang'] },
+  { id: 'toursAuto', group: 'Ansicht', name: 'Touren automatisch zeigen', text: 'Schaltet ein oder aus, ob Touren beim ersten Mal von selbst starten (Einstellungen, Zahnrad). Von Hand starten geht immer.', run: 'toursAuto', words: ['nicht mehr anzeigen', 'Tour aus', 'Einführung abschalten', 'automatisch'] },
   { id: 'help', group: 'Ansicht', name: 'Hilfe', text: 'Zeigt alle Funktionen und Begriffe mit Tastenkürzeln.', keys: '?', run: 'help', words: ['Glossar', 'Tastenkürzel', 'Kürzel', 'Erklärung', 'Anleitung'] },
 
   // Anlegen
@@ -55,6 +58,8 @@ export const HELP: HelpEntry[] = [
   { id: 'newPortal', group: 'Anlegen', name: 'Neues Portal auf einen Slot', text: 'Das Plus in der Kopfzeile eines Portals legt ein weiteres Portal auf denselben Slot; es entsteht ein Stack.', words: ['Portal anlegen', 'Panel', 'stapeln'] },
   { id: 'newTab', group: 'Anlegen', name: 'Neuer Tab', text: 'Das Plus neben den Tabs öffnet einen weiteren Tab im Portal (zählt 0,5 Fokus-Punkte).', words: ['Tab anlegen', 'Reiter'] },
   { id: 'switchDesk', group: 'Anlegen', name: 'Desk wechseln (⇄)', text: up(def(TERMS.switchDesk)), words: ['umschalten', 'anderer Desk', 'Fenster'] },
+
+  { id: 'design', group: 'Ansicht', name: 'Design anpassen', text: up(def(TERMS.design)) + ' Später auch Farben je Desk, Slot und Portal.', run: 'design', words: ['Farbe', 'Akzentfarbe', 'Darstellung', 'Theme', 'hell', 'dunkel', 'Aussehen', 'Look'] },
 
   // Bedienung
   { id: 'adjust', group: 'Bedienung', name: 'Adjust', text: 'Größen der Portale per Tastatur oder Mausrad ändern: Pfeile oder W A S D verschieben die Kante, Umschalt die andere, Tab wechselt den Slot, M maximiert. Leertaste, Enter oder Esc beendet.', keys: 'Alt/⌥+A', run: 'adjust', words: ['Größe', 'Größen-Modus', 'breiter', 'schmaler', 'höher', 'Kante'] },

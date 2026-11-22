@@ -297,10 +297,17 @@ export function Menu(props: { icon: ReactNode; label: string; children: (close: 
   );
 }
 
-export function Item(props: { onClick: () => void; children: ReactNode; disabled?: boolean; title?: string }) {
+export function Item(props: { onClick: () => void; children: ReactNode; disabled?: boolean; title?: string; checked?: boolean }) {
+  // checked gesetzt = Schalter (menuitemcheckbox), Häkchen sichtbar und angesagt
+  const check = props.checked !== undefined;
   return (
     <li>
-      <button type="button" role="menuitem" onClick={props.onClick} disabled={props.disabled} title={props.title}>
+      <button type="button" role={check ? 'menuitemcheckbox' : 'menuitem'} aria-checked={check ? props.checked : undefined} onClick={props.onClick} disabled={props.disabled} title={props.title}>
+        {check && (
+          <span className="menu__check" aria-hidden="true">
+            {props.checked ? '✓' : ''}
+          </span>
+        )}
         {props.children}
       </button>
     </li>

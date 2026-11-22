@@ -1,11 +1,11 @@
 /**
- * F-95: Tour – ein Hinweisfenster neben dem jeweiligen Bedienelement, das mit einem Rahmen markiert
+ * F-95/F-172: Tour – ein Hinweisfenster neben dem jeweiligen Bedienelement, das mit einem Rahmen markiert
  * wird. Barrierefreiheit (NF-03): Fokus liegt auf „Weiter“, jeder Schritt ist ein eigener Dialog
  * (Titel und Text werden angesagt), → / ← blättern, Esc beendet; danach geht der Fokus zurück.
  * Bei „Bewegung reduzieren“ ohne Übergänge (CSS).
  */
 import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { type TourStep, setTourSeen, tourSteps } from '../workspace/tour';
+import { TOURS, type TourId, type TourStep, setTourSeen, setToursAuto, tourSteps } from '../workspace/tour';
 
 const visible = (sel: string) => {
   const el = document.querySelector<HTMLElement>(sel);
@@ -14,9 +14,9 @@ const visible = (sel: string) => {
   return r.width > 0 && r.height > 0;
 };
 
-export function Tour({ onClose }: { onClose: () => void }) {
+export function Tour({ tour = 'start', auto = false, onClose, onAutoOff }: { tour?: TourId; /** von selbst gestartet → Kästchen „Nicht mehr automatisch anzeigen“ (F-173) */ auto?: boolean; onClose: () => void; onAutoOff?: () => void }) {
   // Ziele einmal beim Start prüfen, damit die Zählung „3 von 9“ stabil bleibt.
-  const steps = useMemo<TourStep[]>(() => tourSteps(visible), []);
+  const steps = useMemo<TourStep[]>(() => tourSteps(visible, TOURS[tour]), [tour]);
   const [i, setI] = useState(0);
   const step = steps[Math.min(i, steps.length - 1)];
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -24,8 +24,13 @@ export function Tour({ onClose }: { onClose: () => void }) {
   const next = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<CSSProperties>({});
 
+  const [noMore, setNoMore] = useState(false);
   const end = () => {
-    setTourSeen();
+    setTourSeen(true, tour);
+    if (noMore) {
+      setToursAuto(false);
+      onAutoOff?.();
+    }
     onClose();
   };
 
@@ -40,6 +45,8 @@ export function Tour({ onClose }: { onClose: () => void }) {
     const el = step.target ? document.querySelector<HTMLElement>(step.target) : null;
     // z. B. Stack: für diesen Schritt aufklappen, damit die Namen zu sehen sind
     if (el && step.expand) el.classList.add('is-open');
+    // F-172: Ziel in einem scrollbaren Bereich (z. B. Cockpit auf schmalem Bildschirm) ins Bild holen
+    el?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     const measure = () => {
       const ring = el && step.ring ? (el.querySelector<HTMLElement>(step.ring) ?? el) : el;
       setRect(ring ? ring.getBoundingClientRect() : null);
@@ -98,7 +105,7 @@ export function Tour({ onClose }: { onClose: () => void }) {
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [i, steps.length]);
+  }, [i, steps.length, noMore]);
 
   const last = i >= steps.length - 1;
   const pad = 4;
@@ -131,6 +138,12 @@ export function Tour({ onClose }: { onClose: () => void }) {
         <p id="tour-text" className="tour__text">
           {step.text}
         </p>
+        {auto && (
+          <label className="tour__nomore">
+            <input type="checkbox" checked={noMore} onChange={(e) => setNoMore(e.target.checked)} />
+            Nicht mehr automatisch anzeigen
+          </label>
+        )}
         <div className="tour__nav">
           <button type="button" onClick={end} className="tour__skip">
             {last ? 'Schließen' : 'Tour beenden'}

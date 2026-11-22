@@ -2331,6 +2331,14 @@ button.is-off:hover,
   font-size: 13px;
   opacity: 0.8;
 }
+/* F-172: Knopf „Tour“ im Cockpit – ruhig, neben dem Schließen-Kreuz */
+.overview__tour {
+  font-size: 13px;
+  padding: 3px 10px;
+  opacity: 0.85;
+}
+.overview__tour:hover,
+.overview__tour:focus-visible { opacity: 1; }
 .overview__x {
   font-size: 20px;
   line-height: 1;
@@ -3114,9 +3122,27 @@ button.is-off:hover,
 .help__filter { font-size: 17px; padding: 10px 14px; }
 .help__group { font-size: 15px; }
 .help__item { grid-template-columns: minmax(170px, 240px) 1fr; padding: 11px 12px; }
+@media (max-width: 560px) { .help__item { grid-template-columns: 1fr; } }
 .help__name { font-size: 17px; }
 .help__text { font-size: 16px; line-height: 1.55; }
 .help__kbd { font-size: 14px; }
 .help__run { font-size: 15px; padding: 3px 12px; }
 .help { width: min(840px, calc(100vw - 24px)); }
 .help__body { scrollbar-color: rgba(var(--tint), 0.3) transparent; }
+
+/* ================================================================ F-173 Touren-Schalter, F-174 Design anpassen */
+.tour__nomore { display: flex; align-items: center; gap: 8px; margin: -6px 0 14px; font-size: 14px; color: var(--muted); cursor: pointer; }
+.tour__nomore input { width: 16px; height: 16px; margin: 0; accent-color: rgb(var(--tint)); }
+.menu__check { display: inline-block; width: 1.2em; margin-right: 4px; text-align: center; }
+.design { width: min(560px, calc(100vw - 24px)); }
+.design__tour { font-size: 13px; padding: 3px 10px; opacity: 0.85; }
+.design__tour:hover,
+.design__tour:focus-visible { opacity: 1; }
+.design__group { padding: 4px 0 12px; }
+.design__group .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.design__group .seg button { font-size: 14px; padding: 5px 12px; }
+.design .look__swatches { grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); gap: 8px; max-width: 420px; }
+.design .look__swatch { height: 30px; }
+.design .look__custom { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 14px; color: var(--text); }
+.design .look__custom input[type='color'] { width: 44px; height: 30px; }
+.design .look__warn { font-size: 14px; }

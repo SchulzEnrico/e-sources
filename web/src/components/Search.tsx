@@ -101,8 +101,12 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp }: P
     if (it.kind === 'panel') onShowPanel(it.hit.panel.id, it.hit.tabs[0]?.id);
     else if (it.kind === 'bookmark') onOpen(it.hit);
     // F-156: Funktion ausführen; Begriffe und Umschalt+Enter öffnen die Hilfe an dieser Stelle
-    else if (help || !it.hit.run) onHelp(it.hit.id);
-    else onRun(it.hit);
+    else {
+      // Funktion oder Hilfe: Suchtext leeren, sonst steht „Tour“ o. Ä. danach noch im Feld
+      setQuery('');
+      if (help || !it.hit.run) onHelp(it.hit.id);
+      else onRun(it.hit);
+    }
   };
 
   const move = (to: number) => {

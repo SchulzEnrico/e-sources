@@ -4,7 +4,7 @@ import { areaLabel, hostOf, panelUrl } from './workspace';
 // ---------------------------------------------------------------- F-29 Gesamtfokus
 
 /**
- * Voreinstellung des Gesamtfokus (F-29, Entscheidung 22.11.2026): Es zählen nur Panels und Tabs.
+ * Voreinstellung des Gesamtfokus (F-29, Entscheidung 22.11.2026; bis 9 grün, 10–13 gelb, 14–16 orange, ab 17 rot): Es zählen nur Panels und Tabs.
  * Jedes Panel zählt 1 Punkt, jeder weitere Tab `tabWeight` Punkte. Bis `greenMax` grün,
  * bis `yellowMax` gelb, bis `orangeMax` orange, darüber rot. Später in den Einstellungen änderbar.
  */
@@ -15,7 +15,7 @@ export interface FocusRule {
   orangeMax: number;
 }
 
-export const FOCUS_RULE: FocusRule = { tabWeight: 0.5, greenMax: 10, yellowMax: 14, orangeMax: 18 };
+export const FOCUS_RULE: FocusRule = { tabWeight: 0.5, greenMax: 9, yellowMax: 13, orangeMax: 16 };
 
 export type FocusColor = 'aus' | 'grün' | 'gelb' | 'orange' | 'rot';
 

@@ -9,6 +9,7 @@ Stand: 22.11.2026, ca. 02:50 · Chat V12 abgeschlossen · Nächster Chat: **V13 
 ## Links
 
 - **Lastenheft (verbindlich):** https://claude.ai/artifact/5Lcrj6JwXyEvUMcJjZQRY8 (Claude Doc, mit den Docs-Werkzeugen lesen)
+- **Geschichte der Anwendung (Claude Doc, wird laufend ergänzt):** https://claude.ai/artifact/QjpbDizWw2VzQzWNmZgirP – für wen, was es kann, wie es funktioniert, Ausblick. Nach jeder Ausbaustufe den Abschnitt „Was E-Sources heute kann“ nachziehen. Offen: Wofür steht der Name „E-Sources“?
 - **Repository (öffentlich):** https://github.com/SchulzEnrico/e-sources · lokal `~/Projects/e-sources`
 - **Portfolio-Repo:** lokal `~/Projects/SchulzEnrico.github.io`
 - **Online-Demo:** https://schulzenrico.github.io/e-sources/ (baut automatisch bei jedem Push auf `main`)
@@ -20,10 +21,10 @@ Stand: 22.11.2026, ca. 02:50 · Chat V12 abgeschlossen · Nächster Chat: **V13 
   - Tastatur (NF-03): Rollen-Fokus (`tabIndex` 0/−1), ↑/↓ mit Umlauf, ←/→ erste Zeile der vorigen/nächsten Area, Pos1/Ende, Esc. `role="dialog"` mit `aria-describedby`-Hilfetext, `aria-label` je Zeile, Ansage per `role="status"` beim Schließen. Fokus geht beim Schließen zurück auf den Pegel. Verlässt der Fokus die Übersicht, klappt sie ein.
   - Stolperstein: Enter im Umbenennen-Feld braucht `preventDefault()`, sonst löst dasselbe Enter auf der wieder fokussierten Zeile „Panel zeigen“ aus.
   - Hineinschieben ohne Opacity-Animation (im nicht sichtbaren Browser-Pane blieb sie sonst bei 0 hängen).
-- **F-29 Gesamtfokus** (`focusOf`, `focusLevel`, `focusText` in `workspace/focus.ts`, Anzeige `FocusMeter` in `Overview.tsx`): Panel = 1 Punkt, jeder weitere Tab = ½ Punkt (`FOCUS_RULE`). Pegel 1–5 grün bis 10 Punkte, 6 gelb bis 14, 7 orange bis 18, 8 rot bis 22, 9 darüber. Equalizer mit 9 ansteigenden Balken (Farbe `loadColor(i)`), Punktzahl daneben, ▾. Bildschirmleser: Satz „Gesamtfokus: grün, 6 Punkte (5 Panels, 2 weitere Tabs)“; Farbwechsel wird angesagt. Grenzen noch **nicht** in den Einstellungen änderbar.
+- **F-29 Gesamtfokus** (`focusOf`, `focusLevel`, `focusText` in `workspace/focus.ts`, Anzeige `FocusMeter` in `Overview.tsx`): Panel = 1 Punkt, jeder weitere Tab = ½ Punkt (`FOCUS_RULE`). Pegel 1–5 grün bis 9 Punkte, 6 gelb bis 13, 7 orange bis 16, 8 rot bis 19, 9 darüber (Grenzen am 22.11. von Enrico festgelegt: 9 grün, 13 gelb, ab 17 rot). Equalizer mit 9 ansteigenden Balken (Farbe `loadColor(i)`), Punktzahl daneben, ▾. Bildschirmleser: Satz „Gesamtfokus: grün, 6 Punkte (5 Panels, 2 weitere Tabs)“; Farbwechsel wird angesagt. Grenzen noch **nicht** in den Einstellungen änderbar.
 - **F-146 Kopfleiste neu** (Grid 1fr/auto/1fr): Logo links, mittig Ansicht (nur Symbol) – Gleich verteilen (nur Symbol, Pfeilkreuz `DistributeIcon`) – Suche – „+ NewArea“ – Zahnrad (`GearIcon`, Menü „Einstellungen“), Pegel ganz rechts. Lineal für alle Panels jetzt erster Eintrag im Zahnrad-Menü. Belegungsanzeige ins Master-Panel verschoben.
 - **Tooltip** am rechten Rand wurde schmal und hoch → `width: max-content` in `.tooltip`.
-- **Lastenheft:** F-28 und F-29 mit Entscheidungen vom 22.11. ergänzt, neu **F-146**. Weiter ab **F-147**.
+- **Lastenheft:** F-28 und F-29 mit Entscheidungen vom 22.11. ergänzt, neu **F-146** und **F-147 Farbpipette** (Wunsch aus der Geschichte; Rückfrage an Enrico, ob eine Pipette für Seitenfarben gemeint ist). F-146 steht in Liste `m546wxbbe43.52454`, F-147 in `m546wxbbe43.52923`, F-148 (Word/Excel im Datei-Panel per Bibliothek ohne Server, nur lesen) in `m546wxbbe43.53358`, F-149 Menü „Nur im neuen Tab“ (nicht einbettbare Seiten sammeln, per Suche finden, im neuen Browser-Tab öffnen) in `m546wxbbe43.53894`. Weiter ab **F-150**.
 - Tests **89** (in der VM 89/89), Typprüfung grün. Alles gepusht bis auf den Tooltip-Fix (siehe unten).
 
 ## Noch zu committen
@@ -83,7 +84,7 @@ Stand: 22.11.2026, ca. 02:50 · Chat V12 abgeschlossen · Nächster Chat: **V13 
 - Code-Änderungen per Python mit exakten Ersetzungen (je `assert count == 1`) – bewährt. Neue Dateien per Heredoc (`cat > datei <<'EOF'`) direkt in der VM.
 - Entwicklungsserver läuft oft schon („Port 2910 is already in use“ = gut, Browser neu laden; bei alten Styles ⌘+Shift+R). Demo-Startbelegung testen: **neues** Inkognito-Fenster.
 - Bilder/Icons/PDF: Cloud-Umgebung hat `rsvg-convert`, `pdftotext`, PIL, Chrome (headless PDF); Ergebnisse mit `device_commit_files` zurückschreiben. Bauen (`vite`) geht dort nicht.
-- Lastenheft-Bearbeitung: Text per `replace` mit `target {kind: "find"}` und `with {as: "text"}` ersetzen; neue Einträge mit `insert` nach der Liste des letzten Eintrags (`side: after`; F-146 steht in Liste `m546wxbbe43.52454`). Export als Markdown mit `export` (Tab `842c44f8-c93a`, Inhalt `28339b99-31da`).
+- Lastenheft-Bearbeitung: Text per `replace` mit `target {kind: "find"}` und `with {as: "text"}` ersetzen; neue Einträge mit `insert` nach der Liste des letzten Eintrags (`side: after`; F-149 steht in Liste `m546wxbbe43.53894`). Export als Markdown mit `export` (Tab `842c44f8-c93a`, Inhalt `28339b99-31da`).
 - Portfolio: bei jeder CSS-Änderung die Version `?v=…` in `index.html`, `en/index.html`, `impressum.html`, `en/legal-notice.html` erhöhen (zuletzt `20261121c`).
 - Enricos Mac: Node 24, Java 21, Chrome; lokal http://localhost:2910.
 - **Committen:** GitHub Desktop (Summary → „Commit to main“ → „Push origin“; Enrico schreibt „PO ist durch/raus“).
@@ -93,7 +94,7 @@ Stand: 22.11.2026, ca. 02:50 · Chat V12 abgeschlossen · Nächster Chat: **V13 
 - **Funktion vor Design** (Ausnahme: ausdrücklicher Wunsch).
 - **Barrierefreiheit immer mitdenken (NF-03):** vollständige Tastaturbedienung, ARIA-Rollen, Ansagen für Bildschirmleser, nicht nur Farbe als Signal, reduzierte Bewegung, erhöhter Kontrast.
 - **Offene Punkte immer im Blick:** Claude führt die offenen Punkte aus Lastenheft und Übergabe mit und nutzt Restplatz im Chat für passende **kleine Punkte** – schlägt sie von sich aus vor.
-- **Lastenheft ist die Grundlage:** Neue Wünsche mit Nummer eintragen, bevor sie gebaut werden. Weiter ab **F-147**.
+- **Lastenheft ist die Grundlage:** Neue Wünsche mit Nummer eintragen, bevor sie gebaut werden. Weiter ab **F-150**.
 - **Sammelmodus** `>START` … `<ENDE`.
 - **Terminal-Anleitungen:** immer nur den nächsten Schritt, dann nachfragen.
 - **Übergaberegel:** nach jeder Ausbaustufe, spätestens bei 60–70 % Chat-Füllstand, nie mitten in einer Aufgabe; Claude kündigt sie vorher an.

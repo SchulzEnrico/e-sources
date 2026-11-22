@@ -1086,7 +1086,7 @@ describe('F-144, F-145 Kategorien sortieren, Beispiel-Lesezeichen', () => {
 
 describe('F-28/F-29 Gesamtfokus und Übersicht', () => {
   it('Pegel folgt der Voreinstellung', () => {
-    expect([0, 1, 2, 4, 10, 11, 14, 15, 18, 19, 22, 23].map((p) => F.focusLevel(p))).toEqual([0, 1, 1, 2, 5, 6, 6, 7, 7, 8, 8, 9]);
+    expect([0, 1, 2, 4, 10, 11, 14, 15, 18, 19, 22, 23].map((p) => F.focusLevel(p))).toEqual([0, 1, 2, 3, 6, 6, 7, 7, 8, 8, 9, 9]);
     expect(F.colorOfLevel(5)).toBe('grün');
     expect(F.colorOfLevel(9)).toBe('rot');
   });

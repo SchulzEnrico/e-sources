@@ -18,6 +18,7 @@ import * as Probe from './probe';
 import * as S from './sizing';
 import * as H from './help';
 import * as Tour from './tour';
+import * as C from './cycle';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -147,6 +148,18 @@ describe('F-08, F-09 Stapel', () => {
     const after = v.slots.find((s) => s.id === right.id)!;
     expect(after.panels.map((m) => m.id)).toEqual([right.front.id, ws.panels[4].id]);
     expect(after.front.id).toBe(ws.panels[4].id);
+  });
+
+  it('F-114: addPanel übernimmt eine vorgegebene Id (Probe und echtes Portal gleich)', () => {
+    let ws = W.defaultWorkspace();
+    const pa = P(ws, MONITOR2, ws.panels[0].id);
+    ws = W.addPanel(ws, MONITOR2, pa, 'fest-1');
+    expect(ws.panels.at(-1)!.id).toBe('fest-1');
+    const s = W.viewOf(ws, MONITOR2).slots.find((x) => x.id === pa)!;
+    expect(s.front.id).toBe('fest-1');
+    // ohne Id weiter eine neue
+    ws = W.addPanel(ws, MONITOR2);
+    expect(ws.panels.at(-1)!.id).not.toBe('fest-1');
   });
 
   it('F-09: an jeder Area lässt sich ein Panel obendrauf legen', () => {
@@ -1573,5 +1586,27 @@ describe('F-172 Tour „Cockpit“', () => {
   it('in Suche und Hilfe: „Tour Cockpit“', () => {
     expect(H.searchHelp('Tour Cockpit')[0].id).toBe('tourCockpit');
     expect(H.helpById('tourCockpit')?.run).toBe('tourCockpit');
+  });
+});
+
+// ---------------------------------------------------------------- F-23 Tab/Portal per Kürzel
+
+describe('F-23 Weiterschalten', () => {
+  it('stepIn läuft rundherum, auch rückwärts', () => {
+    expect(C.stepIn(['a', 'b', 'c'], 'c', 1)).toBe('a');
+    expect(C.stepIn(['a', 'b', 'c'], 'a', -1)).toBe('c');
+    expect(C.stepIn(['a', 'b'], 'x', 1)).toBe('a');
+    expect(C.stepIn(['a', 'b'], null, -1)).toBe('b');
+    expect(C.stepIn([], 'a', 1)).toBeNull();
+  });
+  it('nextTabOf und Ansage', () => {
+    const p = W.newPanel('Recherche');
+    expect(C.nextTabOf(p, 1)).toBeNull();
+    const t2 = { id: 't2', url: 'https://www.wikipedia.org/' };
+    const q = { ...p, tabs: [...p.tabs, t2] };
+    expect(C.nextTabOf(q, 1)).toBe('t2');
+    expect(C.nextTabOf(q, -1)).toBe('t2');
+    expect(C.tabSaid(q, 't2')).toBe('Tab 2 von 2 in „Recherche“: wikipedia.org');
+    expect(C.portalSaid({ ...q, activeTab: 't2' }, 1, 4, 3)).toBe('Portal 2 von 4: „Recherche“, 2 Tabs, sichtbar wikipedia.org, Stack mit 3 Portalen');
   });
 });

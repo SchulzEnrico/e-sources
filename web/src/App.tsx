@@ -37,6 +37,7 @@ import type { HelpEntry } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, tryPlace, viewOf } from './workspace/workspace';
 import { TERMS } from './workspace/terms';
+import { PORTAL_ALONE, nextTabOf, portalSaid, stepIn, tabAlone, tabSaid } from './workspace/cycle';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -343,6 +344,14 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => sizeKeyRef.current(e);
     // Erfassungsphase: im Größen-Modus gehen Pfeile, Esc usw. nicht an andere Kürzel.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+  /** F-23: Ansage nach Tab-/Portal-Wechsel per Kürzel (eigene, immer vorhandene Live-Region). */
+  const [cycleSaid, setCycleSaid] = useState('');
+  const cycleKeyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => cycleKeyRef.current(e);
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, []);
@@ -865,6 +874,53 @@ export default function App() {
     dispatch({ type: 'setLayout', setup, tree: next });
     const r = T.rects(next).get(slot.id);
     if (r) setSizeSaid(arrangeText(name, r));
+  };
+
+  /**
+   * F-23: Alt/⌥+T = nächster Tab im aktiven Portal, Alt/⌥+P = nächstes Portal (Slots in
+   * Lesereihenfolge, im Solo- und 2er-View wird mitgeschaltet); mit Umschalt jeweils rückwärts.
+   * Danach liegt der Tastaturfokus auf dem sichtbaren Tab, die Ansage geht an die Live-Region.
+   */
+  cycleKeyRef.current = (e: KeyboardEvent) => {
+    if (!e.altKey || e.ctrlKey || e.metaKey || (e.code !== 'KeyT' && e.code !== 'KeyP')) return;
+    // nicht hinter offenen Dialogen (Hilfe, Design, Hinweis, Tour)
+    if (document.querySelector('[aria-modal="true"], dialog:modal')) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const dir = e.shiftKey ? -1 : 1;
+    const say = (text: string) => {
+      // gleicher Text zweimal hintereinander soll erneut angesagt werden
+      setCycleSaid((old) => (old === text ? `${text}\u00a0` : text));
+      if (sizeMode) setSizeSaid(text);
+    };
+    const focusTab = (id: string) =>
+      // nach dem Neuzeichnen (setTimeout statt requestAnimationFrame: läuft auch, wenn das Fenster im Hintergrund ist)
+      window.setTimeout(() =>
+        document.querySelector<HTMLElement>(`[data-panel-id="${id}"] [role="tab"][aria-selected="true"]`)?.focus({ preventScroll: true }),
+      );
+    const cur = currentPanel();
+    if (!cur) return say('Lege zuerst einen Slot an.');
+    if (e.code === 'KeyT') {
+      const meta = ws.panels.find((x) => x.id === cur);
+      if (!meta) return;
+      setActive(cur);
+      const next = nextTabOf(meta, dir);
+      if (!next) return say(tabAlone(meta));
+      dispatch({ type: 'selectTab', id: cur, tab: next });
+      say(tabSaid(meta, next));
+      return focusTab(cur);
+    }
+    const order = T.readingOrder(shownView.tree);
+    const slots = order.map((sid) => shownView.slots.find((s) => s.id === sid)).filter((s): s is Slot => !!s);
+    if (slots.length < 2) return say(PORTAL_ALONE);
+    const here = slots.find((s) => s.panels.some((x) => x.id === cur)) ?? null;
+    const next = stepIn(slots, here, dir);
+    if (!next) return;
+    const id = next.front.id;
+    setActive(id);
+    if (mode.kind === 'max') setMode({ kind: 'max', id });
+    say(portalSaid(next.front, slots.indexOf(next), slots.length, next.panels.length));
+    focusTab(id);
   };
 
   /**
@@ -1611,6 +1667,10 @@ export default function App() {
           </button>
         </div>
       )}
+      {/* F-23: Ansage für Tab-/Portal-Wechsel per Kürzel */}
+      <span className="sr-only" role="status" aria-live="polite">
+        {cycleSaid}
+      </span>
       {flash && !swapFrom && (
         <div className="toast" role="status">
           <span>{flash}</span>

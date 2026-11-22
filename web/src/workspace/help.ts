@@ -63,6 +63,8 @@ export const HELP: HelpEntry[] = [
 
   // Bedienung
   { id: 'adjust', group: 'Bedienung', name: 'Adjust', text: 'Größen der Portale per Tastatur oder Mausrad ändern: Pfeile oder W A S D verschieben die Kante, Umschalt die andere, Tab wechselt den Slot, M maximiert. Leertaste, Enter oder Esc beendet.', keys: 'Alt/⌥+A', run: 'adjust', words: ['Größe', 'Größen-Modus', 'breiter', 'schmaler', 'höher', 'Kante'] },
+  { id: 'nextTab', group: 'Bedienung', name: 'Nächster / voriger Tab', text: 'Wechselt im aktiven Portal zum nächsten Tab, mit Umschalt zum vorigen, und sagt an, welcher es ist. Steht der Fokus auf einem Tab, gehen auch die Pfeiltasten.', keys: 'Alt/⌥+T · Umschalt+Alt/⌥+T', words: ['Tab wechseln', 'Reiter', 'weiterschalten', 'Strg+Tab'] },
+  { id: 'nextPortal', group: 'Bedienung', name: 'Nächstes / voriges Portal', text: 'Macht das nächste Portal aktiv (von links oben nach rechts unten), mit Umschalt das vorige, und sagt an, welches es ist. Im Solo-View wird das gezeigte Portal mitgewechselt.', keys: 'Alt/⌥+P · Umschalt+Alt/⌥+P', words: ['Portal wechseln', 'Panel', 'weiterschalten', 'aktiv'] },
   { id: 'distribute', group: 'Bedienung', name: 'Gleich verteilen', text: 'Macht alle Slots dieses Desks gleich groß.', keys: 'Alt/⌥+G', run: 'distribute', words: ['gleich groß', 'ordnen', 'aufräumen', 'Größe'] },
   { id: 'swap', group: 'Bedienung', name: 'Portale tauschen oder versetzen', text: 'Portal am Namen ziehen: auf die Mitte eines anderen Portals = tauschen, an den Rand = dort einsetzen.', words: ['verschieben', 'ziehen', 'Drag', 'umsortieren'] },
   { id: 'rename', group: 'Bedienung', name: 'Umbenennen', text: 'Doppelklick auf den Namen eines Portals oder Stack-Eintrags; den Desk-Namen per Klick.', keys: 'F2', words: ['Name', 'benennen'] },

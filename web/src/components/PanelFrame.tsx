@@ -824,6 +824,17 @@ export function PanelFrame(p: Props) {
               key={t.id}
               role="tab"
               aria-selected={t.id === tab.id}
+              // F-23: nur der sichtbare Tab liegt in der Tab-Reihenfolge; Pfeile wechseln (Muster „Tabs“ der WAI-ARIA)
+              tabIndex={t.id === tab.id ? 0 : -1}
+              onKeyDown={(e) => {
+                const n = p.panel.tabs.length;
+                const to = e.key === 'ArrowRight' ? (i + 1) % n : e.key === 'ArrowLeft' ? (i - 1 + n) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1;
+                if (to < 0 || e.target !== e.currentTarget) return;
+                e.preventDefault();
+                const el = e.currentTarget.parentElement;
+                p.onSelectTab(p.panel.tabs[to].id);
+                window.setTimeout(() => el?.querySelectorAll<HTMLElement>('[role="tab"]')[to]?.focus());
+              }}
               className={t.id === tab.id ? 'tab tab--on' : 'tab'}
               draggable
               onDragStart={(e) => {

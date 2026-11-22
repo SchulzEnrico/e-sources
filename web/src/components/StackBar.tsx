@@ -1,6 +1,7 @@
 import { useRef, useState, type PointerEvent, type TouchEvent, type WheelEvent } from 'react';
 import type { PanelMeta } from '../workspace/types';
 import { StackAddIcon } from './PanelFrame';
+import { TERMS } from '../workspace/terms';
 
 /** F-08: Stapel-Leiste rechts am Panel – Klick wählt, Mausrad und Pfeile blättern. */
 export interface StackProps {
@@ -42,12 +43,15 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
   return (
     // Schmal (Zähler und Nummern); bei Hover oder Antippen klappt die Leiste mit Namen
     // nach links über den Inhalt aus, ohne ihn zu verschieben (NF-06).
-    <div className="stack" onWheel={onWheel} role="tablist" aria-orientation="vertical" aria-label="Stapel">
+    <div className="stack" onWheel={onWheel} role="tablist" aria-orientation="vertical" aria-label="Stack" title={TERMS.stack}>
       <div className="stack__inner">
-        <button type="button" className="stack__step" onClick={() => onStep(-1)} title="Vorheriges Panel im Stapel" aria-label="Vorheriges">
+        <span className="stack__label" aria-hidden="true">
+          Stack · {members.length} Portale
+        </span>
+        <button type="button" className="stack__step" onClick={() => onStep(-1)} title="Vorheriges Portal im Stack" aria-label="Vorheriges">
           ▲
         </button>
-        <span className="stack__count" title={`${members.length} Panels im Stapel`}>
+        <span className="stack__count" title={`Stack: ${members.length} Portale übereinander auf diesem Slot – ▲/▼ oder Mausrad blättert`}>
           {index + 1}/{members.length}
         </span>
         <div className="stack__list">
@@ -66,7 +70,7 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
                     if (e.key === 'Enter') commit();
                     if (e.key === 'Escape') setEditing(null);
                   }}
-                  aria-label="Panelname"
+                  aria-label="Portalname"
                 />
               </div>
             ) : (
@@ -84,7 +88,7 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
                 setDraft(m.name);
                 setEditing(m.id);
               }}
-              title={`${m.name} · Doppelklick oder F2: umbenennen · Entf: schließen${onDragStart ? ' · Ziehen: in einem anderen Panel ablegen' : ''}`}
+              title={`${m.name} · Doppelklick oder F2: umbenennen · Entf: schließen${onDragStart ? ' · Ziehen: in einem anderen Portal ablegen' : ''}`}
               aria-keyshortcuts="F2 Delete"
               // NF-03: Das × ist mit der Maus erreichbar; per Tastatur schließt Entf, F2 benennt um.
               onKeyDown={(e) => {
@@ -117,11 +121,11 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
             ),
           )}
         </div>
-        <button type="button" className="stack__step" onClick={() => onStep(1)} title="Nächstes Panel im Stapel" aria-label="Nächstes">
+        <button type="button" className="stack__step" onClick={() => onStep(1)} title="Nächstes Portal im Stack" aria-label="Nächstes">
           ▼
         </button>
         {onAdd && (
-          <button type="button" className="stack__step stack__add" onClick={onAdd} title={`Neues Panel auf „${members[index]?.name ?? ''}“ legen`} aria-label="Neues Panel auf diesen Stapel legen">
+          <button type="button" className="stack__step stack__add" onClick={onAdd} title={`Neues Portal auf „${members[index]?.name ?? ''}“ legen`} aria-label="Neues Portal auf diesen Stack legen">
             <StackAddIcon />
           </button>
         )}

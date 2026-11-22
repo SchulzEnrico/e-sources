@@ -77,7 +77,7 @@ export function Ruler(props: { settings: RulerSettings; onStyle: (change: { labe
         <button type="button" className={labels ? 'on' : ''} onClick={() => props.onStyle({ labels: !labels })} title="Zahlen ein/aus" aria-label="Zahlen ein- oder ausblenden" aria-pressed={labels}>
           123
         </button>
-        <button type="button" onClick={props.onClose} title="Lineal in diesem Panel ausblenden" aria-label="Lineal ausblenden">
+        <button type="button" onClick={props.onClose} title="Lineal in diesem Portal ausblenden" aria-label="Lineal ausblenden">
           ×
         </button>
       </div>

@@ -803,12 +803,12 @@ describe('F-128 Area', () => {
     const [a, b] = ws.panels.map((p) => p.id);
     expect(W.areaLabel(ws, slotWith(ws, MONITOR2, a))).toBe('');
     ws = W.addPanel(ws, MONITOR2, P(ws, MONITOR2, a));
-    expect(W.areaLabel(ws, slotWith(ws, MONITOR2, a))).toBe('NewArea 1');
+    expect(W.areaLabel(ws, slotWith(ws, MONITOR2, a))).toBe('Slot 1');
     ws = W.addPanel(ws, MONITOR2, P(ws, MONITOR2, b));
-    expect(W.areaLabel(ws, slotWith(ws, MONITOR2, b))).toBe('NewArea 2');
+    expect(W.areaLabel(ws, slotWith(ws, MONITOR2, b))).toBe('Slot 2');
     // weiteres Panel auf den ersten Stapel: Name bleibt, keine neue Nummer
     ws = W.addPanel(ws, MONITOR2, P(ws, MONITOR2, a));
-    expect(W.areaLabel(ws, slotWith(ws, MONITOR2, a))).toBe('NewArea 1');
+    expect(W.areaLabel(ws, slotWith(ws, MONITOR2, a))).toBe('Slot 1');
     expect(ws.areaNames).toHaveLength(2);
     expect(ws.nextArea).toBe(3);
   });
@@ -830,7 +830,7 @@ describe('F-128 Area', () => {
     let ws = W.defaultWorkspace();
     expect(W.areaLabel(ws, slotWith(ws, PHONE, ws.panels[0].id))).toBe('');
     ws = W.ensureAreaNames(ws, PHONE);
-    expect(W.areaLabel(ws, slotWith(ws, PHONE, ws.panels[0].id))).toBe('NewArea 1');
+    expect(W.areaLabel(ws, slotWith(ws, PHONE, ws.panels[0].id))).toBe('Slot 1');
     expect(W.ensureAreaNames(ws, PHONE)).toBe(ws);
 
     let ws2 = W.defaultWorkspace();
@@ -1106,7 +1106,7 @@ describe('F-28/F-29 Gesamtfokus und Übersicht', () => {
     expect(f.extraTabs).toBe(2);
     expect(f.points).toBe(ws.panels.length + 1);
     expect(F.focusText(f)).toContain('2 weitere Tabs');
-    expect(F.focusText(F.focusOf({ ...ws, panels: [] }))).toBe('Gesamtfokus: nichts offen');
+    expect(F.focusText(F.focusOf({ ...ws, panels: [] }))).toBe('Fokusanzeige: nichts offen');
   });
 
   it('Übersicht listet jede Area mit ihren Panels', () => {
@@ -1147,7 +1147,7 @@ describe('F-27 Panels herauslösen (Fenster)', () => {
     const ws = W.defaultWorkspace();
     const id = ws.panels[0].id;
     const next = Win.moveToWindow(ws, [id], 'w2');
-    expect(next.windows).toEqual([{ id: 'w2', name: 'Fenster 2' }]);
+    expect(next.windows).toEqual([{ id: 'w2', name: 'Desk 2' }]);
     expect(W.viewOf(next, MONITOR2).slots.flatMap((s) => s.panels.map((p) => p.id))).not.toContain(id);
     expect(W.viewOf(next, W2).slots.flatMap((s) => s.panels.map((p) => p.id))).toEqual([id]);
     // Gesamtfokus zählt alle Fenster
@@ -1167,9 +1167,9 @@ describe('F-27 Panels herauslösen (Fenster)', () => {
     const [a, b] = ws.panels;
     ws = Win.moveToWindow(ws, [a.id], 'x');
     ws = Win.moveToWindow(ws, [b.id], 'y');
-    expect(ws.windows.map((w) => w.name)).toEqual(['Fenster 2', 'Fenster 3']);
+    expect(ws.windows.map((w) => w.name)).toEqual(['Desk 2', 'Desk 3']);
     ws = Win.returnAll(ws, 'x');
-    expect(Win.nextWindowName(ws.windows)).toBe('Fenster 2');
+    expect(Win.nextWindowName(ws.windows)).toBe('Desk 2');
   });
 
   it('Neues Panel in einem Zusatzfenster gehört zu diesem Fenster', () => {
@@ -1200,10 +1200,10 @@ describe('F-27 Panels herauslösen (Fenster)', () => {
     const o = F.overviewOf(ws, W.viewOf(ws, MONITOR2).slots, '', new Set(['', 'w2']));
     const other = o.filter((a) => a.other);
     expect(other).toHaveLength(1);
-    expect(other[0].title).toBe('Fenster 2');
+    expect(other[0].title).toBe('Desk 2');
     expect(other[0].open).toBe(true);
     const fromW2 = F.overviewOf(ws, W.viewOf(ws, W2).slots, 'w2', new Set(['w2']));
-    expect(fromW2.filter((a) => a.other).map((a) => a.title)).toEqual(['Hauptfenster']);
+    expect(fromW2.filter((a) => a.other).map((a) => a.title)).toEqual(['Main Desk']);
     expect(fromW2.filter((a) => a.other)[0].open).toBe(false);
   });
 });
@@ -1226,7 +1226,7 @@ describe('F-28 Verschieben und Gruppieren', () => {
     const stack = slots.find((s) => s.panels.length === 2)!;
     expect(stack.panels.map((p) => p.id)).toEqual([b, a]);
     expect(stack.front.id).toBe(a);
-    expect(W.areaLabel(next, stack)).toBe('NewArea 1');
+    expect(W.areaLabel(next, stack)).toBe('Slot 1');
   });
 
   it('Aus dem Stapel lösen: eigene Area; allein liegend geht es nicht', () => {
@@ -1251,7 +1251,7 @@ describe('F-28 Verschieben und Gruppieren', () => {
     const d = ws.panels.find((p) => ![a, b, c].includes(p.id))!.id;
     const next = W.placePanels(ws, MONITOR2, [d], areaOfId(ws, MONITOR2, c));
     const labels = W.viewOf(next, MONITOR2).slots.map((s) => W.areaLabel(next, s)).sort();
-    expect(labels).toEqual(['NewArea 2', 'Recherche']);
+    expect(labels).toEqual(['Recherche', 'Slot 2']);
   });
 
   it('Eigene Area nur, solange der Bildschirm Platz hat', () => {
@@ -1344,7 +1344,7 @@ describe('F-152 Fokus-Radar als Lagekarte', () => {
     expect(wins.map((w) => [w.win, w.here, w.areas.length])).toEqual([['', true, 10], ['w2', false, 10]]);
     expect(wins[1].open).toBe(true);
     expect(wins[1].areas.every((a) => a.rect !== null && a.panels.length === 9)).toBe(true);
-    expect(wins[0].areas[0].title).toBe('H Area 1');
+    expect(wins[0].areas[0].title).toBe('H Slot 1');
     const hits = wins.flatMap((w) => w.areas.flatMap((a) => a.panels.filter((x) => F.radarMatches(w, a, x, 'f2 3.4'))));
     expect(hits.map((x) => x.meta.name)).toEqual(['F2 3.4']);
   });

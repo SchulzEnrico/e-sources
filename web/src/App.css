@@ -824,6 +824,23 @@ button.is-off:hover,
   justify-content: center;
   padding: 2px 0;
 }
+.stack__label {
+  display: none;
+}
+/* F-154: ausgeklappt steht oben, was die Leiste ist */
+.stack:hover .stack__label,
+.stack:focus-within .stack__label {
+  display: block;
+  padding: 1px 4px 3px;
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--strong);
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(var(--tint), 0.18);
+}
+.tb-win--main {
+  cursor: default;
+}
 .stack__count {
   text-align: center;
   font-size: 0.72em;
@@ -2459,7 +2476,7 @@ button.is-off:hover,
   display: grid;
   grid-template-columns: 1fr auto 1fr;
 }
-.toolbar > .brand-logo { justify-self: start; }
+.toolbar > .brand { justify-self: start; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .toolbar > .focus-meter { justify-self: end; }
 .tb-center {
   display: flex;

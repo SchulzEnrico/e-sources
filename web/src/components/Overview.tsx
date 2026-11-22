@@ -6,6 +6,7 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
+import { TERMS } from '../workspace/terms';
 
 /**
  * F-29: Gesamtfokus als Equalizer-Pegel mit 9 Segmenten (Farben wie F-26/F-68). Ist zugleich der
@@ -31,8 +32,8 @@ export function FocusMeter(props: { focus: Focus; open: boolean; onToggle: () =>
         aria-expanded={open}
         aria-controls="overview"
         aria-haspopup="dialog"
-        aria-label={`${text}. Fokus-Radar ${open ? 'schließen' : 'öffnen'}`}
-        title={`${text} · Klick: Fokus-Radar – alle Panels auf einen Blick (Strg/⌘+.)`}
+        aria-label={`${text}. Cockpit ${open ? 'schließen' : 'öffnen'}`}
+        title={`${text} · Klick: Cockpit – alle Desks und Portale auf einen Blick (Strg/⌘+.)`}
       >
         <span className="focus-meter__bars" aria-hidden="true">
           {Array.from({ length: 9 }, (_, i) => (
@@ -106,8 +107,8 @@ type Dock = { win: string; leaf: string; target: string; zone: T.Side; label: st
 /** F-28: Text eines Ziels, z. B. „Auf „Recherche“ (3)“ oder „Eigene neue Area – kein Platz“. */
 export function targetText(t: MoveTarget, winName: string): string {
   if (!t.area) return `Ins ${winName}`;
-  if (t.area === NEW_AREA) return `Eigene neue Area${t.disabled ? ' – kein Platz' : ''}`;
-  return `In „${t.label}“ ablegen${t.count > 1 ? ` (${t.count})` : ''}${t.disabled ? ' – Stapel voll' : ''}`;
+  if (t.area === NEW_AREA) return `Eigener neuer Slot${t.disabled ? ' – kein Platz' : ''}`;
+  return `In „${t.label}“ ablegen${t.count > 1 ? ` (${t.count})` : ''}${t.disabled ? ' – Stack voll' : ''}`;
 }
 
 /**
@@ -147,11 +148,11 @@ function MovePicker(props: { title: string; targets: MoveTarget[]; here: string;
           ×
         </button>
       </div>
-      {usable.length === 0 && <p className="overview__empty">Gerade ist keine Area frei – nur ein neues Fenster.</p>}
+      {usable.length === 0 && <p className="overview__empty">Gerade ist kein Slot frei – nur ein neuer Desk.</p>}
       {wins.map((w) => {
         const items = props.targets.filter((t) => t.win === w);
         if (items.length === 0) return null;
-        const name = w === props.here ? 'Gleiches Fenster' : props.winName(w);
+        const name = w === props.here ? 'Gleicher Desk' : props.winName(w);
         return (
           <ul key={w || 'main'} className="overview__pick-list" aria-label={name}>
             <li className="overview__pick-win" aria-hidden="true">
@@ -167,10 +168,10 @@ function MovePicker(props: { title: string; targets: MoveTarget[]; here: string;
           </ul>
         );
       })}
-      <ul className="overview__pick-list" aria-label="Neues Fenster">
+      <ul className="overview__pick-list" aria-label="Neuer Desk">
         <li>
           <button type="button" className="overview__target" onClick={props.onNewWindow}>
-            ⧉ In neues Fenster
+            ⧉ Neuer Desk
           </button>
         </li>
       </ul>
@@ -251,13 +252,13 @@ export function Overview(p: OverviewProps) {
   };
   const fetch = (id: string, name: string) => {
     const text = p.onFetch(id);
-    setSaid(text.startsWith('Panel ') ? `Panel „${name}“ in dieses Fenster geholt.` : text);
+    setSaid(text.startsWith('Portal ') ? `Portal „${name}“ auf diesen Desk geholt.` : text);
   };
   const close = (id: string, name: string) => {
     const i = order.indexOf(id);
     const next = order[i + 1] ?? order[i - 1] ?? null;
     p.onClose(id);
-    setSaid(`Panel „${name}“ geschlossen.`);
+    setSaid(`Portal „${name}“ geschlossen.`);
     if (next) toRow(next);
     else toTile(sel ?? undefined);
   };
@@ -350,7 +351,7 @@ export function Overview(p: OverviewProps) {
       if (!d?.target) return;
       const winName = windowName(p.ws, d.target.win);
       if (d.target.disabled) {
-        setSaid(d.target.area === NEW_AREA ? `Keine freie Area in ${winName}.` : 'Dieser Stapel ist voll (9 Panels).');
+        setSaid(d.target.area === NEW_AREA ? `Kein freier Slot in ${winName}.` : 'Dieser Stack ist voll (9 Portale).');
         return;
       }
       // Die Ansage kommt von der Anwendung („… jetzt auf …“), hier nicht doppelt.
@@ -363,8 +364,8 @@ export function Overview(p: OverviewProps) {
   const dropText = (d: NonNullable<typeof drag>) => {
     if (d.dock) return d.dock.target === T.AREA ? ` → am ${SIDE_EDGE[d.dock.zone]} Rand einsetzen` : ` → ${SIDE_AT[d.dock.zone]} „${d.dock.label}“ einsetzen`;
     if (!d.target) return '';
-    if (d.target.disabled) return d.target.area === NEW_AREA ? ' → kein Platz für eine neue Area' : ' → Stapel voll';
-    if (d.target.area === NEW_AREA) return ' → eigene neue Area';
+    if (d.target.disabled) return d.target.area === NEW_AREA ? ' → kein Platz für einen neuen Slot' : ' → Stack voll';
+    if (d.target.area === NEW_AREA) return ' → eigener neuer Slot';
     if (!d.target.area) return ` → ins ${windowName(p.ws, d.target.win)}`;
     return ` → in „${d.target.label}“ ablegen`;
   };
@@ -401,7 +402,7 @@ export function Overview(p: OverviewProps) {
     const leaf = leafOf(t);
     const tree = t.w.tree;
     if (!leaf || !tree) {
-      setSaid(`Die Anordnung von ${t.w.title} ist noch unbekannt – das Fenster war noch nicht offen.`);
+      setSaid(`Die Anordnung von ${t.w.title} ist noch unbekannt – der Desk war noch nicht offen.`);
       return;
     }
     const dirs: Record<string, [number, number, T.Side]> = { ArrowRight: [1, 0, 'right'], ArrowLeft: [-1, 0, 'left'], ArrowDown: [0, 1, 'bottom'], ArrowUp: [0, -1, 'top'] };
@@ -553,7 +554,7 @@ export function Overview(p: OverviewProps) {
             className="overview__input"
             value={draft}
             autoFocus
-            aria-label="Neuer Panelname"
+            aria-label="Neuer Portalname"
             onFocus={(e) => e.target.select()}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
@@ -602,11 +603,11 @@ export function Overview(p: OverviewProps) {
           <span className="overview__tabs">{x.tabs}</span>
           <span className="overview__back">{stacked && x.front ? 'vorn' : ''}</span>
         </button>
-        <button type="button" className="overview__tool" tabIndex={-1} title="Verschieben (V, ganze Area: Umschalt+V)" aria-label={`„${x.meta.name}“ verschieben`} onClick={(e) => setMoving({ id, whole: e.shiftKey })}>
+        <button type="button" className="overview__tool" tabIndex={-1} title="Verschieben (V, ganzer Slot: Umschalt+V)" aria-label={`„${x.meta.name}“ verschieben`} onClick={(e) => setMoving({ id, whole: e.shiftKey })}>
           ↦
         </button>
         {a.other && (
-          <button type="button" className="overview__tool" tabIndex={-1} title="Hierher holen (H)" aria-label={`„${x.meta.name}“ in dieses Fenster holen`} onClick={() => fetch(id, x.meta.name)}>
+          <button type="button" className="overview__tool" tabIndex={-1} title="Hierher holen (H)" aria-label={`„${x.meta.name}“ auf diesen Desk holen`} onClick={() => fetch(id, x.meta.name)}>
             ⇣
           </button>
         )}
@@ -623,7 +624,7 @@ export function Overview(p: OverviewProps) {
         >
           ✎
         </button>
-        <button type="button" className="overview__tool overview__tool--x" tabIndex={-1} title="Panel schließen (Entf)" aria-label={`„${x.meta.name}“ schließen`} onClick={() => close(id, x.meta.name)}>
+        <button type="button" className="overview__tool overview__tool--x" tabIndex={-1} title="Portal schließen (Entf)" aria-label={`„${x.meta.name}“ schließen`} onClick={() => close(id, x.meta.name)}>
           ×
         </button>
       </li>
@@ -631,10 +632,10 @@ export function Overview(p: OverviewProps) {
   };
 
   const map = (w: RadarWindow) => (
-    <section key={w.win || 'main'} className={w.here ? 'radar__win' : 'radar__win is-other'} aria-label={`${w.here ? 'Dieses Fenster' : w.title}${w.here ? '' : w.open ? ', offen' : ', geschlossen'}`}>
+    <section key={w.win || 'main'} className={w.here ? 'radar__win' : 'radar__win is-other'} aria-label={`${w.here ? 'Dieser Desk' : w.title}${w.here ? '' : w.open ? ', offen' : ', geschlossen'}`}>
       <div className="radar__win-head">
-        <strong>{w.here ? `Dieses Fenster · ${w.title}` : w.title}</strong>
-        <span className="muted">{w.areas.reduce((n, a) => n + a.panels.length, 0)} Panels</span>
+        <strong>{w.here ? `Dieser Desk · ${w.title}` : w.title}</strong>
+        <span className="muted">{w.areas.reduce((n, a) => n + a.panels.length, 0)} Portale</span>
         {/* F-27: Zustand nicht nur als Farbe, sondern als Wort */}
         {!w.here && <span className={w.open ? 'overview__state is-open' : 'overview__state'}>{w.open ? 'offen' : 'geschlossen'}</span>}
         {!w.here && (
@@ -648,14 +649,14 @@ export function Overview(p: OverviewProps) {
                 setSaid(p.onFetchAll(w.win));
               }}
             >
-              {p.win ? 'Alle hierher holen' : 'Alle ins Hauptfenster holen'}
+              {p.win ? 'Alle hierher holen' : 'Alle auf den Main Desk holen'}
             </button>
           </>
         )}
       </div>
       {drag && (
         <div className={drag.over === `new:${w.win}` ? `radar__new is-drop${drag.target?.disabled ? ' is-no' : ''}` : 'radar__new'} data-win={w.win} aria-hidden="true">
-          ＋ Eigene neue Area{w.here ? '' : ` in ${w.title}`}
+          ＋ Eigener neuer Slot{w.here ? '' : ` in ${w.title}`}
         </div>
       )}
       <div
@@ -699,11 +700,11 @@ export function Overview(p: OverviewProps) {
               data-win={w.win}
               data-area={realArea}
               data-title={a.title}
-              title={realArea ? 'Ziehen: Mitte = im Panel ablegen, Rand = an dieser Position einsetzen · Alt+Pfeil einsetzen, Alt+Umschalt+Pfeil Größe' : undefined}
+              title={realArea ? 'Ziehen: Mitte = im Portal ablegen, Rand = an dieser Position einsetzen · Alt+Pfeil einsetzen, Alt+Umschalt+Pfeil Größe' : undefined}
               style={{ left: `calc(${r.x * 100}% + 2px)`, top: `calc(${r.y * 100}% + 2px)`, width: `calc(${r.w * 100}% - 4px)`, height: `calc(${r.h * 100}% - 4px)` }}
               tabIndex={on ? 0 : -1}
               aria-pressed={on}
-              aria-label={`${a.title}, ${n} ${n === 1 ? 'Panel' : 'Panels'}${n > 1 && front ? `, vorn ${front.meta.name}` : ''}${hasActive ? ', enthält das aktive Panel' : ''}`}
+              aria-label={`${a.title}, ${n} ${n === 1 ? 'Portal' : 'Portale'}${n > 1 && front ? `, vorn ${front.meta.name}` : ''}${hasActive ? ', enthält das aktive Portal' : ''}`}
               onFocus={() => setSel(a.id)}
               onPointerDown={(e) => front && n > 0 && startDrag(e, front.meta.id, true, a.title, a.id, realArea || null, w.win)}
               onClick={() => {
@@ -717,7 +718,7 @@ export function Overview(p: OverviewProps) {
               {/* F-153: Was beim Loslassen passiert – in Worten, nicht nur als Farbe */}
               {(over || dockHere) && (
                 <span className="radar__droplabel" aria-hidden="true">
-                  {dockHere ? 'An dieser Position einsetzen' : drag?.target?.disabled ? 'Stapel voll' : 'Im Panel ablegen'}
+                  {dockHere ? 'An dieser Position einsetzen' : drag?.target?.disabled ? 'Stack voll' : 'Im Portal ablegen'}
                 </span>
               )}
               <span className="radar__title">{a.title}</span>
@@ -765,7 +766,7 @@ export function Overview(p: OverviewProps) {
   const detailHead = q
     ? `${rows.length} ${rows.length === 1 ? 'Treffer' : 'Treffer'} für „${q}“`
     : selTile
-      ? `${selTile.w.here ? '' : `${selTile.w.title} · `}${selTile.a.title} · ${selTile.a.panels.length} ${selTile.a.panels.length === 1 ? 'Panel' : 'Panels'}`
+      ? `${selTile.w.here ? '' : `${selTile.w.title} · `}${selTile.a.title} · ${selTile.a.panels.length} ${selTile.a.panels.length === 1 ? 'Portal' : 'Portale'}`
       : '';
 
   return (
@@ -776,7 +777,7 @@ export function Overview(p: OverviewProps) {
         ref={box}
         className="overview"
         role="dialog"
-        aria-label="Fokus-Radar: alle Panels auf einen Blick"
+        aria-label="Cockpit: alle Portale auf einen Blick"
         aria-describedby="overview-help"
         style={{ top: p.top }}
         onBlur={(e) => {
@@ -792,7 +793,7 @@ export function Overview(p: OverviewProps) {
         }}
       >
         <div className="overview__head">
-          <strong>Fokus-Radar</strong>
+          <strong title={TERMS.cockpit}>Cockpit</strong>
           <span className="overview__focus">{focusText(p.focus)}</span>
           <span className="overview__focus">{p.info}</span>
           <span className="grow" />
@@ -801,8 +802,8 @@ export function Overview(p: OverviewProps) {
             className="radar__filter"
             type="search"
             value={query}
-            placeholder="Filtern: Panel, Area, Fenster, Seite …"
-            aria-label="Panels filtern"
+            placeholder="Filtern: Portal, Slot, Desk, Source …"
+            aria-label="Portale filtern"
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
@@ -815,7 +816,7 @@ export function Overview(p: OverviewProps) {
               }
             }}
           />
-          <button type="button" className="overview__x" onClick={dismiss} title="Fokus-Radar schließen (Esc)" aria-label="Fokus-Radar schließen">
+          <button type="button" className="overview__x" onClick={dismiss} title="Cockpit schließen (Esc)" aria-label="Cockpit schließen">
             ×
           </button>
         </div>
@@ -826,7 +827,7 @@ export function Overview(p: OverviewProps) {
           (() => {
             const m = p.ws.panels.find((x) => x.id === moving.id);
             if (!m) return null;
-            const title = moving.whole ? `Ganze Area von „${m.name}“ verschieben nach …` : `„${m.name}“ verschieben nach …`;
+            const title = moving.whole ? `Ganzen Slot von „${m.name}“ verschieben nach …` : `„${m.name}“ verschieben nach …`;
             return (
               <MovePicker
                 title={title}
@@ -839,12 +840,12 @@ export function Overview(p: OverviewProps) {
                 }}
                 onNewWindow={() => {
                   p.onNewWindow(moving.id, moving.whole);
-                  setSaid(`${moving.whole ? 'Area' : `„${m.name}“`} in ein neues Fenster verschoben.`);
+                  setSaid(`${moving.whole ? 'Slot' : `„${m.name}“`} auf einen neuen Desk verschoben.`);
                   setMoving(null);
                 }}
                 onPick={(t) => {
                   p.onMove(moving.id, t, moving.whole);
-                  setSaid(`${moving.whole ? 'Area' : `„${m.name}“`} verschoben: ${targetText(t, windowName(p.ws, t.win))}${t.area && t.win !== (m.win ?? '') ? `, ${windowName(p.ws, t.win)}` : ''}.`);
+                  setSaid(`${moving.whole ? 'Slot' : `„${m.name}“`} verschoben: ${targetText(t, windowName(p.ws, t.win))}${t.area && t.win !== (m.win ?? '') ? `, ${windowName(p.ws, t.win)}` : ''}.`);
                   setMoving(null);
                   toRow(moving.id);
                 }}
@@ -852,19 +853,19 @@ export function Overview(p: OverviewProps) {
             );
           })()}
         {tiles.length === 0 ? (
-          <p className="overview__empty">Noch keine Panels – lege oben mit „+ NewArea“ eine an.</p>
+          <p className="overview__empty">Noch keine Portale – lege oben mit „+ NewSlot“ eine an.</p>
         ) : (
           <div className="radar">
             <div className="radar__maps">{wins.map(map)}</div>
             <section className="radar__detail" aria-label={detailHead}>
               <h3 className="radar__detail-head">{detailHead}</h3>
-              {rows.length === 0 ? <p className="overview__empty">Kein Panel passt.</p> : <ul className="overview__list">{rows.map(row)}</ul>}
+              {rows.length === 0 ? <p className="overview__empty">Kein Portal passt.</p> : <ul className="overview__list">{rows.map(row)}</ul>}
             </section>
           </div>
         )}
         {drag && (
           <div className="ghost radar__ghost" style={{ left: drag.x + 14, top: drag.y + 14 }} aria-hidden="true">
-            {drag.whole ? `Area „${drag.name}“` : drag.name}
+            {drag.whole ? `Slot „${drag.name}“` : drag.name}
             {dropText(drag)}
           </div>
         )}

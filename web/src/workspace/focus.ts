@@ -64,9 +64,9 @@ export const pointsText = (n: number) => String(n).replace('.', ',');
 
 /** Satz für Bildschirmleser und Tooltip. */
 export function focusText(f: Focus): string {
-  if (f.panels === 0) return 'Gesamtfokus: nichts offen';
+  if (f.panels === 0) return 'Fokusanzeige: nichts offen';
   const tabs = f.extraTabs ? `, ${f.extraTabs} weitere ${f.extraTabs === 1 ? 'Tab' : 'Tabs'}` : '';
-  return `Gesamtfokus: ${f.color}, ${pointsText(f.points)} Punkte (${f.panels} ${f.panels === 1 ? 'Panel' : 'Panels'}${tabs})`;
+  return `Fokusanzeige: ${f.color}, ${pointsText(f.points)} Punkte (${f.panels} ${f.panels === 1 ? 'Portal' : 'Portale'}${tabs})`;
 }
 
 // ---------------------------------------------------------------- F-28 Fokus-Radar (bisher Master-Panel)
@@ -108,7 +108,7 @@ export function overviewOf(ws: Workspace, slots: Slot[], win = '', open: Set<str
     win,
     other: false,
     open: true,
-    title: areaLabel(ws, s) || `Area ${i + 1}`,
+    title: areaLabel(ws, s) || `Slot ${i + 1}`,
     panels: s.panels.map((p) => rowOf(p, p.id === s.front.id)),
   }));
   const others = windowList(ws)
@@ -167,11 +167,11 @@ export function radarOf(ws: Workspace, slots: Slot[], setup: ScreenSetup, open: 
           win: w.id,
           other: !here,
           open: isOpen,
-          title: areaLabel(ws, sl) || (sl.panels.length === 1 ? sl.front.name : `Area ${i + 1}`),
+          title: areaLabel(ws, sl) || (sl.panels.length === 1 ? sl.front.name : `Slot ${i + 1}`),
           panels: sl.panels.map((p) => rowOf(p, p.id === sl.front.id)),
           rect: sl.rect,
         }))
-      : [{ id: `win:${w.id}`, win: w.id, other: true, open: isOpen, title: 'Alle Panels', panels: panels.map((p) => rowOf(p, true)), rect: null }];
+      : [{ id: `win:${w.id}`, win: w.id, other: true, open: isOpen, title: 'Alle Portale', panels: panels.map((p) => rowOf(p, true)), rect: null }];
     out.push({ win: w.id, title: w.name, here, open: isOpen, aspect: s ? specOf(s).aspect : 1.6, tree: v?.tree ?? null, areas });
   }
   return out.sort((a, b) => Number(b.here) - Number(a.here));

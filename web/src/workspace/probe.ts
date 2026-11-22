@@ -28,7 +28,7 @@ export function probeWorkspace(): Workspace {
     const areas: Record<string, Area> = {};
     for (let a = 1; a <= spec.capacity; a++) {
       const nameId = `n-${label}-${a}`;
-      areaNames.push({ id: nameId, name: `${label} Area ${a}` });
+      areaNames.push({ id: nameId, name: `${label} Slot ${a}` });
       const ids: string[] = [];
       for (let p = 1; p <= STACK_MAX; p++) {
         const id = `p-${label}-${a}-${p}`;
@@ -44,5 +44,5 @@ export function probeWorkspace(): Workspace {
     if (tree) layouts[layoutKey(setup)] = { tree, areas };
     winSetup[w] = layoutKey(setup);
   }
-  return { ...base, panels, layouts, areaNames, nextArea: 1, nextNumber: 1, windows: [{ id: 'w2', name: 'Fenster 2 (Test)' }], winSetup };
+  return { ...base, panels, layouts, areaNames, nextArea: 1, nextNumber: 1, windows: [{ id: 'w2', name: 'Desk 2 (Test)' }], winSetup };
 }

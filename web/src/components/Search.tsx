@@ -158,7 +158,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
     ? ''
     : items.length === 0
       ? 'Nichts gefunden.'
-      : `${panelHits.length} ${panelHits.length === 1 ? 'Panel' : 'Panels'}, ${hits.length} Lesezeichen gefunden. Pfeiltasten wählen, Enter öffnet.`;
+      : `${panelHits.length} ${panelHits.length === 1 ? 'Portal' : 'Portale'}, ${hits.length} ${hits.length === 1 ? 'Source' : 'Sources'} in der Library gefunden. Pfeiltasten wählen, Enter öffnet.`;
 
   const option = (i: number, label: string, children: ReactNode, title?: string) => (
     <li
@@ -187,8 +187,8 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
         type="search"
         value={query}
         placeholder="Suchen …"
-        title="Panels und Lesezeichen durchsuchen (Strg/⌘+K oder /)"
-        aria-label="Panels und Lesezeichen durchsuchen"
+        title="Portale und Library durchsuchen (Strg/⌘+K oder /)"
+        aria-label="Portale und Library durchsuchen"
         aria-describedby={`${uid}-help`}
         role="combobox"
         aria-autocomplete="list"
@@ -206,7 +206,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
         onKeyDown={onKeyDown}
       />
       <span id={`${uid}-help`} className="sr-only">
-        Sucht in Panels (Name, Area, Szenario) und Lesezeichen (Titel, Adresse, Kategorie, Tags). Pfeiltasten wählen, Enter öffnet, Escape schließt.
+        Sucht in Portalen (Name, Slot, Case) und in der Library (Titel, Adresse, Kategorie, Tags). Pfeiltasten wählen, Enter öffnet, Escape schließt.
       </span>
       {/* Ansage für Bildschirmleser, wie viele Treffer es gibt */}
       <span className="sr-only" role="status" aria-live="polite">
@@ -221,13 +221,13 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
           )}
           {panelHits.length > 0 && (
             <li className="search__head" role="presentation">
-              Panels
+              Portale
             </li>
           )}
           {panelHits.map((h, i) =>
             option(
               i,
-              `Panel ${h.panel.name}${h.tabs.length ? `, geöffnet: ${tabNames(ws, h).join(', ')}` : ''}${h.area ? `, Area ${h.area}` : ''}${h.scenario ? `, Szenario ${h.scenario}` : ''}`,
+              `Portal ${h.panel.name}${h.tabs.length ? `, geöffnet: ${tabNames(ws, h).join(', ')}` : ''}${h.area ? `, Slot ${h.area}` : ''}${h.scenario ? `, Case ${h.scenario}` : ''}`,
               <>
                 <span className="search__title">
                   {h.panel.name}
@@ -255,16 +255,16 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
           )}
           {hits.length > 0 && (
             <li className="search__head" role="presentation">
-              Lesezeichen
+              Library
             </li>
           )}
           {hits.map((h, j) => {
             const i = panelHits.length + j;
-            const where = h.panel ? h.panel.name : `Gesamtsammlung → ${activeName ?? 'aktives Panel'}`;
+            const where = h.panel ? h.panel.name : `Library → ${activeName ?? 'aktives Portal'}`;
             const title = h.bookmark.title || hostOf(h.bookmark.url);
             return option(
               i,
-              `Lesezeichen ${title}, öffnet in ${h.panel ? `Panel ${h.panel.name}` : (activeName ?? 'dem aktiven Panel')}${h.category ? `, Kategorie ${h.category}` : ''}`,
+              `Source ${title}, öffnet in ${h.panel ? `Portal ${h.panel.name}` : (activeName ?? 'dem aktiven Portal')}${h.category ? `, Kategorie ${h.category}` : ''}`,
               <>
                 <span className="search__title">{title}</span>
                 <span className="search__where">

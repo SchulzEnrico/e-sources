@@ -43,7 +43,7 @@ export function newPanel(name: string): PanelMeta {
 }
 
 export function defaultWorkspace(): Workspace {
-  const panels = [1, 2, 3].map((n) => newPanel(`Panel ${n}`));
+  const panels = [1, 2, 3].map((n) => newPanel(`Portal ${n}`));
   return { panels, layouts: {}, preferred: {}, lines: {}, nextNumber: 4, spheres: [], scenarios: [], embed: {}, bookmarks: [], categories: [], ruler: { ...RULER_DEFAULT }, areaNames: [], nextArea: 1, look: { ...LOOK_DEFAULT }, windows: [], winSetup: {} };
 }
 
@@ -233,7 +233,7 @@ const withTree = (arr: Arrangement, tree: T.Node): Arrangement => ({ ...arr, tre
  * Area gehen nicht (F-26): dann bleibt alles, wie es ist.
  */
 export function addPanel(ws: Workspace, setup: ScreenSetup, onArea?: string): Workspace {
-  const meta = inWin(newPanel(`Panel ${ws.nextNumber}`), setup.win);
+  const meta = inWin(newPanel(`Portal ${ws.nextNumber}`), setup.win);
   const v = viewOf(ws, setup);
   const next: Workspace = { ...ws, panels: [...ws.panels, meta], nextNumber: ws.nextNumber + 1 };
   const target = onArea ? v.arrangement?.areas[onArea] : undefined;
@@ -264,7 +264,7 @@ export function canAddArea(ws: Workspace, setup: ScreenSetup): boolean {
  */
 export function addArea(ws: Workspace, setup: ScreenSetup, side: 'right' | 'bottom'): Workspace {
   if (!canAddArea(ws, setup)) return ws;
-  const meta = inWin(newPanel(`Panel ${ws.nextNumber}`), setup.win);
+  const meta = inWin(newPanel(`Portal ${ws.nextNumber}`), setup.win);
   const v = viewOf(ws, setup);
   const next: Workspace = { ...ws, panels: [...ws.panels, meta], nextNumber: ws.nextNumber + 1 };
   if (!v.arrangement) return ensureAreaNames(commit(next, v.key, normalize(panelsIn(next.panels, setup.win), null, v.spec)), setup);
@@ -574,7 +574,7 @@ export function stepStack(ws: Workspace, setup: ScreenSetup, area: string, step:
 // ---------------------------------------------------------------- F-128 Area-Namen
 
 /** Standardname neuer Areas, immer mit laufender Nummer: „NewArea 1“, „NewArea 2“ … */
-export const AREA_DEFAULT = 'NewArea';
+export const AREA_DEFAULT = 'Slot';
 
 /**
  * Name-Id einer Area: die, zu der die meisten ihrer Panels gehören; bei Gleichstand die des

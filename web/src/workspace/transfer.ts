@@ -40,15 +40,15 @@ export function readTransferFile(text: string): ReadResult {
   } catch {
     return { ok: false, error: 'Die Datei ist kein gültiges JSON.' };
   }
-  if (!data || typeof data !== 'object') return { ok: false, error: 'Die Datei enthält keine Arbeitsfläche.' };
+  if (!data || typeof data !== 'object') return { ok: false, error: 'Die Datei enthält keinen E-Sources-Stand.' };
   const d = data as Record<string, unknown>;
-  if (d.format !== FILE_FORMAT) return { ok: false, error: 'Das ist keine Arbeitsflächen-Datei von E-Sources.' };
+  if (d.format !== FILE_FORMAT) return { ok: false, error: 'Das ist keine Sicherungsdatei von E-Sources.' };
   if (typeof d.version !== 'number' || d.version > FILE_VERSION)
-    return { ok: false, error: 'Die Datei stammt aus einer neueren E-Sources-Version. Bitte diese Seite neu laden.' };
+    return { ok: false, error: 'Die Datei stammt aus einer neueren E-Sources-Version. Bitte E-Sources neu laden.' };
   const savedAt = typeof d.savedAt === 'string' && !Number.isNaN(Date.parse(d.savedAt)) ? d.savedAt : null;
   if (!savedAt) return { ok: false, error: 'In der Datei fehlt der Speicherzeitpunkt.' };
   const ws = parseWorkspace(d.workspace);
-  if (!ws) return { ok: false, error: 'Die Arbeitsfläche in der Datei ist beschädigt.' };
+  if (!ws) return { ok: false, error: 'Der Stand in der Datei ist beschädigt.' };
   const device = typeof d.device === 'string' ? d.device : 'unbekanntes Gerät';
   return { ok: true, file: { format: FILE_FORMAT, version: d.version, savedAt, device, workspace: ws } };
 }

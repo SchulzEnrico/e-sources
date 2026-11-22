@@ -7,7 +7,7 @@ import type { Named, PanelMeta, Workspace } from './types';
  * (`?win=…`) und übersteht so ein Neuladen.
  */
 export const WIN_PARAM = 'win';
-export const MAIN_NAME = 'Hauptfenster';
+export const MAIN_NAME = 'Main Desk';
 
 /** Fenster-Id aus der Adresse; '' = Hauptfenster. */
 export function winFromSearch(search: string): string {
@@ -31,15 +31,15 @@ export function windowList(ws: Workspace): Named[] {
 
 export function windowName(ws: Workspace, win: string): string {
   if (!win) return MAIN_NAME;
-  return ws.windows.find((w) => w.id === win)?.name ?? 'Leeres Fenster';
+  return ws.windows.find((w) => w.id === win)?.name ?? 'Leerer Desk';
 }
 
 /** Kleinste freie Nummer ab 2: „Fenster 2“, „Fenster 3“ … */
 export function nextWindowName(windows: Named[]): string {
   const used = new Set(windows.map((w) => w.name));
   let n = 2;
-  while (used.has(`Fenster ${n}`)) n++;
-  return `Fenster ${n}`;
+  while (used.has(`Desk ${n}`)) n++;
+  return `Desk ${n}`;
 }
 
 /**

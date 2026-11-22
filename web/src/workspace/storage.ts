@@ -125,7 +125,11 @@ export function parseWorkspace(data: unknown): Workspace | null {
     new Set(categories.map((c) => c.id)),
   );
   // F-128: Namen der Areas; Zuordnungen zu unbekannten Namen fallen weg.
-  const areaNames = namedList(data.areaNames);
+  // F-154: alte Standardnamen („NewArea 3“, „NewSlot 3“) heißen jetzt „Slot 3“.
+  const areaNames = namedList(data.areaNames).map((a) => {
+    const m = /^New(?:Area|Slot) (\d+)$/.exec(a.name);
+    return m ? { ...a, name: `Slot ${m[1]}` } : a;
+  });
   const nameIds = new Set(areaNames.map((a) => a.id));
   for (const p of panels as PanelMeta[]) if (p.areaName && !nameIds.has(p.areaName)) delete p.areaName;
   // F-27: Panels in unbekannten Fenstern kommen ins Hauptfenster.

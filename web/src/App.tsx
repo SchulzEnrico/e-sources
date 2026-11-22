@@ -31,6 +31,7 @@ import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './work
 import { PROBE } from './workspace/probe';
 import type { ScreenSetup } from './workspace/screen';
 import { FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, tryPlace, viewOf } from './workspace/workspace';
+import { TERMS } from './workspace/terms';
 
 /** Abstand zwischen den Panels und zum Rand in Pixeln. */
 const GAP = 8;
@@ -63,10 +64,10 @@ const GearIcon = (
 type ViewKind = 'area' | 4 | 2 | 1;
 const VIEW_NEXT: Record<ViewKind, ViewKind> = { area: 4, 4: 2, 2: 1, 1: 'area' };
 const VIEW_NAME: Record<ViewKind, string> = {
-  area: 'ganze Arbeitsfläche',
-  4: '4 Panels (2 × 2)',
-  2: '2 Panels nebeneinander',
-  1: 'aktives Panel allein (maximiert)',
+  area: 'Dashboard (alle Slots)',
+  4: '2 × 2 (4 Portale)',
+  2: '2 (2 Portale nebeneinander)',
+  1: 'Solo (aktives Portal allein)',
 };
 
 /**
@@ -123,7 +124,7 @@ const CORNERS: { c: Corner; x: 'left' | 'right'; y: 'top' | 'bottom' }[] = [
   { c: 'br', x: 'right', y: 'bottom' },
 ];
 
-const POPUP_BLOCKED = 'Der Browser hat das Fenster blockiert – bitte Pop-ups für diese Seite erlauben und es im Fokus-Radar mit „Wieder öffnen“ holen.';
+const POPUP_BLOCKED = 'Der Browser hat den Desk blockiert – bitte Pop-ups für E-Sources erlauben und ihn im Cockpit mit „Wieder öffnen“ holen.';
 
 /**
  * F-27: Name des Zusatzfensters in der Kopfleiste. Klick (oder Doppelklick, Enter, F2) öffnet ein
@@ -144,7 +145,7 @@ function WindowName(props: { name: string; onRename: (name: string) => void }) {
         value={draft}
         maxLength={40}
         autoFocus
-        aria-label="Name dieses Fensters"
+        aria-label="Name dieses Desks"
         onFocus={(e) => e.target.select()}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => done(true)}
@@ -166,8 +167,8 @@ function WindowName(props: { name: string; onRename: (name: string) => void }) {
       ref={btn}
       type="button"
       className="tb-win"
-      title={`Dieses Fenster: ${props.name} · Klick oder F2 zum Umbenennen`}
-      aria-label={`Dieses Fenster: ${props.name}. Umbenennen`}
+      title={`Dieser Desk: ${props.name} · ${TERMS.desk} · Klick oder F2 zum Umbenennen`}
+      aria-label={`Dieser Desk: ${props.name}. Umbenennen`}
       onClick={() => setDraft(props.name)}
       onKeyDown={(e) => {
         if (e.key === 'F2') {
@@ -330,10 +331,10 @@ export default function App() {
   const addPanel = (area?: string) => {
     // Hinweise nennen das Panel, auf das gestapelt wird – sein Name zeigt, wofür der Nutzer die Area verwendet.
     const frontId = area ? viewOf(ws, setup).arrangement?.areas[area]?.front : undefined;
-    const target = frontId ? `„${ws.panels.find((x) => x.id === frontId)?.name ?? ''}“` : 'diesem Stapel';
+    const target = frontId ? `„${ws.panels.find((x) => x.id === frontId)?.name ?? ''}“` : 'diesem Stack';
     if (stackFull(ws, setup, area)) {
       return setNotice(
-        `Auf ${target} liegen schon ${STACK_MAX} Panels – mehr gehen nicht. Schließe ein Panel oder lege es woanders an.`,
+        `Auf ${target} liegen schon ${STACK_MAX} Portale – mehr gehen nicht. Schließe ein Portal oder lege es woanders an.`,
       );
     }
     const probe = addTo(ws, setup, area);
@@ -344,7 +345,7 @@ export default function App() {
     dispatch({ type: 'add', setup, area });
     if (after === FOCUS_WARN) {
       setNotice(
-        `Jetzt liegen ${FOCUS_WARN} Panels auf ${target}. Ab hier nehmen Fokus und Übersicht ab – lieber Panels schließen oder anders verteilen.`,
+        `Jetzt liegen ${FOCUS_WARN} Portale auf ${target}. Ab hier nehmen Fokus und Übersicht ab – lieber Portale schließen oder anders verteilen.`,
       );
     }
   };
@@ -539,7 +540,7 @@ export default function App() {
         const d = last;
         if (!d?.target || !d.stack) return;
         const name = ws.panels.find((x) => x.id === id)?.name ?? '';
-        if (!d.stack.ok) return notify(`Auf „${d.stack.label}“ liegen schon ${STACK_MAX} Panels. Schließe dort eines oder wähle eine andere Area.`);
+        if (!d.stack.ok) return notify(`Auf „${d.stack.label}“ liegen schon ${STACK_MAX} Portale. Schließe dort eines oder wähle einen anderen Slot.`);
         dispatch({ type: 'move', ids: [id], from: setup, win, area: d.target });
         notify(`„${name}“ liegt jetzt auf „${d.stack.label}“.`);
       },
@@ -555,10 +556,10 @@ export default function App() {
   /** Treffer im zugehörigen Panel öffnen; liegt das Panel im Stapel hinten, kommt es nach vorn. */
   const openHit = (h: SearchHit) => {
     const id = h.panel?.id ?? currentPanel();
-    if (!id) return notify('Lege zuerst eine Area an, dann lässt sich das Lesezeichen öffnen.');
+    if (!id) return notify('Lege zuerst einen Slot an, dann lässt sich die Source öffnen.');
     const name = ws.panels.find((x) => x.id === id)?.name ?? '';
     if (openBookmark(ws, id, h.bookmark.url).result === 'full')
-      return notify(`Im Panel „${name}“ sind schon ${TAB_MAX} Tabs offen. Schließe dort einen Tab.`);
+      return notify(`Im Portal „${name}“ sind schon ${TAB_MAX} Tabs offen. Schließe dort einen Tab.`);
     dispatch({ type: 'stackFront', setup, id });
     dispatch({ type: 'openBookmark', panel: id, url: h.bookmark.url });
     setActive(id);
@@ -593,9 +594,9 @@ export default function App() {
     if (dest === win) return;
     dispatch({ type: 'toWindow', ids, win: dest });
     const name = ws.panels.find((x) => x.id === id)?.name ?? '';
-    const what = ids.length > 1 ? `${ids.length} Panels` : `„${name}“`;
+    const what = ids.length > 1 ? `${ids.length} Portale` : `„${name}“`;
     if (!openAppWindow(dest)) return notify(`${what} verschoben. ${POPUP_BLOCKED}`);
-    notify(`${what} ${dest ? 'im Zusatzfenster' : 'im Hauptfenster'}.`);
+    notify(`${what} ${dest ? 'auf dem anderen Desk' : 'auf dem Main Desk'}.`);
   };
 
   /** F-28: Einstellung, in der ein Panel gerade liegt (eigenes Fenster: diese, sonst die zuletzt gesehene). */
@@ -626,8 +627,8 @@ export default function App() {
     if (t.disabled || !from) return;
     dispatch({ type: 'move', ids, from, win: t.win, area: t.area });
     const name = ws.panels.find((x) => x.id === id)?.name ?? '';
-    const what = ids.length > 1 ? `${ids.length} Panels` : `„${name}“`;
-    const where = t.area === NEW_AREA ? 'auf eigener Area' : t.area ? `auf „${t.label}“` : '';
+    const what = ids.length > 1 ? `${ids.length} Portale` : `„${name}“`;
+    const where = t.area === NEW_AREA ? 'auf eigenem Slot' : t.area ? `auf „${t.label}“` : '';
     if (t.win === win) return notify(`${what} jetzt ${where}.`);
     const there = `${where ? `${where} ` : ''}im ${windowName(ws, t.win)}`;
     if (!openAppWindow(t.win)) return notify(`${what} jetzt ${there}. ${POPUP_BLOCKED}`);
@@ -641,13 +642,13 @@ export default function App() {
   const fetchHere = (ids: string[]): string => {
     const { moved } = fetchPanels(ws, ids, setup);
     if (moved > 0) dispatch({ type: 'fetch', ids, setup });
-    const full = `Hier ist kein Platz mehr (${view.spec.capacity} Areas × ${STACK_MAX} Panels).`;
+    const full = `Hier ist kein Platz mehr (${view.spec.capacity} Slots × ${STACK_MAX} Portale).`;
     const text =
       moved === ids.length
-        ? `${moved === 1 ? 'Panel' : `${moved} Panels`} in dieses Fenster geholt.`
+        ? `${moved === 1 ? 'Portal' : `${moved} Portale`} auf diesen Desk geholt.`
         : moved === 0
           ? `Nichts geholt. ${full}`
-          : `${moved} von ${ids.length} Panels geholt. ${full} Die übrigen bleiben, wo sie sind.`;
+          : `${moved} von ${ids.length} Portale geholt. ${full} Die übrigen bleiben, wo sie sind.`;
     notify(text);
     return text;
   };
@@ -670,10 +671,10 @@ export default function App() {
   const startSizeMode = (id?: string) => {
     const target = id ?? currentPanel();
     const slot = slotOfPanel(target);
-    if (!target || !slot) return notify('Lege zuerst eine Area an.');
+    if (!target || !slot) return notify('Lege zuerst einen Slot an.');
     setActive(target);
     setSizeMode(true);
-    setSizeSaid(`Größen-Modus für „${slotName(slot)}“ (${placeText(slot.rect)}). Pfeile oder W A S D verschieben die Kante, Umschalt die andere, Mausrad über einem Panel ebenso. Leertaste, Enter oder Esc beendet.`);
+    setSizeSaid(`Adjust für „${slotName(slot)}“ (${placeText(slot.rect)}). Pfeile oder W A S D verschieben die Kante, Umschalt die andere, Mausrad über einem Portal ebenso. Leertaste, Enter oder Esc beendet.`);
   };
   sizeKeyRef.current = (e: KeyboardEvent) => {
     // F-155: Alt+G (Mac ⌥G) bzw. G im Größen-Modus = alle Areas gleich verteilen.
@@ -682,7 +683,7 @@ export default function App() {
       e.stopImmediatePropagation();
       if (mode.kind !== 'area') setMode({ kind: 'area' });
       dispatch({ type: 'distribute', setup });
-      const text = `Alle ${view.slots.length} Areas gleich verteilt.`;
+      const text = `Alle ${view.slots.length} Slots gleich verteilt.`;
       if (sizeMode) setSizeSaid(text);
       else notify(text);
     };
@@ -713,7 +714,7 @@ export default function App() {
       done();
       const isMax = mode.kind === 'max';
       setMode(isMax ? { kind: 'area' } : { kind: 'max', id: slot.front.id });
-      setSizeSaid(isMax ? `„${name}“ wieder auf der Arbeitsfläche.` : `„${name}“ maximiert. M holt die Arbeitsfläche zurück.`);
+      setSizeSaid(isMax ? `„${name}“ wieder auf dem Dashboard.` : `„${name}“ maximiert. M holt das Dashboard zurück.`);
       return;
     }
     if (e.key === 'Tab') {
@@ -846,12 +847,12 @@ export default function App() {
         isBlocked={(u) => isBlocked(ws, u)}
         onEmbed={(url, ok) => {
           dispatch({ type: 'embed', url, ok });
-          if (!ok) notify('Gemerkt: Diese Seite öffnet ab jetzt mit „In neuem Tab öffnen“.');
+          if (!ok) notify('Gemerkt: Diese Source öffnet ab jetzt mit „In neuem Tab öffnen“.');
         }}
         onAddHere={() => (slotOfMeta ? addPanel(slotOfMeta.id) : addPanel())}
         onSetHome={() => {
           dispatch({ type: 'setHome', id: meta.id });
-          notify('Aktuelle Seite ist jetzt die Startseite dieses Panels.');
+          notify('Aktuelle Source ist jetzt die Start-Source dieses Portals.');
         }}
         notify={notify}
         ws={ws}
@@ -863,12 +864,12 @@ export default function App() {
         onOpenBookmark={(url) => {
           // F-21: als Tab öffnen; bei voller Tab-Leiste (F-26) nur Hinweis
           if (openBookmark(ws, meta.id, url).result === 'full')
-            return notify(`Schon ${TAB_MAX} Tabs offen. Schließe einen Tab oder öffne das Lesezeichen in einem anderen Panel.`);
+            return notify(`Schon ${TAB_MAX} Tabs offen. Schließe einen Tab oder öffne die Source in einem anderen Portal.`);
           dispatch({ type: 'openBookmark', panel: meta.id, url });
         }}
         onClose={() => dispatch({ type: 'remove', id: meta.id })}
         onStartSwap={() => {
-          if (mine.length < 2) return notify('Zum Tauschen braucht es mindestens zwei Panels.');
+          if (mine.length < 2) return notify('Zum Tauschen braucht es mindestens zwei Portale.');
           setSwapFrom(swapFrom === meta.id ? null : meta.id);
         }}
         onSetSize={(w, h) => dispatch({ type: 'setSize', setup, id: meta.id, w, h, min })}
@@ -921,13 +922,13 @@ export default function App() {
   if (mine.length === 0) {
     content = (
       <div className="empty">
-        <p>{win ? 'Dieses Fenster ist leer – seine Panels sind wieder im Hauptfenster oder geschlossen.' : 'Keine Panels geöffnet.'}</p>
+        <p>{win ? 'Dieser Desk ist leer – seine Portale sind wieder auf dem Main Desk oder geschlossen.' : 'Keine Portale geöffnet.'}</p>
         <button type="button" onClick={() => dispatch({ type: 'addArea', setup, side: 'right' })}>
-          + Area anlegen
+          + NewSlot
         </button>
         {win && (
           <button type="button" onClick={() => window.close()}>
-            Fenster schließen
+            Desk schließen
           </button>
         )}
       </div>
@@ -963,7 +964,7 @@ export default function App() {
                 <div
                   className={`sizepad${meta?.id === active ? ' is-active' : ''}`}
                   aria-hidden="true"
-                  title="Scrollen: Kante verschieben · Klick: dieses Panel wählen"
+                  title="Scrollen: Kante verschieben · Klick: dieses Portal wählen"
                   onWheel={(e) => onSizeWheel(e, s)}
                   onPointerDown={(e) => {
                     e.preventDefault();
@@ -974,7 +975,7 @@ export default function App() {
               )}
               {over && (
                 <div className={`drop drop--${over} ${drag?.stack ? (drag.stack.ok ? 'drop--in' : 'drop--no') : zoneClass(over)}`}>
-                  <span>{drag?.stack ? (drag.stack.ok ? 'Im Panel ablegen' : `Stapel voll (${STACK_MAX})`) : ZONE_LABEL[over]}</span>
+                  <span>{drag?.stack ? (drag.stack.ok ? 'Im Portal ablegen' : `Stack voll (${STACK_MAX})`) : ZONE_LABEL[over]}</span>
                 </div>
               )}
             </div>
@@ -992,7 +993,7 @@ export default function App() {
             {drag.stack ? (ws.panels.find((x) => x.id === drag.id)?.name ?? '') : (shown(drag.id)?.name ?? '')}
             {drag.stack
               ? drag.target
-                ? ` → ${drag.stack.ok ? `in „${drag.stack.label}“ ablegen` : 'Stapel voll'}`
+                ? ` → ${drag.stack.ok ? `in „${drag.stack.label}“ ablegen` : 'Stack voll'}`
                 : ''
               : drag.target && drag.zone
                 ? ` → ${ghostLabel(drag.target, drag.zone, shown(drag.target)?.name ?? '')}`
@@ -1024,7 +1025,7 @@ export default function App() {
     link.remove();
     setTimeout(() => URL.revokeObjectURL(href), 1000);
     saveSyncMeta({ ...loadSyncMeta(), syncedAt: Date.now() });
-    notify(`Arbeitsfläche als ${FILE_NAME} gespeichert. Auf dem anderen Gerät „Importieren“ wählen.`);
+    notify(`Alle Desks als ${FILE_NAME} gespeichert. Auf dem anderen Gerät „Importieren“ wählen.`);
   };
   const importWorkspace = async (input: HTMLInputElement) => {
     const chosen = input.files?.[0];
@@ -1039,30 +1040,39 @@ export default function App() {
     const when = new Date(file.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
     if (
       needsConfirm(loadSyncMeta(), file.savedAt) &&
-      !window.confirm(`Die Arbeitsfläche auf diesem Gerät ist neuer als die Datei (${file.device}, ${when}). Trotzdem ersetzen?`)
+      !window.confirm(`Der Stand auf diesem Gerät ist neuer als die Datei (${file.device}, ${when}). Trotzdem ersetzen?`)
     )
       return;
     storeImported(file.workspace);
     dispatch({ type: 'replace', ws: file.workspace });
     setActive(file.workspace.panels[0]?.id ?? null);
     setMode({ kind: 'area' });
-    notify(`Arbeitsfläche übernommen (${file.device}, ${when}).`);
+    notify(`Stand übernommen (${file.device}, ${when}).`);
   };
 
   return (
     <div className="app">
       <header className="toolbar" ref={toolbarRef}>
-        <img className="brand-logo" src={shownTheme === 'dark' ? logoUrl : logoLightUrl} alt="E-Sources" width={366} height={186} />
+        {/* F-154: Logo und Name des Desks teilen sich die linke Spalte; der Main Desk heißt fest so, weitere Desks lassen sich umbenennen */}
+        <div className="brand">
+          <img className="brand-logo" src={shownTheme === 'dark' ? logoUrl : logoLightUrl} alt="E-Sources" width={366} height={186} />
+          {win ? (
+            <WindowName name={winLabel} onRename={(name) => dispatch({ type: 'renameWindow', win, name })} />
+          ) : (
+            <span className="tb-win tb-win--main" title={`${MAIN_NAME} · ${TERMS.desk}`}>
+              {MAIN_NAME}
+            </span>
+          )}
+        </div>
         {/* F-146: Logo links, Bedienelemente mittig, Gesamtfokus ganz rechts */}
         <div className="tb-center">
         {/* F-27: Zusatzfenster zeigen ihren Namen und können alles zurückgeben */}
         {win && (
           <>
-            <WindowName name={winLabel} onRename={(name) => dispatch({ type: 'renameWindow', win, name })} />
             <button
               type="button"
               disabled={mine.length === 0}
-              title={`Alle Panels aus ${winLabel} zurück ins ${MAIN_NAME}`}
+              title={`Alle Portale von ${winLabel} zurück auf den ${MAIN_NAME}`}
               onClick={() => {
                 dispatch({ type: 'returnAll', win });
                 if (!openAppWindow('')) return notify(POPUP_BLOCKED);
@@ -1091,8 +1101,8 @@ export default function App() {
               type="button"
               className={now === 'area' ? 'tb-view' : 'on tb-view'}
               onClick={go}
-              title={`Ansicht: ${VIEW_NAME[now]} · Klick: ${VIEW_NAME[next]}${next === 'area' ? ' (Esc)' : ''}`}
-              aria-label={`Ansicht: ${VIEW_NAME[now]}. Weiter zu: ${VIEW_NAME[next]}`}
+              title={`View: ${VIEW_NAME[now]} · Klick: ${VIEW_NAME[next]}${next === 'area' ? ' (Esc)' : ''} · ${TERMS.view}`}
+              aria-label={`View: ${VIEW_NAME[now]}. Weiter zu: ${VIEW_NAME[next]}`}
               aria-pressed={now !== 'area'}
             >
               <ViewIcon view={now} />
@@ -1100,18 +1110,18 @@ export default function App() {
           );
         })()}
         {!onArea && (
-          <button type="button" onClick={() => setMode({ kind: 'area' })} title="Zurück zur Arbeitsfläche (Esc)">
-            Zur Arbeitsfläche
+          <button type="button" onClick={() => setMode({ kind: 'area' })} title="Zurück zum Dashboard (Esc)">
+            Zum Dashboard
           </button>
         )}
-        <button type="button" className="tb-view" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Gleich verteilen (Alt/⌥+G): alle Panels gleich groß, die Anordnung bleibt" aria-label="Gleich verteilen" aria-keyshortcuts="Alt+G">
+        <button type="button" className="tb-view" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Gleich verteilen (Alt/⌥+G): alle Portale gleich groß, die Anordnung bleibt" aria-label="Gleich verteilen" aria-keyshortcuts="Alt+G">
           {DistributeIcon}
         </button>
         {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
         <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} />
         {/* F-134: „+ Area“ – neue Spalte rechts oder Zeile unten; Panels kommen über die Areas dazu. */}
         {canAddArea(ws, setup) ? (
-          <Menu icon={<span className="tb-add">+ NewArea</span>} label="Neue Area anlegen">
+          <Menu icon={<span className="tb-add">+ NewSlot</span>} label={`Neuen Slot anlegen – ${TERMS.slot}`}>
             {(close) => (
               <>
                 <Item
@@ -1139,10 +1149,10 @@ export default function App() {
             type="button"
             className="is-off"
             aria-disabled="true"
-            title="Bildschirm voll – weitere Panels über das Plus einer Area anlegen"
-            onClick={() => notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.capacity} Areas). Weitere Panels legst du über das rote Plus in der Kopfleiste eines Panels auf diese Area.`, 5000)}
+            title="Bildschirm voll – weitere Portale über das Plus eines Slots anlegen"
+            onClick={() => notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.capacity} Slots). Weitere Portale legst du über das rote Plus in der Kopfleiste eines Portals auf diesen Slot.`, 5000)}
           >
-            + NewArea
+            + NewSlot
           </button>
         )}
         {/* F-66: Selten Gebrauchtes im Menü, damit die Kopfleiste schlank bleibt */}
@@ -1156,7 +1166,7 @@ export default function App() {
                   close();
                 }}
               >
-                {ws.ruler.on ? 'Lineal in allen Panels ausblenden' : 'Lineal in allen Panels zeigen'}
+                {ws.ruler.on ? 'Lineal in allen Portalen ausblenden' : 'Lineal in allen Portalen zeigen'}
               </Item>
               <li className="menu__sep" role="separator" />
               <Item
@@ -1194,11 +1204,11 @@ export default function App() {
                 onClick={() => {
                   const n = addSamples(ws, newId).added;
                   if (n) dispatch({ type: 'addSamples' });
-                  notify(n ? `${n} Beispiel-Lesezeichen in 5 Kategorien angelegt – zu finden in der Sammlung unter „Alle“.` : 'Die Beispiel-Lesezeichen sind schon alle da.');
+                  notify(n ? `${n} Beispiel-Sources in 5 Kategorien angelegt – zu finden in der Library unter „Alle“.` : 'Die Beispiel-Sources sind schon alle da.');
                   close();
                 }}
               >
-                Beispiel-Lesezeichen anlegen
+                Beispiel-Sources anlegen
               </Item>
               <li className="menu__sep" role="separator" />
               <li className="menu__field">
@@ -1281,7 +1291,7 @@ export default function App() {
                   close();
                 }}
               >
-                Arbeitsfläche exportieren
+                Desks exportieren
               </Item>
               <Item
                 onClick={() => {
@@ -1289,7 +1299,7 @@ export default function App() {
                   close();
                 }}
               >
-                Arbeitsfläche importieren
+                Desks importieren
               </Item>
               {/* F-132 Urheberrechtsvermerk */}
               <li className="menu__sep" role="separator" />
@@ -1298,11 +1308,11 @@ export default function App() {
           )}
         </Menu>
         <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={(e) => void importWorkspace(e.currentTarget)} />
-        {swapFrom && <span className="hint">Ziel-Panel anklicken · Esc bricht ab</span>}
+        {swapFrom && <span className="hint">Ziel-Portal anklicken · Esc bricht ab</span>}
         </div>
         {/* F-29 Gesamtfokus; Klick klappt das Fokus-Radar (F-28, bisher Master-Panel) aus */}
         {PROBE && (
-          <a className="probe" href={window.location.pathname} title="Testbelegung verlassen (zurück zur eigenen Arbeitsfläche)">
+          <a className="probe" href={window.location.pathname} title="Testbelegung verlassen (zurück zu deinen eigenen Desks)">
             Test: voll · nichts wird gespeichert
           </a>
         )}
@@ -1317,7 +1327,7 @@ export default function App() {
           activeId={currentPanel()}
           top={overviewTop}
           toggleRef={meterRef}
-          info={`${view.slots.length}/${view.spec.capacity} Areas belegt${stacked > 0 ? ` · ${stacked} im Stapel` : ''} · ${screenClass(cls).label}, ${orientation === 'landscape' ? 'quer' : 'hoch'}`}
+          info={`${view.slots.length}/${view.spec.capacity} Slots belegt${stacked > 0 ? ` · ${stacked} im Stack` : ''} · ${screenClass(cls).label}, ${orientation === 'landscape' ? 'quer' : 'hoch'}`}
           win={win}
           open={windows.open}
           onShow={showPanel}
@@ -1344,15 +1354,15 @@ export default function App() {
       <Tooltips />
       {/* F-155: Größen-Modus – Hilfe und Ansage */}
       {sizeMode && (
-        <div className="sizebar" role="region" aria-label="Größen-Modus">
-          <strong>Größe</strong>
+        <div className="sizebar" role="region" aria-label="Adjust">
+          <strong title={TERMS.adjust}>Adjust</strong>
           <span className="sizebar__keys">
-            W A S D / Pfeile: Kante · Umschalt: andere Kante · Mausrad über Panel: Kante · Q / E (− / +) diagonal · G gleich verteilen · 1–9 = 10–90 % · 0 = 100 % · F maximieren · Tab nächstes · Leertaste/Esc fertig
+            W A S D / Pfeile: Kante · Umschalt: andere Kante · Mausrad über Portal: Kante · Q / E (− / +) diagonal · G gleich verteilen · 1–9 = 10–90 % · 0 = 100 % · F maximieren · Tab nächstes · Leertaste/Esc fertig
           </span>
           <span className="sizebar__said" role="status">
             {sizeSaid}
           </span>
-          <button type="button" onClick={() => setSizeMode(false)} aria-label="Größen-Modus beenden" title="Fertig (Enter/Esc)">
+          <button type="button" onClick={() => setSizeMode(false)} aria-label="Adjust beenden" title="Fertig (Enter/Esc)">
             ×
           </button>
         </div>

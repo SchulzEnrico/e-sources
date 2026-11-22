@@ -74,12 +74,12 @@ export function BookmarkEditor(props: {
     }
     lastCategory = cat;
     props.dispatch({ type: 'saveBookmark', bookmark: { ...b, title, url, category: cat, tags: tags.split(','), note, panels } });
-    props.onDone(props.isNew ? 'Lesezeichen gespeichert.' : 'Lesezeichen geändert.');
+    props.onDone(props.isNew ? 'Source in der Library gespeichert.' : 'Source geändert.');
   };
 
   return (
     <Drawer
-      title={props.isNew ? 'Lesezeichen speichern' : 'Lesezeichen bearbeiten'}
+      title={props.isNew ? 'Source in der Library speichern' : 'Source bearbeiten'}
       onClose={() => props.onDone()}
       footer={
         <>
@@ -90,7 +90,7 @@ export function BookmarkEditor(props: {
                 className="drawer__danger"
                 onClick={() => {
                   props.dispatch({ type: 'deleteBookmark', id: b.id });
-                  props.onDone('Lesezeichen gelöscht.');
+                  props.onDone('Source aus der Library gelöscht.');
                 }}
               >
                 Wirklich löschen
@@ -154,7 +154,7 @@ export function BookmarkEditor(props: {
         </label>
         {/* F-14, F-32: in der Sammlung eines oder mehrerer Panels ablegen */}
         <fieldset>
-          <legend>In der Sammlung von</legend>
+          <legend>In der Library von</legend>
           {ws.panels.map((p) => (
             <label key={p.id} className="bm-check">
               <input
@@ -165,7 +165,7 @@ export function BookmarkEditor(props: {
               {p.name}
             </label>
           ))}
-          {panels.length === 0 && <p className="bm-hint">Ohne Panel steht es nur in der Gesamtsammlung.</p>}
+          {panels.length === 0 && <p className="bm-hint">Ohne Portal steht sie nur in der ganzen Library.</p>}
         </fieldset>
       </form>
     </Drawer>
@@ -223,7 +223,7 @@ export function CollectionDrawer(props: {
 
   return (
     <Drawer
-      title={`Sammlung · ${props.panelName}`}
+      title={`Library · ${props.panelName}`}
       onClose={props.onClose}
       footer={
         <form
@@ -252,10 +252,10 @@ export function CollectionDrawer(props: {
             Alle ({ws.bookmarks.length})
           </button>
         </div>
-        <input className="bm-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Suchen: Titel, Adresse, Kategorie, #Tag" aria-label="Lesezeichen suchen" />
+        <input className="bm-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Suchen: Titel, Adresse, Kategorie, #Tag" aria-label="Library durchsuchen" />
         {props.onSaveCurrent && (
           <button type="button" className="bm-save-current" onClick={props.onSaveCurrent}>
-            {props.saved ? '★ Diese Seite bearbeiten' : '☆ Diese Seite speichern'}
+            {props.saved ? '★ Diese Source bearbeiten' : '☆ Diese Source speichern'}
           </button>
         )}
       </div>
@@ -264,7 +264,7 @@ export function CollectionDrawer(props: {
       </p>
       {total === 0 && list.length === 0 && (
         <p className="bm-hint">
-          {query ? 'Nichts gefunden.' : scope === 'panel' ? 'Diesem Panel ist noch kein Lesezeichen zugeordnet. Unter „Alle“ stehen alle Lesezeichen.' : 'Noch keine Lesezeichen. Mit dem Stern in der Adresszeile speicherst du die aktuelle Seite.'}
+          {query ? 'Nichts gefunden.' : scope === 'panel' ? 'Diesem Portal ist noch keine Source zugeordnet. Unter „Alle“ steht die ganze Library.' : 'Die Library ist noch leer. Mit dem Stern in der Adresszeile speicherst du die aktuelle Source.'}
         </p>
       )}
       {list.map((g) => {
@@ -369,7 +369,7 @@ export function CollectionDrawer(props: {
                     <button
                       type="button"
                       className="bm-icon bm-icon--danger"
-                      title="Lesezeichen bleiben erhalten (Ohne Kategorie)"
+                      title="Sources bleiben erhalten (Ohne Kategorie)"
                       onClick={() => {
                         props.dispatch({ type: 'deleteCategory', id: catId });
                         setDeleteCat(null);
@@ -426,8 +426,8 @@ export function CollectionDrawer(props: {
                       type="button"
                       className={mine ? 'bm-icon bm-pin bm-pin--on' : 'bm-icon bm-pin'}
                       onClick={() => props.dispatch({ type: 'toggleBookmarkPanel', id: b.id, panel: panelId })}
-                      title={mine ? 'Aus der Sammlung dieses Panels nehmen' : 'In die Sammlung dieses Panels aufnehmen'}
-                      aria-label={mine ? 'Aus diesem Panel nehmen' : 'In dieses Panel aufnehmen'}
+                      title={mine ? 'Aus der Library dieses Portals nehmen' : 'In die Library dieses Portals aufnehmen'}
+                      aria-label={mine ? 'Aus diesem Portal nehmen' : 'In dieses Portal aufnehmen'}
                       aria-pressed={mine}
                     >
                       {mine ? '★' : '☆'}
@@ -438,7 +438,7 @@ export function CollectionDrawer(props: {
                   </li>
                 );
               })}
-              {g.items.length === 0 && <li className="bm-empty">Leer – Lesezeichen hierher ziehen</li>}
+              {g.items.length === 0 && <li className="bm-empty">Leer – Sources hierher ziehen</li>}
             </ul>
           </section>
         );

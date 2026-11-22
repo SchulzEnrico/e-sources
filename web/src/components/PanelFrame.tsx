@@ -9,6 +9,7 @@ import { FOCUS_WARN, NEW_AREA, TAB_MAX, rulerShown, activeTab, canGoBack, canGoF
 import { StackBar, type StackProps, useSwipe } from './StackBar';
 import { Ruler, RulerIcon } from './Ruler';
 import * as FH from '../workspace/frameHistory';
+import { TERMS } from '../workspace/terms';
 
 /** Voreingestellte Größen (F-12) als Anteil von Breite und Höhe der Arbeitsfläche. */
 export const SIZE_PRESETS: { label: string; w: number; h: number }[] = [
@@ -98,7 +99,7 @@ function openOutside(url: string, how: 'tab' | 'window') {
 
 /** F-135: Warum Zurück/Vor gesperrt sind – der Verlauf fremder Seiten im Panel ist nicht lesbar. */
 const NAV_HINT = 'Noch kein Schritt zum Blättern in diesem Tab.';
-const NAV_OTHER = 'Zurück und Vor gehen zuerst in dem Panel, in dem du zuletzt eine Seite gewechselt hast – dort zuerst blättern.';
+const NAV_OTHER = 'Zurück und Vor gehen zuerst in dem Portal, in dem du zuletzt die Source gewechselt hast – dort zuerst blättern.';
 
 /** Symbol für die Größen-Voreinstellungen: Rahmen der Fläche mit einem Panel darin und Pfeil zur Ecke. */
 const SizeIcon = (
@@ -333,8 +334,8 @@ function MoveList(props: { targets: MoveTarget[]; here: string; windowName: (win
   const wins = [...new Set(props.targets.map((t) => t.win))].sort((a, b) => (a === props.here ? -1 : b === props.here ? 1 : 0));
   const label = (t: MoveTarget) => {
     if (!t.area) return `⧉ Ins ${props.windowName(t.win)}`;
-    if (t.area === NEW_AREA) return `▢ Eigene neue Area${t.disabled ? ' – kein Platz' : ''}`;
-    return `▣ In „${t.label}“ ablegen${t.count > 1 ? ` (${t.count})` : ''}${t.disabled ? ' – Stapel voll' : ''}`;
+    if (t.area === NEW_AREA) return `▢ Eigener neuer Slot${t.disabled ? ' – kein Platz' : ''}`;
+    return `▣ In „${t.label}“ ablegen${t.count > 1 ? ` (${t.count})` : ''}${t.disabled ? ' – Stack voll' : ''}`;
   };
   return (
     <>
@@ -344,8 +345,8 @@ function MoveList(props: { targets: MoveTarget[]; here: string; windowName: (win
         if (items.length === 0) return null;
         return (
           <li key={w || 'main'} role="none">
-            <ul role="group" aria-label={w === props.here ? 'Dieses Fenster' : props.windowName(w)} className="menu__group">
-              <MenuHead>{w === props.here ? 'Dieses Fenster' : props.windowName(w)}</MenuHead>
+            <ul role="group" aria-label={w === props.here ? 'Dieser Desk' : props.windowName(w)} className="menu__group">
+              <MenuHead>{w === props.here ? 'Dieser Desk' : props.windowName(w)}</MenuHead>
               {items.map((t) => (
                 <Item key={`${t.win}/${t.area}`} disabled={t.disabled} onClick={() => props.onPick(t)}>
                   {label(t)}
@@ -356,7 +357,7 @@ function MoveList(props: { targets: MoveTarget[]; here: string; windowName: (win
         );
       })}
       <li className="menu__sep" role="separator" />
-      <Item onClick={props.onNewWindow}>⧉ In neues Fenster</Item>
+      <Item onClick={props.onNewWindow}>⧉ Neuer Desk</Item>
     </>
   );
 }
@@ -443,7 +444,7 @@ export function PanelFrame(p: Props) {
 
   /** Neuer Tab mit Ampel-Regel (F-26): Hinweis bei 5, Grenze bei 9. */
   const addTab = () => {
-    if (tabCount >= TAB_MAX) return p.notify(`Mehr als ${TAB_MAX} Tabs gehen nicht. Lege lieber ein neues Panel an.`);
+    if (tabCount >= TAB_MAX) return p.notify(`Mehr als ${TAB_MAX} Tabs gehen nicht. Lege lieber ein neues Portal an.`);
     p.onAddTab();
     if (tabCount + 1 === FOCUS_WARN) p.notify(`Jetzt sind ${FOCUS_WARN} Tabs offen. Ab hier nehmen Fokus und Übersicht ab.`);
   };
@@ -498,7 +499,7 @@ export function PanelFrame(p: Props) {
         {/* Kopfleiste wie im Browser (F-14): Schließen · Zurück · Vor · Neu laden · Home · Adresse · Größen · Name · Menü · Stapeln (F-140) */}
         <header className="win__bar">
           {/* F-140: Schließen ganz links */}
-          <button type="button" className="win__close" onClick={p.onClose} title="Panel schließen" aria-label="Panel schließen">
+          <button type="button" className="win__close" onClick={p.onClose} title="Portal schließen" aria-label="Portal schließen">
             ×
           </button>
           <div className="win__nav">
@@ -557,8 +558,8 @@ export function PanelFrame(p: Props) {
             type="button"
             className={drawer?.kind === 'collection' ? 'win__coll win__coll--on' : 'win__coll'}
             onClick={() => setDrawer(drawer?.kind === 'collection' ? null : { kind: 'collection' })}
-            title={`Sammlung (${ownCount} Lesezeichen in diesem Panel)`}
-            aria-label="Sammlung öffnen"
+            title={`Library dieses Portals (${ownCount} ${ownCount === 1 ? 'Source' : 'Sources'}) · ${TERMS.library}`}
+            aria-label="Library dieses Portals öffnen"
             aria-expanded={drawer?.kind === 'collection'}
           >
             {CollectionIcon}
@@ -591,8 +592,8 @@ export function PanelFrame(p: Props) {
                 type="button"
                 className={saved ? 'win__star win__star--on' : 'win__star'}
                 onClick={() => editCurrent()}
-                title={saved ? 'Lesezeichen bearbeiten' : 'Lesezeichen speichern'}
-                aria-label={saved ? 'Lesezeichen bearbeiten' : 'Lesezeichen speichern'}
+                title={saved ? 'Source bearbeiten' : 'Source in der Library speichern'}
+                aria-label={saved ? 'Source bearbeiten' : 'Source in der Library speichern'}
               >
                 {saved ? '★' : '☆'}
               </button>
@@ -603,8 +604,8 @@ export function PanelFrame(p: Props) {
             type="button"
             className={rulerShown(p.ws, p.panel) ? 'win__ruler win__ruler--on' : 'win__ruler'}
             onClick={() => p.dispatch({ type: 'rulerPanel', id: p.panel.id })}
-            title={rulerShown(p.ws, p.panel) ? 'Lineal in diesem Panel ausblenden' : 'Lineal in diesem Panel zeigen'}
-            aria-label="Lineal in diesem Panel"
+            title={rulerShown(p.ws, p.panel) ? 'Lineal in diesem Portal ausblenden' : 'Lineal in diesem Portal zeigen'}
+            aria-label="Lineal in diesem Portal"
             aria-pressed={rulerShown(p.ws, p.panel)}
           >
             {RulerIcon}
@@ -653,8 +654,8 @@ export function PanelFrame(p: Props) {
             }}
             onDoubleClick={() => startEdit('panel')}
             title={
-              (areaName ? `Area „${areaName}“ · Panel „${p.panel.name}“ · ` : '') +
-              (p.onDragStart ? 'Ziehen: Mitte eines Panels = tauschen, Rand = an dieser Position einsetzen · Doppelklick zum Umbenennen' : 'Doppelklick zum Umbenennen')
+              (areaName ? `Slot „${areaName}“ · Portal „${p.panel.name}“ · ` : `Portal „${p.panel.name}“ · `) +
+              (p.onDragStart ? 'Ziehen: Mitte eines Portals = tauschen, Rand = an dieser Position einsetzen · Doppelklick zum Umbenennen' : 'Doppelklick zum Umbenennen')
             }
           >
             {editing ? (
@@ -668,7 +669,7 @@ export function PanelFrame(p: Props) {
                   if (e.key === 'Enter') commit();
                   if (e.key === 'Escape') setEditing(null);
                 }}
-                aria-label={editing === 'area' ? 'Name der Area' : 'Panelname'}
+                aria-label={editing === 'area' ? 'Name des Slots' : 'Portalname'}
               />
             ) : areaName ? (
               // F-128: im Stapel groß die Area, klein darunter das aktive Panel
@@ -689,7 +690,7 @@ export function PanelFrame(p: Props) {
             )}
           </div>
           {/* Panel-Optionen (F-20); Sammlung, Verhalten und Szenarien kommen später dazu. */}
-          <Menu icon="⋮" label="Panel-Optionen">
+          <Menu icon="⋮" label="Portal-Optionen">
             {(close) => {
               const run = (f: () => void) => () => {
                 f();
@@ -702,47 +703,47 @@ export function PanelFrame(p: Props) {
                       // F-28: zweite Seite „Verschieben nach …“
                       <>
                         <Item onClick={() => go('')}>← Zurück</Item>
-                        <MenuHead>{page === 'area' ? `Ganze Area „${areaName || p.panel.name}“ verschieben` : `„${p.panel.name}“ verschieben`}</MenuHead>
+                        <MenuHead>{page === 'area' ? `Ganzen Slot „${areaName || p.panel.name}“ verschieben` : `„${p.panel.name}“ verschieben`}</MenuHead>
                         <MoveList
                           targets={p.moveTargets(page === 'area')}
                           here={p.panel.win ?? ''}
-                          windowName={(w) => [{ id: '', name: 'Hauptfenster' }, ...p.windows].find((x) => x.id === w)?.name ?? w}
+                          windowName={(w) => [{ id: '', name: 'Main Desk' }, ...p.windows].find((x) => x.id === w)?.name ?? w}
                           onPick={(t) => run(() => p.onMove(t, page === 'area'))()}
                           onNewWindow={run(() => p.onToWindow(null, page === 'area'))}
                         />
                       </>
                     ) : (
                 <>
-                  <Item onClick={run(() => setDrawer({ kind: 'collection' }))}>☰ Sammlung ({ownCount})</Item>
-                  {url && <Item onClick={run(() => editCurrent())}>{saved ? '★ Lesezeichen bearbeiten' : '☆ Lesezeichen speichern'}</Item>}
+                  <Item onClick={run(() => setDrawer({ kind: 'collection' }))}>☰ Library ({ownCount})</Item>
+                  {url && <Item onClick={run(() => editCurrent())}>{saved ? '★ Source bearbeiten' : '☆ Source in der Library speichern'}</Item>}
                   <li className="menu__sep" role="separator" />
                   <Item onClick={run(addTab)}>＋ Neuer Tab</Item>
-                  <Item onClick={run(p.onAddHere)}>▣ Neues Panel auf „{p.panel.name}“ legen</Item>
+                  <Item onClick={run(p.onAddHere)}>▣ Neues Portal auf „{p.panel.name}“ legen</Item>
                   {/* F-27, F-28: Panel oder ganze Area auf eine andere Area, auch in ein anderes Fenster */}
                   <li className="menu__sep" role="separator" />
-                  <Item onClick={() => go('panel')}>↦ Panel verschieben …</Item>
-                  {p.stack && <Item onClick={() => go('area')}>↦ Ganze Area verschieben …</Item>}
+                  <Item onClick={() => go('panel')}>↦ Portal verschieben …</Item>
+                  {p.stack && <Item onClick={() => go('area')}>↦ Ganzen Slot verschieben …</Item>}
                   {p.stack &&
                     (() => {
                       const own = p.moveTargets(false).find((t) => t.win === (p.panel.win ?? '') && t.area === NEW_AREA);
                       return (
                         <Item
                           disabled={!own || own.disabled}
-                          title={!own || own.disabled ? 'Auf dem Bildschirm ist keine Area mehr frei.' : undefined}
+                          title={!own || own.disabled ? 'Auf dem Bildschirm ist kein Slot mehr frei.' : undefined}
                           onClick={run(() => own && p.onMove(own, false))}
                         >
-                          ⇱ Aus dem Stapel lösen{!own || own.disabled ? ' – kein Platz' : ''}
+                          ⇱ Aus dem Stack lösen{!own || own.disabled ? ' – kein Platz' : ''}
                         </Item>
                       );
                     })()}
                   <li className="menu__sep" role="separator" />
                   <Item onClick={run(() => p.dispatch({ type: 'rulerPanel', id: p.panel.id }))}>
-                    {rulerShown(p.ws, p.panel) ? '▭ Lineal in diesem Panel ausblenden' : '▭ Lineal in diesem Panel zeigen'}
+                    {rulerShown(p.ws, p.panel) ? '▭ Lineal in diesem Portal ausblenden' : '▭ Lineal in diesem Portal zeigen'}
                   </Item>
-                  <Item onClick={run(() => startEdit('panel'))}>✎ Panel umbenennen</Item>
-                  {p.stack && <Item onClick={run(() => startEdit('area'))}>✎ Area umbenennen</Item>}
-                  {!p.maximized && <Item onClick={run(p.onStartSwap)}>⇄ Mit anderem Panel tauschen</Item>}
-                  {!p.maximized && <Item onClick={run(p.onReset)}>↺ Panel zurücksetzen</Item>}
+                  <Item onClick={run(() => startEdit('panel'))}>✎ Portal umbenennen</Item>
+                  {p.stack && <Item onClick={run(() => startEdit('area'))}>✎ Slot umbenennen</Item>}
+                  {!p.maximized && <Item onClick={run(p.onStartSwap)}>⇄ Mit anderem Portal tauschen</Item>}
+                  {!p.maximized && <Item onClick={run(p.onReset)}>↺ Portal zurücksetzen</Item>}
                   <Item onClick={run(p.onToggleMaximize)}>{p.maximized ? '⤡ Verkleinern (Esc)' : '⤢ Maximieren'}</Item>
                   {url && (
                     <>
@@ -750,11 +751,11 @@ export function PanelFrame(p: Props) {
                       <Item onClick={run(p.onSetHome)}>⌂ Als Startseite festlegen</Item>
                       <Item onClick={run(() => void copyUrl())}>⧉ Adresse kopieren</Item>
                       <Item onClick={run(() => openOutside(url, 'tab'))}>↗ In neuem Tab öffnen</Item>
-                      <Item onClick={run(() => openOutside(url, 'window'))}>⧉ In neuem Fenster öffnen</Item>
+                      <Item onClick={run(() => openOutside(url, 'window'))}>⧉ In neuem Browserfenster öffnen</Item>
                       {p.isBlocked(url) ? (
                         <Item onClick={run(() => p.onEmbed(url, true))}>▣ {hostOf(url)} doch hier anzeigen</Item>
                       ) : (
-                        <Item onClick={run(() => p.onEmbed(url, false))}>⊘ Seite lädt nicht – {hostOf(url)} als gesperrt merken</Item>
+                        <Item onClick={run(() => p.onEmbed(url, false))}>⊘ Source lädt nicht – {hostOf(url)} als gesperrt merken</Item>
                       )}
                     </>
                   )}
@@ -766,7 +767,7 @@ export function PanelFrame(p: Props) {
             }}
           </Menu>
           {/* F-09, F-140: Stapeln ganz rechts */}
-          <button type="button" className="win__stack-add" onClick={p.onAddHere} title={`Neues Panel auf „${p.panel.name}“ legen (stapeln)`} aria-label={`Neues Panel auf „${p.panel.name}“ legen`}>
+          <button type="button" className="win__stack-add" onClick={p.onAddHere} title={`Neues Portal auf „${p.panel.name}“ legen (stapeln)`} aria-label={`Neues Portal auf „${p.panel.name}“ legen`}>
             <StackAddIcon />
           </button>
         </header>
@@ -809,7 +810,7 @@ export function PanelFrame(p: Props) {
             className="tabs__add"
             onClick={addTab}
             disabled={tabCount >= TAB_MAX}
-            title={tabCount >= TAB_MAX ? `Höchstens ${TAB_MAX} Tabs je Panel` : 'Neuer Tab'}
+            title={tabCount >= TAB_MAX ? `Höchstens ${TAB_MAX} Tabs je Portal` : 'Neuer Tab'}
             aria-label="Neuer Tab"
             onDragOver={(e) => dragTab.current && e.preventDefault()}
             onDrop={(e) => dropTab(e, tabCount - 1)}
@@ -861,14 +862,14 @@ export function PanelFrame(p: Props) {
             // F-43: Ersatzanzeige statt leerer grauer Fläche
             <div className="fallback">
               <p className="fallback__title">{hostOf(url)} lässt sich hier nicht anzeigen</p>
-              <p className="fallback__text">Die Seite erlaubt nicht, in andere Seiten eingebettet zu werden. In der Desktop-App wird das später möglich.</p>
+              <p className="fallback__text">Diese Source erlaubt nicht, in andere Seiten eingebettet zu werden. In der Desktop-App wird das später möglich.</p>
               {/* F-123: Tab oder eigenes Fenster */}
               <span className="fallback__choice">
                 <button type="button" className="fallback__open" onClick={() => openOutside(url, 'tab')}>
                   ↗ In neuem Tab
                 </button>
                 <button type="button" className="fallback__open" onClick={() => openOutside(url, 'window')}>
-                  ⧉ In neuem Fenster
+                  ⧉ In neuem Browserfenster
                 </button>
               </span>
               <button type="button" className="fallback__try" onClick={() => p.onEmbed(url, true)}>
@@ -882,7 +883,7 @@ export function PanelFrame(p: Props) {
               <p className="win__hint">{linkOver ? 'Loslassen zum Öffnen' : 'Link in die Adresszeile eingeben oder hier hineinziehen'}</p>
               {p.share && (
                 <p className="win__meta">
-                  {pct(p.share.w)} breit × {pct(p.share.h)} hoch{p.stack ? ` · ${p.stack.members.length} Panels im Stapel` : ''}
+                  {pct(p.share.w)} breit × {pct(p.share.h)} hoch{p.stack ? ` · ${p.stack.members.length} Portale im Stack` : ''}
                 </p>
               )}
             </>

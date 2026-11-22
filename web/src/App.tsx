@@ -18,7 +18,9 @@ import type { PanelMeta, Slot } from './workspace/types';
 import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { useWorkspace } from './workspace/useWorkspace';
-import { type SearchHit, addSamples, openBookmark } from './workspace/bookmarks';
+import { type SearchHit, NO_CATEGORY, addSamples, bookmarkOf, openBookmark } from './workspace/bookmarks';
+import { Launcher, LauncherIcon } from './components/Launcher';
+import { type How, type LauncherState, HOW_IN, launcherCount, loadLauncher, openOutside, saveLauncher } from './workspace/launcher';
 import { Search } from './components/Search';
 import { Tooltips } from './components/Tooltip';
 import { FocusMeter, Overview } from './components/Overview';
@@ -35,7 +37,7 @@ import { type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace
 import { Design } from './components/Design';
 import type { HelpEntry } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
-import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf } from './workspace/workspace';
+import { loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, hostOf, isBlocked, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf } from './workspace/workspace';
 import { TERMS } from './workspace/terms';
 import { Closed as ClosedDialog } from './components/Closed';
 import { FocusRule as FocusRuleDialog } from './components/FocusRule';
@@ -360,6 +362,26 @@ export default function App() {
   const [cycleSaid, setCycleSaid] = useState('');
   /** Text in die immer vorhandene Live-Region (gleicher Text zweimal wird erneut angesagt). */
   const sayLive = (text: string) => setCycleSaid((old) => (old === text ? `${text}\u00a0` : text));
+  /** F-40 bis F-42, F-149: Launcher – Lage, offen/eingeklappt und Wahl Tab/Fenster je Desk. */
+  const [launcher, setLauncherState] = useState<LauncherState>(() => loadLauncher(win ?? ''));
+  const [launcherFocus, setLauncherFocus] = useState(0);
+  const setLauncher = (patch: Partial<LauncherState>) =>
+    setLauncherState((old) => {
+      const next = { ...old, ...patch };
+      if (!PROBE) saveLauncher(win ?? '', next);
+      return next;
+    });
+  /** Launcher öffnen (oder aufklappen) und den Fokus hineinlegen. */
+  const showLauncher = () => {
+    setLauncher({ open: true, min: false });
+    setLauncherFocus((n) => n + 1);
+  };
+  /** Source außerhalb öffnen; die Wahl gilt ab jetzt als Voreinstellung (F-149). */
+  const launch = (url: string, title: string, how: How) => {
+    openOutside(url, how);
+    if (how !== launcher.how) setLauncher({ how });
+    sayLive(`${title} öffnet in ${HOW_IN[how]}.`);
+  };
   const cycleKeyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => cycleKeyRef.current(e);
@@ -711,7 +733,9 @@ export default function App() {
   };
 
   /** Treffer im zugehörigen Panel öffnen; liegt das Panel im Stapel hinten, kommt es nach vorn. */
-  const openHit = (h: SearchHit) => {
+  const openHit = (h: SearchHit, swap = false) => {
+    // F-149: Sources, die sich nicht einbetten lassen, gehen außerhalb auf
+    if (isBlocked(ws, h.bookmark.url)) return launch(h.bookmark.url, h.bookmark.title, swap ? (launcher.how === 'tab' ? 'window' : 'tab') : launcher.how);
     const id = h.panel?.id ?? currentPanel();
     if (!id) return notify('Lege zuerst einen Slot an, dann lässt sich die Source öffnen.');
     const name = ws.panels.find((x) => x.id === id)?.name ?? '';
@@ -925,13 +949,23 @@ export default function App() {
    * Danach liegt der Tastaturfokus auf dem sichtbaren Tab, die Ansage geht an die Live-Region.
    */
   cycleKeyRef.current = (e: KeyboardEvent) => {
-    if (!e.altKey || e.ctrlKey || e.metaKey || (e.code !== 'KeyT' && e.code !== 'KeyP' && e.code !== 'KeyZ')) return;
+    if (!e.altKey || e.ctrlKey || e.metaKey || (e.code !== 'KeyT' && e.code !== 'KeyP' && e.code !== 'KeyZ' && e.code !== 'KeyL')) return;
     // nicht hinter offenen Dialogen (Hilfe, Design, Hinweis, Tour)
     if (document.querySelector('[aria-modal="true"], dialog:modal')) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     // F-24: Alt/⌥+Z holt das zuletzt Geschlossene zurück
     if (e.code === 'KeyZ') return e.repeat ? undefined : restore();
+    // F-40: Alt/⌥+L öffnet den Launcher bzw. geht hinein; steht der Fokus schon darin, schließt er
+    if (e.code === 'KeyL') {
+      if (e.repeat) return;
+      if (launcher.open && document.activeElement?.closest('.launcher, .launcher-min')) {
+        setLauncher({ open: false });
+        sayLive('Launcher geschlossen.');
+        return window.setTimeout(() => document.querySelector<HTMLElement>('.tb-launcher')?.focus());
+      }
+      return showLauncher();
+    }
     const dir = e.shiftKey ? -1 : 1;
     const say = (text: string) => {
       // gleicher Text zweimal hintereinander soll erneut angesagt werden
@@ -1068,7 +1102,15 @@ export default function App() {
         isBlocked={(u) => isBlocked(ws, u)}
         onEmbed={(url, ok) => {
           dispatch({ type: 'embed', url, ok });
-          if (!ok) notify('Gemerkt: Diese Source öffnet ab jetzt mit „In neuem Tab öffnen“.');
+          if (!ok) notify('Gemerkt: Diese Domain öffnet ab jetzt außerhalb. Gespeicherte Sources davon stehen im Launcher (Alt/⌥+L).');
+        }}
+        onToLauncher={(tabId, url) => {
+          // F-43 Rest: als Source speichern (falls noch nicht da), Tab schließen, Launcher zeigen
+          const known = bookmarkOf(ws, url);
+          if (!known) dispatch({ type: 'saveBookmark', bookmark: { id: newId(), title: '', url, category: NO_CATEGORY, tags: [], panels: [] } });
+          closeTabOf(meta.id, tabId);
+          setLauncher({ open: true, min: false });
+          sayLive(`${known?.title ?? hostOf(url)} liegt jetzt im Launcher. Tab geschlossen, Alt/⌥+Z holt ihn zurück.`);
         }}
         onAddHere={() => (slotOfMeta ? addPanel(slotOfMeta.id) : addPanel())}
         hint={hint?.id === meta.id ? hint.text : undefined}
@@ -1205,6 +1247,8 @@ export default function App() {
         return setClosedOpen(true);
       case 'focusRule':
         return setRuleOpen(true);
+      case 'launcher':
+        return showLauncher();
       case 'search':
         return window.setTimeout(() => document.querySelector<HTMLInputElement>('.search__input')?.focus(), 0);
     }
@@ -1450,7 +1494,25 @@ export default function App() {
           </button>
         )}
         {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
-        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} onRun={runHelp} onHelp={(id) => setHelpAt({ at: id })} />
+        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} onRun={runHelp} onHelp={(id) => setHelpAt({ at: id })} launchHow={launcher.how} />
+        {/* F-40: Launcher für Sources, die sich nicht einbetten lassen */}
+        {(() => {
+          const n = launcherCount(ws);
+          return (
+            <button
+              type="button"
+              className={launcher.open ? 'on tb-launcher' : 'tb-launcher'}
+              onClick={() => (launcher.open && !launcher.min ? setLauncher({ open: false }) : showLauncher())}
+              title={`Launcher (Alt/⌥+L): ${n} ${n === 1 ? 'Source' : 'Sources'} · ${TERMS.launcher}`}
+              aria-label={`Launcher, ${n} ${n === 1 ? 'Source' : 'Sources'}`}
+              aria-pressed={launcher.open}
+              aria-keyshortcuts="Alt+L"
+            >
+              {LauncherIcon}
+              {n > 0 && <span className="tb-launcher__n">{n}</span>}
+            </button>
+          );
+        })()}
         {/* F-134: „+ Area“ – neue Spalte rechts oder Zeile unten; Panels kommen über die Areas dazu. */}
         {canAddArea(ws, setup) ? (
           <Menu icon={<span className="tb-add fx" style={{ '--fx': fx.panel.color } as CSSProperties}>+<span className="tb-label"> NewSlot</span></span>} label={`Neuen Slot anlegen – ${TERMS.slot} – ${fx.panel.text}`}>
@@ -1693,6 +1755,24 @@ export default function App() {
             restore(id);
           }}
           onClose={() => setClosedOpen(false)}
+        />
+      )}
+      {launcher.open && (
+        <Launcher
+          ws={ws}
+          state={launcher}
+          onState={setLauncher}
+          onOpen={(b, how) => launch(b.url, b.title, how)}
+          onAdd={(url, title, category) => {
+            const id = newId();
+            dispatch({ type: 'saveBookmark', bookmark: { id, title, url, category, tags: [], panels: [] } });
+            const blocked = isBlocked(ws, normalizeUrl(url));
+            if (!blocked) dispatch({ type: 'embed', url: normalizeUrl(url), ok: false });
+            const host = hostOf(normalizeUrl(url));
+            sayLive(`${title.trim() || host} angelegt${blocked ? '' : `; ${host} öffnet ab jetzt außerhalb`}.`);
+          }}
+          say={sayLive}
+          focusReq={launcherFocus}
         />
       )}
       {helpAt && <Help at={helpAt.at} onClose={() => setHelpAt(null)} onRun={runHelp} />}

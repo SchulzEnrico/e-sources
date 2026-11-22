@@ -20,6 +20,7 @@ import * as H from './help';
 import * as Tour from './tour';
 import * as C from './cycle';
 import * as Cl from './closed';
+import * as La from './launcher';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -1697,5 +1698,46 @@ describe('F-29 Rest Grenzen der Fokusanzeige', () => {
   it('wird gespeichert und geladen', () => {
     const ws = F.setFocusRule(W.defaultWorkspace(), { orangeMax: 30 });
     expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))!.focus).toEqual(ws.focus);
+  });
+});
+
+describe('F-40 bis F-42, F-149 Launcher', () => {
+  const bm = (id: string, title: string, url: string, category = ''): Parameters<typeof B.saveBookmark>[1] => ({ id, title, url, category, tags: [], panels: [] });
+  const base = () => {
+    let ws = B.addCategory(W.defaultWorkspace(), 'c1', 'Werkzeuge');
+    ws = B.saveBookmark(ws, bm('b1', 'GitHub', 'https://github.com/x', 'c1'));
+    ws = B.saveBookmark(ws, bm('b2', 'Wiki', 'https://de.wikipedia.org/wiki/Hamburg', 'c1'));
+    ws = B.saveBookmark(ws, bm('b3', 'ChatGPT', 'https://chatgpt.com/', 'c1'));
+    ws = B.saveBookmark(ws, bm('b4', 'Claude', 'https://claude.ai/new'));
+    return ws;
+  };
+  it('enthält nur gesperrte Sources, nach Kategorie, ohne Kategorie zuletzt', () => {
+    const g = La.launcherGroups(base());
+    expect(g.map((x) => x.category?.name ?? null)).toEqual(['Werkzeuge', null]);
+    expect(g[0].items.map((b) => b.id)).toEqual(['b1', 'b3']);
+    expect(g[1].items.map((b) => b.id)).toEqual(['b4']);
+    expect(La.launcherCount(base())).toBe(3);
+  });
+  it('eigene Markierung nimmt auf oder heraus', () => {
+    let ws = W.setEmbed(base(), 'https://de.wikipedia.org/', false);
+    expect(La.launcherGroups(ws)[0].items.map((b) => b.id)).toEqual(['b1', 'b2', 'b3']);
+    ws = W.setEmbed(ws, 'https://github.com/', true);
+    expect(La.launcherGroups(ws)[0].items.map((b) => b.id)).toEqual(['b2', 'b3']);
+  });
+  it('sortiert alphabetisch und filtert', () => {
+    expect(La.launcherGroups(base(), '', 'az')[0].items.map((b) => b.title)).toEqual(['ChatGPT', 'GitHub']);
+    expect(La.launcherGroups(base(), 'git').map((g) => g.items.map((b) => b.id))).toEqual([['b1']]);
+    expect(La.launcherGroups(base(), 'nichtda')).toEqual([]);
+  });
+  it('liest und speichert den Stand knapp', () => {
+    expect(La.parseLauncher(null)).toEqual(La.LAUNCHER_DEFAULT);
+    expect(La.parseLauncher({ open: true, how: 'window', x: 12.4, y: 'a', sort: 'zz' })).toMatchObject({ open: true, how: 'window', x: 12, y: -1, sort: 'library' });
+    expect(La.launcherDiff(La.LAUNCHER_DEFAULT)).toEqual({});
+    expect(La.launcherDiff({ ...La.LAUNCHER_DEFAULT, how: 'window' })).toEqual({ how: 'window' });
+  });
+  it('bleibt im sichtbaren Bereich', () => {
+    expect(La.clampPos(900, 700, 300, 200, 1000, 800)).toEqual({ x: 692, y: 592 });
+    expect(La.clampPos(-50, -5, 300, 200, 1000, 800)).toEqual({ x: 8, y: 8 });
+    expect(La.clampPos(100, 100, 2000, 200, 1000, 800)).toEqual({ x: 8, y: 100 });
   });
 });

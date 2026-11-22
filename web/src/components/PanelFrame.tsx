@@ -1,4 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { LauncherIcon } from './Launcher';
+import { openOutside } from '../workspace/launcher';
 import { createPortal } from 'react-dom';
 import type { Bookmark, Named, PanelMeta, Workspace } from '../workspace/types';
 import type { Action } from '../workspace/useWorkspace';
@@ -63,6 +65,8 @@ interface Props {
   isBlocked: (url: string) => boolean;
   /** F-43: Domain als einbettbar (true) oder gesperrt (false) merken. */
   onEmbed: (url: string, ok: boolean) => void;
+  /** F-43 Rest: gesperrte Source in den Launcher verschieben (speichern, Tab schließen). */
+  onToLauncher: (tab: string, url: string) => void;
   onClose: () => void;
   onStartSwap: () => void;
   onSetSize: (w: number, h: number) => void;
@@ -91,19 +95,6 @@ interface Props {
 type Drawer = null | { kind: 'collection' } | { kind: 'edit'; bookmark: Bookmark; isNew: boolean; back: boolean };
 
 const pct = (v: number) => `${Math.round(v * 100)} %`;
-
-/** F-123: Seite außerhalb von E-Source öffnen – als Browser-Tab oder als eigenes Fenster. */
-function openOutside(url: string, how: 'tab' | 'window') {
-  if (how === 'tab') {
-    window.open(url, '_blank', 'noopener,noreferrer');
-    return;
-  }
-  const w = Math.min(1280, Math.round(window.screen.availWidth * 0.8));
-  const h = Math.min(900, Math.round(window.screen.availHeight * 0.85));
-  const left = Math.round((window.screen.availWidth - w) / 2);
-  const top = Math.round((window.screen.availHeight - h) / 2);
-  window.open(url, '_blank', `popup,noopener,noreferrer,width=${w},height=${h},left=${left},top=${top}`);
-}
 
 /** F-135: Warum Zurück/Vor gesperrt sind – der Verlauf fremder Seiten im Panel ist nicht lesbar. */
 const NAV_HINT = 'Noch kein Schritt zum Blättern in diesem Tab.';
@@ -930,6 +921,10 @@ export function PanelFrame(p: Props) {
                   ⧉ In neuem Browserfenster
                 </button>
               </span>
+              {/* F-43 Rest: hier liegt sie nur im Weg – ab in den Launcher (Alt/⌥+Z holt den Tab zurück) */}
+              <button type="button" className="fallback__open fallback__launch" onClick={() => p.onToLauncher(tab.id, url)} title={`Source im Launcher ablegen und diesen Tab schließen · ${TERMS.launcher}`}>
+                {LauncherIcon} In den Launcher verschieben
+              </button>
               <button type="button" className="fallback__try" onClick={() => p.onEmbed(url, true)}>
                 Trotzdem hier versuchen
               </button>

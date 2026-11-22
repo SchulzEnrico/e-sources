@@ -10,7 +10,8 @@
  */
 import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { type PanelHit, type SearchHit, SEARCH_MAX, bookmarkOf, searchAll, searchPanels } from '../workspace/bookmarks';
-import { hostOf, tabLabel } from '../workspace/workspace';
+import { hostOf, isBlocked, tabLabel } from '../workspace/workspace';
+import { type How, HOW_IN, HOW_NAME } from '../workspace/launcher';
 import type { Workspace } from '../workspace/types';
 import { type HelpEntry, searchHelp } from '../workspace/help';
 
@@ -18,7 +19,10 @@ interface Props {
   ws: Workspace;
   /** Name des aktiven Panels (dort öffnen Lesezeichen, die keinem Panel zugeordnet sind). */
   activeName: string | null;
-  onOpen: (hit: SearchHit) => void;
+  /** swap = Strg/⌘: Source, die außerhalb aufgeht, auf die andere Art öffnen (F-149). */
+  onOpen: (hit: SearchHit, swap?: boolean) => void;
+  /** F-149: Voreinstellung für Sources, die sich nicht einbetten lassen. */
+  launchHow: How;
   /** F-141: Panel nach vorn holen; mit tabId auch diesen Tab zeigen. */
   onShowPanel: (panelId: string, tabId?: string) => void;
   /** F-156: Funktion ausführen (Enter auf einem Funktions-Treffer). */
@@ -34,7 +38,7 @@ function tabNames(ws: Workspace, h: PanelHit): string[] {
 
 type Item = { kind: 'panel'; hit: PanelHit } | { kind: 'bookmark'; hit: SearchHit } | { kind: 'help'; hit: HelpEntry };
 
-export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp }: Props) {
+export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, launchHow }: Props) {
   const uid = useId().replace(/:/g, '');
   const listId = `${uid}-list`;
   const optId = (i: number) => `${uid}-opt-${i}`;
@@ -45,7 +49,16 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp }: P
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLUListElement>(null);
 
-  const hits = useMemo(() => searchAll(ws, query), [ws, query]);
+  // F-149: Sources, die außerhalb aufgehen, nur einmal zeigen (das Portal spielt für sie keine Rolle)
+  const hits = useMemo(() => {
+    const seen = new Set<string>();
+    return searchAll(ws, query).filter((h) => {
+      if (!isBlocked(ws, h.bookmark.url)) return true;
+      if (seen.has(h.bookmark.id)) return false;
+      seen.add(h.bookmark.id);
+      return true;
+    });
+  }, [ws, query]);
   const panelHits = useMemo(() => searchPanels(ws, query), [ws, query]);
   const helpHits = useMemo(() => searchHelp(query, 4), [query]);
   const items: Item[] = useMemo(
@@ -94,12 +107,12 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp }: P
     return () => window.removeEventListener('pointerdown', onDown);
   }, [open]);
 
-  const choose = (it: Item | undefined, help = false) => {
+  const choose = (it: Item | undefined, help = false, swap = false) => {
     if (!it) return;
     setOpen(false);
     input.current?.blur();
     if (it.kind === 'panel') onShowPanel(it.hit.panel.id, it.hit.tabs[0]?.id);
-    else if (it.kind === 'bookmark') onOpen(it.hit);
+    else if (it.kind === 'bookmark') onOpen(it.hit, swap);
     // F-156: Funktion ausführen; Begriffe und Umschalt+Enter öffnen die Hilfe an dieser Stelle
     else {
       // Funktion oder Hilfe: Suchtext leeren, sonst steht „Tour“ o. Ä. danach noch im Feld
@@ -154,7 +167,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp }: P
       case 'Enter':
         if (show && items[cur]) {
           e.preventDefault();
-          choose(items[cur], e.shiftKey);
+          choose(items[cur], e.shiftKey, e.ctrlKey || e.metaKey);
         }
         break;
       case 'Escape':
@@ -190,7 +203,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp }: P
       onMouseMove={() => i !== cur && setSel(i)}
       // Mausklick darf den Fokus nicht aus dem Feld nehmen.
       onMouseDown={(e) => e.preventDefault()}
-      onClick={(e) => choose(items[i], e.shiftKey)}
+      onClick={(e) => choose(items[i], e.shiftKey, e.ctrlKey || e.metaKey)}
     >
       {children}
     </li>
@@ -223,7 +236,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp }: P
         onKeyDown={onKeyDown}
       />
       <span id={`${uid}-help`} className="sr-only">
-        Sucht in Portalen (Name, Slot, Case), in der Library (Titel, Adresse, Kategorie, Tags) und in den Funktionen. Pfeiltasten wählen, Enter öffnet oder führt aus, Umschalt+Enter zeigt die Hilfe, Escape schließt.
+        Sucht in Portalen (Name, Slot, Case), in der Library (Titel, Adresse, Kategorie, Tags) und in den Funktionen. Pfeiltasten wählen, Enter öffnet oder führt aus, Umschalt+Enter zeigt die Hilfe, Escape schließt. Sources mit „neuer Tab“ oder „neues Fenster“ öffnen außerhalb von E-Sources; Strg/⌘+Enter nimmt die andere Art.
       </span>
       {/* Ansage für Bildschirmleser, wie viele Treffer es gibt */}
       <span className="sr-only" role="status" aria-live="polite">
@@ -277,20 +290,22 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp }: P
           )}
           {hits.map((h, j) => {
             const i = panelHits.length + j;
-            const where = h.panel ? h.panel.name : `Library → ${activeName ?? 'aktives Portal'}`;
+            const out = isBlocked(ws, h.bookmark.url);
+            const where = out ? `↗ ${HOW_NAME[launchHow]}` : h.panel ? h.panel.name : `Library → ${activeName ?? 'aktives Portal'}`;
             const title = h.bookmark.title || hostOf(h.bookmark.url);
+            const opens = out ? `${HOW_IN[launchHow]}, Strg/⌘+Enter: ${HOW_IN[launchHow === 'tab' ? 'window' : 'tab']}` : h.panel ? `Portal ${h.panel.name}` : (activeName ?? 'dem aktiven Portal');
             return option(
               i,
-              `Source ${title}, öffnet in ${h.panel ? `Portal ${h.panel.name}` : (activeName ?? 'dem aktiven Portal')}${h.category ? `, Kategorie ${h.category}` : ''}`,
+              `Source ${title}, öffnet in ${opens}${h.category ? `, Kategorie ${h.category}` : ''}`,
               <>
                 <span className="search__title">{title}</span>
                 <span className="search__where">
-                  <span className="search__panel">{where}</span>
+                  <span className={out ? 'search__panel search__out' : 'search__panel'}>{where}</span>
                   {h.category && <span className="search__cat">{h.category}</span>}
                   <span className="search__host">{hostOf(h.bookmark.url)}</span>
                 </span>
               </>,
-              h.bookmark.url,
+              out ? `${h.bookmark.url}\nLässt sich nicht einbetten – öffnet außerhalb (Launcher). Strg/⌘+Enter: ${HOW_NAME[launchHow === 'tab' ? 'window' : 'tab']}` : h.bookmark.url,
             );
           })}
           {helpHits.length > 0 && (

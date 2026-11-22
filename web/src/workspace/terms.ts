@@ -13,6 +13,7 @@ export const TERMS = {
   stack: 'Stack = mehrere Portale übereinander auf einem Slot (höchstens 9); vorn liegt das sichtbare',
   portal: 'Portal = Rahmen mit Adresszeile und Tabs, der eine Source zeigt',
   source: 'Source = eine Webseite, die in einem Portal läuft',
+  launcher: 'Launcher = schwebendes Menü für Sources, die sich nicht in einem Portal anzeigen lassen; ein Klick öffnet sie in einem neuen Browser-Tab oder Fenster',
   library: 'Library = deine gespeicherten Sources; jedes Portal hat zusätzlich seine eigene Auswahl',
   design: 'Design = Aussehen von E-Sources: Darstellung (hell, dunkel oder wie das System) und Akzentfarbe',
   cockpit: 'Cockpit = Überblick über alle Desks; das Radar darin zeigt die Anordnung der Slots',

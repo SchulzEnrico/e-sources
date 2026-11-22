@@ -3,7 +3,6 @@ import './App.css';
 import logoUrl from './assets/e-sources-logo.svg';
 import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, PanelFrame } from './components/PanelFrame';
-import { RulerIcon } from './components/Ruler';
 import {
   type Lines,
   type Orientation,
@@ -38,6 +37,21 @@ const DRAG_START_PX = 6;
 const EDGE_BAND = 0.25;
 /** So nah am Rand der Arbeitsfläche (Pixel) dockt ein Panel an die ganze Fläche an. */
 const AREA_BAND_PX = 22;
+
+/** F-146: Symbol „Gleich verteilen“ – Pfeilkreuz (nach allen Seiten gleich). */
+const DistributeIcon = (
+  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="icon" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 1.5v13M1.5 8h13M6 3.5 8 1.5l2 2M6 12.5l2 2 2-2M3.5 6 1.5 8l2 2M12.5 6l2 2-2 2" />
+  </svg>
+);
+
+/** F-146: Zahnrad für das Einstellungsmenü. */
+const GearIcon = (
+  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3.2" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+  </svg>
+);
 
 /** F-127: Ansichten des Knopfs „Ansicht“, in der Reihenfolge des Weiterschaltens (wie Hineinzoomen). */
 type ViewKind = 'area' | 4 | 2 | 1;
@@ -639,11 +653,46 @@ export default function App() {
     <div className="app">
       <header className="toolbar" ref={toolbarRef}>
         <img className="brand-logo" src={shownTheme === 'dark' ? logoUrl : logoLightUrl} alt="E-Sources" width={366} height={186} />
-        {/* F-29 Gesamtfokus; Klick klappt das Master-Panel (F-28) aus */}
-        <FocusMeter focus={focus} open={overview} onToggle={toggleOverview} btnRef={meterRef} />
+        {/* F-146: Logo links, Bedienelemente mittig, Gesamtfokus ganz rechts */}
+        <div className="tb-center">
+        {/* F-127: Knopf „Ansicht“ – jeder Klick schaltet weiter: Arbeitsfläche → 2 × 2 → 2 → 1 → Arbeitsfläche */}
+        {(() => {
+          const now: ViewKind = mode.kind === 'max' ? 1 : mode.kind === 'split' ? mode.count : 'area';
+          const next = VIEW_NEXT[now];
+          const go = () => {
+            if (next === 'area') return setMode({ kind: 'area' });
+            if (next === 1) {
+              const id = (active && ws.panels.some((x) => x.id === active) ? active : null) ?? shownView.slots[0]?.front.id;
+              return setMode(id ? { kind: 'max', id } : { kind: 'area' });
+            }
+            setMode({ kind: 'split', count: next });
+          };
+          return (
+            <button
+              type="button"
+              className={now === 'area' ? 'tb-view' : 'on tb-view'}
+              onClick={go}
+              title={`Ansicht: ${VIEW_NAME[now]} · Klick: ${VIEW_NAME[next]}${next === 'area' ? ' (Esc)' : ''}`}
+              aria-label={`Ansicht: ${VIEW_NAME[now]}. Weiter zu: ${VIEW_NAME[next]}`}
+              aria-pressed={now !== 'area'}
+            >
+              <ViewIcon view={now} />
+            </button>
+          );
+        })()}
+        {!onArea && (
+          <button type="button" onClick={() => setMode({ kind: 'area' })} title="Zurück zur Arbeitsfläche (Esc)">
+            Zur Arbeitsfläche
+          </button>
+        )}
+        <button type="button" className="tb-view" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Gleich verteilen: alle Panels gleich groß, die Anordnung bleibt" aria-label="Gleich verteilen">
+          {DistributeIcon}
+        </button>
+        {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
+        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} />
         {/* F-134: „+ Area“ – neue Spalte rechts oder Zeile unten; Panels kommen über die Areas dazu. */}
         {canAddArea(ws, setup) ? (
-          <Menu icon={<span className="tb-add">+ Area</span>} label="Neue Area anlegen">
+          <Menu icon={<span className="tb-add">+ NewArea</span>} label="Neue Area anlegen">
             {(close) => (
               <>
                 <Item
@@ -674,68 +723,23 @@ export default function App() {
             title="Bildschirm voll – weitere Panels über das Plus einer Area anlegen"
             onClick={() => notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.capacity} Areas). Weitere Panels legst du über das rote Plus in der Kopfleiste eines Panels auf diese Area.`, 5000)}
           >
-            + Area
+            + NewArea
           </button>
         )}
-        <span className="sep" />
-        <button type="button" className="tb-wide" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Alle Panels gleich groß, die Anordnung bleibt">
-          Gleich verteilen
-        </button>
-        {/* F-127: Knopf „Ansicht“ – jeder Klick schaltet weiter: Arbeitsfläche → 2 × 2 → 2 → 1 → Arbeitsfläche */}
-        {(() => {
-          const now: ViewKind = mode.kind === 'max' ? 1 : mode.kind === 'split' ? mode.count : 'area';
-          const next = VIEW_NEXT[now];
-          const go = () => {
-            if (next === 'area') return setMode({ kind: 'area' });
-            if (next === 1) {
-              const id = (active && ws.panels.some((x) => x.id === active) ? active : null) ?? shownView.slots[0]?.front.id;
-              return setMode(id ? { kind: 'max', id } : { kind: 'area' });
-            }
-            setMode({ kind: 'split', count: next });
-          };
-          return (
-            <button
-              type="button"
-              className={now === 'area' ? 'tb-view' : 'on tb-view'}
-              onClick={go}
-              title={`Ansicht: ${VIEW_NAME[now]} · Klick: ${VIEW_NAME[next]}${next === 'area' ? ' (Esc)' : ''}`}
-              aria-label={`Ansicht: ${VIEW_NAME[now]}. Weiter zu: ${VIEW_NAME[next]}`}
-              aria-pressed={now !== 'area'}
-            >
-              <ViewIcon view={now} />
-              Ansicht
-            </button>
-          );
-        })()}
-        {/* F-125: Lineal für alle Panels */}
-        <button
-          type="button"
-          className={ws.ruler.on ? 'on tb-view' : 'tb-view'}
-          onClick={() => dispatch({ type: 'rulerAll' })}
-          title={ws.ruler.on ? 'Lineal in allen Panels ausblenden' : 'Lineal in allen Panels zeigen (einzelne Panels zusätzlich im Menü ⋮)'}
-          aria-label="Lineal für alle Panels"
-          aria-pressed={ws.ruler.on}
-        >
-          {RulerIcon}
-          Lineal
-        </button>
-        {!onArea && (
-          <button type="button" onClick={() => setMode({ kind: 'area' })} title="Zurück zur Arbeitsfläche (Esc)">
-            Zur Arbeitsfläche
-          </button>
-        )}
-        <span className="grow" />
-        {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
-        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} />
-        {swapFrom && <span className="hint">Ziel-Panel anklicken · Esc bricht ab</span>}
-        <span className="muted" title={`${screenClass(cls).label} · ${orientation === 'landscape' ? 'quer' : 'hoch'}`}>
-          {view.slots.length}/{view.spec.capacity}
-          {stacked > 0 ? ` · ${stacked} im Stapel` : ''}
-        </span>
         {/* F-66: Selten Gebrauchtes im Menü, damit die Kopfleiste schlank bleibt */}
-        <Menu icon={<span aria-hidden="true">⋯</span>} label="Weitere Einstellungen">
+        <Menu icon={GearIcon} label="Einstellungen">
           {(close) => (
             <>
+              {/* F-125, F-146: Lineal für alle Panels (vorher eigener Knopf in der Kopfleiste) */}
+              <Item
+                onClick={() => {
+                  dispatch({ type: 'rulerAll' });
+                  close();
+                }}
+              >
+                {ws.ruler.on ? 'Lineal in allen Panels ausblenden' : 'Lineal in allen Panels zeigen'}
+              </Item>
+              <li className="menu__sep" role="separator" />
               <Item
                 onClick={() => {
                   dispatch({ type: 'savePreferred', setup });
@@ -875,6 +879,10 @@ export default function App() {
           )}
         </Menu>
         <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={(e) => void importWorkspace(e.currentTarget)} />
+        {swapFrom && <span className="hint">Ziel-Panel anklicken · Esc bricht ab</span>}
+        </div>
+        {/* F-29 Gesamtfokus; Klick klappt das Master-Panel (F-28) aus */}
+        <FocusMeter focus={focus} open={overview} onToggle={toggleOverview} btnRef={meterRef} />
       </header>
       {overview && (
         <Overview
@@ -884,6 +892,7 @@ export default function App() {
           activeId={currentPanel()}
           top={overviewTop}
           toggleRef={meterRef}
+          info={`${view.slots.length}/${view.spec.capacity} Areas belegt${stacked > 0 ? ` · ${stacked} im Stapel` : ''} · ${screenClass(cls).label}, ${orientation === 'landscape' ? 'quer' : 'hoch'}`}
           onShow={showPanel}
           onClose={(id) => dispatch({ type: 'remove', id })}
           onRename={(id, name) => dispatch({ type: 'rename', id, name })}

@@ -2322,3 +2322,29 @@ button.is-off:hover,
   .focus-meter__bars > span { border: 1px solid CanvasText; }
   .overview__dot { border: 1px solid CanvasText; }
 }
+
+/* ---------- F-146 Kopfleiste: Logo links, Bedienelemente mittig, Gesamtfokus rechts */
+.toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+.toolbar > .brand-logo { justify-self: start; }
+.toolbar > .focus-meter { justify-self: end; }
+.tb-center {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.tb-center .search { width: clamp(160px, 22vw, 320px); }
+.tb-center > .menu > button { min-width: 36px; display: inline-flex; align-items: center; justify-content: center; }
+.tb-center > .menu > button:has(.tb-add) { font-size: inherit; line-height: inherit; }
+@media (max-width: 760px) {
+  .tb-center .tb-view { font-size: 0; gap: 0; }
+  .tb-center .tb-view .icon { font-size: 14px; }
+}
+.tb-center > button,
+.tb-center > .menu > button { white-space: nowrap; }
+/* F-146: Ansicht und Gleich verteilen nur als Symbol */
+.tb-center > .tb-view { padding: 5px 9px; min-width: 36px; justify-content: center; }
+.tb-center > .tb-view .icon { width: 20px; height: 16px; }

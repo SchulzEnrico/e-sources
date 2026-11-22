@@ -58,6 +58,8 @@ export interface OverviewProps {
   top: number;
   /** Knopf, der die Übersicht öffnet; Fokus geht beim Schließen dorthin zurück. */
   toggleRef: RefObject<HTMLButtonElement>;
+  /** F-146: belegte Areas, Stapel und Bildschirm (vorher in der Kopfleiste). */
+  info: string;
   onShow: (id: string) => void;
   onClose: (id: string) => void;
   onRename: (id: string, name: string) => void;
@@ -156,6 +158,7 @@ export function Overview(p: OverviewProps) {
         <div className="overview__head">
           <strong>Übersicht</strong>
           <span className="overview__focus">{focusText(p.focus)}</span>
+          <span className="overview__focus">{p.info}</span>
           <span className="grow" />
           <button type="button" className="overview__x" onClick={dismiss} title="Übersicht schließen (Esc)" aria-label="Übersicht schließen">
             ×

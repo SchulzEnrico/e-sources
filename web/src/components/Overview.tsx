@@ -7,7 +7,7 @@ import type { MoveTarget } from '../workspace/move';
 
 /**
  * F-29: Gesamtfokus als Equalizer-Pegel mit 9 Segmenten (Farben wie F-26/F-68). Ist zugleich der
- * Knopf, der das Master-Panel (F-28) ausklappt. Bildschirmleser hören Farbe und Punkte als Text.
+ * Knopf, der das Fokus-Radar (F-28) ausklappt. Bildschirmleser hören Farbe und Punkte als Text.
  */
 export function FocusMeter(props: { focus: Focus; open: boolean; onToggle: () => void; btnRef: RefObject<HTMLButtonElement> }) {
   const { focus, open } = props;
@@ -29,8 +29,8 @@ export function FocusMeter(props: { focus: Focus; open: boolean; onToggle: () =>
         aria-expanded={open}
         aria-controls="overview"
         aria-haspopup="dialog"
-        aria-label={`${text}. Übersicht aller Panels ${open ? 'schließen' : 'öffnen'}`}
-        title={`${text} · Klick: Übersicht aller Panels (Strg/⌘+.)`}
+        aria-label={`${text}. Fokus-Radar ${open ? 'schließen' : 'öffnen'}`}
+        title={`${text} · Klick: Fokus-Radar – alle Panels auf einen Blick (Strg/⌘+.)`}
       >
         <span className="focus-meter__bars" aria-hidden="true">
           {Array.from({ length: 9 }, (_, i) => (
@@ -79,6 +79,8 @@ export interface OverviewProps {
   moveTargets: (id: string, whole: boolean) => MoveTarget[];
   /** F-28: Panel bzw. ganze Area auf ein Ziel legen. */
   onMove: (id: string, target: MoveTarget, whole: boolean) => void;
+  /** F-27/F-28: Panel bzw. ganze Area in ein neues Fenster verschieben. */
+  onNewWindow: (id: string, whole: boolean) => void;
   onDismiss: () => void;
 }
 
@@ -90,10 +92,10 @@ export function targetText(t: MoveTarget, winName: string): string {
 }
 
 /**
- * F-28: Zielauswahl im Master-Panel – Liste aller Ziele, nach Fenstern gruppiert. Tastatur:
+ * F-28: Zielauswahl im Fokus-Radar – Liste aller Ziele, nach Fenstern gruppiert. Tastatur:
  * ↑/↓/Pos1/Ende wählen, Enter legt ab, Esc bricht ab (Fokus zurück auf die Zeile).
  */
-function MovePicker(props: { title: string; targets: MoveTarget[]; here: string; winName: (w: string) => string; onPick: (t: MoveTarget) => void; onCancel: () => void }) {
+function MovePicker(props: { title: string; targets: MoveTarget[]; here: string; winName: (w: string) => string; onPick: (t: MoveTarget) => void; onNewWindow: () => void; onCancel: () => void }) {
   const box = useRef<HTMLDivElement>(null);
   const usable = props.targets.filter((t) => !t.disabled);
   useEffect(() => {
@@ -126,7 +128,7 @@ function MovePicker(props: { title: string; targets: MoveTarget[]; here: string;
           ×
         </button>
       </div>
-      {usable.length === 0 && <p className="overview__empty">Gerade gibt es kein freies Ziel.</p>}
+      {usable.length === 0 && <p className="overview__empty">Gerade ist keine Area frei – nur ein neues Fenster.</p>}
       {wins.map((w) => {
         const items = props.targets.filter((t) => t.win === w);
         if (items.length === 0) return null;
@@ -146,12 +148,19 @@ function MovePicker(props: { title: string; targets: MoveTarget[]; here: string;
           </ul>
         );
       })}
+      <ul className="overview__pick-list" aria-label="Neues Fenster">
+        <li>
+          <button type="button" className="overview__target" onClick={props.onNewWindow}>
+            ⧉ In neues Fenster
+          </button>
+        </li>
+      </ul>
     </div>
   );
 }
 
 /**
- * F-28 Master-Panel, erste Stufe: alle Areas als Karten mit ihren Panels (Name, Domain, Tabs, Ampel).
+ * F-28 Fokus-Radar (bisher Master-Panel), erste Stufe: alle Areas als Karten mit ihren Panels (Name, Domain, Tabs, Ampel).
  * Tastatur (NF-03): ↑/↓ Panels, ←/→ Areas, Pos1/Ende, Enter springt, Entf schließt, F2 benennt um, Esc.
  */
 export function Overview(p: OverviewProps) {
@@ -375,7 +384,7 @@ export function Overview(p: OverviewProps) {
         ref={box}
         className="overview"
         role="dialog"
-        aria-label="Übersicht aller Panels"
+        aria-label="Fokus-Radar: alle Panels auf einen Blick"
         aria-describedby="overview-help"
         style={{ top: p.top }}
         onBlur={(e) => {
@@ -391,16 +400,16 @@ export function Overview(p: OverviewProps) {
         }}
       >
         <div className="overview__head">
-          <strong>Übersicht</strong>
+          <strong>Fokus-Radar</strong>
           <span className="overview__focus">{focusText(p.focus)}</span>
           <span className="overview__focus">{p.info}</span>
           <span className="grow" />
-          <button type="button" className="overview__x" onClick={dismiss} title="Übersicht schließen (Esc)" aria-label="Übersicht schließen">
+          <button type="button" className="overview__x" onClick={dismiss} title="Fokus-Radar schließen (Esc)" aria-label="Fokus-Radar schließen">
             ×
           </button>
         </div>
         <p id="overview-help" className="sr-only">
-          Pfeil hoch und runter wählt ein Panel, Pfeil links und rechts wechselt die Area. Enter zeigt das Panel, auch in einem anderen Fenster. V verschiebt das Panel auf eine andere Area, Umschalt und V die ganze Area. H holt ein Panel aus einem anderen Fenster hierher. Entf schließt es, F2 benennt es um, Escape schließt die Übersicht.
+          Pfeil hoch und runter wählt ein Panel, Pfeil links und rechts wechselt die Area. Enter zeigt das Panel, auch in einem anderen Fenster. V verschiebt das Panel auf eine andere Area, Umschalt und V die ganze Area. H holt ein Panel aus einem anderen Fenster hierher. Entf schließt es, F2 benennt es um, Escape schließt das Fokus-Radar.
         </p>
         {moving &&
           (() => {
@@ -414,6 +423,12 @@ export function Overview(p: OverviewProps) {
                 here={m.win ?? ''}
                 winName={(w) => windowName(p.ws, w)}
                 onCancel={() => setMoving(null)}
+                onNewWindow={() => {
+                  p.onNewWindow(moving.id, moving.whole);
+                  setSaid(`${moving.whole ? 'Area' : `„${m.name}“`} in ein neues Fenster verschoben.`);
+                  setCur(null);
+                  setMoving(null);
+                }}
                 onPick={(t) => {
                   p.onMove(moving.id, t, moving.whole);
                   setSaid(`${moving.whole ? 'Area' : `„${m.name}“`} verschoben: ${targetText(t, windowName(p.ws, t.win))}${t.area && t.win !== (m.win ?? '') ? `, ${windowName(p.ws, t.win)}` : ''}.`);

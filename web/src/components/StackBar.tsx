@@ -70,15 +70,15 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
                 />
               </div>
             ) : (
+            <div key={m.id} className="stack__row" role="presentation">
             <button
-              key={m.id}
               type="button"
               role="tab"
               aria-selected={m.id === frontId}
               className={m.id === frontId ? 'stack__item stack__item--on' : 'stack__item'}
               onClick={() => onSelect(m.id)}
               onPointerDown={(e) => {
-                if (e.button === 0 && !(e.target as HTMLElement).closest('.stack__close')) onDragStart?.(e, m.id);
+                if (e.button === 0) onDragStart?.(e, m.id);
               }}
               onDoubleClick={() => {
                 setDraft(m.name);
@@ -100,18 +100,20 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
             >
               <span className="stack__num">{i + 1}</span>
               <span className="stack__name">{m.name}</span>
-              <span
-                className="stack__close"
-                aria-hidden="true"
-                title="Panel schließen"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove(m.id);
-                }}
-              >
-                ×
-              </span>
             </button>
+            {/* Eigener Knopf neben dem Eintrag (nicht darin: Knopf im Knopf ist ungültig). Per Tastatur schließt Entf. */}
+            <button
+              type="button"
+              className="stack__close"
+              tabIndex={-1}
+              aria-hidden="true"
+              title={`„${m.name}“ schließen`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onRemove(m.id)}
+            >
+              ×
+            </button>
+            </div>
             ),
           )}
         </div>

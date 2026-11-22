@@ -866,12 +866,34 @@ button.is-off:hover,
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.stack__row {
+  /* Einträge füllen die ganze Höhe der Leiste (F-26). */
+  flex: 1 1 0;
+  min-height: 18px;
+  display: flex;
+  position: relative;
+}
+.stack__row > .stack__item {
+  flex: 1;
+  min-width: 0;
+}
+.stack:hover .stack__row > .stack__item,
+.stack:focus-within .stack__row > .stack__item {
+  padding-right: 30px;
+}
 .stack__close {
   display: none;
-  flex: 0 0 auto;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
   min-width: 22px;
   height: 22px;
-  margin-left: 2px;
   font-size: 18px;
   font-weight: 700;
   line-height: 20px;

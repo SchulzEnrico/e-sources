@@ -114,7 +114,7 @@ const CORNERS: { c: Corner; x: 'left' | 'right'; y: 'top' | 'bottom' }[] = [
   { c: 'br', x: 'right', y: 'bottom' },
 ];
 
-const POPUP_BLOCKED = 'Der Browser hat das Fenster blockiert – bitte Pop-ups für diese Seite erlauben und es im Master-Panel mit „Wieder öffnen“ holen.';
+const POPUP_BLOCKED = 'Der Browser hat das Fenster blockiert – bitte Pop-ups für diese Seite erlauben und es im Fokus-Radar mit „Wieder öffnen“ holen.';
 
 /**
  * F-27: Name des Zusatzfensters in der Kopfleiste. Klick (oder Doppelklick, Enter, F2) öffnet ein
@@ -1109,7 +1109,7 @@ export default function App() {
         <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={(e) => void importWorkspace(e.currentTarget)} />
         {swapFrom && <span className="hint">Ziel-Panel anklicken · Esc bricht ab</span>}
         </div>
-        {/* F-29 Gesamtfokus; Klick klappt das Master-Panel (F-28) aus */}
+        {/* F-29 Gesamtfokus; Klick klappt das Fokus-Radar (F-28, bisher Master-Panel) aus */}
         <FocusMeter focus={focus} open={overview} onToggle={toggleOverview} btnRef={meterRef} />
       </header>
       {overview && (
@@ -1135,6 +1135,7 @@ export default function App() {
           onRename={(id, name) => dispatch({ type: 'rename', id, name })}
           moveTargets={targetsFor}
           onMove={moveTo}
+          onNewWindow={(id, whole) => toWindow(id, null, whole)}
           onDismiss={() => setOverview(false)}
         />
       )}

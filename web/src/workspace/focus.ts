@@ -65,7 +65,7 @@ export function focusText(f: Focus): string {
   return `Gesamtfokus: ${f.color}, ${pointsText(f.points)} Punkte (${f.panels} ${f.panels === 1 ? 'Panel' : 'Panels'}${tabs})`;
 }
 
-// ---------------------------------------------------------------- F-28 Master-Panel (Übersicht)
+// ---------------------------------------------------------------- F-28 Fokus-Radar (bisher Master-Panel)
 
 export interface OverviewPanel {
   meta: PanelMeta;

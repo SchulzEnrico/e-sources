@@ -22,5 +22,6 @@ export const TERMS = {
   design: 'Design = Aussehen von E-Sources: Darstellung (hell, dunkel oder wie das System) und Akzentfarbe',
   cockpit: 'Cockpit = Überblick über alle Desks; das Radar darin zeigt die Anordnung der Slots',
   focus: 'Fokusanzeige = wie viel gerade offen ist; Grün heißt gut überschaubar',
+  update: 'Neue Version = E-Sources wurde inzwischen verbessert; „Neu laden“ holt sie, deine Desks, Portale und Library bleiben erhalten',
   adjust: 'Adjust = Größen der Portale per Tastatur oder Mausrad ändern (Alt/⌥+A)',
 } as const;

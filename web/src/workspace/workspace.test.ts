@@ -24,6 +24,7 @@ import * as La from './launcher';
 import * as BB from './browserBookmarks';
 import * as SH from './sortHelp';
 import * as Pr from './profile';
+import * as Up from './update';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -1907,5 +1908,38 @@ describe('F-179 Profil', () => {
     expect(H.searchHelp('Profil')[0].id).toBe('profile');
     expect(H.searchHelp('Begrüßung')[0].id).toBe('profile');
     expect(Pr.PROFILE_COLORS).toHaveLength(8);
+  });
+});
+
+describe('F-168 Neue Version verfügbar', () => {
+  it('liest die Build-Kennung nur aus brauchbarem version.json', () => {
+    expect(Up.parseBuild({ build: '20261122T1630' })).toBe('20261122T1630');
+    expect(Up.parseBuild({ build: '' })).toBeNull();
+    expect(Up.parseBuild({ build: 42 })).toBeNull();
+    expect(Up.parseBuild({ build: '<script>' })).toBeNull();
+    expect(Up.parseBuild(null)).toBeNull();
+    expect(Up.parseBuild('20261122')).toBeNull();
+  });
+  it('meldet nur eine andere Kennung als neu', () => {
+    expect(Up.isNewBuild('a', 'b')).toBe(true);
+    expect(Up.isNewBuild('a', 'a')).toBe(false);
+    expect(Up.isNewBuild('a', null)).toBe(false);
+    expect(Up.isNewBuild('', 'b')).toBe(false);
+  });
+  it('prüft beim Zurückkehren nach 1 Minute, sonst alle 30 Minuten', () => {
+    expect(Up.dueCheck(0, Up.MIN_GAP_MS - 1, 'return')).toBe(false);
+    expect(Up.dueCheck(0, Up.MIN_GAP_MS, 'return')).toBe(true);
+    expect(Up.dueCheck(0, Up.MIN_GAP_MS, 'timer')).toBe(false);
+    expect(Up.dueCheck(0, Up.CHECK_EVERY_MS, 'timer')).toBe(true);
+  });
+  it('baut die Adresse mit Unterpfad und Zeitstempel', () => {
+    expect(Up.versionUrl('/e-sources/', 5)).toBe('/e-sources/version.json?t=5');
+    expect(Up.versionUrl('/', 5)).toBe('/version.json?t=5');
+    expect(Up.versionUrl('/x', 5)).toBe('/x/version.json?t=5');
+  });
+  it('findet „Neu laden“ in Suche und Hilfe', () => {
+    expect(H.searchHelp('neue Version')[0].id).toBe('reload');
+    expect(H.searchHelp('Update')[0].id).toBe('reload');
+    expect(H.helpById('reload')?.run).toBe('reload');
   });
 });

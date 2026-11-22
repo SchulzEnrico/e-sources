@@ -6,7 +6,7 @@
 import { TERMS } from './terms';
 
 /** Was die Oberfläche ausführen kann; App.tsx ordnet jedem Wert die passende Aktion zu. */
-export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher' | 'importBookmarks' | 'exportBookmarks' | 'sortHelp' | 'tourImport' | 'profile';
+export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher' | 'importBookmarks' | 'exportBookmarks' | 'sortHelp' | 'tourImport' | 'profile' | 'reload';
 
 export interface HelpEntry {
   id: string;
@@ -79,6 +79,7 @@ export const HELP: HelpEntry[] = [
   { id: 'sortHelp', group: 'Bedienung', name: 'Sortierhilfe', text: up(def(TERMS.sortHelp)) + ' „Alle Vorschläge übernehmen“ sortiert alles auf einmal. Öffnet sich nach einem Import mit vielen Sources ohne Kategorie von selbst (Einstellungen, Zahnrad).', run: 'sortHelp', words: ['sortieren', 'einsortieren', 'Kategorien zuordnen', 'aufräumen', 'Ohne Kategorie', 'ordnen', 'Import'] },
   { id: 'exportBookmarks', group: 'Bedienung', name: 'Library exportieren', text: up(def(TERMS.exportBookmarks)), run: 'exportBookmarks', words: ['Lesezeichen exportieren', 'Chrome', 'Safari', 'Firefox', 'Browser', 'HTML', 'sichern'] },
   { id: 'profile', group: 'Bedienung', name: 'Profil', text: up(def(TERMS.profile)) + ' Name, Kennfarbe und Begrüßung stellst du unter Einstellungen (Zahnrad) › Profil ein; die Begrüßung lässt sich dort abschalten.', run: 'profile', words: ['Name', 'Begrüßung', 'Willkommen', 'Konto', 'Login', 'Anmelden', 'Kennfarbe', 'Initialen', 'Zuletzt offen', 'weitermachen', 'persönlich'] },
+  { id: 'reload', group: 'Bedienung', name: 'Neu laden', text: 'Lädt E-Sources neu, z. B. wenn unten links „Neue Version verfügbar“ steht. ' + up(def(TERMS.update)) + ' E-Sources prüft das beim Zurückkehren in die App und alle 30 Minuten von selbst.', run: 'reload', words: ['neue Version', 'Update', 'aktualisieren', 'neu starten', 'Version', 'iPhone', 'iPad', 'Startbildschirm', 'App'] },
   { id: 'exportDesks', group: 'Bedienung', name: 'Desks exportieren / importieren', text: 'Sichert alle Desks als Datei oder lädt sie wieder (Einstellungen, Zahnrad).', words: ['sichern', 'Backup', 'Datei', 'übertragen', 'anderes Gerät'] },
 ];
 

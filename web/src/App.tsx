@@ -44,6 +44,8 @@ import { FocusRule as FocusRuleDialog } from './components/FocusRule';
 import { ImportBookmarks } from './components/ImportBookmarks';
 import { SortHelp } from './components/SortHelp';
 import { Greeting } from './components/Greeting';
+import { UpdateNotice } from './components/UpdateNotice';
+import { useUpdateCheck } from './workspace/useUpdate';
 import { ProfileDialog } from './components/Profile';
 import { greetingFor, loadLast, profileOf, saveLast } from './workspace/profile';
 import { BOOKMARKS_FILE_NAME, type BrowserBookmark, bookmarkFileOf, looksLikeBookmarkFile, parseBookmarkFile } from './workspace/browserBookmarks';
@@ -294,7 +296,6 @@ export default function App() {
     if (PROBE || win || !tourAutoStart('start')) return;
     const t = window.setTimeout(() => setTour('start', true), 800);
     return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /** F-172: Cockpit-Tour beim ersten Öffnen des Cockpits einmal von selbst (nicht in der Testbelegung). */
   useEffect(() => {
@@ -306,7 +307,6 @@ export default function App() {
     if (PROBE || tour || !tourAutoStart('cockpit')) return;
     const t = window.setTimeout(() => setTour((x) => x ?? 'cockpit', true), 450);
     return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overview]);
   /** F-171: Design-Tour beim ersten Öffnen von „Design anpassen“; Dialog zu → Tour endet mit. */
   useEffect(() => {
@@ -317,7 +317,6 @@ export default function App() {
     if (PROBE || tour || !tourAutoStart('design')) return;
     const t = window.setTimeout(() => setTour((x) => x ?? 'design', true), 300);
     return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [design]);
   /** F-36: gewählte Lesezeichen-Datei → Dialog „Lesezeichen importieren“ */
   const [bmImport, setBmImport] = useState<{ name: string; list: BrowserBookmark[] } | null>(null);
@@ -333,7 +332,6 @@ export default function App() {
     if (PROBE || !tourAutoStart('import')) return;
     const t = window.setTimeout(() => setTour((x) => x ?? 'import', true), 300);
     return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importOpen]);
   const startDesignTour = () => {
     setDesign(true);
@@ -389,6 +387,12 @@ export default function App() {
   const [cycleSaid, setCycleSaid] = useState('');
   /** Text in die immer vorhandene Live-Region (gleicher Text zweimal wird erneut angesagt). */
   const sayLive = (text: string) => setCycleSaid((old) => (old === text ? `${text}\u00a0` : text));
+  // F-168: neue Version im Hintergrund erkennen (nicht in eingebetteten E-Sources). Zum Ausprobieren:
+  // ?test=voll&version=alt tut so, als liefe eine ältere Version.
+  const update = useUpdateCheck(PROBE && new URLSearchParams(window.location.search).get('version') === 'alt' ? 'alt' : __BUILD_ID__, window.self === window.top);
+  useEffect(() => {
+    if (update.found) sayLive('Neue Version von E-Sources verfügbar. „Neu laden“ steht im Hinweis unten links.');
+  }, [update.found]);
   /** F-40 bis F-42, F-149: Launcher – Lage, offen/eingeklappt und Wahl Tab/Fenster je Desk. */
   const [launcher, setLauncherState] = useState<LauncherState>(() => loadLauncher(win ?? ''));
   const [launcherFocus, setLauncherFocus] = useState(0);
@@ -834,7 +838,6 @@ export default function App() {
   // Begrüßung höflich ansagen (einmal beim Start)
   useEffect(() => {
     if (greetOn) sayLive(`${greetText}.${greetLast ? ` Zuletzt offen: ${greetLast.name}. Weitermachen steht in der Begrüßung oben rechts.` : ''}`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const closeGreeting = useCallback(() => setGreetOn(false), []);
   const continueLast = () => {
@@ -1359,6 +1362,8 @@ export default function App() {
         return setSortOpen(true);
       case 'profile':
         return setProfileOpen(true);
+      case 'reload':
+        return window.location.reload();
       case 'search':
         return window.setTimeout(() => document.querySelector<HTMLInputElement>('.search__input')?.focus(), 0);
     }
@@ -1941,6 +1946,7 @@ export default function App() {
           onClose={closeGreeting}
         />
       )}
+      {update.found && <UpdateNotice onReload={() => window.location.reload()} onLater={update.later} />}
       {profileOpen && <ProfileDialog profile={profileOf(ws)} onChange={(change) => dispatch({ type: 'profile', change })} onClose={() => setProfileOpen(false)} />}
       {sortOpen && (
         <SortHelp

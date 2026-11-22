@@ -1,4 +1,4 @@
-import type { Arrangement, Bookmark, Closed, Named, PanelMeta, Tab, Workspace } from './types';
+import type { Arrangement, Bookmark, BookmarkOrigin, Closed, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
 import { parseLook } from './look';
 import { parseProfile } from './profile';
 import { type FocusRule, fixRule } from './focus';
@@ -89,6 +89,16 @@ function namedList(v: unknown): Named[] {
 }
 
 /** Lesezeichen (F-30); fehlerhafte Einträge fallen weg, statt die ganze Arbeitsfläche zu verwerfen. */
+const VIAS: OriginVia[] = ['hand', 'launcher', 'import', 'sample', 'workspace'];
+
+/** F-185: Herkunft aus gespeicherten Daten; Unbrauchbares fällt weg. */
+function originFrom(v: unknown): BookmarkOrigin | undefined {
+  if (!isObj(v) || !VIAS.includes(v.via as OriginVia) || typeof v.at !== 'string' || Number.isNaN(Date.parse(v.at))) return undefined;
+  const o: BookmarkOrigin = { via: v.via as OriginVia, at: v.at };
+  for (const k of ['by', 'from', 'folder'] as const) if (typeof v[k] === 'string' && v[k]) o[k] = v[k] as string;
+  return o;
+}
+
 function bookmarkList(v: unknown, panelIds: Set<string>, categoryIds: Set<string>): Bookmark[] {
   if (!Array.isArray(v)) return [];
   const out: Bookmark[] = [];
@@ -103,6 +113,8 @@ function bookmarkList(v: unknown, panelIds: Set<string>, categoryIds: Set<string
       panels: strList(b.panels) ? (b.panels as string[]).filter((id) => panelIds.has(id)) : [],
     };
     if (typeof b.note === 'string' && b.note) item.note = b.note;
+    const origin = originFrom(b.origin);
+    if (origin) item.origin = origin;
     out.push(item);
   }
   return out;

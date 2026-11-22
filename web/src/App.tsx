@@ -19,7 +19,7 @@ import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { type Action, useWorkspace } from './workspace/useWorkspace';
 import type { Workspace } from './workspace/types';
-import { type SearchHit, NO_CATEGORY, addSamples, bookmarkOf, openBookmark } from './workspace/bookmarks';
+import { type SearchHit, NO_CATEGORY, addSamples, bookmarkOf, openBookmark, originOf } from './workspace/bookmarks';
 import { Launcher, LauncherIcon } from './components/Launcher';
 import { type How, type LauncherState, HOW_IN, launcherCount, loadLauncher, openOutside, saveLauncher } from './workspace/launcher';
 import { Search } from './components/Search';
@@ -1298,7 +1298,7 @@ function DeskApp(props: DeskProps) {
         onToLauncher={(tabId, url) => {
           // F-43 Rest: als Source speichern (falls noch nicht da), Tab schließen, Launcher zeigen
           const known = bookmarkOf(ws, url);
-          if (!known) dispatch({ type: 'saveBookmark', bookmark: { id: newId(), title: '', url, category: NO_CATEGORY, tags: [], panels: [] } });
+          if (!known) dispatch({ type: 'saveBookmark', bookmark: { id: newId(), title: '', url, category: NO_CATEGORY, tags: [], panels: [], origin: originOf(ws, 'launcher') } });
           closeTabOf(meta.id, tabId);
           setLauncher({ open: true, min: false });
           sayLive(`${known?.title ?? hostOf(url)} liegt jetzt im Launcher. Tab geschlossen, Alt/⌥+Z holt ihn zurück.`);
@@ -2036,7 +2036,7 @@ function DeskApp(props: DeskProps) {
           onClose={() => setBmImport(null)}
           onTour={() => setTour('import')}
           onImport={(plan) => {
-            dispatch({ type: 'importBookmarks', plan });
+            dispatch({ type: 'importBookmarks', plan, from: bmImport.name });
             setBmImport(null);
             const cats = plan.newCategories.length;
             const loose = plan.fresh.filter((b) => !b.category).length;
@@ -2094,7 +2094,7 @@ function DeskApp(props: DeskProps) {
           onOpen={(b, how) => launch(b.url, b.title, how)}
           onAdd={(url, title, category) => {
             const id = newId();
-            dispatch({ type: 'saveBookmark', bookmark: { id, title, url, category, tags: [], panels: [] } });
+            dispatch({ type: 'saveBookmark', bookmark: { id, title, url, category, tags: [], panels: [], origin: originOf(ws, 'launcher') } });
             const blocked = isBlocked(ws, normalizeUrl(url));
             if (!blocked) dispatch({ type: 'embed', url: normalizeUrl(url), ok: false });
             const host = hostOf(normalizeUrl(url));

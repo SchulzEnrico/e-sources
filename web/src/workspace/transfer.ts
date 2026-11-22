@@ -33,7 +33,7 @@ export function toTransferFile(ws: Workspace, device: string, now = new Date()):
 export type ReadResult = { ok: true; file: TransferFile } | { ok: false; error: string };
 
 /** Liest den Inhalt einer exportierten Datei und prüft ihn. */
-export function readTransferFile(text: string): ReadResult {
+export function readTransferFile(text: string, now = new Date()): ReadResult {
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -50,6 +50,9 @@ export function readTransferFile(text: string): ReadResult {
   const ws = parseWorkspace(d.workspace);
   if (!ws) return { ok: false, error: 'Der Stand in der Datei ist beschädigt.' };
   const device = typeof d.device === 'string' ? d.device : 'unbekanntes Gerät';
+  // F-185: Sources ohne Herkunft kommen „aus Import der Arbeitsfläche“ (vom Gerät der Datei)
+  const at = new Date(now).toISOString();
+  ws.bookmarks = ws.bookmarks.map((b) => (b.origin ? b : { ...b, origin: { via: 'workspace', at, from: device } }));
   return { ok: true, file: { format: FILE_FORMAT, version: d.version, savedAt, device, workspace: ws } };
 }
 

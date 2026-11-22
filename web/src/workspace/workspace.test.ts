@@ -1968,3 +1968,51 @@ describe('F-168 Neue Version verfügbar', () => {
     expect(H.helpById('reload')?.run).toBe('reload');
   });
 });
+
+describe('F-185 Herkunft einer Source', () => {
+  const now = new Date(2026, 10, 22, 16, 55);
+  const base = Pr.setProfile(W.defaultWorkspace(), { name: 'Enrico' });
+
+  it('neue Source merkt sich wer, wie und wann; Ändern behält das', () => {
+    const origin = B.originOf(base, 'hand', {}, now);
+    expect(origin).toEqual({ via: 'hand', at: now.toISOString(), by: 'Enrico' });
+    let ws = B.saveBookmark(base, { id: 'b1', title: 'MDN', url: 'https://developer.mozilla.org', category: '', tags: [], panels: [], origin });
+    ws = B.saveBookmark(ws, { ...ws.bookmarks[0], title: 'MDN Doku', origin: undefined });
+    expect(ws.bookmarks[0].origin).toEqual(origin);
+    expect(B.originText(origin)).toBe('Angelegt von Enrico am 22.11.2026, 16:55 · von Hand gespeichert');
+    expect(B.originText(undefined)).toContain('Herkunft unbekannt');
+    expect(B.originOf(W.defaultWorkspace(), 'launcher', {}, now).by).toBeUndefined();
+  });
+
+  it('Lesezeichen-Import nennt Datei und Ordner und ist suchbar', () => {
+    const list = BB.parseBookmarkFile('<DL><p><DT><H3>Arbeit</H3><DL><p><DT><A HREF="https://example.org/a">A</A></DL><p></DL>');
+    const plan = BB.planImport(base, list, 'one', 'Import 22.11.2026');
+    const ws = BB.applyImport(base, plan, W.newId, 'bookmarks.html', now);
+    const o = ws.bookmarks[0].origin;
+    expect(o).toMatchObject({ via: 'import', from: 'bookmarks.html', folder: 'Arbeit', by: 'Enrico' });
+    expect(B.originText(o)).toBe('Angelegt von Enrico am 22.11.2026, 16:55 · aus Lesezeichen-Import „bookmarks.html“, Ordner Arbeit');
+    expect(B.matches(ws, ws.bookmarks[0], 'import 22.11.2026')).toBe(true);
+    expect(B.matches(ws, ws.bookmarks[0], 'launcher')).toBe(false);
+  });
+
+  it('Beispiele, Speichern und Import der Arbeitsfläche', () => {
+    const s = B.addSamples(base, W.newId, now).ws;
+    expect(s.bookmarks.every((b) => b.origin?.via === 'sample')).toBe(true);
+    // gespeichert und wieder geladen
+    const back = parseWorkspace(JSON.parse(JSON.stringify(s)));
+    expect(back?.bookmarks[0].origin).toEqual(s.bookmarks[0].origin);
+    // unbrauchbare Angabe fällt weg
+    const bad = JSON.parse(JSON.stringify(s));
+    bad.bookmarks[0].origin = { via: 'irgendwas', at: 'gestern' };
+    expect(parseWorkspace(bad)?.bookmarks[0].origin).toBeUndefined();
+    // Import der Arbeitsfläche: vorhandene Herkunft bleibt, fehlende wird „workspace“ vom Gerät der Datei
+    const file = X.toTransferFile(bad, 'Mac', now);
+    const r = X.readTransferFile(JSON.stringify(file), now);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.file.workspace.bookmarks[0].origin).toEqual({ via: 'workspace', at: now.toISOString(), from: 'Mac' });
+      expect(r.file.workspace.bookmarks[1].origin?.via).toBe('sample');
+      expect(B.originText(r.file.workspace.bookmarks[0].origin)).toContain('aus Import der Arbeitsfläche (Mac)');
+    }
+  });
+});

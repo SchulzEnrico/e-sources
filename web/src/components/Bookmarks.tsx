@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { Bookmark, Workspace } from '../workspace/types';
-import { NO_CATEGORY, categoryByName, collectionSize, groups } from '../workspace/bookmarks';
+import { NO_CATEGORY, categoryByName, collectionSize, groups, originOf, originText } from '../workspace/bookmarks';
 import { hostOf, newId } from '../workspace/workspace';
 import { TERMS } from '../workspace/terms';
 
@@ -74,7 +74,9 @@ export function BookmarkEditor(props: {
       if (!found) props.dispatch({ type: 'addCategory', id: cat, name: newCat });
     }
     lastCategory = cat;
-    props.dispatch({ type: 'saveBookmark', bookmark: { ...b, title, url, category: cat, tags: tags.split(','), note, panels } });
+    // F-185: neue Sources von Hand (☆ oder Library); beim Ändern bleibt die Herkunft
+    const origin = b.origin ?? (props.isNew ? originOf(ws, 'hand') : undefined);
+    props.dispatch({ type: 'saveBookmark', bookmark: { ...b, title, url, category: cat, tags: tags.split(','), note, panels, origin } });
     props.onDone(props.isNew ? 'Source in der Library gespeichert.' : 'Source geändert.');
   };
 
@@ -127,6 +129,12 @@ export function BookmarkEditor(props: {
           Adresse
           <input value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} required />
         </label>
+        {/* F-185: ruhige Zeile direkt unter der Adresse (sonst unter langer Portal-Liste versteckt), wer die Source wann und woher angelegt hat */}
+        {!props.isNew && (
+          <p className="bm-origin" title={TERMS.origin}>
+            {originText(b.origin)}
+          </p>
+        )}
         <label>
           Kategorie
           <select value={category} onChange={(e) => setCategory(e.target.value)}>

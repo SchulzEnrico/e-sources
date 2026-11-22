@@ -28,4 +28,15 @@ export const TERMS = {
   focus: 'Fokusanzeige = wie viel gerade offen ist; Grün heißt gut überschaubar',
   update: 'Neue Version = E-Sources wurde inzwischen verbessert; „Neu laden“ holt sie, deine Desks, Portale und Library bleiben erhalten',
   adjust: 'Adjust = Größen der Portale per Tastatur oder Mausrad ändern (Alt/⌥+A)',
+  origin: 'Herkunft = wer eine Source angelegt hat, wann und woher (von Hand, Launcher, Lesezeichen-Import mit Datei und Ordner, Beispiele oder Import der Arbeitsfläche); steht im Bearbeiten-Dialog und lässt sich suchen, z. B. „Import 22.11.2026“',
+} as const;
+
+/** F-185: Herkunft einer Source in Worten (ORIGIN_TEXT[via]). */
+export const ORIGIN_TEXT = {
+  hand: 'von Hand gespeichert',
+  launcher: 'im Launcher gespeichert',
+  import: 'aus Lesezeichen-Import',
+  sample: 'aus den Beispielen',
+  workspace: 'aus Import der Arbeitsfläche',
+  unknown: 'Herkunft unbekannt (angelegt vor dieser Angabe)',
 } as const;

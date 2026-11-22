@@ -6,7 +6,7 @@
  * Wurzelordner der Browser (Lesezeichenleiste, Weitere Lesezeichen …) fallen dabei weg.
  * Bewusst ohne DOMParser, damit es auch in den Tests läuft.
  */
-import { NO_CATEGORY, addCategory, categoryByName, parseTags, sameUrl, saveBookmark } from './bookmarks';
+import { NO_CATEGORY, addCategory, categoryByName, originOf, parseTags, sameUrl, saveBookmark } from './bookmarks';
 import type { Bookmark, Workspace } from './types';
 
 export const BOOKMARKS_FILE_NAME = 'e-sources-lesezeichen.html';
@@ -140,13 +140,17 @@ export function planImport(ws: Workspace, list: BrowserBookmark[], how: ImportHo
   return { fresh, known, unusable, newCategories: cats };
 }
 
-/** Übernimmt die Lesezeichen des Plans in die Library (ohne Portal-Zuordnung). */
-export function applyImport(ws: Workspace, plan: ImportPlan, makeId: () => string): Workspace {
+/**
+ * Übernimmt die Lesezeichen des Plans in die Library (ohne Portal-Zuordnung). F-185: Jede Source
+ * merkt sich Datei (`from`) und Ordner im Browser – auch wenn alles in eine Kategorie geht.
+ */
+export function applyImport(ws: Workspace, plan: ImportPlan, makeId: () => string, from?: string, now = new Date()): Workspace {
   let next = ws;
   for (const name of plan.newCategories) next = addCategory(next, makeId(), name);
   for (const b of plan.fresh) {
     const category = b.category ? (categoryByName(next, b.category)?.id ?? NO_CATEGORY) : NO_CATEGORY;
-    const d: Bookmark = { id: makeId(), title: b.title, url: b.url, category, tags: b.tags, panels: [] };
+    const origin = originOf(ws, 'import', { from, folder: b.path.join(PATH_SEP) }, now);
+    const d: Bookmark = { id: makeId(), title: b.title, url: b.url, category, tags: b.tags, panels: [], origin };
     next = saveBookmark(next, d);
   }
   return next;

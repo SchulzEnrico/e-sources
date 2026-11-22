@@ -644,7 +644,7 @@ export function Overview(p: OverviewProps) {
     <section key={w.win || 'main'} className={w.here ? 'radar__win' : 'radar__win is-other'} aria-label={`${w.here ? 'Dieser Desk' : w.title}${w.here ? '' : w.open ? ', eigenes Fenster' : ', gesammelt'}`}>
       <div className="radar__win-head">
         <strong>{w.here ? `Dieser Desk · ${w.title}` : w.title}</strong>
-        <span className="muted">{w.areas.reduce((n, a) => n + a.panels.length, 0)} Portale</span>
+        <span className="muted">{((n) => `${n} ${n === 1 ? 'Portal' : 'Portale'}`)(w.areas.reduce((n, a) => n + a.panels.length, 0))}</span>
         {/* F-27: Zustand nicht nur als Farbe, sondern als Wort */}
         {!w.here && (
           <span className={w.open ? 'overview__state is-open' : 'overview__state'} title={w.open ? undefined : TERMS.collected}>

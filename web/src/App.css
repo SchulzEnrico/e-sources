@@ -1644,6 +1644,14 @@ button.is-off:hover,
   line-height: 1.45;
 }
 
+/* F-185: Herkunft einer Source, ruhig unter dem Formular */
+.bm-origin {
+  margin: -4px 0 4px;
+  font-size: 0.8em;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 /* Sammlung (F-20) */
 .bm-tools {
   display: flex;
@@ -2820,6 +2828,32 @@ button.is-off:hover,
   width: 14ch;
   font-weight: 600;
 }
+/* F-159: Desk-Name als ruhige Beschriftung neben dem Logo – kein Knopf-Look; die Fokusfarbe (F-167) als Punkt */
+.toolbar .brand .tb-win:not(.tb-win--edit) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+  color: var(--text);
+  -webkit-text-fill-color: currentColor;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.toolbar .brand .tb-win:not(.tb-win--edit)::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fx, rgb(var(--accent-rgb)));
+}
+.toolbar .brand button.tb-win { cursor: text; }
+.toolbar .brand button.tb-win:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+.toolbar .brand button.tb-win:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 2px; }
 .overview__input {
   flex: 1;
   margin: 2px 0;

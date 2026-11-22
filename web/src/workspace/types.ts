@@ -96,6 +96,23 @@ export interface Bookmark {
   note?: string;
   /** F-32: Panels, in deren Sammlung das Lesezeichen fest im Menü steht. */
   panels: string[];
+  /** F-185: wer, woher, wann; fehlt bei Sources von vor V29 („Herkunft unbekannt“). */
+  origin?: BookmarkOrigin;
+}
+
+/** F-185: Wie eine Source in die Library kam. */
+export type OriginVia = 'hand' | 'launcher' | 'import' | 'sample' | 'workspace';
+
+export interface BookmarkOrigin {
+  via: OriginVia;
+  /** Zeitpunkt (ISO 8601). */
+  at: string;
+  /** Profilname (F-179), später das Konto; fehlt ohne Namen. */
+  by?: string;
+  /** Lesezeichen-Import: Dateiname; Import der Arbeitsfläche: Gerät. */
+  from?: string;
+  /** Lesezeichen-Import: Ordnerpfad im Browser („Oben › Unten“). */
+  folder?: string;
 }
 
 /** Zustand der Arbeitsfläche, der im Browser gespeichert wird. */

@@ -30,7 +30,7 @@ export type Action =
   | { type: 'profile'; change: Partial<Profile> }
   | { type: 'rename'; id: string; name: string }
   /** F-36: Lesezeichen aus einer Browser-Datei in die Library übernehmen. */
-  | { type: 'importBookmarks'; plan: ImportPlan }
+  | { type: 'importBookmarks'; plan: ImportPlan; from?: string }
   /** F-180: Sortierhilfe – Sources in eine Kategorie (per Name, wird bei Bedarf angelegt) bzw. alle Vorschläge. */
   | { type: 'sortInto'; ids: string[]; name: string }
   | { type: 'sortAll' }
@@ -183,7 +183,7 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'moveCategory':
       return B.moveCategory(ws, a.id, a.to);
     case 'importBookmarks':
-      return applyImport(ws, a.plan, W.newId);
+      return applyImport(ws, a.plan, W.newId, a.from);
     case 'sortInto':
       return sortInto(ws, a.ids, a.name, W.newId);
     case 'sortAll':

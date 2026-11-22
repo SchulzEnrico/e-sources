@@ -2,7 +2,9 @@
  * Lesezeichen und Kategorien (F-14, F-20, F-30 bis F-33). Alle Lesezeichen liegen in der
  * Gesamtsammlung; die Sammlung eines Panels sind die, die ihm zugeordnet sind (F-32).
  */
-import type { Bookmark, Named, PanelMeta, Tab, Workspace } from './types';
+import { profileOf } from './profile';
+import { ORIGIN_TEXT } from './terms';
+import type { Bookmark, BookmarkOrigin, Named, OriginVia, PanelMeta, Tab, Workspace } from './types';
 import { TAB_MAX, activeTab, addTab, hostOf, navigatePanel, normalizeUrl, selectTab } from './workspace';
 
 /** Kategorie-Id für Lesezeichen ohne Kategorie. */
@@ -96,6 +98,9 @@ export function saveBookmark(ws: Workspace, d: Bookmark): Workspace {
   const note = d.note?.trim();
   if (note) b.note = note;
   const i = ws.bookmarks.findIndex((x) => x.id === d.id);
+  // F-185: Herkunft bleibt beim Ändern erhalten
+  const origin = d.origin ?? (i >= 0 ? ws.bookmarks[i].origin : undefined);
+  if (origin) b.origin = origin;
   if (i < 0) return { ...ws, bookmarks: [...ws.bookmarks, b] };
   const bookmarks = [...ws.bookmarks];
   if (bookmarks[i].category === category) bookmarks[i] = b;
@@ -173,7 +178,7 @@ export function matches(ws: Workspace, b: Bookmark, query: string): boolean {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return true;
   const cat = ws.categories.find((c) => c.id === b.category)?.name ?? '';
-  const hay = [b.title, b.url, cat, ...b.tags, b.note ?? ''].join(' ').toLowerCase();
+  const hay = [b.title, b.url, cat, ...b.tags, b.note ?? '', b.origin ? originText(b.origin) : ''].join(' ').toLowerCase();
   return words.every((w) => hay.includes(w.replace(/^#/, '')));
 }
 
@@ -341,7 +346,7 @@ export const SAMPLES: { category: string; links: { title: string; url: string; t
  * F-145: Beispiel-Lesezeichen hinzufügen. Kategorien gleichen Namens werden genutzt, Adressen, die
  * es schon gibt, übersprungen. Die Beispiele hängen an keinem Panel (stehen unter „Alle“).
  */
-export function addSamples(ws: Workspace, makeId: () => string): { ws: Workspace; added: number } {
+export function addSamples(ws: Workspace, makeId: () => string, now = new Date()): { ws: Workspace; added: number } {
   let next = ws;
   let added = 0;
   for (const group of SAMPLES) {
@@ -353,9 +358,44 @@ export function addSamples(ws: Workspace, makeId: () => string): { ws: Workspace
     if (!cat) continue;
     for (const l of group.links) {
       if (next.bookmarks.some((b) => sameUrl(b.url, l.url))) continue;
-      next = { ...next, bookmarks: [...next.bookmarks, { id: makeId(), title: l.title, url: l.url, category: cat.id, tags: l.tags ?? [], panels: [] }] };
+      next = { ...next, bookmarks: [...next.bookmarks, { id: makeId(), title: l.title, url: l.url, category: cat.id, tags: l.tags ?? [], panels: [], origin: originOf(ws, 'sample', {}, now) }] };
       added++;
     }
   }
   return { ws: next, added };
+}
+
+/**
+ * F-185: Herkunft einer neuen Source. „Wer“ ist der Profilname (F-179), ohne Namen fehlt er.
+ */
+export function originOf(ws: Workspace, via: OriginVia, extra: { from?: string; folder?: string } = {}, now = new Date()): BookmarkOrigin {
+  const o: BookmarkOrigin = { via, at: now.toISOString() };
+  const by = profileOf(ws).name;
+  if (by) o.by = by;
+  if (extra.from) o.from = extra.from;
+  if (extra.folder) o.folder = extra.folder;
+  return o;
+}
+
+/** Datum und Uhrzeit wie „22.11.2026, 16:55“. */
+export function originWhen(o: BookmarkOrigin): string {
+  const d = new Date(o.at);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * F-185: ruhige Zeile für den Bearbeiten-Dialog, z. B. „Angelegt von Enrico am 22.11.2026, 16:55 ·
+ * aus Lesezeichen-Import „bookmarks.html“, Ordner Arbeit“. Auch Grundlage der Suche.
+ */
+export function originText(o: BookmarkOrigin | undefined): string {
+  if (!o) return ORIGIN_TEXT.unknown;
+  const when = originWhen(o);
+  const head = `Angelegt${o.by ? ` von ${o.by}` : ''}${when ? ` am ${when}` : ''}`;
+  let how: string = ORIGIN_TEXT[o.via] ?? '';
+  if (o.via === 'import' && o.from) how += ` „${o.from}“`;
+  if (o.via === 'workspace' && o.from) how += ` (${o.from})`;
+  if (o.folder) how += `, Ordner ${o.folder}`;
+  return how ? `${head} · ${how}` : head;
 }

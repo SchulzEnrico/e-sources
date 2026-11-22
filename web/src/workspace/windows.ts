@@ -76,6 +76,15 @@ export function moveToWindow(ws: Workspace, ids: string[], win: string): Workspa
   return syncWindows({ ...ws, panels, windows });
 }
 
+/**
+ * F-165: Leeren Desk anlegen – ein neues Panel im neuen Fenster `win`; der Eintrag in der
+ * Fensterliste („Desk N“) entsteht über syncWindows. Die Anordnung legt das Fenster selbst an.
+ */
+export function addDesk(ws: Workspace, win: string, panel: PanelMeta): Workspace {
+  if (!win || ws.windows.some((w) => w.id === win)) return ws;
+  return syncWindows({ ...ws, panels: [...ws.panels, { ...panel, win }], nextNumber: ws.nextNumber + 1 });
+}
+
 /** Alle Panels eines Zusatzfensters zurück ins Hauptfenster. */
 export function returnAll(ws: Workspace, win: string): Workspace {
   if (!win) return ws;

@@ -67,6 +67,8 @@ export type Action =
   | { type: 'remote'; ws: Workspace }
   /** F-27: Panels in ein Fenster verschieben ('' = Hauptfenster; unbekannte Id = neues Fenster). */
   | { type: 'toWindow'; ids: string[]; win: string }
+  /** F-165: leeren Desk mit einem neuen Panel anlegen. */
+  | { type: 'addDesk'; win: string }
   /** F-27/F-28: Panels in dieses Fenster holen, höchstens so viele, wie Platz haben. */
   | { type: 'fetch'; ids: string[]; setup: ScreenSetup }
   | { type: 'returnAll'; win: string }
@@ -173,6 +175,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return a.ws;
     case 'toWindow':
       return Win.moveToWindow(ws, a.ids, a.win);
+    case 'addDesk':
+      return Win.addDesk(ws, a.win, W.newPanel(`Portal ${ws.nextNumber}`));
     case 'fetch':
       return Mv.fetchPanels(ws, a.ids, a.setup).ws;
     case 'returnAll':

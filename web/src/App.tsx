@@ -25,7 +25,7 @@ import { FocusMeter, Overview } from './components/Overview';
 import { arrangeText, focusOf, placeText } from './workspace/focus';
 import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
 import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
-import { MAIN_NAME, windowList, windowName, winFromSearch } from './workspace/windows';
+import { MAIN_NAME, nextWindowName, windowList, windowName, winFromSearch } from './workspace/windows';
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
 import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
 import { PROBE } from './workspace/probe';
@@ -1063,6 +1063,22 @@ export default function App() {
               {MAIN_NAME}
             </span>
           )}
+          {/* F-165: leeren Desk anlegen und in eigenem Browserfenster öffnen */}
+          <button
+            type="button"
+            className="tb-newdesk"
+            title={TERMS.newDesk}
+            aria-label="+ NewDesk"
+            onClick={() => {
+              const dest = newId();
+              const name = nextWindowName(ws.windows);
+              dispatch({ type: 'addDesk', win: dest });
+              if (!openAppWindow(dest)) return notify(`„${name}“ angelegt. ${POPUP_BLOCKED}`);
+              notify(`„${name}“ angelegt und in neuem Browserfenster geöffnet.`);
+            }}
+          >
+            +<span className="tb-label"> NewDesk</span>
+          </button>
         </div>
         {/* F-146: Logo links, Bedienelemente mittig, Gesamtfokus ganz rechts */}
         <div className="tb-center">
@@ -1121,7 +1137,7 @@ export default function App() {
         <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} />
         {/* F-134: „+ Area“ – neue Spalte rechts oder Zeile unten; Panels kommen über die Areas dazu. */}
         {canAddArea(ws, setup) ? (
-          <Menu icon={<span className="tb-add">+ NewSlot</span>} label={`Neuen Slot anlegen – ${TERMS.slot}`}>
+          <Menu icon={<span className="tb-add">+<span className="tb-label"> NewSlot</span></span>} label={`Neuen Slot anlegen – ${TERMS.slot}`}>
             {(close) => (
               <>
                 <Item
@@ -1152,7 +1168,7 @@ export default function App() {
             title="Bildschirm voll – weitere Portale über das Plus eines Slots anlegen"
             onClick={() => notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.capacity} Slots). Weitere Portale legst du über das rote Plus in der Kopfleiste eines Portals auf diesen Slot.`, 5000)}
           >
-            + NewSlot
+            +<span className="tb-label"> NewSlot</span>
           </button>
         )}
         {/* F-66: Selten Gebrauchtes im Menü, damit die Kopfleiste schlank bleibt */}

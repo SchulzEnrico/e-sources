@@ -1359,6 +1359,22 @@ describe('F-152 Fokus-Radar als Lagekarte', () => {
   });
 });
 
+describe('F-165 + NewDesk', () => {
+  it('legt einen leeren Desk mit einem neuen Portal an', () => {
+    const ws = W.defaultWorkspace();
+    const next = Win.addDesk(ws, 'd1', W.newPanel(`Portal ${ws.nextNumber}`));
+    expect(next.windows).toEqual([{ id: 'd1', name: 'Desk 2' }]);
+    expect(next.panels).toHaveLength(ws.panels.length + 1);
+    expect(next.panels[next.panels.length - 1]).toMatchObject({ name: 'Portal 4', win: 'd1' });
+    expect(next.nextNumber).toBe(ws.nextNumber + 1);
+    // ein zweiter Desk bekommt die nächste freie Nummer; vorhandene Id oder Main Desk ändern nichts
+    const third = Win.addDesk(next, 'd2', W.newPanel('Portal 5'));
+    expect(third.windows.map((w) => w.name)).toEqual(['Desk 2', 'Desk 3']);
+    expect(Win.addDesk(third, 'd1', W.newPanel('x'))).toBe(third);
+    expect(Win.addDesk(third, '', W.newPanel('x'))).toBe(third);
+  });
+});
+
 describe('F-27/F-28 Hierher holen mit Grenze', () => {
   it('Volles Fenster nimmt nichts mehr an; sonst freie Areas, dann kleinste Stapel, nie über 9', () => {
     const full = Probe.probeWorkspace();

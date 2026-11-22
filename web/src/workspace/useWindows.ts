@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { windowUrl } from './windows';
+import { PROBE } from './probe';
 
 /**
  * F-27: Welche Fenster der Anwendung sind gerade offen? Jedes Fenster meldet sich über einen
@@ -9,7 +10,8 @@ import { windowUrl } from './windows';
  * Eingebettete E-Sources (F-18) melden sich nicht an.
  */
 type Msg = { t: 'hello' | 'here' | 'bye'; win: string } | { t: 'show'; win: string; panel: string };
-const CHANNEL = 'esource.windows';
+// Testbelegung (?test=voll): eigener Kanal, damit sich Test- und echte Fenster nicht sehen.
+const CHANNEL = PROBE ? 'esource.windows.test' : 'esource.windows';
 const EMBEDDED = typeof window !== 'undefined' && window.self !== window.top;
 
 export function useOpenWindows(win: string, onShow: (panel: string) => void) {
@@ -84,5 +86,6 @@ export function openAppWindow(win: string): boolean {
 
 /** Name des Browserfensters, über den sich ein Fenster der Anwendung wiederfinden lässt. */
 export function windowTarget(win: string): string {
-  return win ? `esource-${win}` : 'esource-main';
+  const pre = PROBE ? 'esource-test' : 'esource';
+  return win ? `${pre}-${win}` : `${pre}-main`;
 }

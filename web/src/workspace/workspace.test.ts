@@ -14,6 +14,7 @@ import * as Win from './windows';
 import { reducer } from './useWorkspace';
 import { layoutKey, parseLayoutKey } from './screen';
 import * as M from './move';
+import * as Probe from './probe';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -1331,5 +1332,48 @@ describe('F-28 Verschieben und Gruppieren', () => {
     expect(ws.winSetup).toEqual({ '': 'monitor:landscape:2' });
     ws = reducer(ws, { type: 'move', ids: [a], from: MONITOR2, win: '', area: areaOfId(ws, MONITOR2, b) });
     expect(ids(ws, MONITOR2)).toHaveLength(2);
+  });
+});
+
+describe('F-152 Fokus-Radar als Lagekarte', () => {
+  it('Volle Testbelegung: zwei Fenster mit je 10 Areas an ihrer Stelle, Filter über alle Fenster', () => {
+    const ws = Probe.probeWorkspace();
+    const main: ScreenSetup = { cls: 'superwide', orientation: 'landscape', lines: 2 };
+    const wins = F.radarOf(ws, W.viewOf(ws, main).slots, main, new Set(['w2']));
+    expect(wins.map((w) => [w.win, w.here, w.areas.length])).toEqual([['', true, 10], ['w2', false, 10]]);
+    expect(wins[1].open).toBe(true);
+    expect(wins[1].areas.every((a) => a.rect !== null && a.panels.length === 9)).toBe(true);
+    expect(wins[0].areas[0].title).toBe('H Area 1');
+    const hits = wins.flatMap((w) => w.areas.flatMap((a) => a.panels.filter((x) => F.radarMatches(w, a, x, 'f2 3.4'))));
+    expect(hits.map((x) => x.meta.name)).toEqual(['F2 3.4']);
+  });
+
+  it('Fenster ohne bekannte Einstellung: eine Kachel mit allen Panels', () => {
+    const base = W.defaultWorkspace();
+    const ws = Win.moveToWindow(base, [base.panels[0].id], 'w2');
+    const wins = F.radarOf(ws, W.viewOf(ws, MONITOR2).slots, MONITOR2);
+    expect(wins[1].areas).toHaveLength(1);
+    expect(wins[1].areas[0].rect).toBe(null);
+    expect(wins[1].open).toBe(false);
+  });
+});
+
+describe('F-27/F-28 Hierher holen mit Grenze', () => {
+  it('Volles Fenster nimmt nichts mehr an; sonst freie Areas, dann kleinste Stapel, nie über 9', () => {
+    const full = Probe.probeWorkspace();
+    const main: ScreenSetup = { cls: 'superwide', orientation: 'landscape', lines: 2 };
+    const fromW2 = full.panels.filter((p) => p.win === 'w2').map((p) => p.id);
+    const none = M.fetchPanels(full, fromW2, main);
+    expect(none.moved).toBe(0);
+    expect(none.ws).toBe(full);
+    // Hauptfenster leer machen bis auf eine Area mit 9: dann passen 9 freie Areas × 9 = 81
+    const keep = full.panels.filter((p) => p.win === 'w2' || p.id.startsWith('p-H-1-'));
+    const ws = { ...full, panels: keep };
+    const r = M.fetchPanels(ws, fromW2, main);
+    expect(r.moved).toBe(81);
+    const slots = W.viewOf(r.ws, main).slots;
+    expect(slots).toHaveLength(10);
+    expect(slots.every((s) => s.panels.length <= 9)).toBe(true);
+    expect(r.ws.panels.filter((p) => p.win === 'w2')).toHaveLength(9);
   });
 });

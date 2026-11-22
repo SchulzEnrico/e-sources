@@ -1,7 +1,7 @@
 import { type ScreenSetup, layoutKey, parseLayoutKey } from './screen';
 import type { Workspace } from './types';
 import { moveToWindow, windowList } from './windows';
-import { NEW_AREA, areaLabel, tryPlace, viewOf } from './workspace';
+import { NEW_AREA, STACK_MAX, areaLabel, tryPlace, viewOf } from './workspace';
 
 /**
  * F-28 Verschieben und Gruppieren: Panels auf eine andere Area legen – auch in einem anderen
@@ -71,4 +71,30 @@ export function moveTargets(ws: Workspace, ids: string[], from: ScreenSetup): Mo
   }
   // Eine eigene Area, die nicht geht, nur im eigenen Fenster zeigen (dort heißt sie „Aus dem Stapel lösen“).
   return out.filter((t) => !(t.area === NEW_AREA && t.disabled && t.win !== here));
+}
+
+/**
+ * F-27/F-28: Panels aus anderen Fenstern in das Fenster mit dieser Einstellung holen („Hierher
+ * holen“, „Alle … holen“). Erst auf freie Areas, dann auf die Stapel mit den wenigsten Panels –
+ * nie mehr als STACK_MAX je Stapel. Was nicht mehr passt, bleibt, wo es ist.
+ */
+export function fetchPanels(ws: Workspace, ids: string[], dest: ScreenSetup): { ws: Workspace; moved: number } {
+  const win = dest.win ?? '';
+  let out = ws;
+  let moved = 0;
+  for (const id of ids) {
+    const next = moveToWindow(out, [id], win);
+    if (next === out) continue;
+    let placed = viewOf(out, dest).slots.length === 0 ? next : tryPlace(next, dest, [id], NEW_AREA, true);
+    if (!placed) {
+      const room = viewOf(out, dest)
+        .slots.filter((s) => s.panels.length < STACK_MAX)
+        .sort((a, b) => a.panels.length - b.panels.length);
+      for (const s of room) if ((placed = tryPlace(next, dest, [id], s.id, true))) break;
+    }
+    if (!placed) break;
+    out = placed;
+    moved++;
+  }
+  return { ws: out, moved };
 }

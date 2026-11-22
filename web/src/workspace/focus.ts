@@ -1,6 +1,9 @@
 import type { PanelMeta, Slot, Workspace } from './types';
-import { areaLabel, hostOf, panelUrl, panelsIn } from './workspace';
+import { areaLabel, hostOf, panelUrl, panelsIn, viewOf } from './workspace';
 import { windowList } from './windows';
+import { type ScreenSetup, specOf } from './screen';
+import type { FRect } from './tree';
+import { setupOfWindow } from './move';
 
 // ---------------------------------------------------------------- F-29 Gesamtfokus
 
@@ -119,4 +122,60 @@ export function overviewOf(ws: Workspace, slots: Slot[], win = '', open: Set<str
     }))
     .filter((a) => a.panels.length > 0);
   return [...here, ...others];
+}
+
+// ---------------------------------------------------------------- F-152 Fokus-Radar als Lagekarte
+
+export interface RadarArea extends OverviewArea {
+  /** Lage auf dem Bildschirm des Fensters (Anteile 0–1); null = Anordnung unbekannt. */
+  rect: FRect | null;
+}
+
+export interface RadarWindow {
+  win: string;
+  title: string;
+  /** Das Fenster, in dem das Radar gerade offen ist. */
+  here: boolean;
+  open: boolean;
+  /** Breite : Höhe seines Bildschirms. */
+  aspect: number;
+  areas: RadarArea[];
+}
+
+/**
+ * F-152: Alle Fenster als Lagekarte – je Fenster seine Areas an ihrer Stelle auf dem Bildschirm
+ * (aus der zuletzt gesehenen Einstellung, F-28). Ohne bekannte Einstellung eine Kachel mit allen
+ * Panels. Dieses Fenster zuerst, Fenster ohne Panels fallen weg.
+ */
+export function radarOf(ws: Workspace, slots: Slot[], setup: ScreenSetup, open: Set<string> = new Set()): RadarWindow[] {
+  const win = setup.win ?? '';
+  const out: RadarWindow[] = [];
+  for (const w of windowList(ws)) {
+    const here = w.id === win;
+    const panels = panelsIn(ws.panels, w.id);
+    if (!here && panels.length === 0) continue;
+    const s = here ? setup : setupOfWindow(ws, w.id);
+    const list = here ? slots : s ? viewOf(ws, s).slots : null;
+    const isOpen = here || open.has(w.id);
+    const areas: RadarArea[] = list
+      ? list.map((sl, i) => ({
+          id: here ? sl.id : `${w.id}:${sl.id}`,
+          win: w.id,
+          other: !here,
+          open: isOpen,
+          title: areaLabel(ws, sl) || (sl.panels.length === 1 ? sl.front.name : `Area ${i + 1}`),
+          panels: sl.panels.map((p) => rowOf(p, p.id === sl.front.id)),
+          rect: sl.rect,
+        }))
+      : [{ id: `win:${w.id}`, win: w.id, other: true, open: isOpen, title: 'Alle Panels', panels: panels.map((p) => rowOf(p, true)), rect: null }];
+    out.push({ win: w.id, title: w.name, here, open: isOpen, aspect: s ? specOf(s).aspect : 1.6, areas });
+  }
+  return out.sort((a, b) => Number(b.here) - Number(a.here));
+}
+
+/** F-152: Treffer für das Filterfeld – Panelname, Area, Fenster oder Domain enthalten den Text. */
+export function radarMatches(w: RadarWindow, a: RadarArea, x: OverviewPanel, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return [x.meta.name, a.title, w.title, x.host].some((t) => t.toLowerCase().includes(q));
 }

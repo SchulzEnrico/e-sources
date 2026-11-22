@@ -2,6 +2,7 @@ import type { Arrangement, Bookmark, Named, PanelMeta, Tab, Workspace } from './
 import { parseLook } from './look';
 import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } from './workspace';
 import { demoWorkspace } from './demo';
+import { PROBE, probeWorkspace } from './probe';
 import { parseLayoutKey } from './screen';
 
 /**
@@ -163,6 +164,7 @@ export function parseWorkspace(data: unknown): Workspace | null {
 }
 
 export function loadWorkspace(): Workspace {
+  if (PROBE) return probeWorkspace();
   try {
     let raw = localStorage.getItem(KEY);
     for (const k of OLD_KEYS) raw ??= localStorage.getItem(k);
@@ -178,7 +180,8 @@ export function loadWorkspace(): Workspace {
  * Eine in einem Panel eingebettete E-Source (F-18) liest dieselbe Arbeitsfläche, speichert aber
  * nicht: Sonst überschreiben sich äußere und innere E-Source gegenseitig.
  */
-const EMBEDDED = typeof window !== 'undefined' && window.self !== window.top;
+// Testbelegung (?test=voll) speichert ebenfalls nichts.
+const EMBEDDED = (typeof window !== 'undefined' && window.self !== window.top) || PROBE;
 
 /** Zeitpunkte für die Abgleich-Regel (F-121), in Millisekunden. */
 export interface SyncMeta {

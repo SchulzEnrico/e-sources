@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import type { Slot, Workspace } from '../workspace/types';
-import { type Focus, type OverviewArea, focusText, overviewOf, pointsText } from '../workspace/focus';
+import { type Focus, type RadarWindow, focusText, pointsText, radarMatches, radarOf } from '../workspace/focus';
+import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { NEW_AREA, loadColor } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
@@ -54,6 +55,8 @@ export function FocusMeter(props: { focus: Focus; open: boolean; onToggle: () =>
 export interface OverviewProps {
   ws: Workspace;
   slots: Slot[];
+  /** F-152: Einstellung dieses Fensters (Seitenverhältnis der Lagekarte). */
+  setup: ScreenSetup;
   focus: Focus;
   activeId: string | null;
   /** Abstand von oben (unter der Kopfleiste) in Pixeln. */
@@ -68,9 +71,9 @@ export interface OverviewProps {
   /** Panel zeigen – liegt es in einem anderen Fenster, dort. */
   onShow: (id: string) => void;
   /** F-27: Panel aus einem anderen Fenster hierher holen. */
-  onFetch: (id: string) => void;
+  onFetch: (id: string) => string;
   /** F-27: alle Panels eines anderen Fensters hierher holen. */
-  onFetchAll: (win: string) => void;
+  onFetchAll: (win: string) => string;
   /** F-27: anderes Fenster nach vorn holen bzw. wieder öffnen. */
   onOpenWindow: (win: string) => void;
   onClose: (id: string) => void;
@@ -160,58 +163,212 @@ function MovePicker(props: { title: string; targets: MoveTarget[]; here: string;
 }
 
 /**
- * F-28 Fokus-Radar (bisher Master-Panel), erste Stufe: alle Areas als Karten mit ihren Panels (Name, Domain, Tabs, Ampel).
- * Tastatur (NF-03): ↑/↓ Panels, ←/→ Areas, Pos1/Ende, Enter springt, Entf schließt, F2 benennt um, Esc.
+ * F-28 Fokus-Radar, F-152 als Lagekarte: links je Fenster eine Miniatur seines Bildschirms mit den
+ * Areas an ihrer Stelle (Name, vorderes Panel, Ampel-Leiste je Panel), rechts die Panels der
+ * gewählten Area. Das Filterfeld zeigt Treffer aus allen Fenstern.
+ * Tastatur (NF-03): Pfeile wandern auf der Karte räumlich, Enter geht in die Liste; dort ↑/↓,
+ * ← zurück zur Karte, Enter springt, V/Umschalt+V verschiebt, H holt her, Entf schließt, F2 benennt um.
  */
 export function Overview(p: OverviewProps) {
-  const areas = useMemo(() => overviewOf(p.ws, p.slots, p.win, p.open), [p.ws, p.slots, p.win, p.open]);
-  const here = areas.filter((a) => !a.other);
-  const others = areas.filter((a) => a.other);
-  const order = areas.flatMap((a) => a.panels.map((x) => x.meta.id));
-  const [cur, setCur] = useState<string | null>(() => (p.activeId && order.includes(p.activeId) ? p.activeId : (order[0] ?? null)));
+  const wins = useMemo(() => radarOf(p.ws, p.slots, p.setup, p.open), [p.ws, p.slots, p.setup, p.open]);
+  const tiles = wins.flatMap((w, wi) => w.areas.map((a) => ({ w, wi, a })));
+  const tileOfPanel = (id: string | null) => (id ? tiles.find((t) => t.a.panels.some((x) => x.meta.id === id)) : undefined);
+  const [sel, setSel] = useState<string | null>(() => (tileOfPanel(p.activeId) ?? tiles[0])?.a.id ?? null);
+  const [query, setQuery] = useState('');
+  const [cur, setCur] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [said, setSaid] = useState('');
   /** F-28: Panel (oder ganze Area), für das gerade ein Ziel gewählt wird. */
   const [moving, setMoving] = useState<{ id: string; whole: boolean } | null>(null);
-  const btns = useRef(new Map<string, HTMLButtonElement>());
+  const rowBtns = useRef(new Map<string, HTMLButtonElement>());
+  const tileBtns = useRef(new Map<string, HTMLButtonElement>());
   const box = useRef<HTMLDivElement>(null);
-  const focusId = cur && order.includes(cur) ? cur : (order[0] ?? null);
+  const filterRef = useRef<HTMLInputElement>(null);
+  /** F-151: Panel-Zeile (oder ganze Area per Kachel) wird gerade gezogen. */
+  const [drag, setDrag] = useState<{ name: string; whole: boolean; x: number; y: number; over: string | null; target: MoveTarget | null } | null>(null);
+  /** Nach einem Ziehen den folgenden Klick nicht als Klick werten. */
+  const dragged = useRef(false);
 
-  // Fokus beim Öffnen und nach Bewegungen auf das gewählte Panel.
+  const selTile = tiles.find((t) => t.a.id === sel) ?? tiles[0];
+  const q = query.trim();
+  /** Zeilen rechts: Treffer aus allen Fenstern oder die Panels der gewählten Area. */
+  const rows = q
+    ? tiles.flatMap((t) => t.a.panels.filter((x) => radarMatches(t.w, t.a, x, q)).map((x) => ({ x, t })))
+    : (selTile?.a.panels ?? []).map((x) => ({ x, t: selTile! }));
+  const order = rows.map((r) => r.x.meta.id);
+  const focusId = cur && order.includes(cur) ? cur : (order[0] ?? null);
+  const hits = (t: (typeof tiles)[number]) => t.a.panels.some((x) => radarMatches(t.w, t.a, x, q));
+
+  const later = (f: () => void) => requestAnimationFrame(f);
+  // Beim Öffnen: Fokus auf die Kachel des aktiven Panels.
   useEffect(() => {
-    if (!editing && !moving && focusId) btns.current.get(focusId)?.focus();
-  }, [focusId, editing, moving]);
+    if (sel) tileBtns.current.get(sel)?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const dismiss = () => {
     p.onDismiss();
     p.toggleRef.current?.focus();
   };
-  const go = (id: string | undefined) => id && setCur(id);
-  const areaIndex = (id: string) => areas.findIndex((a) => a.panels.some((x) => x.meta.id === id));
+  const toRow = (id: string | null | undefined) => {
+    if (!id) return;
+    setCur(id);
+    later(() => rowBtns.current.get(id)?.focus());
+  };
+  const toTile = (id: string | undefined) => {
+    if (!id) return;
+    setSel(id);
+    setCur(null);
+    later(() => tileBtns.current.get(id)?.focus());
+  };
 
   const commit = () => {
     if (editing && draft.trim()) p.onRename(editing, draft.trim());
+    const id = editing;
     setEditing(null);
+    toRow(id);
+  };
+  const fetch = (id: string, name: string) => {
+    const text = p.onFetch(id);
+    setSaid(text.startsWith('Panel ') ? `Panel „${name}“ in dieses Fenster geholt.` : text);
+  };
+  const close = (id: string, name: string) => {
+    const i = order.indexOf(id);
+    const next = order[i + 1] ?? order[i - 1] ?? null;
+    p.onClose(id);
+    setSaid(`Panel „${name}“ geschlossen.`);
+    if (next) toRow(next);
+    else toTile(sel ?? undefined);
   };
 
-  const fetch = (id: string, name: string) => {
-    p.onFetch(id);
-    setSaid(`Panel „${name}“ in dieses Fenster geholt.`);
+  /**
+   * F-151: Ziehen mit der Maus – Panel-Zeile auf eine Kachel = dort obendrauf legen, auf freie
+   * Fläche einer Karte = eigene neue Area. Eine Kachel selbst zieht die ganze Area.
+   * Tastatur-Ersatz: V bzw. Umschalt+V (NF-03).
+   */
+  const startDrag = (e: ReactPointerEvent, id: string, whole: boolean, name: string, fromTile: string) => {
+    if (e.button !== 0 || editing) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const targets = p.moveTargets(id, whole);
+    let started = false;
+    let last: NonNullable<typeof drag> | null = null;
+    const blocked = (win: string, area: string): MoveTarget => ({ win, area, label: '', count: 0, disabled: true });
+    const move = (ev: PointerEvent) => {
+      if (!started && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+      if (!started) document.body.classList.add('gesture');
+      started = true;
+      dragged.current = true;
+      const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+      const tile = el?.closest<HTMLElement>('.radar__tile');
+      const newEl = el?.closest<HTMLElement>('.radar__new');
+      let over: string | null = null;
+      let target: MoveTarget | null = null;
+      if (tile && tile.dataset.key !== fromTile) {
+        const w = tile.dataset.win ?? '';
+        const a = tile.dataset.area ?? '';
+        over = tile.dataset.key ?? null;
+        target = targets.find((t) => t.win === w && t.area === a) ?? blocked(w, a);
+      } else if (newEl) {
+        const w = newEl.dataset.win ?? '';
+        over = `new:${w}`;
+        target = targets.find((t) => t.win === w && t.area === NEW_AREA) ?? blocked(w, NEW_AREA);
+      }
+      last = { name, whole, x: ev.clientX, y: ev.clientY, over, target };
+      setDrag(last);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.body.classList.remove('gesture');
+      setDrag(null);
+      setTimeout(() => (dragged.current = false), 0);
+      const d = last;
+      if (!d?.target) return;
+      const winName = windowName(p.ws, d.target.win);
+      if (d.target.disabled) {
+        setSaid(d.target.area === NEW_AREA ? `Keine freie Area in ${winName}.` : 'Dieser Stapel ist voll (9 Panels).');
+        return;
+      }
+      // Die Ansage kommt von der Anwendung („… jetzt auf …“), hier nicht doppelt.
+      p.onMove(id, d.target, whole);
+      setSaid('');
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const dropText = (d: NonNullable<typeof drag>) => {
+    if (!d.target) return '';
+    if (d.target.disabled) return d.target.area === NEW_AREA ? ' → kein Platz für eine neue Area' : ' → Stapel voll';
+    if (d.target.area === NEW_AREA) return ' → eigene neue Area';
+    if (!d.target.area) return ` → ins ${windowName(p.ws, d.target.win)}`;
+    return ` → auf „${d.target.label}“ legen`;
+  };
+
+  /** Nächste Kachel in einer Richtung – über alle Fenster, die untereinander stehen. */
+  const neighbour = (from: (typeof tiles)[number], dx: number, dy: number) => {
+    const c = (t: (typeof tiles)[number]) => {
+      const r = t.a.rect ?? { x: 0, y: 0, w: 1, h: 1 };
+      return { x: r.x + r.w / 2, y: t.wi * 1.2 + r.y + r.h / 2 };
+    };
+    const o = c(from);
+    let best: (typeof tiles)[number] | undefined;
+    let score = Infinity;
+    for (const t of tiles) {
+      if (t === from) continue;
+      const v = c(t);
+      const along = (v.x - o.x) * dx + (v.y - o.y) * dy;
+      if (along <= 0.001) continue;
+      const across = Math.abs((v.x - o.x) * dy) + Math.abs((v.y - o.y) * dx);
+      const s = along + 2 * across;
+      if (s < score) {
+        score = s;
+        best = t;
+      }
+    }
+    return best;
+  };
+
+  const onTileKey = (e: KeyboardEvent, t: (typeof tiles)[number]) => {
+    const front = t.a.panels.find((x) => x.front) ?? t.a.panels[0];
+    const keys: Record<string, () => void> = {
+      ArrowRight: () => toTile(neighbour(t, 1, 0)?.a.id),
+      ArrowLeft: () => toTile(neighbour(t, -1, 0)?.a.id),
+      ArrowDown: () => toTile(neighbour(t, 0, 1)?.a.id),
+      ArrowUp: () => toTile(neighbour(t, 0, -1)?.a.id),
+      Home: () => toTile(tiles[0]?.a.id),
+      End: () => toTile(tiles[tiles.length - 1]?.a.id),
+      Enter: () => {
+        setQuery('');
+        setSel(t.a.id);
+        toRow(front?.meta.id);
+      },
+      ' ': () => {
+        setQuery('');
+        setSel(t.a.id);
+        toRow(front?.meta.id);
+      },
+      // F-28: Umschalt+V verschiebt die ganze Area.
+      V: () => front && setMoving({ id: front.meta.id, whole: true }),
+      Escape: dismiss,
+    };
+    const f = keys[e.key];
+    if (!f) return;
+    e.preventDefault();
+    e.stopPropagation();
+    f();
   };
 
   const onRowKey = (e: KeyboardEvent, id: string, name: string, other: boolean) => {
     const i = order.indexOf(id);
     const n = order.length;
-    const ai = areaIndex(id);
-    const firstOf = (k: number) => areas[(k + areas.length) % areas.length].panels[0]?.meta.id;
     const keys: Record<string, () => void> = {
-      ArrowDown: () => go(order[(i + 1) % n]),
-      ArrowUp: () => go(order[(i - 1 + n) % n]),
-      ArrowRight: () => go(firstOf(ai + 1)),
-      ArrowLeft: () => go(firstOf(ai - 1)),
-      Home: () => go(order[0]),
-      End: () => go(order[n - 1]),
+      ArrowDown: () => toRow(order[(i + 1) % n]),
+      ArrowUp: () => (q && i === 0 ? filterRef.current?.focus() : toRow(order[(i - 1 + n) % n])),
+      ArrowLeft: () => toTile(rows[i]?.t.a.id ?? sel ?? undefined),
+      Home: () => toRow(order[0]),
+      End: () => toRow(order[n - 1]),
       F2: () => {
         setDraft(name);
         setEditing(id);
@@ -233,148 +390,180 @@ export function Overview(p: OverviewProps) {
     f();
   };
 
-  const close = (id: string, name: string) => {
-    const i = order.indexOf(id);
-    setCur(order[i + 1] ?? order[i - 1] ?? null);
-    p.onClose(id);
-    setSaid(`Panel „${name}“ geschlossen.`);
+  const row = ({ x, t }: (typeof rows)[number]) => {
+    const id = x.meta.id;
+    const a = t.a;
+    const isActive = id === p.activeId;
+    const tabs = `${x.tabs} ${x.tabs === 1 ? 'Tab' : 'Tabs'}`;
+    const where = q ? `${a.title}${a.other ? ` · ${t.w.title}` : ''}` : x.host || '–';
+    if (editing === id)
+      return (
+        <li key={id} className="overview__row is-edit">
+          <input
+            className="overview__input"
+            value={draft}
+            autoFocus
+            aria-label="Neuer Panelname"
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              // preventDefault: sonst löst dasselbe Enter auf der wieder fokussierten Zeile „Panel zeigen“ aus
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commit();
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setEditing(null);
+                toRow(id);
+              }
+            }}
+          />
+        </li>
+      );
+    const stacked = a.panels.length > 1;
+    return (
+      <li key={id} className={`overview__row${isActive ? ' is-active' : ''}${x.front ? ' is-front' : ''}`}>
+        <button
+          ref={(el) => {
+            if (el) rowBtns.current.set(id, el);
+            else rowBtns.current.delete(id);
+          }}
+          type="button"
+          className="overview__go"
+          tabIndex={id === focusId ? 0 : -1}
+          aria-current={isActive ? 'true' : undefined}
+          aria-label={`${x.meta.name}, ${x.host || 'leerer Tab'}, ${tabs}${stacked && x.front ? ', vorn' : ''}${isActive ? ', aktiv' : ''}${q || a.other ? `, ${a.title}${a.other ? `, ${t.w.title}` : ''}` : ''}`}
+          title={x.host || undefined}
+          onFocus={() => setCur(id)}
+          onKeyDown={(e) => onRowKey(e, id, x.meta.name, a.other)}
+          onPointerDown={(e) => startDrag(e, id, false, x.meta.name, a.id)}
+          onClick={() => {
+            if (dragged.current) return;
+            p.onShow(id);
+            dismiss();
+          }}
+        >
+          <span className="overview__dot" style={{ background: loadColor(x.tabs) }} aria-hidden="true" />
+          <span className="overview__name">{x.meta.name}</span>
+          <span className="overview__host">{where}</span>
+          <span className="overview__tabs">{x.tabs}</span>
+          <span className="overview__back">{stacked && x.front ? 'vorn' : ''}</span>
+        </button>
+        <button type="button" className="overview__tool" tabIndex={-1} title="Verschieben (V, ganze Area: Umschalt+V)" aria-label={`„${x.meta.name}“ verschieben`} onClick={(e) => setMoving({ id, whole: e.shiftKey })}>
+          ↦
+        </button>
+        {a.other && (
+          <button type="button" className="overview__tool" tabIndex={-1} title="Hierher holen (H)" aria-label={`„${x.meta.name}“ in dieses Fenster holen`} onClick={() => fetch(id, x.meta.name)}>
+            ⇣
+          </button>
+        )}
+        <button
+          type="button"
+          className="overview__tool"
+          tabIndex={-1}
+          title="Umbenennen (F2)"
+          aria-label={`„${x.meta.name}“ umbenennen`}
+          onClick={() => {
+            setDraft(x.meta.name);
+            setEditing(id);
+          }}
+        >
+          ✎
+        </button>
+        <button type="button" className="overview__tool overview__tool--x" tabIndex={-1} title="Panel schließen (Entf)" aria-label={`„${x.meta.name}“ schließen`} onClick={() => close(id, x.meta.name)}>
+          ×
+        </button>
+      </li>
+    );
   };
 
-  const card = (a: OverviewArea) => (
-            <section
-              key={a.id}
-              className={a.other ? 'overview__area is-other' : 'overview__area'}
-              aria-label={`${a.title}${a.other ? (a.open ? ', offen' : ', geschlossen') : ''}, ${a.panels.length} ${a.panels.length === 1 ? 'Panel' : 'Panels'}`}
+  const map = (w: RadarWindow) => (
+    <section key={w.win || 'main'} className={w.here ? 'radar__win' : 'radar__win is-other'} aria-label={`${w.here ? 'Dieses Fenster' : w.title}${w.here ? '' : w.open ? ', offen' : ', geschlossen'}`}>
+      <div className="radar__win-head">
+        <strong>{w.here ? `Dieses Fenster · ${w.title}` : w.title}</strong>
+        <span className="muted">{w.areas.reduce((n, a) => n + a.panels.length, 0)} Panels</span>
+        {/* F-27: Zustand nicht nur als Farbe, sondern als Wort */}
+        {!w.here && <span className={w.open ? 'overview__state is-open' : 'overview__state'}>{w.open ? 'offen' : 'geschlossen'}</span>}
+        {!w.here && (
+          <>
+            <button type="button" onClick={() => p.onOpenWindow(w.win)}>
+              {w.open ? 'Nach vorn holen' : 'Wieder öffnen'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSaid(p.onFetchAll(w.win));
+              }}
             >
-              <h3 className="overview__title">
-                {a.title}
-                <span className="muted"> · {a.panels.length}</span>
-                {/* F-27: Zustand nicht nur als Farbe, sondern als Wort */}
-                {a.other && <span className={a.open ? 'overview__state is-open' : 'overview__state'}>{a.open ? 'offen' : 'geschlossen'}</span>}
-              </h3>
-              {a.other && (
-                <div className="overview__win-tools">
-                  <button type="button" onClick={() => p.onOpenWindow(a.win)}>
-                    {a.open ? 'Nach vorn holen' : 'Wieder öffnen'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      p.onFetchAll(a.win);
-                      setSaid(`Alle Panels aus ${a.title} in dieses Fenster geholt.`);
-                    }}
-                  >
-                    {p.win ? 'Alle hierher holen' : 'Alle ins Hauptfenster holen'}
-                  </button>
-                </div>
-              )}
-              <ul className="overview__list">
-                {a.panels.map((x) => {
-                  const id = x.meta.id;
-                  const isActive = id === p.activeId;
-                  const tabs = `${x.tabs} ${x.tabs === 1 ? 'Tab' : 'Tabs'}`;
-                  if (editing === id)
-                    return (
-                      <li key={id} className="overview__row is-edit">
-                        <input
-                          className="overview__input"
-                          value={draft}
-                          autoFocus
-                          aria-label="Neuer Panelname"
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => setDraft(e.target.value)}
-                          onBlur={commit}
-                          onKeyDown={(e) => {
-                            e.stopPropagation();
-                            // preventDefault: sonst löst dasselbe Enter auf der wieder fokussierten Zeile „Panel zeigen“ aus
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              commit();
-                            }
-                            if (e.key === 'Escape') {
-                              e.preventDefault();
-                              setEditing(null);
-                            }
-                          }}
-                        />
-                      </li>
-                    );
-                  return (
-                    <li key={id} className={`overview__row${isActive ? ' is-active' : ''}${x.front ? ' is-front' : ''}`}>
-                      <button
-                        ref={(el) => {
-                          if (el) btns.current.set(id, el);
-                          else btns.current.delete(id);
-                        }}
-                        type="button"
-                        className="overview__go"
-                        tabIndex={id === focusId ? 0 : -1}
-                        aria-current={isActive ? 'true' : undefined}
-                        aria-label={`${x.meta.name}, ${x.host || 'leerer Tab'}, ${tabs}${x.front ? '' : ', im Stapel hinten'}${isActive ? ', aktiv' : ''}${a.other ? `, in ${a.title}` : ''}`}
-                        onFocus={() => setCur(id)}
-                        onKeyDown={(e) => onRowKey(e, id, x.meta.name, a.other)}
-                        onClick={() => {
-                          p.onShow(id);
-                          dismiss();
-                        }}
-                      >
-                        <span className="overview__dot" style={{ background: loadColor(x.tabs) }} aria-hidden="true" />
-                        <span className="overview__name">{x.meta.name}</span>
-                        <span className="overview__host">{x.host || '–'}</span>
-                        <span className="overview__tabs">{tabs}</span>
-                        {!x.front && <span className="overview__back">hinten</span>}
-                      </button>
-                      <button
-                        type="button"
-                        className="overview__tool"
-                        tabIndex={-1}
-                        title="Verschieben (V, ganze Area: Umschalt+V)"
-                        aria-label={`„${x.meta.name}“ verschieben`}
-                        onClick={(e) => setMoving({ id, whole: e.shiftKey })}
-                      >
-                        ↦
-                      </button>
-                      {a.other && (
-                        <button
-                          type="button"
-                          className="overview__tool"
-                          tabIndex={-1}
-                          title="Hierher holen (H)"
-                          aria-label={`„${x.meta.name}“ in dieses Fenster holen`}
-                          onClick={() => fetch(id, x.meta.name)}
-                        >
-                          ⇣
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="overview__tool"
-                        tabIndex={-1}
-                        title="Umbenennen (F2)"
-                        aria-label={`„${x.meta.name}“ umbenennen`}
-                        onClick={() => {
-                          setDraft(x.meta.name);
-                          setEditing(id);
-                        }}
-                      >
-                        ✎
-                      </button>
-                      <button
-                        type="button"
-                        className="overview__tool overview__tool--x"
-                        tabIndex={-1}
-                        title="Panel schließen (Entf)"
-                        aria-label={`„${x.meta.name}“ schließen`}
-                        onClick={() => close(id, x.meta.name)}
-                      >
-                        ×
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
+              {p.win ? 'Alle hierher holen' : 'Alle ins Hauptfenster holen'}
+            </button>
+          </>
+        )}
+      </div>
+      {drag && (
+        <div className={drag.over === `new:${w.win}` ? `radar__new is-drop${drag.target?.disabled ? ' is-no' : ''}` : 'radar__new'} data-win={w.win} aria-hidden="true">
+          ＋ Eigene neue Area{w.here ? '' : ` in ${w.title}`}
+        </div>
+      )}
+      <div className="radar__map" style={{ ['--ar' as string]: w.aspect }}>
+        {w.areas.map((a) => {
+          const t = tiles.find((x) => x.a === a)!;
+          const r = a.rect ?? { x: 0, y: 0, w: 1, h: 1 };
+          const front = a.panels.find((x) => x.front) ?? a.panels[0];
+          const n = a.panels.length;
+          const on = a.id === selTile?.a.id;
+          const hasActive = a.panels.some((x) => x.meta.id === p.activeId);
+          const over = drag?.over === a.id;
+          const cls = ['radar__tile', on && 'is-sel', hasActive && 'is-active', q && !hits(t) && 'is-miss', q && hits(t) && 'is-hit', over && 'is-drop', over && drag?.target?.disabled && 'is-no'].filter(Boolean).join(' ');
+          const realArea = a.rect === null ? '' : w.here ? a.id : a.id.slice(w.win.length + 1);
+          return (
+            <button
+              key={a.id}
+              ref={(el) => {
+                if (el) tileBtns.current.set(a.id, el);
+                else tileBtns.current.delete(a.id);
+              }}
+              type="button"
+              className={cls}
+              data-key={a.id}
+              data-win={w.win}
+              data-area={realArea}
+              style={{ left: `calc(${r.x * 100}% + 2px)`, top: `calc(${r.y * 100}% + 2px)`, width: `calc(${r.w * 100}% - 4px)`, height: `calc(${r.h * 100}% - 4px)` }}
+              tabIndex={on ? 0 : -1}
+              aria-pressed={on}
+              aria-label={`${a.title}, ${n} ${n === 1 ? 'Panel' : 'Panels'}${n > 1 && front ? `, vorn ${front.meta.name}` : ''}${hasActive ? ', enthält das aktive Panel' : ''}`}
+              onFocus={() => setSel(a.id)}
+              onPointerDown={(e) => front && n > 0 && startDrag(e, front.meta.id, true, a.title, a.id)}
+              onClick={() => {
+                if (dragged.current) return;
+                setSel(a.id);
+                setQuery('');
+              }}
+              onDoubleClick={() => front && toRow(front.meta.id)}
+              onKeyDown={(e) => onTileKey(e, t)}
+            >
+              <span className="radar__title">{a.title}</span>
+              {n > 1 && front && <span className="radar__front">{front.meta.name}</span>}
+              <span className="radar__eq" aria-hidden="true">
+                {Array.from({ length: 9 }, (_, i) => (
+                  <span key={i} className={i < n ? 'is-lit' : undefined} style={{ ['--c' as string]: loadColor(i + 1) }} />
+                ))}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
+
+  const detailHead = q
+    ? `${rows.length} ${rows.length === 1 ? 'Treffer' : 'Treffer'} für „${q}“`
+    : selTile
+      ? `${selTile.w.here ? '' : `${selTile.w.title} · `}${selTile.a.title} · ${selTile.a.panels.length} ${selTile.a.panels.length === 1 ? 'Panel' : 'Panels'}`
+      : '';
 
   return (
     <>
@@ -404,12 +593,31 @@ export function Overview(p: OverviewProps) {
           <span className="overview__focus">{focusText(p.focus)}</span>
           <span className="overview__focus">{p.info}</span>
           <span className="grow" />
+          <input
+            ref={filterRef}
+            className="radar__filter"
+            type="search"
+            value={query}
+            placeholder="Filtern: Panel, Area, Fenster, Seite …"
+            aria-label="Panels filtern"
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                toRow(order[0]);
+              } else if (e.key === 'Escape' && query) {
+                e.preventDefault();
+                e.stopPropagation();
+                setQuery('');
+              }
+            }}
+          />
           <button type="button" className="overview__x" onClick={dismiss} title="Fokus-Radar schließen (Esc)" aria-label="Fokus-Radar schließen">
             ×
           </button>
         </div>
         <p id="overview-help" className="sr-only">
-          Pfeil hoch und runter wählt ein Panel, Pfeil links und rechts wechselt die Area. Enter zeigt das Panel, auch in einem anderen Fenster. V verschiebt das Panel auf eine andere Area, Umschalt und V die ganze Area. H holt ein Panel aus einem anderen Fenster hierher. Entf schließt es, F2 benennt es um, Escape schließt das Fokus-Radar.
+          Lagekarte: Jedes Fenster zeigt seine Areas an ihrer Stelle auf dem Bildschirm. Pfeiltasten wandern zwischen den Areas, Enter öffnet die Panel-Liste. In der Liste wählen Pfeil hoch und runter ein Panel, Pfeil links geht zurück zur Karte. Enter zeigt das Panel, auch in einem anderen Fenster. V verschiebt das Panel, Umschalt und V die ganze Area. H holt ein Panel aus einem anderen Fenster hierher. Entf schließt es, F2 benennt es um. Mit der Maus lässt sich eine Panel-Zeile auf eine Area der Karte ziehen, auf das Feld „Eigene neue Area“ über einer Karte, und eine Area-Kachel auf eine andere. Das Filterfeld zeigt Treffer aus allen Fenstern. Escape schließt das Fokus-Radar.
         </p>
         {moving &&
           (() => {
@@ -422,33 +630,43 @@ export function Overview(p: OverviewProps) {
                 targets={p.moveTargets(moving.id, moving.whole).filter((t) => !(t.area === NEW_AREA && t.disabled && t.win === (m.win ?? '')))}
                 here={m.win ?? ''}
                 winName={(w) => windowName(p.ws, w)}
-                onCancel={() => setMoving(null)}
+                onCancel={() => {
+                  setMoving(null);
+                  toRow(moving.id);
+                }}
                 onNewWindow={() => {
                   p.onNewWindow(moving.id, moving.whole);
                   setSaid(`${moving.whole ? 'Area' : `„${m.name}“`} in ein neues Fenster verschoben.`);
-                  setCur(null);
                   setMoving(null);
                 }}
                 onPick={(t) => {
                   p.onMove(moving.id, t, moving.whole);
                   setSaid(`${moving.whole ? 'Area' : `„${m.name}“`} verschoben: ${targetText(t, windowName(p.ws, t.win))}${t.area && t.win !== (m.win ?? '') ? `, ${windowName(p.ws, t.win)}` : ''}.`);
-                  setCur(moving.id);
                   setMoving(null);
+                  toRow(moving.id);
                 }}
               />
             );
           })()}
-        {order.length === 0 && <p className="overview__empty">Noch keine Panels – lege oben mit „+ Area“ eine an.</p>}
-        {others.length > 0 && <h2 className="overview__win">Dieses Fenster · {windowName(p.ws, p.win)}</h2>}
-        <div className="overview__grid">{here.map(card)}</div>
-        {others.length > 0 && (
-          <>
-            <h2 className="overview__win">Andere Fenster</h2>
-            <div className="overview__grid">{others.map(card)}</div>
-          </>
+        {tiles.length === 0 ? (
+          <p className="overview__empty">Noch keine Panels – lege oben mit „+ NewArea“ eine an.</p>
+        ) : (
+          <div className="radar">
+            <div className="radar__maps">{wins.map(map)}</div>
+            <section className="radar__detail" aria-label={detailHead}>
+              <h3 className="radar__detail-head">{detailHead}</h3>
+              {rows.length === 0 ? <p className="overview__empty">Kein Panel passt.</p> : <ul className="overview__list">{rows.map(row)}</ul>}
+            </section>
+          </div>
+        )}
+        {drag && (
+          <div className="ghost radar__ghost" style={{ left: drag.x + 14, top: drag.y + 14 }} aria-hidden="true">
+            {drag.whole ? `Area „${drag.name}“` : drag.name}
+            {dropText(drag)}
+          </div>
         )}
         <span className="sr-only" role="status">
-          {said}
+          {said || (q ? detailHead : '')}
         </span>
       </div>
     </>

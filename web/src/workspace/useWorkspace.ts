@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef } from 'react';
 import type { Lines, Orientation, ScreenClassId, ScreenSetup } from './screen';
 import { WORKSPACE_KEY, loadWorkspace, parseWorkspace, saveWorkspace } from './storage';
+import { PROBE } from './probe';
 import * as Win from './windows';
 import * as Mv from './move';
 import type { Min, Node, Zone } from './tree';
@@ -66,6 +67,8 @@ export type Action =
   | { type: 'remote'; ws: Workspace }
   /** F-27: Panels in ein Fenster verschieben ('' = Hauptfenster; unbekannte Id = neues Fenster). */
   | { type: 'toWindow'; ids: string[]; win: string }
+  /** F-27/F-28: Panels in dieses Fenster holen, höchstens so viele, wie Platz haben. */
+  | { type: 'fetch'; ids: string[]; setup: ScreenSetup }
   | { type: 'returnAll'; win: string }
   | { type: 'renameWindow'; win: string; name: string }
   /** F-28: Panels auf eine Area legen (auch in einem anderen Fenster); area = Id, 'new' oder ''. */
@@ -170,6 +173,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return a.ws;
     case 'toWindow':
       return Win.moveToWindow(ws, a.ids, a.win);
+    case 'fetch':
+      return Mv.fetchPanels(ws, a.ids, a.setup).ws;
     case 'returnAll':
       return Win.returnAll(ws, a.win);
     case 'renameWindow':
@@ -195,7 +200,7 @@ export function useWorkspace() {
   }, [ws]);
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key !== WORKSPACE_KEY || !e.newValue) return;
+      if (PROBE || e.key !== WORKSPACE_KEY || !e.newValue) return;
       try {
         const next = parseWorkspace(JSON.parse(e.newValue));
         if (!next) return;

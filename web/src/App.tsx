@@ -26,7 +26,8 @@ import { focusOf } from './workspace/focus';
 import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
 import { MAIN_NAME, windowList, windowName, winFromSearch } from './workspace/windows';
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
-import { type MoveTarget, moveTargets, setupOfWindow } from './workspace/move';
+import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
+import { PROBE } from './workspace/probe';
 import type { ScreenSetup } from './workspace/screen';
 import { FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, tryPlace, viewOf } from './workspace/workspace';
 
@@ -230,7 +231,8 @@ export default function App() {
   /** Wichtiger Hinweis als Dialog, der bestätigt werden muss (F-26). */
   const [notice, setNotice] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
-  const [clsOverride, setClsOverride] = useState<ScreenClassId | 'auto'>('auto');
+  // Testbelegung: so tun, als wäre es ein 49-Zoll-Monitor.
+  const [clsOverride, setClsOverride] = useState<ScreenClassId | 'auto'>(PROBE ? 'superwide' : 'auto');
   const [oriOverride, setOriOverride] = useState<Orientation | 'auto'>('auto');
   /** Anordnung während eine Kante gezogen wird (wird beim Loslassen übernommen). */
   const [draft, setDraft] = useState<T.Node | null>(null);
@@ -609,6 +611,24 @@ export default function App() {
     const there = `${where ? `${where} ` : ''}im ${windowName(ws, t.win)}`;
     if (!openAppWindow(t.win)) return notify(`${what} jetzt ${there}. ${POPUP_BLOCKED}`);
     notify(`${what} jetzt ${there}.`);
+  };
+
+  /**
+   * F-27/F-28: Panels aus anderen Fenstern hierher holen – nur so viele, wie Platz haben
+   * (freie Areas, dann Stapel bis STACK_MAX). Gibt die Ansage zurück.
+   */
+  const fetchHere = (ids: string[]): string => {
+    const { moved } = fetchPanels(ws, ids, setup);
+    if (moved > 0) dispatch({ type: 'fetch', ids, setup });
+    const full = `Hier ist kein Platz mehr (${view.spec.capacity} Areas × ${STACK_MAX} Panels).`;
+    const text =
+      moved === ids.length
+        ? `${moved === 1 ? 'Panel' : `${moved} Panels`} in dieses Fenster geholt.`
+        : moved === 0
+          ? `Nichts geholt. ${full}`
+          : `${moved} von ${ids.length} Panels geholt. ${full} Die übrigen bleiben, wo sie sind.`;
+    notify(text);
+    return text;
   };
 
   // ---------------------------------------------------------------- Panels
@@ -1110,12 +1130,18 @@ export default function App() {
         {swapFrom && <span className="hint">Ziel-Panel anklicken · Esc bricht ab</span>}
         </div>
         {/* F-29 Gesamtfokus; Klick klappt das Fokus-Radar (F-28, bisher Master-Panel) aus */}
+        {PROBE && (
+          <a className="probe" href={window.location.pathname} title="Testbelegung verlassen (zurück zur eigenen Arbeitsfläche)">
+            Test: voll · nichts wird gespeichert
+          </a>
+        )}
         <FocusMeter focus={focus} open={overview} onToggle={toggleOverview} btnRef={meterRef} />
       </header>
       {overview && (
         <Overview
           ws={ws}
           slots={view.slots}
+          setup={setup}
           focus={focus}
           activeId={currentPanel()}
           top={overviewTop}
@@ -1124,10 +1150,8 @@ export default function App() {
           win={win}
           open={windows.open}
           onShow={showPanel}
-          onFetch={(id) => dispatch({ type: 'toWindow', ids: [id], win })}
-          onFetchAll={(from) =>
-            dispatch({ type: 'toWindow', ids: ws.panels.filter((x) => (x.win ?? '') === from).map((x) => x.id), win })
-          }
+          onFetch={(id) => fetchHere([id])}
+          onFetchAll={(from) => fetchHere(ws.panels.filter((x) => (x.win ?? '') === from).map((x) => x.id))}
           onOpenWindow={(target) => {
             if (!openAppWindow(target)) notify(POPUP_BLOCKED);
           }}

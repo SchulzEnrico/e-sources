@@ -2526,3 +2526,197 @@ button.is-off:hover,
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* Testbelegung (?test=voll): deutlich als Test erkennbar */
+.probe {
+  flex: 0 0 auto;
+  margin-right: 8px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px dashed var(--accent);
+  color: var(--strong);
+  font-size: 0.75em;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.probe:hover,
+.probe:focus-visible {
+  background: rgba(var(--accent-rgb), 0.2);
+}
+
+/* ---------- F-152 Fokus-Radar als Lagekarte: links Karten je Fenster, rechts die Panels der Area */
+.radar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.radar__win {
+  margin-bottom: 12px;
+}
+.radar__win-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px 6px;
+  font-size: 12px;
+}
+.radar__win-head button {
+  padding: 2px 9px;
+  font-size: 12px;
+}
+/* Miniatur des Bildschirms: Seitenverhältnis wie dort, höchstens 170 px hoch */
+.radar__map {
+  position: relative;
+  aspect-ratio: var(--ar, 1.6);
+  width: min(100%, calc(170px * var(--ar, 1.6)));
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(var(--tint), 0.04);
+}
+.radar__win.is-other .radar__map {
+  border-style: dashed;
+}
+.radar__tile {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px 6px 5px;
+  text-align: left;
+  font-size: 12px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, var(--btn-a), var(--btn-b));
+  box-shadow: none;
+  color: var(--strong);
+}
+.radar__tile:hover {
+  filter: none;
+  border-color: rgba(var(--accent-rgb), 0.6);
+}
+/* Gewählte Area: dicker Rahmen (Form, nicht nur Farbe) */
+.radar__tile.is-sel {
+  border-width: 2px;
+  border-color: rgba(var(--accent-rgb), 0.95);
+  background: rgba(var(--accent-rgb), 0.14);
+}
+.radar__tile:focus-visible {
+  outline: 2px solid var(--strong);
+  outline-offset: 1px;
+}
+.radar__tile.is-miss {
+  opacity: 0.3;
+}
+.radar__tile.is-hit {
+  border-style: dashed;
+  border-color: rgba(var(--accent-rgb), 0.9);
+}
+.radar__title,
+.radar__front {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.radar__title {
+  font-weight: 700;
+}
+/* Area mit dem aktiven Panel: Name unterstrichen */
+.radar__tile.is-active .radar__title {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.radar__front {
+  color: var(--name-accent);
+  font-size: 11px;
+}
+.radar__eq {
+  display: flex;
+  gap: 1px;
+  height: 5px;
+  margin-top: auto;
+}
+.radar__eq > span {
+  flex: 1;
+  border-radius: 1px;
+  background: rgba(var(--tint), 0.12);
+}
+.radar__eq > span.is-lit {
+  background: var(--c);
+}
+.radar__detail {
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(var(--tint), 0.04);
+}
+.radar__detail-head {
+  margin: 2px 6px 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.radar__filter {
+  width: min(280px, 32vw);
+  padding: 4px 10px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.radar .overview__go {
+  padding: 4px 8px;
+}
+.radar .overview__go {
+  grid-template-columns: 10px minmax(0, 1.2fr) minmax(0, 1fr) 2ch 4ch;
+}
+/* Schmal (Smartphone, kleines Fenster): Karte über der Liste */
+@media (max-width: 760px) {
+  .radar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .radar__filter {
+    width: 100%;
+    order: 10;
+  }
+  .overview__head {
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-contrast: more), (forced-colors: active) {
+  .radar__eq > span { border: 1px solid CanvasText; }
+}
+/* F-151: Ziehen im Fokus-Radar */
+.radar__tile.is-drop {
+  border: 2px dashed rgba(var(--accent-rgb), 1);
+  background: rgba(var(--accent-rgb), 0.22);
+}
+.radar__new {
+  margin: 0 2px 6px;
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  text-align: center;
+}
+.radar__new.is-drop {
+  border: 2px dashed rgba(var(--accent-rgb), 1);
+  background: rgba(var(--accent-rgb), 0.22);
+}
+/* Ziel geht nicht: grau, nicht nur Farbe – der Hinweis am Zeiger sagt es in Worten */
+.radar__tile.is-drop.is-no,
+.radar__new.is-drop.is-no {
+  border-color: rgba(128, 128, 128, 0.8);
+  outline-color: rgba(128, 128, 128, 0.8);
+  background: rgba(128, 128, 128, 0.15);
+}
+.radar__ghost {
+  z-index: 80;
+  font-size: 13px;
+}
+.radar__tile,
+.radar .overview__go {
+  touch-action: none;
+}

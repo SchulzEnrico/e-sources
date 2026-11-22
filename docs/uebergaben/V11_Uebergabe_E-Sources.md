@@ -31,11 +31,11 @@ Commits: „F-34, F-135–F-141: Suche, Zurück/Vor in Seiten …; Übergabe V10
 - **F-142 schnelle Tooltips** (`components/Tooltip.tsx`, in `App.tsx` als `<Tooltips />`): übernimmt jeden `title` nach 0,3 s (bei Tastaturfokus sofort, dann `aria-describedby`), entfernt den `title` während der Anzeige und setzt ihn danach zurück. Portal an `body` (sonst lag die Kopfleiste darüber), am Rand nach innen geschoben.
 - **F-143 eigener Mauszeiger:** `--cur-arrow` / `--cur-hand` in `:root` (`App.css`), SVG als Data-URI, Dreieck in Akzentrot mit weißem Rand, 22 px, Spitze auf 11 Uhr, Klickpunkt 3/1. Alle `cursor: pointer/default` laufen darüber. Bei `prefers-contrast: more` / `forced-colors` Systemzeiger.
 - **F-143** bewusst: In eingebetteten Seiten bleibt deren Systemzeiger (Enrico: so merkt man, dass man in einer Webseite ist).
-- **F-144 Kategorien sortieren** (`Bookmarks.tsx`, Sammlung): Kategorie-Kopf ist ziehbar (eigener Zustand `dragCat`, getrennt vom Lesezeichen-Ziehen `drag`); Griff ⋮⋮ ist ein Knopf, ↑/↓ verschiebt (`moveCat` → Aktion `moveCategory`), Ansage per `role="status"`. Tastatur im Browser getestet; **Ziehen mit der Maus von Enrico noch zu testen.**
+- **F-144 Kategorien sortieren** (`Bookmarks.tsx`, Sammlung): Kategorie-Kopf ist ziehbar (eigener Zustand `dragCat`, getrennt vom Lesezeichen-Ziehen `drag`); Griff ⋮⋮ ist ein Knopf, ↑/↓ verschiebt (`moveCat` → Aktion `moveCategory`), Ansage per `role="status"`. Tastatur im Browser getestet; Ziehen mit Einfügelinie (obere/untere Hälfte der Kategorie = davor/dahinter) von Enrico getestet.
 - **F-145 Beispiel-Lesezeichen** (`SAMPLES`, `addSamples(ws, makeId)` in `bookmarks.ts`, Aktion `addSamples`): Menü ⋯ „Beispiel-Lesezeichen anlegen“, 17 Stück in 5 Kategorien, ohne Panel, keine Doppelten. Auch in `demoWorkspace()`. LinkedIn ersetzt (nicht einbettbar) durch BERUFENET.
 - **Lastenheft:** F-34 ergänzt, neu **F-135 bis F-145**. Weiter ab **F-146**.
 - Tests **86** (in der VM 86/86), Typprüfung grün.
-- **Noch nicht committet:** F-144, F-145, diese Übergabe (siehe Commit-Text im Chat).
+- Alles gepusht (letzter Commit „F-144, F-145: Kategorien sortieren …; Übergabe V11“). Enrico zum Ziehen der Kategorien: „gewöhnungsbedürftig, geht aber erstmal“ – später mit ihm nachschärfen.
 
 ## Nächste Schritte
 

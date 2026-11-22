@@ -9,6 +9,7 @@ import * as W from './workspace';
 import * as L from './look';
 import * as D from './demo';
 import * as FH from './frameHistory';
+import * as F from './focus';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -1080,5 +1081,35 @@ describe('F-144, F-145 Kategorien sortieren, Beispiel-Lesezeichen', () => {
   it('Demo enthält die Beispiele', () => {
     const d = D.demoWorkspace();
     expect(d.categories.some((c) => c.name === 'Werkzeuge')).toBe(true);
+  });
+});
+
+describe('F-28/F-29 Gesamtfokus und Übersicht', () => {
+  it('Pegel folgt der Voreinstellung', () => {
+    expect([0, 1, 2, 4, 10, 11, 14, 15, 18, 19, 22, 23].map((p) => F.focusLevel(p))).toEqual([0, 1, 1, 2, 5, 6, 6, 7, 7, 8, 8, 9]);
+    expect(F.colorOfLevel(5)).toBe('grün');
+    expect(F.colorOfLevel(9)).toBe('rot');
+  });
+
+  it('Panels zählen 1, weitere Tabs je ½', () => {
+    let ws = addN(W.defaultWorkspace(), LAPTOP2, 1);
+    const id = ws.panels[0].id;
+    ws = W.addTab(W.addTab(ws, id), id);
+    const f = F.focusOf(ws);
+    expect(f.panels).toBe(ws.panels.length);
+    expect(f.extraTabs).toBe(2);
+    expect(f.points).toBe(ws.panels.length + 1);
+    expect(F.focusText(f)).toContain('2 weitere Tabs');
+    expect(F.focusText(F.focusOf({ ...ws, panels: [] }))).toBe('Gesamtfokus: nichts offen');
+  });
+
+  it('Übersicht listet jede Area mit ihren Panels', () => {
+    const ws = addN(W.defaultWorkspace(), LAPTOP2, 1);
+    const v = W.viewOf(ws, LAPTOP2);
+    const o = F.overviewOf(ws, v.slots);
+    expect(o).toHaveLength(v.slots.length);
+    expect(o.flatMap((a) => a.panels).length).toBe(ws.panels.length);
+    expect(o[0].panels.filter((p) => p.front)).toHaveLength(1);
+    expect(o[0].title.length > 0).toBe(true);
   });
 });

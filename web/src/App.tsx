@@ -22,6 +22,8 @@ import { useWorkspace } from './workspace/useWorkspace';
 import { type SearchHit, addSamples, openBookmark } from './workspace/bookmarks';
 import { Search } from './components/Search';
 import { Tooltips } from './components/Tooltip';
+import { FocusMeter, Overview } from './components/Overview';
+import { focusOf } from './workspace/focus';
 import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
 import { FOCUS_WARN, STACK_MAX, TAB_MAX, newId, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
@@ -113,6 +115,28 @@ export default function App() {
   const [active, setActive] = useState<string | null>(ws.panels[0]?.id ?? null);
   const [mode, setMode] = useState<Mode>({ kind: 'area' });
   const [swapFrom, setSwapFrom] = useState<string | null>(null);
+  /** F-28: Übersicht aller Panels (ausgeklappte Kopfleiste) und ihr Abstand von oben. */
+  const [overview, setOverview] = useState(false);
+  const [overviewTop, setOverviewTop] = useState(0);
+  const toolbarRef = useRef<HTMLElement>(null);
+  const meterRef = useRef<HTMLButtonElement>(null);
+  /** F-29: Gesamtfokus, ändert sich sofort mit Panels und Tabs. */
+  const focus = useMemo(() => focusOf(ws), [ws]);
+  const toggleOverview = useCallback(() => {
+    setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
+    setOverview((o) => !o);
+  }, []);
+  // F-28: Strg/⌘+. klappt die Übersicht auf und zu.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key === '.') {
+        e.preventDefault();
+        toggleOverview();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [toggleOverview]);
   const [flash, setFlash] = useState<string | null>(null);
   /** Wichtiger Hinweis als Dialog, der bestätigt werden muss (F-26). */
   const [notice, setNotice] = useState<string | null>(null);
@@ -208,13 +232,14 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (cleanup.current) cleanup.current();
+      if (overview) setOverview(false);
+      else if (cleanup.current) cleanup.current();
       else if (swapFrom) setSwapFrom(null);
       else if (mode.kind !== 'area') setMode({ kind: 'area' });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [swapFrom, mode]);
+  }, [swapFrom, mode, overview]);
 
   // Geschlossene Panels aus Ansicht und Fokus entfernen.
   useEffect(() => {
@@ -612,8 +637,10 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="toolbar">
+      <header className="toolbar" ref={toolbarRef}>
         <img className="brand-logo" src={shownTheme === 'dark' ? logoUrl : logoLightUrl} alt="E-Sources" width={366} height={186} />
+        {/* F-29 Gesamtfokus; Klick klappt das Master-Panel (F-28) aus */}
+        <FocusMeter focus={focus} open={overview} onToggle={toggleOverview} btnRef={meterRef} />
         {/* F-134: „+ Area“ – neue Spalte rechts oder Zeile unten; Panels kommen über die Areas dazu. */}
         {canAddArea(ws, setup) ? (
           <Menu icon={<span className="tb-add">+ Area</span>} label="Neue Area anlegen">
@@ -849,6 +876,20 @@ export default function App() {
         </Menu>
         <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={(e) => void importWorkspace(e.currentTarget)} />
       </header>
+      {overview && (
+        <Overview
+          ws={ws}
+          slots={view.slots}
+          focus={focus}
+          activeId={currentPanel()}
+          top={overviewTop}
+          toggleRef={meterRef}
+          onShow={showPanel}
+          onClose={(id) => dispatch({ type: 'remove', id })}
+          onRename={(id, name) => dispatch({ type: 'rename', id, name })}
+          onDismiss={() => setOverview(false)}
+        />
+      )}
       {/* F-142: schnelle Tooltips */}
       <Tooltips />
       {flash && !swapFrom && (

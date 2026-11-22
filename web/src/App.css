@@ -2118,3 +2118,207 @@ button.is-off:hover,
   color: #ffffff;
   box-shadow: none;
 }
+
+/* ---------- F-29 Gesamtfokus (Equalizer-Pegel) und F-28 Master-Panel (Übersicht) */
+.focus-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 9px;
+}
+.focus-meter__bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+}
+.focus-meter__bars > span {
+  width: 4px;
+  border-radius: 2px;
+  background: rgba(var(--hi), 0.13);
+  transition: background 0.25s, box-shadow 0.25s;
+}
+/* Segmente steigen an wie bei einer Pegelanzeige */
+.focus-meter__bars > span:nth-child(1) { height: 30%; }
+.focus-meter__bars > span:nth-child(2) { height: 38%; }
+.focus-meter__bars > span:nth-child(3) { height: 46%; }
+.focus-meter__bars > span:nth-child(4) { height: 54%; }
+.focus-meter__bars > span:nth-child(5) { height: 62%; }
+.focus-meter__bars > span:nth-child(6) { height: 70%; }
+.focus-meter__bars > span:nth-child(7) { height: 80%; }
+.focus-meter__bars > span:nth-child(8) { height: 90%; }
+.focus-meter__bars > span:nth-child(9) { height: 100%; }
+.focus-meter__bars > span.is-lit {
+  background: var(--c);
+  box-shadow: 0 0 6px var(--c);
+}
+.focus-meter__num {
+  min-width: 2ch;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--strong);
+}
+.focus-meter__caret {
+  font-size: 10px;
+  opacity: 0.7;
+  transition: transform 0.2s;
+}
+.focus-meter.on .focus-meter__caret {
+  transform: rotate(180deg);
+}
+
+.overview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(var(--lo), 0.45);
+}
+.overview {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  z-index: 71;
+  max-height: 72vh;
+  overflow: auto;
+  padding: 12px 14px 14px;
+  border-radius: 16px;
+  background: rgba(var(--glass), 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 rgba(var(--hi), 0.14), 0 22px 44px rgba(var(--lo), 0.65);
+  animation: overview-in 0.18s ease-out;
+}
+@keyframes overview-in {
+  from { transform: translateY(-8px); }
+}
+.overview__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.overview__focus {
+  font-size: 13px;
+  opacity: 0.8;
+}
+.overview__x {
+  font-size: 20px;
+  line-height: 1;
+  padding: 2px 9px;
+}
+.overview__empty {
+  margin: 8px 0;
+  opacity: 0.8;
+}
+.overview__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+.overview__area {
+  padding: 8px 8px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(var(--tint), 0.05);
+}
+.overview__title {
+  margin: 0 4px 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.overview__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.overview__row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 8px;
+}
+.overview__go {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1.2fr) minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: var(--strong);
+}
+.overview__go:hover,
+.overview__go:focus-visible {
+  filter: none;
+  background: rgba(var(--accent-rgb), 0.14);
+  box-shadow: inset 3px 0 0 rgba(var(--accent-rgb), 0.9);
+}
+.overview__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.overview__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--name-accent);
+  font-weight: 600;
+}
+.overview__host,
+.overview__tabs,
+.overview__back {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  opacity: 0.75;
+}
+.overview__back {
+  font-style: italic;
+}
+/* Aktives Panel: Strich links und fette Schrift, nicht nur Farbe */
+.overview__row.is-active .overview__go {
+  box-shadow: inset 3px 0 0 rgba(var(--accent-rgb), 0.9);
+}
+.overview__row.is-active .overview__name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.overview__tool {
+  padding: 2px 7px;
+  font-size: 14px;
+  opacity: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+.overview__row:hover .overview__tool,
+.overview__row:focus-within .overview__tool {
+  opacity: 0.8;
+}
+.overview__tool--x:hover {
+  color: var(--accent);
+}
+.overview__input {
+  flex: 1;
+  margin: 2px 0;
+  padding: 5px 8px;
+  border-radius: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .overview { animation: none; }
+  .focus-meter__bars > span,
+  .focus-meter__caret { transition: none; }
+}
+@media (prefers-contrast: more), (forced-colors: active) {
+  .overview__tool { opacity: 1; }
+  .focus-meter__bars > span { border: 1px solid CanvasText; }
+  .overview__dot { border: 1px solid CanvasText; }
+}

@@ -141,7 +141,7 @@ export function Design({ look, warning, onLook, desk, main, own, onFollowMain, t
           )}
         </section>
         {/* F-162: Farben aller Slots und Portale dieses Desks zurücksetzen */}
-        <section className="design__group" aria-labelledby="design-tints">
+        <section className="design__group design__tints" aria-labelledby="design-tints">
           <h3 id="design-tints" className="help__group">
             {TINT_TEXT.deskHead}
           </h3>

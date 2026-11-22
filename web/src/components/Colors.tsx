@@ -6,7 +6,7 @@
  * F-163: Oben die Kategorie des Portals (Kategorien der Library) mit ihren Farben – sie gelten für
  * alle Portale der Kategorie. Vorrang: Portal → Slot → Kategorie → Desk.
  */
-import { type CSSProperties, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
 import { ACCENTS, contrastWarning, type Shown } from '../workspace/look';
 import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, TINT_TEXT } from '../workspace/terms';
 import type { TintKind } from '../workspace/tint';
@@ -43,6 +43,9 @@ interface Props {
   /** Portal und Slot auf die Farben des Desks zurücksetzen. */
   onReset: () => void;
   onClose: () => void;
+  /** F-171 Stufe 2: Tour „Farben“ starten; die Tour selbst kommt als children (liegt so über dem Dialog). */
+  onTour?: () => void;
+  children?: ReactNode;
 }
 
 /** Farbfelder: die freien Akzentfarben (ohne die festen Farben der Retro-Designs). */
@@ -144,6 +147,11 @@ export function Colors(props: Props) {
             {TINT_TEXT.resetOne}
           </button>
         )}
+        {props.onTour && (
+          <button type="button" className="design__tour" onClick={props.onTour} title="Kurze Einführung in diesen Dialog" aria-label="Tour „Farben“ starten">
+            Tour
+          </button>
+        )}
         <button type="button" className="help__x" onClick={props.onClose} title="Schließen (Esc)" aria-label={`${TINT_TEXT.title} schließen`}>
           <Icon name="close" size={14} />
         </button>
@@ -236,6 +244,7 @@ export function Colors(props: Props) {
           )}
         </section>
       </div>
+      {props.children}
     </dialog>
   );
 }

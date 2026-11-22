@@ -886,6 +886,39 @@ function DeskApp(props: DeskProps) {
   const currentPanel = (): string | null =>
     (active && ws.panels.some((x) => x.id === active) ? active : null) ?? shownView.slots[0]?.front.id ?? null;
 
+  // ---------------------------------------------------------------- F-171 Stufe 2 Tour „Farben“
+
+  /** Tour „Farben“ beim ersten Öffnen des Dialogs (nicht aus der Frage nach der Kategorie – da soll man gleich wählen); Dialog zu → Tour endet mit. */
+  const colorsOpen = !!colorsFor;
+  useEffect(() => {
+    if (!colorsOpen) {
+      setTour((t) => (t === 'colors' ? null : t));
+      return;
+    }
+    if (PROBE || tour || colorsCat || !tourAutoStart('colors')) return;
+    const t = window.setTimeout(() => setTour((x) => x ?? 'colors', true), 300);
+    return () => window.clearTimeout(t);
+  }, [colorsOpen]);
+  /** Tour „Farben“ von Hand: Dialog für das aktive Portal öffnen (auch aus der Design-Tour heraus). */
+  const startColorsTour = () => {
+    const id = colorsFor ?? currentPanel();
+    if (!id) return notify('Für die Tour „Farben“ braucht es ein offenes Portal – lege zuerst eines an.');
+    setDesign(false);
+    setColorsCat(false);
+    setColorsFor(id);
+    window.setTimeout(() => setTour('colors'), colorsFor ? 0 : 200);
+  };
+  /** Letzter Schritt der Tour „Farben“: Dialog zu, Cockpit mit der Regelübersicht auf. */
+  const showRulesFromTour = () => {
+    setColorsFor(null);
+    setColorsCat(false);
+    window.setTimeout(() => {
+      setOverviewRules(true);
+      setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
+      setOverview(true);
+    }, 60);
+  };
+
   // ---------------------------------------------------------------- F-24 Zuletzt geschlossen
 
   /** Portal schließen; mit Seite wird es gemerkt und der Hinweis bietet „Wiederherstellen“. */
@@ -1528,6 +1561,8 @@ function DeskApp(props: DeskProps) {
         return setDesign(true);
       case 'tourDesign':
         return startDesignTour();
+      case 'tourColors':
+        return startColorsTour();
       case 'tourImport':
         return startImportTour();
       case 'toursAuto':
@@ -2106,7 +2141,7 @@ function DeskApp(props: DeskProps) {
           Test: voll · nichts wird gespeichert
         </a>
       )}
-      {tour && tour !== 'design' && !(tour === 'import' && bmImport) && (
+      {tour && tour !== 'design' && tour !== 'colors' && !(tour === 'import' && bmImport) && (
         <Tour
           key={tour}
           tour={tour}
@@ -2147,7 +2182,7 @@ function DeskApp(props: DeskProps) {
             setDesign(false);
             setTintUndo(null);
           }} onTour={startDesignTour}>
-          {tour === 'design' && <Tour key="design" tour="design" auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} />}
+          {tour === 'design' && <Tour key="design" tour="design" auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} onAction={() => window.setTimeout(startColorsTour, 0)} />}
         </Design>
       )}
       {colorsFor &&
@@ -2194,7 +2229,10 @@ function DeskApp(props: DeskProps) {
                 // NF-03: Das Menü ist schon zu – Fokus zurück auf ⋮ dieses Portals
                 window.setTimeout(() => document.querySelector<HTMLElement>(`[data-panel-id="${meta.id}"] [aria-label="Portal-Optionen"]`)?.focus(), 0);
               }}
-            />
+              onTour={startColorsTour}
+            >
+              {tour === 'colors' && <Tour key="colors" tour="colors" auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} onAction={showRulesFromTour} />}
+            </Colors>
           );
         })()}
       {bmImport && (

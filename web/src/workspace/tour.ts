@@ -5,6 +5,7 @@
  * Schritte, deren Ziel gerade fehlt (z. B. kein Stack offen), werden übersprungen.
  */
 import { BROWSER_EXPORT, helpById } from './help';
+import { CATEGORY_TEXT, TINT_TEXT } from './terms';
 
 export interface TourStep {
   id: string;
@@ -26,7 +27,7 @@ export interface TourStep {
   action?: string;
 }
 
-export type TourId = 'start' | 'cockpit' | 'design' | 'import';
+export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors';
 
 const t = (id: string) => helpById(id)?.text ?? '';
 
@@ -35,6 +36,8 @@ const C = '#overview';
 const D = '#design';
 /** Import-Dialog (F-36) */
 const I = 'dialog.import';
+/** F-171 Stufe 2: Dialog „Farben“ eines Portals (F-162 bis F-164, F-183) */
+const K = 'dialog.colors';
 
 export const TOURS: Record<TourId, TourStep[]> = {
   start: [
@@ -146,7 +149,7 @@ export const TOURS: Record<TourId, TourStep[]> = {
       text: `${t('sortHelp')} Wieder starten: Knopf „Tour“ im Import-Dialog, Hilfe (?) oder Suche („Tour Import“).`,
     },
   ],
-  // F-171 Stufe 1: wächst mit F-161 bis F-164 (Farben je Desk, Slot, Portal, Farbregeln)
+  // F-171 Stufe 1 (V20) und Stufe 2 (V36): Darstellung, Akzent, Farben des Desks; weiter in der Tour „Farben“
   design: [
     {
       id: 'design',
@@ -172,9 +175,77 @@ export const TOURS: Record<TourId, TourStep[]> = {
       text: 'Hier wählst du jede beliebige Farbe. Ist sie zu blass oder zu grell für die Darstellung, erscheint darunter ein Hinweis zum Kontrast.',
     },
     {
-      id: 'later',
-      title: 'Bald mehr',
-      text: 'Hier kommen nach und nach eigene Farben je Desk, Slot und Portal dazu und Farbregeln, z. B. „alle Editoren mit blauem Rahmen“. Die Tour wächst mit. Wieder starten: Knopf „Tour“ oben im Dialog, Hilfe (?) oder Suche („Tour Design“).',
+      id: 'tints',
+      title: 'Slots und Portale',
+      target: `${D} .design__tints`,
+      text: 'Hier siehst du, wie viele Slots und Portale dieses Desks eigene Farben haben. Ein Knopf setzt alle auf einmal auf die Farben des Desks zurück – mit „Rückgängig“, falls es zu schnell ging.',
+    },
+    {
+      id: 'more',
+      title: 'Farben je Portal und Kategorie',
+      text: 'Eigene Farben für ein Portal oder seinen Slot, die Kategorie mit Farbe und Zeichen wählst du am Portal: ⋮ Portal-Optionen → „Farben …“. Dort gibt es eine eigene kurze Tour – der Knopf öffnet sie für das aktive Portal.',
+      action: 'Farben zeigen',
+    },
+    {
+      id: 'again',
+      title: 'Tour wieder starten',
+      target: `${D} .design__tour`,
+      text: 'Über diesen Knopf, die Hilfe (?) oder die Suche („Tour Design“) startest du diese Tour jederzeit wieder. Esc schließt den Dialog.',
+    },
+  ],
+  // F-171 Stufe 2: im Dialog „Farben“ – Portal, Slot, Kategorie (Farbregel, Zeichen), Vorrang, Regelübersicht
+  colors: [
+    {
+      id: 'intro',
+      title: 'Farben eines Portals',
+      text: `${TINT_TEXT.short} Diese kurze Tour zeigt dir, was du hier einstellst – mit → weiter, mit Esc beenden.`,
+    },
+    {
+      id: 'portal',
+      title: 'Dieses Portal',
+      target: `${K} section[aria-labelledby="colors-portal"]`,
+      text: 'Rahmen = farbige Linie um das Portal, Akzent = Leuchten, Portalname und Hervorhebungen. „Wie Slot“ übernimmt die Farbe von darunter; „Eigene Farbe“ erlaubt jede Farbe.',
+    },
+    {
+      id: 'slot',
+      title: 'Dieser Slot',
+      target: `${K} section[aria-labelledby="colors-slot"]`,
+      text: `${TINT_TEXT.slotNote} Die Farbe hängt am Namen des Slots – sie bleibt, auch wenn du Portale tauschst.`,
+    },
+    {
+      id: 'category',
+      title: 'Kategorie',
+      target: `${K} #colors-cat`,
+      text: `${CATEGORY_TEXT.intro} Hier ordnest du das Portal einer Kategorie zu oder legst mit „Neue Kategorie …“ eine an.`,
+    },
+    {
+      id: 'catColors',
+      title: 'Farbregel der Kategorie',
+      target: `${K} .colors__row:has(#colors-cf)`,
+      text: 'Diese Farben gelten für alle Portale der Kategorie auf allen Desks – z. B. alle Editoren mit grünem Rahmen. So entsteht eine Farbregel.',
+    },
+    {
+      id: 'catNone',
+      title: 'Farbregel der Kategorie',
+      unless: `${K} #colors-cf`,
+      text: 'Sobald das Portal eine Kategorie hat, erscheinen hier ihre Rahmen- und Akzentfarbe und ihr Zeichen. Die Farben gelten dann für alle Portale der Kategorie auf allen Desks – z. B. alle Editoren mit grünem Rahmen.',
+    },
+    {
+      id: 'icon',
+      title: 'Zeichen der Kategorie',
+      target: `${K} .colors__icons`,
+      text: 'Das Zeichen steht vor dem Kategorienamen – im Portal, in der Library und in den Regeln. „Vorschlag“ wählt es nach dem Namen; Pfeiltasten wählen ein anderes.',
+    },
+    {
+      id: 'order',
+      title: 'Was gilt, wenn mehreres passt?',
+      text: 'Vorrang hat immer das Nächste: erst das Portal, dann der Slot, dann die Kategorie, zuletzt der Desk. „Alles wie Desk“ oben löscht die Farben von Portal und Slot auf einmal.',
+    },
+    {
+      id: 'rules',
+      title: 'Regelübersicht',
+      text: `Alle Farbregeln stehen auch im Cockpit unter „Regeln“ – mit einem Satz je Regel. Ein Häkchen schaltet eine Regel aus, ohne sie zu löschen. Wieder starten: Knopf „Tour“ im Dialog, Hilfe (?) oder Suche („Tour Farben“).`,
+      action: 'Regeln zeigen',
     },
   ],
 };
@@ -188,7 +259,7 @@ export function tourSteps(has: (selector: string) => boolean, steps: TourStep[] 
 }
 
 /** Speicherschlüssel je Tour; die Starttour behält ihren bisherigen Schlüssel. */
-export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1' };
+export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1' };
 
 /** Wurde die Tour schon gezeigt (beendet oder übersprungen)? */
 export function tourSeen(id: TourId = 'start'): boolean {

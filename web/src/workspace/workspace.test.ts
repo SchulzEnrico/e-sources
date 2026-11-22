@@ -1614,6 +1614,26 @@ describe('F-172 Tour „Cockpit“', () => {
     expect(H.searchHelp('Akzentfarbe')[0].id).toBe('design');
     expect(Tour.TOUR_KEY.design).toBe('esource.tour.design.v1');
   });
+  it('F-171 Stufe 2: Design-Tour führt zur Tour „Farben“ im Dialog „Farben“', () => {
+    const d = Tour.TOURS.design;
+    expect(d.some((s) => s.id === 'tints')).toBe(true);
+    expect(d.find((s) => s.id === 'more')?.action).toBeDefined();
+    const c = Tour.TOURS.colors;
+    expect(c.filter((s) => s.target).every((s) => (s.target ?? '').startsWith('dialog.colors'))).toBe(true);
+    expect(c[c.length - 1].action).toBeDefined();
+    expect(Tour.TOUR_KEY.colors).toBe('esource.tour.colors.v1');
+    expect(H.searchHelp('Tour Farben')[0].id).toBe('tourColors');
+  });
+  it('F-171 Stufe 2: ohne Kategorie statt Farbregel und Zeichen ein Hinweisschritt', () => {
+    const c = Tour.TOURS.colors;
+    const none = Tour.tourSteps((sel) => !sel.includes('colors-cf') && !sel.includes('colors__icons'), c).map((s) => s.id);
+    expect(none).toContain('catNone');
+    expect(none).not.toContain('catColors');
+    expect(none).not.toContain('icon');
+    const all = Tour.tourSteps(() => true, c).map((s) => s.id);
+    expect(all).toContain('catColors');
+    expect(all).not.toContain('catNone');
+  });
   it('F-173 Schalter: ohne Speicher keine Autostarts', () => {
     expect(Tour.toursAuto()).toBe(false);
     expect(Tour.tourAutoStart('start')).toBe(false);

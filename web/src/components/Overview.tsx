@@ -6,7 +6,10 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { TERMS } from '../workspace/terms';
+import { RULES_TEXT, TERMS } from '../workspace/terms';
+import type { Shown } from '../workspace/look';
+import type { Action } from '../workspace/useWorkspace';
+import { Rules } from './Rules';
 
 /**
  * F-29: Gesamtfokus als Equalizer-Pegel mit 9 Segmenten (Farben wie F-26/F-68). Ist zugleich der
@@ -100,6 +103,10 @@ export interface OverviewProps {
   onTour?: () => void;
   /** F-172: Während einer Tour nicht einklappen, wenn der Fokus ins Hinweisfenster wandert. */
   keepOpen?: boolean;
+  /** F-164: Regelübersicht – Änderungen am Workspace, Design für Kontrasthinweise, gleich mit Regeln öffnen. */
+  dispatch?: (a: Action) => void;
+  shown?: Shown;
+  startRules?: boolean;
 }
 
 /** F-153: Schrittweite für Alt+Umschalt+Pfeil (Anteil der Fläche). */
@@ -205,6 +212,9 @@ export function Overview(p: OverviewProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [said, setSaid] = useState('');
+  /** F-164: Regelübersicht statt Radar. */
+  const [rules, setRules] = useState(!!p.startRules && !!p.dispatch);
+  const rulesBtn = useRef<HTMLButtonElement>(null);
   /** F-28: Panel (oder ganze Area), für das gerade ein Ziel gewählt wird. */
   const [moving, setMoving] = useState<{ id: string; whole: boolean } | null>(null);
   const rowBtns = useRef(new Map<string, HTMLButtonElement>());
@@ -816,7 +826,7 @@ export function Overview(p: OverviewProps) {
           <span className="overview__focus">{focusText(p.focus)}</span>
           <span className="overview__focus">{p.info}</span>
           <span className="grow" />
-          <input
+          {!rules && <input
             ref={filterRef}
             className="radar__filter"
             type="search"
@@ -834,7 +844,7 @@ export function Overview(p: OverviewProps) {
                 setQuery('');
               }
             }}
-          />
+          />}
           {/* F-160: Desks in diesem Fenster sammeln bzw. wieder auf Fenster verteilen */}
           {p.ws.windows.length > 0 && p.onCollect && (
             <button type="button" className="overview__tour" onClick={p.onCollect} title={TERMS.collectDesks}>
@@ -846,8 +856,23 @@ export function Overview(p: OverviewProps) {
               Verteilen
             </button>
           )}
+          {p.dispatch && (
+            <button
+              ref={rulesBtn}
+              type="button"
+              className="overview__tour overview__rules"
+              aria-pressed={rules}
+              title={rules ? RULES_TEXT.backTitle : RULES_TEXT.openTitle}
+              onClick={() => {
+                setRules(!rules);
+                if (rules) window.setTimeout(() => rulesBtn.current?.focus(), 0);
+              }}
+            >
+              {rules ? RULES_TEXT.back : RULES_TEXT.open}
+            </button>
+          )}
           {p.onTour && (
-            <button type="button" className="overview__tour" onClick={p.onTour} title="Kurze Einführung ins Cockpit" aria-label="Tour durch das Cockpit starten">
+            <button type="button" className="overview__tour overview__restart" onClick={p.onTour} title="Kurze Einführung ins Cockpit" aria-label="Tour durch das Cockpit starten">
               Tour
             </button>
           )}
@@ -887,7 +912,9 @@ export function Overview(p: OverviewProps) {
               />
             );
           })()}
-        {tiles.length === 0 ? (
+        {rules && p.dispatch ? (
+          <Rules ws={p.ws} shown={p.shown ?? 'dark'} dispatch={p.dispatch} say={setSaid} />
+        ) : tiles.length === 0 ? (
           <p className="overview__empty">Noch keine Portale – lege oben mit „+ NewSlot“ eine an.</p>
         ) : (
           <div className="radar">

@@ -36,7 +36,8 @@ export function suggestCategory(ws: Workspace, url: string | undefined): Categor
   const src = ws.bookmarks.find((b) => sameUrl(b.url, url) && exists(ws, b.category));
   if (src) return { id: src.category, name: name(src.category), from: 'source' };
   const domain = domainOf(url);
-  const site = ws.siteCategory?.[domain];
+  // F-164: ausgeschaltete Zuordnung Seite → Kategorie zählt nicht
+  const site = ws.rulesOff?.includes(`site:${domain}`) ? undefined : ws.siteCategory?.[domain];
   if (site !== undefined && (site === NO_CATEGORY || exists(ws, site))) return { id: site, name: name(site), from: 'site' };
   const count = new Map<string, number>();
   for (const b of ws.bookmarks) if (exists(ws, b.category) && domainOf(b.url) === domain) count.set(b.category, (count.get(b.category) ?? 0) + 1);
@@ -95,4 +96,8 @@ export function setCategoryTint(ws: Workspace, id: string, change: Partial<Recor
 export const categoryPortals = (ws: Workspace, id: string) => ws.panels.filter((p) => p.category === id).length;
 
 /** Farbe der Kategorie eines Portals (ohne Vererbung). */
-export const categoryTint = (ws: Workspace, panel: PanelMeta): Tint | undefined => categoryOf(ws, panel)?.tint;
+export const categoryTint = (ws: Workspace, panel: PanelMeta): Tint | undefined => {
+  const c = categoryOf(ws, panel);
+  // F-164: ausgeschaltete Farbregel gilt nicht
+  return c && !ws.rulesOff?.includes(`tint:${c.id}`) ? c.tint : undefined;
+};

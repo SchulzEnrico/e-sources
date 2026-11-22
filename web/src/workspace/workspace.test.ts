@@ -27,6 +27,7 @@ import * as Pr from './profile';
 import * as Up from './update';
 import * as Ti from './tint';
 import * as Ca from './category';
+import * as Ru from './rules';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -2203,5 +2204,73 @@ describe('F-163 Farbregeln über Kategorien', () => {
     ws = B.deleteCategory(ws, 'c-vi');
     expect(ws.panels[0].category).toBe('');
     expect(ws.siteCategory).toEqual({});
+  });
+});
+
+describe('F-164 Regelübersicht', () => {
+  const base = () => {
+    let ws = W.defaultWorkspace();
+    ws = B.addCategory(ws, 'c-vi', 'Video');
+    ws = Ca.setCategoryTint(ws, 'c-vi', { frame: '#64a970' });
+    ws = Ca.setPanelCategory(ws, ws.panels[0].id, 'c-vi', 'https://www.youtube.com/watch?v=1');
+    return ws;
+  };
+
+  it('listet Farbregeln, Seiten und eingebaute Regeln mit Klartext', () => {
+    const rows = Ru.ruleList(base());
+    expect(rows.map((r) => r.id)).toEqual(['tint:c-vi', 'site:youtube.com', 'ask', 'offer', 'collect']);
+    expect(rows[0].text).toContain('Herzchakra (Grün)');
+    expect(rows[0].portals).toBe(1);
+    expect(rows[1].text).toContain('„Video“');
+    expect(rows.filter((r) => !r.on).map((r) => r.id)).toEqual(['offer']);
+  });
+
+  it('„Farbe anbieten“ ist ab Werk aus; Einschalten übersteht Speichern', () => {
+    let ws = base();
+    expect(Ru.ruleOn(ws, 'offer')).toBe(false);
+    ws = Ru.setRuleOn(ws, 'offer', true);
+    expect(Ru.ruleOn(ws, 'offer')).toBe(true);
+    expect(ws.rulesOff).toBeUndefined();
+    expect(Ru.ruleOn(parseWorkspace(JSON.parse(JSON.stringify(ws)))!, 'offer')).toBe(true);
+    expect(Ru.setRuleOn(ws, 'offer', false).rulesOn).toBeUndefined();
+  });
+
+  it('Ausschalten wirkt auf Farbe und Vorschlag und übersteht Speichern', () => {
+    let ws = Ru.setRuleOn(base(), 'tint:c-vi', false);
+    ws = Ru.setRuleOn(ws, 'site:youtube.com', false);
+    expect(Ca.categoryTint(ws, ws.panels[0])).toBeUndefined();
+    expect(Ca.suggestCategory(ws, 'https://youtube.com/x')?.from).toBe('known');
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)));
+    expect(back?.rulesOff).toEqual(['tint:c-vi', 'site:youtube.com']);
+    ws = Ru.setRuleOn(Ru.setRuleOn(ws, 'tint:c-vi', true), 'site:youtube.com', true);
+    expect(ws.rulesOff).toBeUndefined();
+    expect(Ca.categoryTint(ws, ws.panels[0])).toEqual({ frame: '#64a970' });
+  });
+
+  it('Löschen und Rückgängig stellen Farbe, Zuordnung und Aus-Zustand wieder her', () => {
+    let ws = Ru.setRuleOn(base(), 'site:youtube.com', false);
+    const t = Ru.deleteRule(ws, 'tint:c-vi');
+    expect(t.ws.categories[0].tint).toBeUndefined();
+    const s = Ru.deleteRule(t.ws, 'site:youtube.com');
+    expect(s.ws.siteCategory).toBeUndefined();
+    expect(s.ws.rulesOff).toBeUndefined();
+    expect(Ru.deleteRule(s.ws, 'ask').undo).toBeNull();
+    ws = Ru.restoreRule(Ru.restoreRule(s.ws, s.undo!), t.undo!);
+    expect(ws.categories[0].tint).toEqual({ frame: '#64a970' });
+    expect(ws.siteCategory).toEqual({ 'youtube.com': 'c-vi' });
+    expect(ws.rulesOff).toEqual(['site:youtube.com']);
+  });
+
+  it('Seite anlegen bereinigt die Domain; Unbrauchbares ändert nichts', () => {
+    expect(Ru.cleanDomain('https://www.YouTube.com/watch?v=1')).toBe('youtube.com');
+    expect(Ru.cleanDomain('kein domain')).toBe('');
+    let ws = base();
+    ws = reducer(ws, { type: 'siteCategory', domain: 'docs.google.com', category: '' });
+    expect(ws.siteCategory?.['docs.google.com']).toBe('');
+    expect(reducer(ws, { type: 'siteCategory', domain: 'x.org', category: 'gibt-es-nicht' })).toBe(ws);
+    // ausgeschaltete Regeln gelöschter Kategorien fallen beim Laden weg
+    ws = Ru.setRuleOn(ws, 'tint:c-vi', false);
+    ws = B.deleteCategory(ws, 'c-vi');
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))?.rulesOff).toBeUndefined();
   });
 });

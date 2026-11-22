@@ -4346,7 +4346,7 @@ button.is-off:hover,
 .profile__color input:checked + span { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--strong); }
 .profile__color input:focus-visible + span { outline: 2px solid rgba(var(--tint), 0.9); outline-offset: 2px; }
 .profile__greet { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer; }
-.greeting { position: fixed; z-index: 80; top: 64px; right: 16px; display: flex; gap: 12px; align-items: flex-start; width: min(380px, calc(100vw - 32px)); padding: 14px 14px 14px 16px; border-radius: 12px; border: 1px solid rgba(var(--tint), 0.25); background: var(--bg); color: var(--text); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); animation: greeting-in 0.25s ease-out; }
+.greeting { position: fixed; z-index: 69; /* unter dem Cockpit (70/71), damit es dessen Knöpfe nicht verdeckt */ top: 64px; right: 16px; display: flex; gap: 12px; align-items: flex-start; width: min(380px, calc(100vw - 32px)); padding: 14px 14px 14px 16px; border-radius: 12px; border: 1px solid rgba(var(--tint), 0.25); background: var(--bg); color: var(--text); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); animation: greeting-in 0.25s ease-out; }
 .greeting__main { flex: 1; min-width: 0; }
 .greeting__title { margin: 2px 0 4px; font-size: 18px; color: var(--strong); }
 .greeting__last { margin: 0 0 10px; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
@@ -4434,3 +4434,27 @@ button.is-off:hover,
 .colors__new { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .colors__input { font-size: 13px; padding: 3px 6px; width: 180px; }
 .colors__count { grid-column: 2; font-size: 12px; color: var(--muted); }
+/* F-164: Regelübersicht im Cockpit */
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; align-items: start; }
+.rules__intro, .rules__undo { grid-column: 1 / -1; margin: 0; font-size: 14px; }
+.rules__undo { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.rules__group { padding: 6px 8px; border: 1px solid var(--line); border-radius: 12px; background: rgba(var(--tint), 0.04); }
+.rules__note { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+.rules__list { list-style: none; margin: 0; padding: 0; }
+.rules__row { padding: 6px 0; border-top: 1px solid var(--line); }
+.rules__row:first-child { border-top: 0; }
+.rules__row.is-off .rules__text { opacity: 0.7; }
+.rules__line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rules__on { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.rules__on input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.rules__off { color: var(--muted); font-size: 13px; }
+.rules__dots { display: inline-flex; gap: 4px; }
+.rules__dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 1px var(--text); }
+.rules__dot--frame { box-sizing: border-box; border: 3px solid; box-shadow: none; }
+.rules__text { margin: 2px 0 0 24px; font-size: 13px; }
+.rules__confirm, .rules__edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 6px 0 0 24px; }
+.rules__edit .colors__row { flex: 1 1 100%; }
+.rules .colors__row button.look__swatch { flex: 0 0 24px; width: 24px; height: 24px; min-height: 0; min-width: 0; aspect-ratio: 1; box-sizing: border-box; }
+.rules .colors__row .look__swatches { flex-wrap: wrap; }
+.rules__field { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.rules__add { margin-top: 6px; }

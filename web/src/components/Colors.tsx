@@ -27,6 +27,8 @@ interface Props {
   categories: Named[];
   category?: string;
   categoryTint?: Tint;
+  /** F-164: Farbregel dieser Kategorie ist im Cockpit ausgeschaltet. */
+  categoryOff?: boolean;
   /** Wie viele Portale zur gewählten Kategorie gehören. */
   categoryPortals: number;
   onCategory: (id: string) => void;
@@ -42,7 +44,7 @@ interface Props {
 /** Farbfelder: die freien Akzentfarben (ohne die festen Farben der Retro-Designs). */
 const SWATCHES = ACCENTS.filter((a) => !a.theme);
 
-function Row(props: { id: string; label: string; value?: string; inherit: string; shown: Shown; kind: TintKind; onChange: (v: string | null) => void }) {
+export function Row(props: { id: string; label: string; value?: string; inherit: string; shown: Shown; kind: TintKind; onChange: (v: string | null) => void }) {
   const { id, value } = props;
   const warn = props.kind === 'accent' && value ? contrastWarning(value, props.shown) : null;
   return (
@@ -160,8 +162,8 @@ export function Colors(props: Props) {
           <span id="colors-slot-note" hidden>
             {TINT_TEXT.slotNote}
           </span>
-          <Row id="colors-sf" label={TINT_TEXT.frame} kind="frame" value={props.slot?.frame} inherit={ct?.frame ? CATEGORY_TEXT.likeCategory : TINT_TEXT.noFrame} shown={props.shown} onChange={(v) => props.onSlot({ frame: v })} />
-          <Row id="colors-sa" label={TINT_TEXT.accent} kind="accent" value={props.slot?.accent} inherit={ct?.accent ? CATEGORY_TEXT.likeCategory : TINT_TEXT.likeDesk} shown={props.shown} onChange={(v) => props.onSlot({ accent: v })} />
+          <Row id="colors-sf" label={TINT_TEXT.frame} kind="frame" value={props.slot?.frame} inherit={ct?.frame && !props.categoryOff ? CATEGORY_TEXT.likeCategory : TINT_TEXT.noFrame} shown={props.shown} onChange={(v) => props.onSlot({ frame: v })} />
+          <Row id="colors-sa" label={TINT_TEXT.accent} kind="accent" value={props.slot?.accent} inherit={ct?.accent && !props.categoryOff ? CATEGORY_TEXT.likeCategory : TINT_TEXT.likeDesk} shown={props.shown} onChange={(v) => props.onSlot({ accent: v })} />
         </section>
         <section className="design__group" aria-labelledby="colors-cathead" aria-describedby="colors-cat-note">
           <h3 id="colors-cathead" className="help__group" title={CATEGORY_TEXT.intro}>
@@ -222,6 +224,7 @@ export function Colors(props: Props) {
           </div>
           {cat && (
             <>
+              {props.categoryOff && <p className="colors__count">{CATEGORY_TEXT.ruleOff}</p>}
               <Row id="colors-cf" label={TINT_TEXT.frame} kind="frame" value={ct?.frame} inherit={TINT_TEXT.noFrame} shown={props.shown} onChange={(v) => props.onCategoryTint({ frame: v })} />
               <Row id="colors-ca" label={TINT_TEXT.accent} kind="accent" value={ct?.accent} inherit={TINT_TEXT.likeDesk} shown={props.shown} onChange={(v) => props.onCategoryTint({ accent: v })} />
             </>

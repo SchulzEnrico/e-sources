@@ -167,6 +167,10 @@ export interface Workspace {
   categories: Category[];
   /** F-163: gemerkte Wahl je Domain (ohne „www.“) → Kategorie-Id oder '' (ohne); Vorschlag beim nächsten Portal. */
   siteCategory?: Record<string, string>;
+  /** F-164: Ids ausgeschalteter Regeln (tint:<Kategorie>, site:<Domain>, ask, offer, collect); fehlt = alle an. */
+  rulesOff?: string[];
+  /** F-164: eingeschaltete Regeln, die ab Werk aus sind (DEFAULT_OFF, z. B. offer). */
+  rulesOn?: string[];
   /** F-125: Lineal (F-15). */
   ruler: RulerSettings;
   /** F-128: Namen der Areas (Stapel). */

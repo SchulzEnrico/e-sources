@@ -17,6 +17,7 @@ import { clearDeskTints, restoreTints, setPanelTint, setSlotTint, type TintKind,
 import { type ImportPlan, applyImport } from './browserBookmarks';
 import { sortAll, sortInto } from './sortHelp';
 import { setCategoryTint, setPanelCategory, setPanelNewCategory } from './category';
+import { type RuleUndo, deleteRule, restoreRule, setRuleOn, setSiteCategory } from './rules';
 
 type S = { setup: ScreenSetup };
 
@@ -83,6 +84,11 @@ export type Action =
   | { type: 'panelCategory'; id: string; category: string; url?: string }
   | { type: 'panelNewCategory'; id: string; name: string; catId: string; url?: string }
   | { type: 'tintCategory'; id: string; change: Partial<Record<TintKind, string | null>> }
+  // F-164: Regeln ein/aus, Seite → Kategorie, löschen und wiederherstellen
+  | { type: 'ruleOn'; id: string; on: boolean }
+  | { type: 'siteCategory'; domain: string; category: string }
+  | { type: 'ruleDelete'; id: string }
+  | { type: 'ruleRestore'; undo: RuleUndo }
   | { type: 'tintPanel'; id: string; change: Partial<Record<TintKind, string | null>> }
   | { type: 'tintSlot'; setup: ScreenSetup; area: string; change: Partial<Record<TintKind, string | null>> }
   | { type: 'clearTints'; win: string }
@@ -216,6 +222,14 @@ function step(ws: Workspace, a: Action): Workspace {
       return setPanelNewCategory(ws, a.id, a.name, () => a.catId, a.url);
     case 'tintCategory':
       return setCategoryTint(ws, a.id, a.change);
+    case 'ruleOn':
+      return setRuleOn(ws, a.id, a.on);
+    case 'siteCategory':
+      return setSiteCategory(ws, a.domain, a.category);
+    case 'ruleDelete':
+      return deleteRule(ws, a.id).ws;
+    case 'ruleRestore':
+      return restoreRule(ws, a.undo);
     case 'tintPanel':
       return setPanelTint(ws, a.id, a.change);
     case 'tintSlot':

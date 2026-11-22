@@ -98,9 +98,15 @@ export const TOURS: Record<TourId, TourStep[]> = {
       text: 'Findet Portale, Slots, Desks und Sources auf allen Desks. Pfeil runter springt in die Treffer.',
     },
     {
+      id: 'rules',
+      title: 'Regeln',
+      target: `${C} .overview__rules`,
+      text: 'Zeigt alles, was E-Sources von selbst tut – Farbregeln je Kategorie, Seite → Kategorie und eingebaute Regeln wie „Nach der Kategorie fragen“. Ein Häkchen schaltet eine Regel ein oder aus; ändern und löschen geht hier auch.',
+    },
+    {
       id: 'again',
       title: 'Tour wieder starten',
-      target: `${C} .overview__tour`,
+      target: `${C} .overview__restart`,
       text: 'Über diesen Knopf, die Hilfe (?) oder die Suche („Tour Cockpit“) startest du diese Tour jederzeit wieder. Esc schließt das Cockpit.',
     },
   ],

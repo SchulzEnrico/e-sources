@@ -42,6 +42,7 @@ import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, 
 import { CATEGORY_TEXT, DESK_LOOK_TEXT, TERMS, TINT_TEXT } from './workspace/terms';
 import { clearDeskTints, deskTintCount, shownTint, slotTint, type TintSnapshot } from './workspace/tint';
 import { categoryOf, categoryPortals, categoryTint, suggestCategory } from './workspace/category';
+import { ruleOn, tintRuleId } from './workspace/rules';
 import { domainOf } from './workspace/sortHelp';
 
 import { Colors } from './components/Colors';
@@ -281,6 +282,8 @@ function DeskApp(props: DeskProps) {
   const [swapFrom, setSwapFrom] = useState<string | null>(null);
   /** F-28: Übersicht aller Panels (ausgeklappte Kopfleiste) und ihr Abstand von oben. */
   const [overview, setOverview] = useState(false);
+  /** F-164: Cockpit gleich mit der Regelübersicht öffnen (aus Hilfe und Suche). */
+  const [overviewRules, setOverviewRules] = useState(false);
   const [overviewTop, setOverviewTop] = useState(0);
   const toolbarRef = useRef<HTMLElement>(null);
   const meterRef = useRef<HTMLButtonElement>(null);
@@ -554,7 +557,7 @@ function DeskApp(props: DeskProps) {
   const wsNow = useRef(ws);
   wsNow.current = ws;
   const offerColors = (text: string, id?: string) =>
-    notify(text, 8000, false, { label: TINT_TEXT.offer, run: () => setColorsFor(id ?? wsNow.current.panels[wsNow.current.panels.length - 1]?.id ?? null) });
+    !ruleOn(wsNow.current, 'offer') ? notify(text) : notify(text, 8000, false, { label: TINT_TEXT.offer, run: () => setColorsFor(id ?? wsNow.current.panels[wsNow.current.panels.length - 1]?.id ?? null) });
   /**
    * F-163: Bekommt ein Portal dieses Desks eine Adresse und hat noch keine Kategorie, fragt der Hinweis
    * nach ihr (Vorschlag aus Source, gemerkter Domain, Library oder bekannter Seite). Je Portal und Domain
@@ -569,7 +572,12 @@ function DeskApp(props: DeskProps) {
     }
     for (const p of here) {
       const url = activeTab(p).url;
+      // F-164: Regel „Nach der Kategorie fragen“ ausgeschaltet → nicht fragen (gemerkt wird trotzdem, damit kein Schwall nach dem Einschalten kommt)
       if (p.category !== undefined || !url) continue;
+      if (!ruleOn(ws, 'ask')) {
+        askedCat.current.set(p.id, domainOf(url));
+        continue;
+      }
       const site = domainOf(url);
       if (askedCat.current.get(p.id) === site) continue;
       askedCat.current.set(p.id, site);
@@ -1027,7 +1035,7 @@ function DeskApp(props: DeskProps) {
     prevOpen.current = windows.open;
     if (win !== '' || gone.length === 0) return;
     const t = window.setTimeout(() => {
-      if (Date.now() < quietUntil.current) return;
+      if (Date.now() < quietUntil.current || !ruleOn(wsRef.current, 'collect')) return;
       const names = gone.filter((w) => !openRef.current.has(w) && wsRef.current.windows.some((d) => d.id === w)).map((w) => `„${windowName(wsRef.current, w)}“`);
       if (names.length === 0) return;
       notify(`${names.join(', ')} ${names.length === 1 ? 'ist' : 'sind'} jetzt im ${MAIN_NAME} gesammelt. ${DESK_KEYS}`);
@@ -1486,7 +1494,12 @@ function DeskApp(props: DeskProps) {
       case 'help':
         return setHelpAt({ at: null });
       case 'cockpit':
+        setOverviewRules(false);
         return toggleOverview();
+      case 'rules':
+        setOverviewRules(true);
+        setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
+        return setOverview(true);
       case 'view':
         cycleView();
         return notify(`View: ${VIEW_NAME[VIEW_NEXT[viewNow]]}.`);
@@ -2152,7 +2165,8 @@ function DeskApp(props: DeskProps) {
               shown={shownTheme}
               categories={ws.categories}
               category={meta.category}
-              categoryTint={categoryTint(ws, meta)}
+              categoryTint={categoryOf(ws, meta)?.tint}
+              categoryOff={!!meta.category && !ruleOn(ws, tintRuleId(meta.category))}
               categoryPortals={meta.category ? categoryPortals(ws, meta.category) : 0}
               focusCategory={colorsCat}
               onCategory={(id) => dispatch({ type: 'panelCategory', id: meta.id, category: id, url: activeTab(meta).url })}
@@ -2286,9 +2300,12 @@ function DeskApp(props: DeskProps) {
             const s = w === win ? setup : setupOfWindow(ws, w);
             if (s) dispatch({ type: 'setLayout', setup: s, tree });
           }}
-          onDismiss={() => setOverview(false)}
+          onDismiss={() => (setOverview(false), setOverviewRules(false))}
           onTour={startCockpitTour}
           keepOpen={tour === 'cockpit'}
+          dispatch={dispatch}
+          shown={shownTheme}
+          startRules={overviewRules}
         />
       )}
       {/* F-142: schnelle Tooltips */}

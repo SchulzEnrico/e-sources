@@ -6,7 +6,7 @@
 import { TERMS, TINT_TEXT } from './terms';
 
 /** Was die Oberfläche ausführen kann; App.tsx ordnet jedem Wert die passende Aktion zu. */
-export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher' | 'importBookmarks' | 'exportBookmarks' | 'sortHelp' | 'tourImport' | 'profile' | 'reload' | 'collectDesks' | 'distributeDesks' | 'nextDesk';
+export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher' | 'importBookmarks' | 'exportBookmarks' | 'sortHelp' | 'tourImport' | 'profile' | 'reload' | 'collectDesks' | 'distributeDesks' | 'nextDesk' | 'rules';
 
 export interface HelpEntry {
   id: string;
@@ -67,6 +67,7 @@ export const HELP: HelpEntry[] = [
   { id: 'design', group: 'Ansicht', name: 'Design anpassen', text: up(def(TERMS.design)) + ' Auf einem Zusatz-Desk gilt die Wahl nur für diesen Desk; „Wie Main Desk“ führt zurück. Unten im Dialog lassen sich die Farben aller Slots und Portale dieses Desks auf einmal zurücksetzen.', run: 'design', words: ['Farbe', 'Akzentfarbe', 'Darstellung', 'Theme', 'hell', 'dunkel', 'Aussehen', 'Look', 'Farbe je Desk', 'privat', 'geschäftlich', 'Desk-Farbe'] },
 
   { id: 'colorRules', group: 'Ansicht', name: 'Farbregeln (Kategorien)', text: 'Jede Kategorie deiner Library kann eine Rahmen- und Akzentfarbe haben; sie gilt für alle Portale dieser Kategorie (z. B. alle Editoren grün). Zeigt ein Portal eine neue Seite, fragt der Hinweis unten nach der Kategorie (Vorschlag aus Library oder bekannter Seite); die Wahl wird für die Seite gemerkt. Ändern und Farben wählen: Kategorie in der Kopfzeile des Portals oder ⋮ → „Farben …“. Vorrang: Portal, dann Slot, dann Kategorie, dann Desk.', words: ['Regel', 'Farbregel', 'Kategorie', 'Kategoriefarbe', 'alle Editoren', 'einfärben', 'Gruppe'] },
+  { id: 'rules', group: 'Ansicht', name: 'Regeln (Cockpit)', text: `Zeigt alles, was E-Sources von selbst tut, mit einem Satz je Regel; ein Häkchen schaltet eine Regel ein oder aus. Im Cockpit über „Regeln“: Farbregeln je Kategorie, Seite → Kategorie und eingebaute Regeln (Kategorie erfragen, Farbe anbieten, Sammeln ansagen). Löschen fragt nach und lässt sich rückgängig machen; Regeln wandern mit dem Export der Arbeitsfläche.`, run: 'rules', words: ['Regelübersicht', 'Automatik', 'Verhalten', 'abschalten', 'ausschalten', 'Hinweise', 'nicht mehr fragen', 'Zuordnung', 'Domain'] },
   { id: 'colors', group: 'Ansicht', name: 'Farben je Slot und Portal', text: TINT_TEXT.intro + ' Öffnen über ⋮ Portal-Optionen → „Farben …“ oder direkt nach dem Anlegen mit „Farbe wählen …“ im Hinweis.', words: ['Rahmen', 'Rahmenfarbe', 'Akzentfarbe', 'Portal-Farbe', 'Slot-Farbe', 'einfärben', 'markieren'] },
 
   // Bedienung

@@ -145,6 +145,11 @@ export function parseWorkspace(data: unknown): Workspace | null {
   for (const p of panels as PanelMeta[]) if (p.category && !catIds.has(p.category)) delete p.category;
   const siteCategory: Record<string, string> = {};
   if (isObj(data.siteCategory)) for (const [k, v] of Object.entries(data.siteCategory)) if (typeof v === 'string' && (v === '' || catIds.has(v))) siteCategory[k] = v;
+  // F-164: ausgeschaltete Regeln – nur bekannte Arten, ohne Doppelte
+  const rulesOff = Array.isArray(data.rulesOff)
+    ? [...new Set((data.rulesOff as unknown[]).filter((x): x is string => typeof x === 'string' && ((x.startsWith('tint:') && catIds.has(x.slice(5))) || /^site:./.test(x) || ['ask', 'collect'].includes(x))))]
+    : [];
+  const rulesOn = Array.isArray(data.rulesOn) ? [...new Set((data.rulesOn as unknown[]).filter((x): x is string => x === 'offer'))] : [];
   const bookmarks = bookmarkList(
     data.bookmarks,
     new Set((panels as PanelMeta[]).map((p) => p.id)),
@@ -199,6 +204,8 @@ export function parseWorkspace(data: unknown): Workspace | null {
     bookmarks,
     categories,
     ...(Object.keys(siteCategory).length ? { siteCategory } : {}),
+    ...(rulesOff.length ? { rulesOff } : {}),
+    ...(rulesOn.length ? { rulesOn } : {}),
     ruler: isObj(data.ruler)
       ? {
           on: data.ruler.on === true,

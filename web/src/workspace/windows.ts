@@ -100,3 +100,30 @@ export function renameWindow(ws: Workspace, win: string, name: string): Workspac
   if (!win || !trimmed) return ws;
   return { ...ws, windows: ws.windows.map((w) => (w.id === win ? { ...w, name: trimmed } : w)) };
 }
+
+/**
+ * F-160 Stufe 2: Ein Desk ohne eigenes offenes Browserfenster gilt als gesammelt – er ist in jedem
+ * Fenster über den Umschalter und Alt/⌥+K erreichbar. `here` ist der Desk, den dieses Fenster zeigt;
+ * `open` die Desks mit offenem Fenster. Reihenfolge wie im Umschalter (Main Desk zuerst).
+ */
+export function collectedDesks(ws: Workspace, here: string, open: ReadonlySet<string>): Named[] {
+  return windowList(ws).filter((d) => d.id !== here && !open.has(d.id));
+}
+
+/** F-160: Ring für Alt/⌥+K – dieser Desk und alle gesammelten, in Umschalter-Reihenfolge. */
+export function deskRing(ws: Workspace, here: string, open: ReadonlySet<string>): Named[] {
+  return windowList(ws).filter((d) => d.id === here || !open.has(d.id));
+}
+
+/** F-160: nächster (dir 1) bzw. voriger (dir -1) Desk im Ring; null, wenn es keinen anderen gibt. */
+export function stepDesk(ring: Named[], here: string, dir: 1 | -1): Named | null {
+  if (ring.length < 2) return null;
+  const at = Math.max(0, ring.findIndex((d) => d.id === here));
+  return ring[(at + dir + ring.length) % ring.length];
+}
+
+/** F-160: Ansage nach dem Wechsel, z. B. „Desk 2 · 2 von 3 hier · 4 Portale“. */
+export function deskSaid(name: string, index: number, total: number, portals: number): string {
+  const n = portals === 1 ? '1 Portal' : `${portals} Portale`;
+  return total > 1 ? `${name} · ${index + 1} von ${total} hier · ${n}` : `${name} · ${n}`;
+}

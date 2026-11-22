@@ -4274,8 +4274,9 @@ button.is-off:hover,
 .profile__colors legend { padding: 0 4px; font-size: 14px; color: var(--muted); }
 .profile__color { position: relative; cursor: pointer; }
 .profile__color input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.profile__color span { display: block; width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; }
-.profile__color input:checked + span { border-color: var(--strong); box-shadow: 0 0 0 2px var(--bg) inset; }
+.profile__color span { display: block; width: 28px; height: 28px; }
+/* F-184: gewählte Farbe – äußerer Ring in Textfarbe, mit Abstand zur Metallkante */
+.profile__color input:checked + span { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--strong); }
 .profile__color input:focus-visible + span { outline: 2px solid rgba(var(--tint), 0.9); outline-offset: 2px; }
 .profile__greet { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer; }
 .greeting { position: fixed; z-index: 80; top: 64px; right: 16px; display: flex; gap: 12px; align-items: flex-start; width: min(380px, calc(100vw - 32px)); padding: 14px 14px 14px 16px; border-radius: 12px; border: 1px solid rgba(var(--tint), 0.25); background: var(--bg); color: var(--text); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); animation: greeting-in 0.25s ease-out; }
@@ -4299,3 +4300,43 @@ button.is-off:hover,
 @media (max-width: 640px) { .update { bottom: calc(24px + env(safe-area-inset-bottom)); } }
 @media (prefers-reduced-motion: reduce) { .update { animation: none; } }
 @media (forced-colors: active) { .update { border: 2px solid CanvasText; } }
+
+/* F-160: Umschalter-Hülle ohne eigenes Layout; Fenster, das seinen Desk abgegeben hat */
+.tb-desk-switch { display: contents; }
+.parked {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 14px;
+  padding: 24px;
+  max-width: 34rem;
+  margin: 0 auto;
+  color: var(--text);
+}
+.parked h1 { font-size: 1.3rem; margin: 0; }
+.parked h1:focus { outline: none; }
+.parked p { color: var(--muted); margin: 0; line-height: 1.5; }
+.parked__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/*
+ * F-184: Kennfarbe im Stil des Logos – Fläche mit Verlauf von der Grundfarbe oben zu einem tiefen
+ * Ton unten (wie die Logo-Flächen), Metallkante diagonal (dunkel: silbern, hell: graphit, wie die
+ * Logo-Kante) und ein leichter Glanz oben. Farbe kommt als --c.
+ */
+.kenn {
+  --kenn-edge: linear-gradient(135deg, #f1f1f4, #8d8d96);
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 58%) padding-box,
+    linear-gradient(180deg, color-mix(in srgb, var(--c) 90%, #fff), var(--c) 45%, color-mix(in srgb, var(--c) 52%, #000)) padding-box,
+    var(--kenn-edge) border-box;
+  box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+[data-theme='light'] .kenn {
+  --kenn-edge: linear-gradient(135deg, #5c5c68, #1e1e25);
+  box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.avatar.kenn { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); }
+.avatar.kenn svg { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
+@media (forced-colors: active) { .kenn { border-color: CanvasText; } }

@@ -6,7 +6,7 @@
 import { TERMS } from './terms';
 
 /** Was die Oberfläche ausführen kann; App.tsx ordnet jedem Wert die passende Aktion zu. */
-export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher' | 'importBookmarks' | 'exportBookmarks' | 'sortHelp' | 'tourImport' | 'profile' | 'reload';
+export type HelpRun = 'help' | 'cockpit' | 'view' | 'adjust' | 'distribute' | 'maximize' | 'newSlot' | 'newDesk' | 'search' | 'tour' | 'tourCockpit' | 'design' | 'tourDesign' | 'toursAuto' | 'restore' | 'closed' | 'focusRule' | 'launcher' | 'importBookmarks' | 'exportBookmarks' | 'sortHelp' | 'tourImport' | 'profile' | 'reload' | 'collectDesks' | 'distributeDesks' | 'nextDesk';
 
 export interface HelpEntry {
   id: string;
@@ -59,7 +59,10 @@ export const HELP: HelpEntry[] = [
   { id: 'newDesk', group: 'Anlegen', name: '+ NewDesk', text: up(def(TERMS.newDesk)), run: 'newDesk', words: ['neu', 'Fenster', 'zweiter Monitor'] },
   { id: 'newPortal', group: 'Anlegen', name: 'Neues Portal auf einen Slot', text: 'Das Plus in der Kopfzeile eines Portals legt ein weiteres Portal auf denselben Slot; es entsteht ein Stack.', words: ['Portal anlegen', 'Panel', 'stapeln'] },
   { id: 'newTab', group: 'Anlegen', name: 'Neuer Tab', text: 'Das Plus neben den Tabs öffnet einen weiteren Tab im Portal (zählt 0,5 Fokus-Punkte).', words: ['Tab anlegen', 'Reiter'] },
-  { id: 'switchDesk', group: 'Anlegen', name: 'Desk wechseln (⇄)', text: up(def(TERMS.switchDesk)), words: ['umschalten', 'anderer Desk', 'Fenster'] },
+  { id: 'switchDesk', group: 'Anlegen', name: 'Desk wechseln (⇄)', text: up(def(TERMS.switchDesk)), keys: 'Alt/⌥+K · Alt/⌥+Umschalt+K', run: 'nextDesk', words: ['umschalten', 'anderer Desk', 'Fenster', 'nächster Desk', 'voriger Desk'] },
+  { id: 'collected', group: 'Begriffe', name: 'Gesammelter Desk', text: up(def(TERMS.collected)), words: ['ein Bildschirm', 'Notebook', 'ohne Fenster', 'geschlossen', 'Main Desk'] },
+  { id: 'collectDesks', group: 'Anlegen', name: 'Desks hier sammeln', text: up(def(TERMS.collectDesks)) + ' Auch im Umschalter ⇄ und im Cockpit.', run: 'collectDesks', words: ['zusammenführen', 'ein Fenster', 'Notebook', 'Fenster schließen', 'aufräumen'] },
+  { id: 'distributeDesks', group: 'Anlegen', name: 'Auf Fenster verteilen', text: up(def(TERMS.distributeDesks)) + ' Lässt der Browser nur ein neues Fenster zu, Pop-ups für E-Sources erlauben. Auch im Umschalter ⇄ und im Cockpit.', run: 'distributeDesks', words: ['zweiter Monitor', 'mehrere Fenster', 'aufteilen', 'öffnen'] },
 
   { id: 'design', group: 'Ansicht', name: 'Design anpassen', text: up(def(TERMS.design)) + ' Später auch Farben je Desk, Slot und Portal.', run: 'design', words: ['Farbe', 'Akzentfarbe', 'Darstellung', 'Theme', 'hell', 'dunkel', 'Aussehen', 'Look'] },
 

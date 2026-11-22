@@ -78,6 +78,11 @@ export interface OverviewProps {
   onFetchAll: (win: string) => string;
   /** F-27: anderes Fenster nach vorn holen bzw. wieder öffnen. */
   onOpenWindow: (win: string) => void;
+  /** F-160: gesammelten Desk in diesem Browserfenster zeigen. */
+  onShowDesk?: (win: string) => void;
+  /** F-160: alle Desks hier sammeln bzw. gesammelte auf eigene Fenster verteilen. */
+  onCollect?: () => void;
+  onDistribute?: () => void;
   onClose: (id: string) => void;
   onRename: (id: string, name: string) => void;
   /** F-28: Ziele für ein Panel bzw. seine ganze Area (whole). */
@@ -636,16 +641,26 @@ export function Overview(p: OverviewProps) {
   };
 
   const map = (w: RadarWindow) => (
-    <section key={w.win || 'main'} className={w.here ? 'radar__win' : 'radar__win is-other'} aria-label={`${w.here ? 'Dieser Desk' : w.title}${w.here ? '' : w.open ? ', offen' : ', geschlossen'}`}>
+    <section key={w.win || 'main'} className={w.here ? 'radar__win' : 'radar__win is-other'} aria-label={`${w.here ? 'Dieser Desk' : w.title}${w.here ? '' : w.open ? ', eigenes Fenster' : ', gesammelt'}`}>
       <div className="radar__win-head">
         <strong>{w.here ? `Dieser Desk · ${w.title}` : w.title}</strong>
         <span className="muted">{w.areas.reduce((n, a) => n + a.panels.length, 0)} Portale</span>
         {/* F-27: Zustand nicht nur als Farbe, sondern als Wort */}
-        {!w.here && <span className={w.open ? 'overview__state is-open' : 'overview__state'}>{w.open ? 'offen' : 'geschlossen'}</span>}
+        {!w.here && (
+          <span className={w.open ? 'overview__state is-open' : 'overview__state'} title={w.open ? undefined : TERMS.collected}>
+            {w.open ? 'eigenes Fenster' : 'gesammelt'}
+          </span>
+        )}
         {!w.here && (
           <>
+            {/* F-160: gesammelter Desk – hier zeigen oder wieder in eigenem Fenster öffnen */}
+            {!w.open && p.onShowDesk && (
+              <button type="button" onClick={() => p.onShowDesk?.(w.win)}>
+                Hier zeigen
+              </button>
+            )}
             <button type="button" onClick={() => p.onOpenWindow(w.win)}>
-              {w.open ? 'Nach vorn holen' : 'Wieder öffnen'}
+              {w.open ? 'Nach vorn holen' : 'Eigenes Fenster'}
             </button>
             <button
               type="button"
@@ -820,6 +835,17 @@ export function Overview(p: OverviewProps) {
               }
             }}
           />
+          {/* F-160: Desks in diesem Fenster sammeln bzw. wieder auf Fenster verteilen */}
+          {p.ws.windows.length > 0 && p.onCollect && (
+            <button type="button" className="overview__tour" onClick={p.onCollect} title={TERMS.collectDesks}>
+              Hier sammeln
+            </button>
+          )}
+          {p.ws.windows.length > 0 && p.onDistribute && (
+            <button type="button" className="overview__tour" onClick={p.onDistribute} title={TERMS.distributeDesks}>
+              Verteilen
+            </button>
+          )}
           {p.onTour && (
             <button type="button" className="overview__tour" onClick={p.onTour} title="Kurze Einführung ins Cockpit" aria-label="Tour durch das Cockpit starten">
               Tour

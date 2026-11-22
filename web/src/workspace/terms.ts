@@ -4,9 +4,13 @@
  * Aufbau: Desk → Slot → Stack → Portal → Tab; ein Portal zeigt eine Source.
  */
 export const TERMS = {
-  desk: 'Desk = ein Fenster von E-Sources, z. B. für einen zweiten Monitor',
-  switchDesk: 'zeigt einen anderen Desk in diesem Browserfenster; ist er schon in einem eigenen Fenster offen, springt E-Sources dorthin',
-  newDesk: '+ NewDesk = neuen, leeren Desk anlegen; er öffnet sich in einem eigenen Browserfenster',
+  desk: 'Desk = eine eigene Arbeitsfläche mit Slots, in eigenem Fenster (z. B. auf einem zweiten Monitor) oder gesammelt im Main Desk',
+  switchDesk: 'zeigt einen anderen Desk in diesem Browserfenster; ist er schon in einem eigenen Fenster offen, springt E-Sources dorthin. Alt/⌥+K wechselt zum nächsten gesammelten Desk, mit Umschalt zum vorigen',
+  collected: 'gesammelt = Desk ohne eigenes Browserfenster; er wartet im Main Desk und ist über ⇄ oder Alt/⌥+K erreichbar, nichts geht verloren',
+  collectDesks: 'Desks hier sammeln = alle Desks in dieses Browserfenster holen; ihre eigenen Fenster schließen sich, Slots, View und Farben bleiben',
+  parked: 'Dieser Desk wartet jetzt im Main Desk und ist dort über ⇄ oder Alt/⌥+K erreichbar; nichts geht verloren. Dieses Browserfenster wird nicht mehr gebraucht.',
+  distributeDesks: 'Auf Fenster verteilen = jeden gesammelten Desk wieder in einem eigenen Browserfenster öffnen, z. B. für einen zweiten Monitor',
+  newDesk: '+ NewDesk = neuen, leeren Desk anlegen; er öffnet sich in einem eigenen Browserfenster (blockiert der Browser das, erscheint er hier)',
   dashboard: 'Dashboard = alle Slots eines Desks auf einmal',
   view: 'View schaltet um: Dashboard → 2 × 2 → 2 → Solo',
   slot: 'Slot = ein Platz im Raster des Desks; darauf liegen ein oder mehrere Portale',

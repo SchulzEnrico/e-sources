@@ -3,7 +3,7 @@
  * Änderungen gelten sofort (wie „Design anpassen“). Native <dialog> wie die Hilfe (NF-03):
  * Fokus im Namensfeld, Kennfarben als Radiogruppe (Pfeiltasten), Esc schließt.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { NAME_MAX, PROFILE_COLORS, type Profile, initialsOf } from '../workspace/profile';
 import { TERMS } from '../workspace/terms';
 
@@ -17,7 +17,8 @@ interface Props {
 export function Avatar({ profile, size = 36 }: { profile: Profile; size?: number }) {
   const ini = initialsOf(profile.name);
   return (
-    <span className="avatar" aria-hidden="true" style={{ background: PROFILE_COLORS[profile.color]?.hex, width: size, height: size, fontSize: Math.round(size * 0.42) }}>
+    // F-184: Kennfarbe im Stil des Logos (Verlauf, Metallkante, Glanz) – siehe .kenn in App.css
+    <span className="avatar kenn" aria-hidden="true" style={{ '--c': PROFILE_COLORS[profile.color]?.hex, width: size, height: size, fontSize: Math.round(size * 0.42) } as CSSProperties}>
       {ini || (
         <svg viewBox="0 0 24 24" width={size * 0.55} height={size * 0.55} fill="currentColor">
           <circle cx="12" cy="8" r="4" />
@@ -85,7 +86,7 @@ export function ProfileDialog({ profile, onChange, onClose }: Props) {
           {PROFILE_COLORS.map((c, i) => (
             <label key={c.hex} className="profile__color" title={c.name}>
               <input type="radio" name="profile-color" checked={profile.color === i} onChange={() => onChange({ color: i })} aria-label={c.name} />
-              <span style={{ background: c.hex }} aria-hidden="true" />
+              <span className="kenn" style={{ '--c': c.hex } as CSSProperties} aria-hidden="true" />
             </label>
           ))}
         </fieldset>

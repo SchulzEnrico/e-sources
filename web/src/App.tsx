@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import './App.css';
 import logoUrl from './assets/e-sources-logo.svg';
 import logoLightUrl from './assets/e-sources-logo-light.svg';
-import { Item, Menu, PanelFrame } from './components/PanelFrame';
+import { Item, Menu, MenuHead, PanelFrame } from './components/PanelFrame';
 import {
   type Lines,
   type Orientation,
@@ -17,7 +17,8 @@ import * as T from './workspace/tree';
 import type { PanelMeta, Slot } from './workspace/types';
 import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
-import { useWorkspace } from './workspace/useWorkspace';
+import { type Action, useWorkspace } from './workspace/useWorkspace';
+import type { Workspace } from './workspace/types';
 import { type SearchHit, NO_CATEGORY, addSamples, bookmarkOf, openBookmark } from './workspace/bookmarks';
 import { Launcher, LauncherIcon } from './components/Launcher';
 import { type How, type LauncherState, HOW_IN, launcherCount, loadLauncher, openOutside, saveLauncher } from './workspace/launcher';
@@ -27,7 +28,7 @@ import { FocusMeter, Overview } from './components/Overview';
 import { arrangeText, deskFocusOf, effectOf, focusOf, placeText, ruleOf } from './workspace/focus';
 import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
 import { contrastWarning, pickLook, shownAccent, THEMES, resolveTheme, rgbOf } from './workspace/look';
-import { MAIN_NAME, nextWindowName, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
+import { MAIN_NAME, collectedDesks, deskRing, deskSaid, nextWindowName, stepDesk, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
 import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
 import { PROBE } from './workspace/probe';
@@ -151,7 +152,11 @@ const CORNERS: { c: Corner; x: 'left' | 'right'; y: 'top' | 'bottom' }[] = [
   { c: 'br', x: 'right', y: 'bottom' },
 ];
 
-const POPUP_BLOCKED = 'Der Browser hat den Desk blockiert – bitte Pop-ups für E-Sources erlauben und ihn im Cockpit mit „Wieder öffnen“ holen.';
+/** F-160: Ansagen rund um gesammelte Desks. */
+const DESK_KEYS = 'Wechseln mit ⇄ oder Alt/⌥+K.';
+const DESK_NONE_HERE = 'Kein weiterer Desk hier gesammelt. Desks mit eigenem Fenster erreichst du über ⇄.';
+const DESK_ALONE = 'Es gibt nur diesen Desk. + NewDesk legt einen weiteren an.';
+const POPUP_BLOCKED = 'Der Browser hat den Desk blockiert – bitte Pop-ups für E-Sources erlauben. Bis dahin ist er gesammelt: ⇄ oder Alt/⌥+K zeigt ihn hier, im Cockpit holt „Eigenes Fenster“ ihn erneut.';
 
 /**
  * F-27: Name des Zusatzfensters in der Kopfleiste. Klick (oder Doppelklick, Enter, F2) öffnet ein
@@ -210,10 +215,24 @@ function WindowName(props: { name: string; fx?: { color?: string; text: string }
   );
 }
 
-export default function App() {
-  const [ws, dispatch] = useWorkspace();
-  /** F-27: dieses Fenster ('' = Hauptfenster, sonst Id aus der Adresse) und seine Panels. */
-  const [win] = useState(() => winFromSearch(window.location.search));
+/** F-160: Was die Hülle einem Desk mitgibt; beim Wechsel wird der Desk frisch aufgebaut (key = Desk-Id). */
+interface DeskProps {
+  ws: Workspace;
+  dispatch: (a: Action) => void;
+  /** Desk, den dieses Browserfenster zeigt ('' = Main Desk). */
+  win: string;
+  /** true, wenn dieses Fenster schon einen anderen Desk gezeigt hat (dann keine Begrüßung). */
+  switched: boolean;
+  /** Ansage nach dem Wechsel. */
+  said: string;
+  /** Anderen Desk in diesem Browserfenster zeigen, ohne die Seite neu zu laden. */
+  onSwitch: (win: string, said?: string) => void;
+  /** Desk wurde in einem anderen Fenster gesammelt: dieses Fenster gibt ihn ab. */
+  onPark: () => void;
+}
+
+function DeskApp(props: DeskProps) {
+  const { ws, dispatch, win } = props;
   const mine = useMemo(() => panelsIn(ws.panels, win), [ws.panels, win]);
   const winLabel = windowName(ws, win);
   useEffect(() => {
@@ -370,7 +389,7 @@ export default function App() {
   const [ruleOpen, setRuleOpen] = useState(false);
   /** F-179: Dialog „Profil“ und Begrüßung beim Start (nicht beim allerersten Start – da läuft die Tour –, nicht in Zusatz-Desks). */
   const [profileOpen, setProfileOpen] = useState(false);
-  const [greetOn, setGreetOn] = useState(() => !win && !tourAutoStart('start') && profileOf(ws).greet);
+  const [greetOn, setGreetOn] = useState(() => !win && !props.switched && !tourAutoStart('start') && profileOf(ws).greet);
   /** Zuletzt offenes Portal – beim Start gelesen, bevor das aktuelle es überschreibt. */
   const [lastAtStart] = useState(() => loadLast(win ?? ''));
   /** F-155: Größen-Modus (Alt/⌥+A) und seine letzte Ansage. */
@@ -476,6 +495,11 @@ export default function App() {
     dispatch({ type: 'stackFront', setup, id });
     setActive(id);
     setMode((m) => (m.kind === 'max' && m.id !== id ? { kind: 'max', id } : m));
+  }, () => {
+    // F-160: Ein anderes Fenster sammelt alle Desks. Selbst geöffnete Fenster schließen sich;
+    // sonst gibt dieses Fenster den Desk ab und zeigt nur noch einen Hinweis.
+    window.close();
+    window.setTimeout(props.onPark, 150);
   });
   // F-28: Das Fenster merkt sich seine Einstellung, damit andere Fenster seine Areas als Ziel anbieten.
   useEffect(() => dispatch({ type: 'seen', setup }), [view.key]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -880,8 +904,70 @@ export default function App() {
       if (!openAppWindow(target)) notify(POPUP_BLOCKED);
       return;
     }
-    window.location.replace(windowUrl(window.location.href, target));
+    props.onSwitch(target, switchSaid(target));
   };
+  /** F-160: Ansage für den Desk, der gleich hier erscheint (Stelle im Ring nach dem Wechsel). */
+  const switchSaid = (target: string) => {
+    const ring = deskRing(ws, target, new Set([...windows.open].filter((w) => w !== win)));
+    const at = ring.findIndex((d) => d.id === target);
+    return deskSaid(windowName(ws, target), at, ring.length, panelsIn(ws.panels, target).length);
+  };
+  /** F-160: Alt/⌥+K – nächster bzw. voriger gesammelter Desk in diesem Fenster. */
+  const stepDeskHere = (dir: 1 | -1) => {
+    const next = stepDesk(deskRing(ws, win, windows.open), win, dir);
+    if (!next) return sayLive(ws.windows.length ? DESK_NONE_HERE : DESK_ALONE);
+    props.onSwitch(next.id, switchSaid(next.id));
+  };
+  /** F-160: alle Desks in dieses Fenster holen – die anderen Fenster geben ihren Desk ab. */
+  const collectHere = () => {
+    const others = [...windows.open].filter((w) => w !== win).length;
+    if (others === 0) return notify(`Alle Desks sind schon hier gesammelt. ${DESK_KEYS}`);
+    quietUntil.current = Date.now() + 4000;
+    windows.collect();
+    notify(`${others === 1 ? '1 Desk' : `${others} Desks`} hier gesammelt. ${DESK_KEYS}`);
+  };
+  /** F-160: jeden gesammelten Desk wieder in einem eigenen Browserfenster öffnen (direkt aus dem Klick). */
+  const distributeDesks = () => {
+    const list = collectedDesks(ws, win, windows.open);
+    if (list.length === 0) return notify(ws.windows.length ? 'Alle Desks haben schon ein eigenes Fenster.' : DESK_ALONE);
+    const blocked = list.filter((d) => !openAppWindow(d.id));
+    if (blocked.length === 0) return notify(`${list.length === 1 ? '1 Desk' : `${list.length} Desks`} auf eigene Fenster verteilt.`);
+    const opened = list.length - blocked.length;
+    notify(`${opened > 0 ? `${opened} von ${list.length} Desks geöffnet. ` : ''}Der Browser hat ${blocked.map((d) => `„${d.name}“`).join(', ')} blockiert – bitte Pop-ups für E-Sources erlauben und noch einmal verteilen.`, 8000);
+  };
+  /**
+   * F-160: Automatisch sammeln – schließt ein Desk-Fenster, wartet sein Desk im Main Desk. Das
+   * Fenster, das den Main Desk zeigt, sagt es an (nicht bei Neuladen: kurz warten, ob es wiederkommt;
+   * nicht direkt nach „Desks hier sammeln“; nicht, wenn der Desk dabei aufgelöst wurde).
+   */
+  const quietUntil = useRef(0);
+  const wsRef = useRef(ws);
+  wsRef.current = ws;
+  const openRef = useRef(windows.open);
+  const prevOpen = useRef(windows.open);
+  openRef.current = windows.open;
+  useEffect(() => {
+    const gone = [...prevOpen.current].filter((w) => w !== win && !windows.open.has(w));
+    prevOpen.current = windows.open;
+    if (win !== '' || gone.length === 0) return;
+    const t = window.setTimeout(() => {
+      if (Date.now() < quietUntil.current) return;
+      const names = gone.filter((w) => !openRef.current.has(w) && wsRef.current.windows.some((d) => d.id === w)).map((w) => `„${windowName(wsRef.current, w)}“`);
+      if (names.length === 0) return;
+      notify(`${names.join(', ')} ${names.length === 1 ? 'ist' : 'sind'} jetzt im ${MAIN_NAME} gesammelt. ${DESK_KEYS}`);
+    }, 2000);
+    return () => window.clearTimeout(t);
+  }, [windows.open]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** F-160: nach einem Wechsel ansagen und die Tastatur auf den Desk setzen (Tab des ersten Portals, sonst ⇄). */
+  useEffect(() => {
+    if (!props.said) return;
+    const t = window.setTimeout(() => {
+      sayLive(props.said);
+      const tab = document.querySelector<HTMLElement>('main [role="tab"][aria-selected="true"]');
+      (tab ?? document.querySelector<HTMLElement>('.tb-desk-switch button'))?.focus({ preventScroll: true });
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toWindow = (id: string, target: string | null, whole: boolean) => {
     const slot = shownView.slots.find((s) => s.panels.some((m) => m.id === id));
@@ -1051,13 +1137,15 @@ export default function App() {
    * Danach liegt der Tastaturfokus auf dem sichtbaren Tab, die Ansage geht an die Live-Region.
    */
   cycleKeyRef.current = (e: KeyboardEvent) => {
-    if (!e.altKey || e.ctrlKey || e.metaKey || (e.code !== 'KeyT' && e.code !== 'KeyP' && e.code !== 'KeyZ' && e.code !== 'KeyL')) return;
+    if (!e.altKey || e.ctrlKey || e.metaKey || (e.code !== 'KeyT' && e.code !== 'KeyP' && e.code !== 'KeyZ' && e.code !== 'KeyL' && e.code !== 'KeyK')) return;
     // nicht hinter offenen Dialogen (Hilfe, Design, Hinweis, Tour)
     if (document.querySelector('[aria-modal="true"], dialog:modal')) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     // F-24: Alt/⌥+Z holt das zuletzt Geschlossene zurück
     if (e.code === 'KeyZ') return e.repeat ? undefined : restore();
+    // F-160: Alt/⌥+K nächster, mit Umschalt voriger gesammelter Desk
+    if (e.code === 'KeyK') return e.repeat ? undefined : stepDeskHere(e.shiftKey ? -1 : 1);
     // F-40: Alt/⌥+L öffnet den Launcher bzw. geht hinein; steht der Fokus schon darin, schließt er
     if (e.code === 'KeyL') {
       if (e.repeat) return;
@@ -1303,7 +1391,8 @@ export default function App() {
     const dest = newId();
     const name = nextWindowName(ws.windows);
     dispatch({ type: 'addDesk', win: dest });
-    if (!openAppWindow(dest)) return notify(`„${name}“ angelegt. ${POPUP_BLOCKED}`);
+    // F-160: Blockiert der Browser das Fenster, erscheint der neue Desk hier (der alte bleibt gesammelt).
+    if (!openAppWindow(dest)) return props.onSwitch(dest, `„${name}“ angelegt und hier gezeigt – der Browser hat das neue Fenster blockiert. ${DESK_KEYS}`);
     notify(`„${name}“ angelegt und in neuem Browserfenster geöffnet.`);
   };
   /** F-156: Funktion aus Suche oder Hilfe ausführen. */
@@ -1334,6 +1423,12 @@ export default function App() {
         return notify('Neuer Slot rechts angelegt.');
       case 'newDesk':
         return addNewDesk();
+      case 'nextDesk':
+        return stepDeskHere(1);
+      case 'collectDesks':
+        return collectHere();
+      case 'distributeDesks':
+        return distributeDesks();
       case 'tour':
         return setTour('start');
       case 'tourCockpit':
@@ -1521,32 +1616,56 @@ export default function App() {
               {MAIN_NAME}
             </span>
           )}
-          {/* F-160: Desk wechseln – zeigt einen anderen Desk in diesem Browserfenster */}
+          {/* F-160: Desk wechseln – zeigt einen anderen Desk in diesem Browserfenster; dazu Sammeln und Verteilen */}
           {ws.windows.length > 0 && (
-            <Menu icon={<span className="tb-switch" aria-hidden="true">⇄</span>} label={`Desk wechseln – ${TERMS.switchDesk}`}>
-              {(close) =>
-                windowList(ws).map((d) => {
-                  const here = d.id === win;
-                  const elsewhere = !here && windows.open.has(d.id);
-                  const n = panelsIn(ws.panels, d.id).length;
-                  return (
+            <span className="tb-desk-switch">
+              <Menu icon={<span className="tb-switch" aria-hidden="true">⇄</span>} label={`Desk wechseln (Alt/⌥+K) – ${TERMS.switchDesk}`}>
+                {(close) => (
+                  <>
+                    {windowList(ws).map((d) => {
+                      const here = d.id === win;
+                      const elsewhere = !here && windows.open.has(d.id);
+                      const n = panelsIn(ws.panels, d.id).length;
+                      return (
+                        <Item
+                          key={d.id || 'main'}
+                          disabled={here}
+                          title={elsewhere ? 'Springt zu seinem Fenster' : here ? undefined : TERMS.collected}
+                          onClick={() => {
+                            close();
+                            switchDesk(d.id);
+                          }}
+                        >
+                          {here ? '● ' : ''}
+                          {d.name} · {n === 1 ? '1 Portal' : `${n} Portale`}
+                          {` · ${deskFx(d.id).word}`}
+                          {here ? ' · hier' : elsewhere ? ' · eigenes Fenster' : ' · gesammelt'}
+                        </Item>
+                      );
+                    })}
+                    <MenuHead>Fenster</MenuHead>
                     <Item
-                      key={d.id || 'main'}
-                      disabled={here}
+                      title={TERMS.collectDesks}
                       onClick={() => {
                         close();
-                        switchDesk(d.id);
+                        collectHere();
                       }}
                     >
-                      {here ? '● ' : ''}
-                      {d.name} · {n === 1 ? '1 Portal' : `${n} Portale`}
-                      {` · ${deskFx(d.id).word}`}
-                      {here ? ' · hier' : elsewhere ? ' · eigenes Fenster' : ''}
+                      Desks hier sammeln
                     </Item>
-                  );
-                })
-              }
-            </Menu>
+                    <Item
+                      title={TERMS.distributeDesks}
+                      onClick={() => {
+                        close();
+                        distributeDesks();
+                      }}
+                    >
+                      Auf Fenster verteilen
+                    </Item>
+                  </>
+                )}
+              </Menu>
+            </span>
           )}
           {/* F-165: leeren Desk anlegen und in eigenem Browserfenster öffnen */}
           <button
@@ -2004,6 +2123,12 @@ export default function App() {
           onOpenWindow={(target) => {
             if (!openAppWindow(target)) notify(POPUP_BLOCKED);
           }}
+          onShowDesk={(target) => {
+            setOverview(false);
+            switchDesk(target);
+          }}
+          onCollect={collectHere}
+          onDistribute={distributeDesks}
           onClose={(id) => closePortal(id)}
           onRename={(id, name) => dispatch({ type: 'rename', id, name })}
           moveTargets={targetsFor}
@@ -2076,5 +2201,48 @@ export default function App() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * F-160 Stufe 2: Hülle um den Desk. Sie hält die Arbeitsfläche und den Desk, den dieses
+ * Browserfenster zeigt. Ein Wechsel baut den Desk ohne Neuladen frisch auf (Adresse per
+ * replaceState); gibt das Fenster seinen Desk beim Sammeln ab, zeigt es nur noch einen Hinweis.
+ */
+export default function App() {
+  const [ws, dispatch] = useWorkspace();
+  const [desk, setDesk] = useState(() => ({ win: winFromSearch(window.location.search), switched: false, said: '' }));
+  const [parked, setParked] = useState(false);
+  const onSwitch = useCallback((target: string, said = '') => {
+    window.history.replaceState(window.history.state, '', windowUrl(window.location.href, target));
+    setDesk({ win: target, switched: true, said });
+  }, []);
+  const onPark = useCallback(() => setParked(true), []);
+  if (parked) return <Parked name={windowName(ws, desk.win)} onBack={() => setParked(false)} />;
+  return <DeskApp key={desk.win} ws={ws} dispatch={dispatch} win={desk.win} switched={desk.switched} said={desk.said} onSwitch={onSwitch} onPark={onPark} />;
+}
+
+/** F-160: Dieses Fenster hat seinen Desk an ein anderes Fenster abgegeben (Fenster ließ sich nicht selbst schließen). */
+function Parked(props: { name: string; onBack: () => void }) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    document.title = `${props.name} gesammelt – E-Sources`;
+    ref.current?.focus();
+  }, [props.name]);
+  return (
+    <main className="parked" aria-labelledby="parked-title">
+      <h1 id="parked-title" ref={ref} tabIndex={-1}>
+        „{props.name}“ ist jetzt gesammelt
+      </h1>
+      <p>{TERMS.parked}</p>
+      <div className="parked__actions">
+        <button type="button" onClick={() => window.close()} title="Schließt dieses Browserfenster (geht nicht in jedem Browser – dann einfach selbst schließen)">
+          Fenster schließen
+        </button>
+        <button type="button" onClick={props.onBack}>
+          Hier wieder zeigen
+        </button>
+      </div>
+    </main>
   );
 }

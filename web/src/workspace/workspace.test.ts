@@ -1212,6 +1212,31 @@ describe('F-27 Panels herauslösen (Fenster)', () => {
     expect(Win.nextWindowName(ws.windows)).toBe('Desk 2');
   });
 
+  it('F-160: gesammelte Desks, Ring und Schritt für Alt/⌥+K', () => {
+    let ws = W.defaultWorkspace();
+    const [a, b] = ws.panels;
+    ws = Win.moveToWindow(ws, [a.id], 'x');
+    ws = Win.moveToWindow(ws, [b.id], 'y');
+    // Desk 3 (y) hat ein eigenes Fenster, Desk 2 (x) nicht
+    const open = new Set(['', 'y']);
+    expect(Win.collectedDesks(ws, '', open).map((d) => d.id)).toEqual(['x']);
+    const ring = Win.deskRing(ws, '', open);
+    expect(ring.map((d) => d.id)).toEqual(['', 'x']);
+    expect(Win.stepDesk(ring, '', 1)?.id).toBe('x');
+    expect(Win.stepDesk(ring, 'x', 1)?.id).toBe('');
+    expect(Win.stepDesk(ring, '', -1)?.id).toBe('x');
+    // alles gesammelt: Ring über alle drei, rückwärts vom Main Desk zum letzten
+    const all = Win.deskRing(ws, '', new Set(['']));
+    expect(all.map((d) => d.id)).toEqual(['', 'x', 'y']);
+    expect(Win.stepDesk(all, '', -1)?.id).toBe('y');
+    expect(Win.stepDesk(Win.deskRing(ws, '', new Set(['', 'x', 'y'])), '', 1)).toBe(null);
+  });
+
+  it('F-160: Ansage beim Desk-Wechsel', () => {
+    expect(Win.deskSaid('Desk 2', 1, 3, 4)).toBe('Desk 2 · 2 von 3 hier · 4 Portale');
+    expect(Win.deskSaid('Main Desk', 0, 1, 1)).toBe('Main Desk · 1 Portal');
+  });
+
   it('Neues Panel in einem Zusatzfenster gehört zu diesem Fenster', () => {
     let ws = firstIn('w2');
     ws = reducer(ws, { type: 'add', setup: W2 });

@@ -1349,6 +1349,41 @@ button.is-off:hover,
   --load-dim: color-mix(in srgb, var(--load) 55%, var(--bg));
 }
 
+/* ---------- F-114: Hinweis am Portal statt Dialog; solange er steht, leuchtet der Rahmen rot (Rot der Ampel, F-26) */
+.win.win--alert {
+  box-shadow: 0 0 0 2px rgb(255, 59, 48), 0 0 26px rgba(255, 59, 48, 0.45), 0 14px 32px rgba(var(--lo), 0.6);
+}
+.win__alert {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 8;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  padding: 12px 14px;
+  color: var(--text);
+  background: rgba(var(--glass), 0.96);
+  border: 1px solid rgb(255, 59, 48);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(var(--lo), 0.6);
+}
+.win__alert p {
+  flex: 1 1 180px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .win__alert { animation: win-alert-in 180ms ease-out; }
+}
+@keyframes win-alert-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
 /* ---------- F-43: Ersatzanzeige für Seiten, die sich nicht einbetten lassen */
 .fallback {
   max-width: 340px;
@@ -2878,6 +2913,35 @@ button.is-off:hover,
 /* F-146: Ansicht und Gleich verteilen nur als Symbol */
 .tb-center > .tb-view { padding: 5px 9px; min-width: 36px; justify-content: center; }
 .tb-center > .tb-view .icon { width: 20px; height: 16px; }
+
+/* F-166: Schmal reicht eine Zeile nicht – Desk und Fokusanzeige oben, die Bedienung darunter über die volle Breite
+   (vorher verdeckte das Zahnrad die Fokusanzeige: mit einem Desk unter 370 px, mit zwei Desks bis ca. 500 px).
+   Gemessen mit ?test=voll, darum 520 px mit Reserve; das Suchfeld ist hier wieder ein Feld statt nur einer Lupe */
+@media (max-width: 520px) {
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'brand end' 'center center';
+    row-gap: 5px;
+  }
+  .toolbar > .brand { grid-area: brand; max-width: none; }
+  .toolbar > .tb-end { grid-area: end; }
+  .toolbar > .tb-center { grid-area: center; justify-self: stretch; position: relative; }
+  .toolbar .brand-logo { display: block; }
+  .toolbar > .brand .tb-win { max-width: 10ch; }
+  .toolbar .tb-center .search { flex: 1 1 0; min-width: 44px; max-width: none; }
+  .toolbar .tb-center .search .search__input::placeholder { color: var(--muted, #8a8a92); }
+  .toolbar .tb-center .search,
+  .toolbar .tb-center .search:focus-within { position: static; left: auto; right: auto; }
+  /* Trefferliste an der ganzen Bedienzeile ausrichten – am Suchfeld allein ragte sie links aus dem Bild */
+  .toolbar .tb-center .search__list { left: 0; right: 0; width: auto; max-width: none; }
+}
+
+/* F-166: Zwischen 601 und 710 px kommen Fokusbalken und Knopf „Design“ zurück; mit zwei Desks fehlen dort bis zu 50 px –
+   das Logo weicht (der Desk-Name bleibt), das Suchfeld darf schmaler werden */
+@media (min-width: 521px) and (max-width: 710px) {
+  .toolbar:has(.tb-switch) .brand-logo { display: none; }
+  .toolbar:has(.tb-switch) .tb-center .search { min-width: 44px; }
+}
 
 /* F-28: Zielauswahl im Master-Panel */
 .overview__pick {

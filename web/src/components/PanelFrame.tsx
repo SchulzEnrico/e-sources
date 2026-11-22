@@ -53,6 +53,12 @@ interface Props {
   onMoveTab: (tab: string, to: number) => void;
   /** F-09: neues Panel auf dieser Area obendrauf legen. */
   onAddHere: () => void;
+  /** F-114: Hinweis an diesem Portal (statt Dialog über der Fläche); solange er steht, leuchtet der Rahmen rot. */
+  hint?: string;
+  /** F-114: Hinweis an diesem Portal zeigen. */
+  onHint: (text: string) => void;
+  /** F-114: Hinweis bestätigt. */
+  onHintDone: () => void;
   /** F-43: Lässt sich die Seite voraussichtlich nicht einbetten? */
   isBlocked: (url: string) => boolean;
   /** F-43: Domain als einbettbar (true) oder gesperrt (false) merken. */
@@ -461,9 +467,9 @@ export function PanelFrame(p: Props) {
 
   /** Neuer Tab mit Ampel-Regel (F-26): Hinweis bei 5, Grenze bei 9. */
   const addTab = () => {
-    if (tabCount >= TAB_MAX) return p.notify(`Mehr als ${TAB_MAX} Tabs gehen nicht. Lege lieber ein neues Portal an.`);
+    if (tabCount >= TAB_MAX) return p.onHint(`Mehr als ${TAB_MAX} Tabs gehen nicht. Lege lieber ein neues Portal an.`);
     p.onAddTab();
-    if (tabCount + 1 === FOCUS_WARN) p.notify(`Jetzt sind ${FOCUS_WARN} Tabs offen. Ab hier nehmen Fokus und Übersicht ab.`);
+    if (tabCount + 1 === FOCUS_WARN) p.onHint(`Jetzt sind ${FOCUS_WARN} Tabs offen. Ab hier nehmen Fokus und Übersicht ab.`);
   };
   const dropTab = (e: DragEvent, to: number) => {
     e.preventDefault();
@@ -475,6 +481,22 @@ export function PanelFrame(p: Props) {
   useEffect(() => {
     if (editing) inputRef.current?.select();
   }, [editing]);
+
+  // F-114: Hinweis bekommt den Tastaturfokus; nach „Verstanden“ geht er dorthin zurück, wo er vorher war.
+  const hintBtn = useRef<HTMLButtonElement>(null);
+  const hintBack = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!p.hint) return;
+    const prev = document.activeElement;
+    if (prev instanceof HTMLElement && prev !== hintBtn.current) hintBack.current = prev;
+    hintBtn.current?.focus({ preventScroll: true });
+  }, [p.hint]);
+  const hintDone = () => {
+    const back = hintBack.current;
+    hintBack.current = null;
+    p.onHintDone();
+    if (back && back.isConnected) back.focus({ preventScroll: true });
+  };
 
   const startEdit = (what: 'panel' | 'area' = 'panel') => {
     setDraft(what === 'area' ? areaName : p.panel.name);
@@ -501,6 +523,7 @@ export function PanelFrame(p: Props) {
     p.swapSource && 'win--swap-source',
     p.swapTarget && 'win--swap-target',
     p.dragging && 'win--dragging',
+    p.hint && 'win--alert',
   ]
     .filter(Boolean)
     .join(' ');
@@ -948,6 +971,15 @@ export function PanelFrame(p: Props) {
                 setDrawer(drawer.back ? { kind: 'collection' } : null);
               }}
             />
+          )}
+          {/* F-114: Hinweis am Portal statt Dialog über der ganzen Fläche */}
+          {p.hint && (
+            <div className="win__alert" role="alert" onMouseDown={(e) => e.stopPropagation()}>
+              <p>{p.hint}</p>
+              <button type="button" ref={hintBtn} onClick={hintDone} onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), hintDone())}>
+                Verstanden
+              </button>
+            </div>
           )}
         </div>
         </div>

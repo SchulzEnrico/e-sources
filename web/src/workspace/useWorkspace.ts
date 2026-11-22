@@ -13,7 +13,7 @@ import { type Look, setLook } from './look';
 type S = { setup: ScreenSetup };
 
 export type Action =
-  | ({ type: 'add'; area?: string } & S)
+  | ({ type: 'add'; area?: string; id?: string } & S)
   /** F-134: neue Area als Spalte rechts oder Zeile unten. */
   | ({ type: 'addArea'; side: 'right' | 'bottom' } & S)
   | { type: 'remove'; id: string }
@@ -87,7 +87,7 @@ export function reducer(ws: Workspace, a: Action): Workspace {
 function step(ws: Workspace, a: Action): Workspace {
   switch (a.type) {
     case 'add':
-      return W.addPanel(ws, a.setup, a.area);
+      return W.addPanel(ws, a.setup, a.area, a.id);
     case 'addArea':
       return W.addArea(ws, a.setup, a.side);
     case 'remove':

@@ -232,8 +232,10 @@ const withTree = (arr: Arrangement, tree: T.Node): Arrangement => ({ ...arr, tre
  * obendrauf. Liegt es in einem Stapel, wird es dort angezeigt. Mehr als STACK_MAX Panels je
  * Area gehen nicht (F-26): dann bleibt alles, wie es ist.
  */
-export function addPanel(ws: Workspace, setup: ScreenSetup, onArea?: string): Workspace {
-  const meta = inWin(newPanel(`Portal ${ws.nextNumber}`), setup.win);
+export function addPanel(ws: Workspace, setup: ScreenSetup, onArea?: string, id?: string): Workspace {
+  // F-114: Mit `id` lässt sich vorher durchrechnen, welches Portal entsteht (Hinweis an genau diesem Portal).
+  const made = newPanel(`Portal ${ws.nextNumber}`);
+  const meta = inWin(id ? { ...made, id } : made, setup.win);
   const v = viewOf(ws, setup);
   const next: Workspace = { ...ws, panels: [...ws.panels, meta], nextNumber: ws.nextNumber + 1 };
   const target = onArea ? v.arrangement?.areas[onArea] : undefined;

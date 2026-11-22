@@ -57,6 +57,14 @@ const DistributeIcon = (
   </svg>
 );
 
+/** Zurück zum Dashboard: Pfeil im Bogen zurück (steht außerhalb des Dashboards an der Stelle von „Gleich verteilen“). */
+const BackIcon = (
+  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="icon" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5.5 2.5 2 6l3.5 3.5" />
+    <path d="M2 6h7.5a4.5 4.5 0 0 1 0 9H6" />
+  </svg>
+);
+
 /** F-146: Zahnrad für das Einstellungsmenü. */
 const GearIcon = (
   <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
@@ -343,6 +351,8 @@ export default function App() {
   }, [sizeMode]);
   /** Wichtiger Hinweis als Dialog, der bestätigt werden muss (F-26). */
   const [notice, setNotice] = useState<string | null>(null);
+  /** F-114: Hinweis an einem Portal (statt Dialog über der Fläche). */
+  const [hint, setHint] = useState<{ id: string; text: string } | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   // Testbelegung: so tun, als wäre es ein 49-Zoll-Monitor.
   const [clsOverride, setClsOverride] = useState<ScreenClassId | 'auto'>(PROBE ? 'superwide' : 'auto');
@@ -424,20 +434,23 @@ export default function App() {
     const frontId = area ? viewOf(ws, setup).arrangement?.areas[area]?.front : undefined;
     const target = frontId ? `„${ws.panels.find((x) => x.id === frontId)?.name ?? ''}“` : 'diesem Stack';
     if (stackFull(ws, setup, area)) {
-      return setNotice(
-        `Auf ${target} liegen schon ${STACK_MAX} Portale – mehr gehen nicht. Schließe ein Portal oder lege es woanders an.`,
-      );
+      const text = `Auf ${target} liegen schon ${STACK_MAX} Portale – mehr gehen nicht. Schließe ein Portal oder lege es woanders an.`;
+      // F-114: am vorderen Portal des Stacks; ohne bekanntes Portal bleibt es beim Dialog
+      return frontId ? setHint({ id: frontId, text }) : setNotice(text);
     }
-    const probe = addTo(ws, setup, area);
+    const id = newId();
+    const probe = addTo(ws, setup, area, id);
     const added = probe.panels[probe.panels.length - 1];
     const arr = viewOf(probe, setup).arrangement;
     const at = areaIn(arr, added.id);
     const after = at ? arr!.areas[at].panels.length : 1;
-    dispatch({ type: 'add', setup, area });
+    dispatch({ type: 'add', setup, area, id });
     if (after === FOCUS_WARN) {
-      setNotice(
-        `Jetzt liegen ${FOCUS_WARN} Portale auf ${target}. Ab hier nehmen Fokus und Übersicht ab – lieber Portale schließen oder anders verteilen.`,
-      );
+      // F-114: am neuen Portal, das jetzt vorn auf dem Stack liegt
+      setHint({
+        id: added.id,
+        text: `Jetzt liegen ${FOCUS_WARN} Portale auf ${target}. Ab hier nehmen Fokus und Übersicht ab – lieber Portale schließen oder anders verteilen.`,
+      });
     }
   };
 
@@ -461,7 +474,8 @@ export default function App() {
     if (mode.kind === 'max' && !exists(mode.id)) setMode({ kind: 'area' });
     if (active && !exists(active)) setActive(mine[0]?.id ?? null);
     if (swapFrom && !exists(swapFrom)) setSwapFrom(null);
-  }, [mine, mode, active, swapFrom]);
+    if (hint && !exists(hint.id)) setHint(null);
+  }, [mine, mode, active, swapFrom, hint]);
 
   // Klick in eine eingebettete Seite: Das iframe schluckt das Mausereignis, deshalb
   // erkennen wir den Wechsel am Fokus (Fenster verliert ihn an ein iframe) und fragen
@@ -956,6 +970,9 @@ export default function App() {
           if (!ok) notify('Gemerkt: Diese Source öffnet ab jetzt mit „In neuem Tab öffnen“.');
         }}
         onAddHere={() => (slotOfMeta ? addPanel(slotOfMeta.id) : addPanel())}
+        hint={hint?.id === meta.id ? hint.text : undefined}
+        onHint={(text) => setHint({ id: meta.id, text })}
+        onHintDone={() => setHint(null)}
         onSetHome={() => {
           dispatch({ type: 'setHome', id: meta.id });
           notify('Aktuelle Source ist jetzt die Start-Source dieses Portals.');
@@ -1314,14 +1331,17 @@ export default function App() {
             </button>
           );
         })()}
-        {!onArea && (
-          <button type="button" onClick={() => setMode({ kind: 'area' })} title="Zurück zum Dashboard (Esc)">
-            Zum Dashboard
+        {/* „Zum Dashboard“ nimmt außerhalb des Dashboards den Platz von „Gleich verteilen“ ein (dort ohnehin gesperrt) –
+            so verschiebt sich beim Durchschalten nichts und der View-Knopf bleibt unter Finger und Maus */}
+        {onArea ? (
+          <button type="button" className="tb-view tb-distribute" onClick={() => dispatch({ type: 'distribute', setup })} title="Gleich verteilen (Alt/⌥+G): alle Portale gleich groß, die Anordnung bleibt" aria-label="Gleich verteilen" aria-keyshortcuts="Alt+G">
+            {DistributeIcon}
+          </button>
+        ) : (
+          <button type="button" className="tb-view tb-home" onClick={() => setMode({ kind: 'area' })} title={`Zurück zum Dashboard (Esc) · ${TERMS.dashboard}`} aria-label="Zum Dashboard" aria-keyshortcuts="Escape">
+            {BackIcon}
           </button>
         )}
-        <button type="button" className="tb-view tb-distribute" disabled={!onArea} onClick={() => dispatch({ type: 'distribute', setup })} title="Gleich verteilen (Alt/⌥+G): alle Portale gleich groß, die Anordnung bleibt" aria-label="Gleich verteilen" aria-keyshortcuts="Alt+G">
-          {DistributeIcon}
-        </button>
         {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
         <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} onRun={runHelp} onHelp={(id) => setHelpAt({ at: id })} />
         {/* F-134: „+ Area“ – neue Spalte rechts oder Zeile unten; Panels kommen über die Areas dazu. */}

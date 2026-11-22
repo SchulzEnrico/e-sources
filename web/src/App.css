@@ -10,6 +10,10 @@
   color-scheme: dark;
   scrollbar-color: rgba(var(--accent-rgb), 0.35) transparent;
   --bg: #0c0c0f;
+  /* F-143: eigener Mauszeiger im Stil des Zeigers im Claude-Browser – Dreieck mit weißem Rand;
+     auf klickbaren Stellen heller. Fällt auf den Systemzeiger zurück, wenn das Bild nicht lädt. */
+  --cur-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 28 28'%3E%3Cdefs%3E%3Cfilter id='s' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeDropShadow dx='0' dy='1' stdDeviation='1' flood-color='%23000' flood-opacity='0.55'/%3E%3C/filter%3E%3C/defs%3E%3Cpath d='M4.1 2.5 L20.6 18.6 L9.7 17.8 L2.5 25.9 Z' fill='%23c8401f' stroke='%23fff' stroke-width='2.6' stroke-linejoin='round' filter='url(%23s)'/%3E%3C/svg%3E") 3 1, default;
+  --cur-hand: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 28 28'%3E%3Cdefs%3E%3Cfilter id='s' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeDropShadow dx='0' dy='1' stdDeviation='1' flood-color='%23000' flood-opacity='0.55'/%3E%3C/filter%3E%3C/defs%3E%3Cpath d='M4.1 2.5 L20.6 18.6 L9.7 17.8 L2.5 25.9 Z' fill='%23ff6a3d' stroke='%23fff' stroke-width='2.6' stroke-linejoin='round' filter='url(%23s)'/%3E%3C/svg%3E") 3 1, pointer;
   /* Ampel gedämpft (F-26, F-65): edel statt grell; eine Linienstärke für alle Ampel-Kanten */
   --load-line: 2px;
   --panel: #131317;
@@ -68,6 +72,25 @@ body,
   margin: 0;
   height: 100%;
 }
+html {
+  cursor: var(--cur-arrow);
+}
+a[href],
+[role='tab'],
+[role='option'],
+select,
+summary,
+label:has(input[type='checkbox']),
+label:has(input[type='radio']) {
+  cursor: var(--cur-hand);
+}
+/* NF-03: Bei Systemeinstellung für mehr Kontrast oder erzwungenen Farben den Systemzeiger nutzen */
+@media (prefers-contrast: more), (forced-colors: active) {
+  :root {
+    --cur-arrow: default;
+    --cur-hand: pointer;
+  }
+}
 
 button {
   font: inherit;
@@ -76,21 +99,21 @@ button {
   border: 1px solid rgba(var(--tint), 0.05);
   border-radius: 10px;
   padding: 4px 12px;
-  cursor: pointer;
+  cursor: var(--cur-hand);
   box-shadow: var(--raised-sm);
   transition: box-shadow 0.15s ease, color 0.15s ease, background 0.15s ease, filter 0.15s ease;
 }
 button:hover:not(:disabled) {
   color: var(--strong);
-  filter: brightness(1.2);
-  box-shadow: var(--raised-sm), 0 0 0 1px rgba(var(--accent-rgb), 0.65), 0 0 16px rgba(var(--accent-rgb), 0.45);
+  filter: brightness(1.35);
+  box-shadow: var(--raised-sm), 0 0 0 1.5px rgba(var(--accent-rgb), 0.95), 0 0 20px rgba(var(--accent-rgb), 0.6);
 }
 button:active:not(:disabled) {
   box-shadow: var(--pressed);
 }
 button:disabled {
   opacity: 0.4;
-  cursor: default;
+  cursor: var(--cur-arrow);
 }
 button.on {
   /* gewählt = eingedrückt */
@@ -470,23 +493,54 @@ select {
 .win__bar button:hover:not(:disabled) {
   color: var(--strong);
   filter: none;
-  background: rgba(var(--tint), 0.16);
-  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.7), 0 0 10px rgba(var(--accent-rgb), 0.4);
+  background: rgba(var(--accent-rgb), 0.28);
+  box-shadow: 0 0 0 1.5px rgba(var(--accent-rgb), 0.95), 0 0 14px rgba(var(--accent-rgb), 0.6);
 }
 /* F-135, NF-03: nicht verfügbar, aber erreichbar – blass, ohne Leuchten beim Drüberfahren */
 button.is-off,
 .win__bar button.is-off,
 .win__nav button.is-off {
   opacity: 0.4;
-  cursor: default;
+  cursor: var(--cur-arrow);
 }
 button.is-off:hover,
 .win__bar button.is-off:hover,
 .win__nav button.is-off:hover {
-  opacity: 0.6;
+  opacity: 0.8;
   filter: none;
-  box-shadow: none;
-  background: transparent;
+  background: rgba(var(--tint), 0.08);
+  box-shadow: 0 0 0 1px rgba(var(--tint), 0.45);
+}
+/* ---------- F-142 schnelle Tooltips */
+.tooltip {
+  position: fixed;
+  z-index: 1000;
+  transform: translate(-50%, -100%);
+  max-width: min(360px, calc(100vw - 24px));
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--strong);
+  background: rgba(var(--glass), 0.97);
+  border: 1px solid rgba(var(--accent-rgb), 0.55);
+  box-shadow: 0 8px 22px rgba(var(--lo), 0.6);
+  pointer-events: none;
+  white-space: pre-line;
+  animation: tooltip-in 0.12s ease-out;
+}
+.tooltip--below {
+  transform: translate(-50%, 0);
+}
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tooltip {
+    animation: none;
+  }
 }
 .win__spin {
   display: inline-block;
@@ -516,7 +570,7 @@ button.is-off:hover,
 }
 .win__bar button:disabled {
   opacity: 0.35;
-  cursor: default;
+  cursor: var(--cur-arrow);
 }
 /* F-140: Schließen ganz links, etwas größer, durch eine feine Linie abgesetzt */
 .win__bar .win__close {
@@ -974,7 +1028,7 @@ button.is-off:hover,
   border-radius: 8px;
   padding: 5px 10px;
   color: var(--text);
-  cursor: pointer;
+  cursor: var(--cur-hand);
 }
 /* Gewählter Treffer (Tastatur und Maus): deutlich, nicht nur über Farbe – heller Grund, Rand, Balken links */
 .search__hit.is-sel {
@@ -1003,6 +1057,14 @@ button.is-off:hover,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.search__tab {
+  margin-left: 8px;
+  font-size: 0.88em;
+  color: var(--muted);
+}
+.search__tab::before {
+  content: '· ';
 }
 .search__where {
   display: flex;
@@ -1087,12 +1149,13 @@ button.is-off:hover,
   font-size: 0.86em;
   color: var(--muted);
   border-radius: 8px 8px 0 0;
-  cursor: pointer;
+  cursor: var(--cur-hand);
   user-select: none;
 }
 .tab:hover {
   color: var(--strong);
-  background: rgba(var(--tint), 0.1);
+  background: rgba(var(--accent-rgb), 0.2);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.7);
 }
 .tab--on {
   color: var(--text);
@@ -1129,7 +1192,8 @@ button.is-off:hover,
 .tabs__add:hover:not(:disabled) {
   color: var(--strong);
   filter: none;
-  background: rgba(var(--tint), 0.16);
+  background: rgba(var(--accent-rgb), 0.28);
+  box-shadow: 0 0 0 1.5px rgba(var(--accent-rgb), 0.95), 0 0 12px rgba(var(--accent-rgb), 0.5);
 }
 .tabs__add {
   flex: 0 0 auto;
@@ -1876,7 +1940,7 @@ button.is-off:hover,
   padding: 4px 12px 6px;
   font-size: 11px;
   opacity: 0.6;
-  cursor: default;
+  cursor: var(--cur-arrow);
   user-select: none;
 }
 .menu__field .seg--wrap {

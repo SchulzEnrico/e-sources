@@ -21,6 +21,7 @@ import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile 
 import { useWorkspace } from './workspace/useWorkspace';
 import { type SearchHit, openBookmark } from './workspace/bookmarks';
 import { Search } from './components/Search';
+import { Tooltips } from './components/Tooltip';
 import { ACCENTS, THEMES, contrastWarning, resolveTheme, rgbOf } from './workspace/look';
 import { FOCUS_WARN, STACK_MAX, TAB_MAX, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, describe, isBlocked, setupFor, splitSelection, stackFull, viewOf } from './workspace/workspace';
 
@@ -371,8 +372,9 @@ export default function App() {
   };
 
   /** F-141: Panel aus der Suche nach vorn holen und aktiv machen. */
-  const showPanel = (id: string) => {
+  const showPanel = (id: string, tabId?: string) => {
     dispatch({ type: 'stackFront', setup, id });
+    if (tabId) dispatch({ type: 'selectTab', id, tab: tabId });
     setActive(id);
     if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
   };
@@ -836,6 +838,8 @@ export default function App() {
         </Menu>
         <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={(e) => void importWorkspace(e.currentTarget)} />
       </header>
+      {/* F-142: schnelle Tooltips */}
+      <Tooltips />
       {flash && !swapFrom && (
         <div className="toast" role="status">
           <span>{flash}</span>

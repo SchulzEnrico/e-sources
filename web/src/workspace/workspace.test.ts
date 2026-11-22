@@ -1020,7 +1020,10 @@ describe('F-141 Suche nach Panels', () => {
         p.id === p1.id ? { ...p, name: 'Wissen', scenario: 's1' } : p.id === p2.id ? { ...p, name: 'Video', tabs: [{ id: 't', url: 'https://wissen.de/' }], activeTab: 't' } : p,
       ),
     };
-    expect(B.searchPanels(ws, 'wissen').map((h) => h.panel.id)).toEqual([p1.id, p2.id]);
+    const w = B.searchPanels(ws, 'wissen');
+    expect(w.map((h) => h.panel.id)).toEqual([p1.id, p2.id]);
+    expect(w[0].tabs).toHaveLength(0);
+    expect(w[1].tabs.map((t) => t.id)).toEqual(['t']);
     const s = B.searchPanels(ws, 'bewerbung');
     expect(s).toHaveLength(1);
     expect(s[0].scenario).toBe('Bewerbung');

@@ -2,7 +2,7 @@
  * Lesezeichen und Kategorien (F-14, F-20, F-30 bis F-33). Alle Lesezeichen liegen in der
  * Gesamtsammlung; die Sammlung eines Panels sind die, die ihm zugeordnet sind (F-32).
  */
-import type { Bookmark, Named, PanelMeta, Workspace } from './types';
+import type { Bookmark, Named, PanelMeta, Tab, Workspace } from './types';
 import { TAB_MAX, activeTab, addTab, hostOf, navigatePanel, normalizeUrl, selectTab } from './workspace';
 
 /** Kategorie-Id für Lesezeichen ohne Kategorie. */
@@ -260,6 +260,8 @@ export interface PanelHit {
   area: string;
   sphere: string;
   scenario: string;
+  /** Offene Tabs, deren Adresse zur Suche passt (der sichtbare zuerst); leer = nur über Namen gefunden. */
+  tabs: Tab[];
 }
 
 /**
@@ -270,12 +272,17 @@ export function searchPanels(ws: Workspace, query: string, max = SEARCH_MAX): Pa
   const words = query.toLowerCase().split(/\s+/).filter(Boolean).map((w) => w.replace(/^#/, '')).filter(Boolean);
   if (!words.length) return [];
   const name = (list: Named[], id: string | undefined) => (id ? (list.find((n) => n.id === id)?.name ?? '') : '');
-  const all = ws.panels.map((panel) => ({
-    panel,
-    area: name(ws.areaNames, panel.areaName),
-    sphere: name(ws.spheres, panel.sphere),
-    scenario: name(ws.scenarios, panel.scenario),
-  }));
+  const all: PanelHit[] = ws.panels.map((panel) => {
+    const open = panel.tabs.filter((t) => t.url && words.some((w) => t.url!.toLowerCase().includes(w)));
+    open.sort((a, b) => (b.id === panel.activeTab ? 1 : 0) - (a.id === panel.activeTab ? 1 : 0));
+    return {
+      panel,
+      area: name(ws.areaNames, panel.areaName),
+      sphere: name(ws.spheres, panel.sphere),
+      scenario: name(ws.scenarios, panel.scenario),
+      tabs: open,
+    };
+  });
   const hay = (h: PanelHit) => [h.panel.name, h.area, h.sphere, h.scenario, ...h.panel.tabs.map((t) => t.url ?? '')].join(' ').toLowerCase();
   const found = all.filter((h) => words.every((w) => hay(h).includes(w)));
   const inName = (h: PanelHit) => words.every((w) => h.panel.name.toLowerCase().includes(w));

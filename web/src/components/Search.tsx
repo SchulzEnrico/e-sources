@@ -9,8 +9,8 @@
  * Esc leert, ein zweites Esc verlässt das Feld · Tab verlässt das Feld und schließt die Liste.
  */
 import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { type PanelHit, type SearchHit, SEARCH_MAX, searchAll, searchPanels } from '../workspace/bookmarks';
-import { hostOf } from '../workspace/workspace';
+import { type PanelHit, type SearchHit, SEARCH_MAX, bookmarkOf, searchAll, searchPanels } from '../workspace/bookmarks';
+import { hostOf, tabLabel } from '../workspace/workspace';
 import type { Workspace } from '../workspace/types';
 
 interface Props {
@@ -18,8 +18,13 @@ interface Props {
   /** Name des aktiven Panels (dort öffnen Lesezeichen, die keinem Panel zugeordnet sind). */
   activeName: string | null;
   onOpen: (hit: SearchHit) => void;
-  /** F-141: Panel nach vorn holen. */
-  onShowPanel: (panelId: string) => void;
+  /** F-141: Panel nach vorn holen; mit tabId auch diesen Tab zeigen. */
+  onShowPanel: (panelId: string, tabId?: string) => void;
+}
+
+/** Name eines offenen Tabs: Titel des Lesezeichens, sonst die Domain; ohne Doppelte. */
+function tabNames(ws: Workspace, h: PanelHit): string[] {
+  return [...new Set(h.tabs.map((t) => bookmarkOf(ws, t.url, h.panel.id)?.title || tabLabel(t)))];
 }
 
 type Item = { kind: 'panel'; hit: PanelHit } | { kind: 'bookmark'; hit: SearchHit };
@@ -81,7 +86,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
 
   const choose = (it: Item | undefined) => {
     if (!it) return;
-    if (it.kind === 'panel') onShowPanel(it.hit.panel.id);
+    if (it.kind === 'panel') onShowPanel(it.hit.panel.id, it.hit.tabs[0]?.id);
     else onOpen(it.hit);
     setOpen(false);
     input.current?.blur();
@@ -222,9 +227,18 @@ export function Search({ ws, activeName, onOpen, onShowPanel }: Props) {
           {panelHits.map((h, i) =>
             option(
               i,
-              `Panel ${h.panel.name}${h.area ? `, Area ${h.area}` : ''}${h.scenario ? `, Szenario ${h.scenario}` : ''}`,
+              `Panel ${h.panel.name}${h.tabs.length ? `, geöffnet: ${tabNames(ws, h).join(', ')}` : ''}${h.area ? `, Area ${h.area}` : ''}${h.scenario ? `, Szenario ${h.scenario}` : ''}`,
               <>
-                <span className="search__title">{h.panel.name}</span>
+                <span className="search__title">
+                  {h.panel.name}
+                  {/* Über einen offenen Tab gefunden: diesen nennen (Klick zeigt ihn) */}
+                  {h.tabs.length > 0 && (
+                    <span className="search__tab">
+                      {tabNames(ws, h).slice(0, 2).join(', ')}
+                      {tabNames(ws, h).length > 2 ? ` +${tabNames(ws, h).length - 2}` : ''}
+                    </span>
+                  )}
+                </span>
                 <span className="search__where">
                   {h.area && <span className="search__panel">{h.area}</span>}
                   {[h.sphere, h.scenario].filter(Boolean).map((x) => (

@@ -8,6 +8,7 @@ import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } f
 import { demoWorkspace } from './demo';
 import { PROBE, probeWorkspace } from './probe';
 import { parseLayoutKey } from './screen';
+import type { DeskLayout, DeskLayouts } from './deskLayouts';
 
 /**
  * Stufe 1: Die Arbeitsfläche liegt nur im Browser (localStorage). Später kommt der Server dazu.
@@ -129,6 +130,37 @@ function bookmarkList(v: unknown, panelIds: Set<string>, categoryIds: Set<string
  * Prüft gespeicherte oder importierte Daten (F-121); null, wenn es keine Arbeitsfläche ist.
  * Nimmt auch Stände v4/v5 (Datei-Version 1/2) an und wandelt sie um.
  */
+/**
+ * F-51: Layouts je Desk. Nur bekannte Desks; das aktive Layout hat keinen Vorrat, alle anderen
+ * brauchen einen gültigen. Ist etwas kaputt, fällt der ganze Eintrag des Desks weg (die aktuelle
+ * Belegung bleibt ja in der Arbeitsfläche).
+ */
+function parseDeskLayouts(v: unknown, winIds: Set<string>): Record<string, DeskLayouts> | undefined {
+  if (!isObj(v)) return undefined;
+  const out: Record<string, DeskLayouts> = {};
+  for (const [win, d] of Object.entries(v)) {
+    if ((win !== '' && !winIds.has(win)) || !isObj(d) || typeof d.active !== 'string' || !Array.isArray(d.list)) continue;
+    const list: DeskLayout[] = [];
+    let ok = true;
+    for (const l of d.list) {
+      if (!isObj(l) || typeof l.id !== 'string' || typeof l.name !== 'string' || list.some((x) => x.id === l.id)) { ok = false; break; }
+      if (l.id === d.active) { list.push({ id: l.id, name: l.name }); continue; }
+      const c = l.saved;
+      if (!isObj(c) || !Array.isArray(c.panels)) { ok = false; break; }
+      const panels = c.panels.map(parsePanel);
+      if (panels.length === 0 || panels.some((p) => !p)) { ok = false; break; }
+      const areaNames = namedList(c.areaNames).map((a) => {
+        const tint = parseTint((a as { tint?: unknown }).tint);
+        return tint ? { id: a.id, name: a.name, tint } : { id: a.id, name: a.name };
+      });
+      const ps = (panels as PanelMeta[]).map(({ win: _w, ...p }) => p);
+      list.push({ id: l.id, name: l.name, saved: { panels: ps, layouts: arrangements(c.layouts), preferred: arrangements(c.preferred), areaNames } });
+    }
+    if (ok && list.some((l) => l.id === d.active) && list.length > 1) out[win] = { active: d.active, list };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 export function parseWorkspace(data: unknown): Workspace | null {
   if (!isObj(data) || !Array.isArray(data.panels)) return null;
   const panels = data.panels.map(parsePanel);
@@ -158,9 +190,13 @@ export function parseWorkspace(data: unknown): Workspace | null {
     ? [...new Set((data.rulesOff as unknown[]).filter((x): x is string => typeof x === 'string' && ((x.startsWith('tint:') && catIds.has(x.slice(5))) || /^site:./.test(x) || ['ask', 'collect'].includes(x))))]
     : [];
   const rulesOn = Array.isArray(data.rulesOn) ? [...new Set((data.rulesOn as unknown[]).filter((x): x is string => x === 'offer'))] : [];
+  // F-51: Desks früh prüfen, damit Sammlungen von Portalen in gespeicherten Layouts erhalten bleiben
+  const winIdsEarly = new Set(namedList(data.windows).map((w) => w.id));
+  const deskLayouts = parseDeskLayouts(data.deskLayouts, winIdsEarly);
+  const storedIds = Object.values(deskLayouts ?? {}).flatMap((d) => d.list.flatMap((l) => l.saved?.panels.map((p) => p.id) ?? []));
   const bookmarks = bookmarkList(
     data.bookmarks,
-    new Set((panels as PanelMeta[]).map((p) => p.id)),
+    new Set([...(panels as PanelMeta[]).map((p) => p.id), ...storedIds]),
     new Set(categories.map((c) => c.id)),
   );
   // F-128: Namen der Areas; Zuordnungen zu unbekannten Namen fallen weg.
@@ -227,6 +263,7 @@ export function parseWorkspace(data: unknown): Workspace | null {
     windows,
     winSetup,
     deskLooks: parseDeskLooks(data.deskLooks, winIds),
+    ...(deskLayouts ? { deskLayouts } : {}),
   };
 }
 

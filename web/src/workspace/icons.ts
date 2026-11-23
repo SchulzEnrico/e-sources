@@ -34,6 +34,8 @@ export const ICONS = {
   cockpit: { d: ['M2 11a6 6 0 0 1 12 0', 'M8 11l3-3.5', 'M2.5 13.5h11'] },
   radar: { d: [ring(8, 8, 6), ring(8, 8, 3), 'M8 8l4.2-4.2'] },
   dashboard: { d: ['M2 2h5v5H2z', 'M9 2h5v5H9z', 'M2 9h5v5H2z', 'M9 9h5v5H9z'] },
+  /** F-51: Layouts – zwei hintereinander liegende Belegungen */
+  layouts: { d: ['M4.5 1.5h10v8h-10z', 'M1.5 4.5h10v10h-10z', 'M1.5 9.5h10', 'M6.5 4.5v10'] },
   focus: { d: [ring(8, 8, 6), ring(8, 8, 2.8), 'M8 8h.01'] },
   view: { d: ['M1.5 3h13v10h-13z', 'M8 3v10', 'M1.5 8h6.5'] },
   maximize: { d: ['M2 6V2h4', 'M10 2h4v4', 'M14 10v4h-4', 'M6 14H2v-4'] },
@@ -125,7 +127,7 @@ export const HELP_ICON: Record<string, IconName> = {
   newSlot: 'newSlot', newDesk: 'newDesk', newPortal: 'portal', newTab: 'tab',
   switchDesk: 'switchDesk', collectDesks: 'collect', distributeDesks: 'spread',
   design: 'design', colorRules: 'category', rules: 'rules', colors: 'colors',
-  adjust: 'adjust', focusRule: 'sliders', restore: 'restore', closed: 'closed',
+  adjust: 'adjust', focusRule: 'sliders', restore: 'restore', closed: 'closed', layouts: 'layouts', limits: 'maximize',
   nextTab: 'next', nextPortal: 'next', distribute: 'distribute', swap: 'swap', rename: 'rename', stackDelete: 'remove', ruler: 'ruler',
   importBookmarks: 'import', sortHelp: 'sort', exportBookmarks: 'export', profile: 'profile', reload: 'reload', exportDesks: 'transfer',
 };

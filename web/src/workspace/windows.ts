@@ -1,3 +1,4 @@
+import { rescueEmptyDesks } from './deskLayouts';
 import type { Named, PanelMeta, Workspace } from './types';
 
 /**
@@ -48,6 +49,8 @@ export function nextWindowName(windows: Named[]): string {
  * Eintrag zurück. Gibt dasselbe Objekt zurück, wenn nichts zu tun ist.
  */
 export function syncWindows(ws: Workspace): Workspace {
+  // F-51: leerer Zusatz-Desk mit gespeicherten Layouts wechselt, statt samt Layouts wegzufallen
+  ws = rescueEmptyDesks(ws);
   const used = new Set(ws.panels.map((p) => p.win).filter((w): w is string => !!w));
   let windows = ws.windows.filter((w) => used.has(w.id));
   for (const id of used) if (!windows.some((w) => w.id === id)) windows = [...windows, { id, name: nextWindowName(windows) }];
@@ -58,7 +61,10 @@ export function syncWindows(ws: Workspace): Workspace {
   // F-161: Farben eines weggefallenen Desks fallen mit weg
   const looks = Object.entries(ws.deskLooks ?? {}).filter(([k]) => ids.has(k));
   const deskLooks = looks.length ? Object.fromEntries(looks) : undefined;
-  return { ...ws, windows, winSetup, deskLooks };
+  // F-51: Layouts eines weggefallenen Desks fallen mit weg
+  const kept = Object.entries(ws.deskLayouts ?? {}).filter(([k]) => ids.has(k));
+  const deskLayouts = kept.length ? Object.fromEntries(kept) : undefined;
+  return { ...ws, windows, winSetup, deskLooks, deskLayouts };
 }
 
 /**

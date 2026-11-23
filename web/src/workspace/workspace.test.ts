@@ -28,6 +28,7 @@ import * as Up from './update';
 import * as Ti from './tint';
 import * as Ca from './category';
 import * as Ru from './rules';
+import * as DL from './deskLayouts';
 import * as Ic from './icons';
 import * as Dis from './display';
 import * as Jp from './jackpot';
@@ -2470,5 +2471,192 @@ describe('F-170 Slotmaschine', () => {
   it('Hilfe, Suche und Symbol', () => {
     expect(H.searchHelp('Duplikate')[0].id).toBe('jackpot');
     expect(Ic.HELP_ICON.jackpot).toBe('jackpot');
+  });
+});
+
+describe('F-51 Layouts je Desk', () => {
+  const setup: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
+  const base = (): Workspace => {
+    let ws = W.defaultWorkspace();
+    ws = { ...ws, panels: [...ws.panels, { ...W.newPanel('Fremd'), win: 'w2' }], windows: [{ id: 'w2', name: 'Desk 2' }] };
+    return ws;
+  };
+
+  it('ohne Eintrag gibt es genau ein Layout', () => {
+    const d = DL.layoutsOf(base());
+    expect(d.list).toHaveLength(1);
+    expect(d.list[0].name).toBe('Layout 1');
+  });
+
+  it('Gleichmäßig legt so viele leere Portale an, wie die Klasse zeigt, und wechselt dorthin', () => {
+    const ws = base();
+    const before = W.panelsIn(ws.panels).map((p) => p.id);
+    const next = DL.addLayout(ws, '', setup, 'even');
+    const mine = W.panelsIn(next.panels);
+    expect(mine).toHaveLength(4);
+    expect(mine.some((p) => before.includes(p.id))).toBe(false);
+    expect(W.panelsIn(next.panels, 'w2')).toHaveLength(1);
+    const d = DL.layoutsOf(next);
+    expect(d.list).toHaveLength(2);
+    expect(d.active).toBe(d.list[1].id);
+    expect(d.list[0].saved!.panels.map((p) => p.id)).toEqual(before);
+  });
+
+  it('Wechseln speichert automatisch: Änderungen bleiben, beim Zurückwechseln ist alles wieder da', () => {
+    let ws = DL.addLayout(base(), '', setup, 'even');
+    const first = DL.layoutsOf(ws).list[0].id;
+    const second = DL.layoutsOf(ws).active;
+    ws = W.renamePanel(ws, W.panelsIn(ws.panels)[0].id, 'Geändert');
+    ws = DL.switchLayout(ws, '', first);
+    expect(W.panelsIn(ws.panels).map((p) => p.name)).toEqual(['Portal 1', 'Portal 2', 'Portal 3']);
+    ws = DL.switchLayout(ws, '', second);
+    expect(W.panelsIn(ws.panels)[0].name).toBe('Geändert');
+  });
+
+  it('andere Desks bleiben unberührt, Anordnung je Desk wandert mit', () => {
+    let ws = base();
+    const s2: ScreenSetup = { ...setup, win: 'w2' };
+    ws = W.addPanel(ws, s2);
+    W.viewOf(ws, s2);
+    const w2Keys = Object.keys(ws.layouts).filter((k) => k.startsWith('w2/'));
+    ws = DL.addLayout(ws, 'w2', s2, 'even');
+    expect(W.panelsIn(ws.panels)).toHaveLength(3);
+    expect(W.panelsIn(ws.panels, 'w2')).toHaveLength(4);
+    expect(W.panelsIn(ws.panels, 'w2').every((p) => p.win === 'w2')).toBe(true);
+    const saved = DL.layoutsOf(ws, 'w2').list[0].saved!;
+    expect(Object.keys(saved.layouts)).toEqual(w2Keys.map((k) => k.slice(3)));
+    expect(saved.panels.every((p) => p.win === undefined)).toBe(true);
+  });
+
+  it('Kopie der aktuellen Belegung bekommt neue Ids, gleiche Namen', () => {
+    const ws = base();
+    const next = DL.addLayout(ws, '', setup, 'current');
+    const a = DL.layoutsOf(next).list[0].saved!.panels;
+    const b = W.panelsIn(next.panels);
+    expect(b.map((p) => p.name)).toEqual(a.map((p) => p.name));
+    expect(b.some((p) => a.some((q) => q.id === p.id))).toBe(false);
+    expect(DL.layoutsOf(next).list[1].name).toBe('Layout 1 (Kopie)');
+  });
+
+  it('umbenennen, kopieren, löschen mit Rückgängig; das letzte bleibt', () => {
+    let ws = DL.addLayout(base(), '', setup, 'even');
+    const [l1, l2] = DL.layoutsOf(ws).list;
+    ws = DL.renameLayout(ws, '', l2.id, 'Recherche');
+    expect(DL.renameLayout(ws, '', l1.id, 'Recherche')).toBe(ws);
+    ws = DL.copyLayout(ws, '', l2.id);
+    expect(DL.layoutsOf(ws).list.map((l) => l.name)).toEqual(['Layout 1', 'Recherche', 'Recherche (Kopie)']);
+    const { ws: after, deleted } = DL.deleteLayout(ws, '', l2.id);
+    expect(DL.activeLayout(after).id).toBe(l1.id);
+    expect(W.panelsIn(after.panels).map((p) => p.name)).toEqual(['Portal 1', 'Portal 2', 'Portal 3']);
+    const back = DL.restoreLayout(after, deleted!);
+    expect(DL.layoutsOf(back).list.map((l) => l.name)).toEqual(['Layout 1', 'Recherche', 'Recherche (Kopie)']);
+    const only = DL.deleteLayout(DL.deleteLayout(after, '', DL.layoutsOf(after).list[1].id).ws, '', l1.id);
+    expect(only.deleted).toBeNull();
+  });
+
+  it('Slot-Namen wandern mit dem Layout', () => {
+    let ws = base();
+    const v = W.viewOf(ws, setup);
+    ws = W.placePanels(ws, setup, [v.slots[1].front.id], v.slots[0].id);
+    ws = W.ensureAreaNames(ws, setup);
+    const names = ws.areaNames.length;
+    expect(names).toBeGreaterThan(0);
+    ws = DL.addLayout(ws, '', setup, 'even');
+    expect(ws.areaNames).toHaveLength(0);
+    ws = DL.switchLayout(ws, '', DL.layoutsOf(ws).list[0].id);
+    expect(ws.areaNames).toHaveLength(names);
+  });
+
+  it('leerer Zusatz-Desk mit gespeichertem Layout wechselt dorthin, statt wegzufallen', () => {
+    const s2: ScreenSetup = { ...setup, win: 'w2' };
+    let ws = DL.addLayout(base(), 'w2', s2, 'even');
+    for (const p of W.panelsIn(ws.panels, 'w2')) ws = reducer(ws, { type: 'remove', id: p.id, setup: s2 });
+    expect(ws.windows.some((w) => w.id === 'w2')).toBe(true);
+    expect(W.panelsIn(ws.panels, 'w2').map((p) => p.name)).toEqual(['Fremd']);
+    expect(DL.layoutsOf(ws, 'w2').list).toHaveLength(1);
+  });
+
+  it('Speichern und Laden behält gespeicherte Layouts und ihre Sammlungen', () => {
+    let ws = DL.addLayout(base(), '', setup, 'even');
+    const old = DL.layoutsOf(ws).list[0].saved!.panels[0].id;
+    ws = { ...ws, bookmarks: [{ id: 'b', title: 'x', url: 'https://x.de', category: '', tags: [], panels: [old] }] };
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(DL.layoutsOf(back).list).toHaveLength(2);
+    expect(back.bookmarks[0].panels).toEqual([old]);
+    const desk2Gone = Win.syncWindows({ ...back, panels: W.panelsIn(back.panels), deskLayouts: { ...back.deskLayouts, w2: { active: 'first', list: [{ id: 'first', name: 'Eigen' }] } } });
+    expect(desk2Gone.deskLayouts?.w2).toBeUndefined();
+  });
+});
+
+describe('F-52 Standard je Gerät und Grenzen aufheben', () => {
+  const setup: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
+  const base = (): Workspace => ({ ...W.defaultWorkspace(), panels: [...W.defaultWorkspace().panels.slice(0, 2), { ...W.newPanel('Fremd'), win: 'w2' }], windows: [{ id: 'w2', name: 'Desk 2' }] });
+
+  it('ohne Standard bekommt ein neuer Desk „Gleichmäßig“', () => {
+    const ws = base();
+    const next = reducer(ws, { type: 'addDesk', win: 'w3', std: DL.standardContent(ws, null, setup) });
+    expect(W.panelsIn(next.panels, 'w3')).toHaveLength(4);
+    expect(next.windows.some((w) => w.id === 'w3')).toBe(true);
+    expect(DL.activeLayout(next, 'w3').name).toBe('Gleichmäßig');
+  });
+
+  it('mit Standard bekommt ein neuer Desk eine Kopie davon (neue Ids)', () => {
+    let ws = DL.addLayout(base(), '', setup, 'even', 'Recherche');
+    ws = W.renamePanel(ws, W.panelsIn(ws.panels)[0].id, 'Suche');
+    const ref = { win: '', id: DL.layoutsOf(ws).active };
+    const next = reducer(ws, { type: 'addDesk', win: 'w3', std: DL.standardContent(ws, ref, setup) });
+    const mine = W.panelsIn(next.panels, 'w3');
+    expect(mine[0].name).toBe('Suche');
+    expect(mine.some((p) => W.panelsIn(next.panels).some((q) => q.id === p.id))).toBe(false);
+    expect(DL.activeLayout(next, 'w3').name).toBe('Recherche');
+    // nicht aktives Layout als Standard
+    const other = DL.standardContent(ws, { win: '', id: DL.layoutsOf(ws).list[0].id }, setup);
+    expect(other.content.panels.map((p) => p.name)).toEqual(['Portal 1', 'Portal 2']);
+    // verschwundener Verweis = Gleichmäßig
+    expect(DL.standardContent(ws, { win: 'weg', id: 'x' }, setup).name).toBe('Gleichmäßig');
+  });
+
+  it('Auf Standard zurücksetzen ersetzt nur das aktive Layout dieses Desks, Rückgängig holt es zurück', () => {
+    const ws = base();
+    const std = DL.standardContent(ws, null, setup);
+    const { ws: after, undo } = DL.resetToStandard(ws, '', std);
+    expect(W.panelsIn(after.panels)).toHaveLength(4);
+    expect(W.panelsIn(after.panels, 'w2').map((p) => p.name)).toEqual(['Fremd']);
+    const back = DL.undoReset(after, '', undo);
+    expect(W.panelsIn(back.panels).map((p) => p.name)).toEqual(['Portal 1', 'Portal 2']);
+  });
+
+  it('Grenze: NewSlot bis doppelt so viele, Automatik bei der Empfehlung', () => {
+    expect(specOf({ ...setup, capacity: 8 }).max).toBe(8);
+    expect(specOf({ ...setup, capacity: 8 }).capacity).toBe(4);
+    expect(specOf(setup).max).toBe(4);
+  });
+
+  it('mehr Slots als die Klasse bleiben stehen, wenn die Grenzen wieder an sind', () => {
+    let ws = W.defaultWorkspace();
+    const wide = { ...setup, capacity: 8 };
+    expect(W.canAddArea(W.addPanel(ws, wide), wide)).toBe(true);
+    while (W.viewOf(ws, wide).slots.length < 6) ws = W.addArea(ws, wide, 'right');
+    expect(W.viewOf(ws, wide).slots).toHaveLength(6);
+    // Automatik bleibt unter der Empfehlung: ein neues Portal kommt in den Stack
+    expect(W.viewOf(W.addPanel(ws, wide), wide).slots).toHaveLength(6);
+    const keyed = { ...ws, layouts: { ...ws.layouts } };
+    expect(W.viewOf(keyed, setup).slots).toHaveLength(6);
+    expect(W.canAddArea(keyed, setup)).toBe(false);
+    // Auf die empfohlene Zahl zurück, Rückgängig stellt her
+    const fit = W.fitSlots(ws, wide);
+    expect(W.viewOf(fit, wide).slots).toHaveLength(4);
+    expect(W.viewOf(W.setArrangement(fit, wide, W.viewOf(ws, wide).arrangement!), wide).slots).toHaveLength(6);
+  });
+
+  it('Desk auflösen mit Bestätigung nimmt die gespeicherten Layouts mit', () => {
+    const s2: ScreenSetup = { ...setup, win: 'w2' };
+    const ws = DL.addLayout(base(), 'w2', s2, 'even');
+    const kept = reducer(ws, { type: 'returnAll', win: 'w2' });
+    expect(kept.windows.some((w) => w.id === 'w2')).toBe(true);
+    const gone = reducer(ws, { type: 'returnAll', win: 'w2', dissolve: true });
+    expect(gone.windows.some((w) => w.id === 'w2')).toBe(false);
+    expect(gone.deskLayouts?.w2).toBeUndefined();
+    expect(W.panelsIn(gone.panels).length).toBe(6);
   });
 });

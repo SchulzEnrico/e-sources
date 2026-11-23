@@ -56,11 +56,16 @@ export interface ScreenSetup {
   lines: Lines;
   /** F-27: Zusatzfenster (Id aus Workspace.windows); fehlt = Hauptfenster. */
   win?: string;
+  /** F-52: „Grenzen aufheben“ – sichtbare Slots statt der Zahl der Klasse; fehlt = wie die Klasse. */
+  capacity?: number;
 }
 
 /** Eckdaten einer Einstellung für die Anordnung. */
 export interface ScreenSpec {
+  /** Sichtbare Slots nach der Bildschirmklasse – die Automatik (Verteilen, neue Portale) bleibt darunter. */
   capacity: number;
+  /** F-52: Höchstzahl, die der Nutzer selbst anlegen kann (NewSlot); ohne „Grenzen aufheben“ = capacity. */
+  max?: number;
   /** Reihen: Zeilen im Querformat, Spalten im Hochformat. */
   lines: Lines;
   /** Panels pro Reihe bei voller Belegung. */
@@ -96,10 +101,11 @@ export function linesKey(cls: ScreenClassId, orientation: Orientation): string {
 
 export function specOf(s: ScreenSetup): ScreenSpec {
   const c = screenClass(s.cls);
+  const capacity = c.capacity;
   const lines: Lines = allowsTwoLines(s.cls) ? s.lines : 1;
-  const perLine = Math.ceil(c.capacity / lines);
+  const perLine = Math.ceil(capacity / lines);
   const aspect = s.orientation === 'landscape' ? c.aspect : 1 / c.aspect;
-  return { capacity: c.capacity, lines, perLine, orientation: s.orientation, aspect };
+  return { capacity, max: Math.max(capacity, s.capacity ?? 0), lines, perLine, orientation: s.orientation, aspect };
 }
 
 /** Größe einer Area bei gleichmäßiger Verteilung (Anteil von Breite und Höhe). */
@@ -108,3 +114,6 @@ export function slotSize(spec: ScreenSpec): { w: number; h: number } {
     ? { w: 1 / spec.perLine, h: 1 / spec.lines }
     : { w: 1 / spec.lines, h: 1 / spec.perLine };
 }
+
+/** F-52: Obergrenze der Slots bei aufgehobenen Grenzen, auch auf sehr großen Flächen. */
+export const SLOTS_MAX = 36;

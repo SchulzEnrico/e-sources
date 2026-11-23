@@ -6,10 +6,11 @@ import { type Profile, setProfile } from './profile';
 import * as Win from './windows';
 import * as Mv from './move';
 import type { Min, Node, Zone } from './tree';
-import type { Bookmark, Workspace } from './types';
+import type { Arrangement, Bookmark, Workspace } from './types';
 import * as B from './bookmarks';
 import * as W from './workspace';
 import * as C from './closed';
+import * as DL from './deskLayouts';
 import { mergeSlotTabs } from './jackpot';
 import * as F from './focus';
 import type { FocusRule } from './focus';
@@ -105,20 +106,32 @@ export type Action =
   /** F-27: Panels in ein Fenster verschieben ('' = Hauptfenster; unbekannte Id = neues Fenster). */
   | { type: 'toWindow'; ids: string[]; win: string }
   /** F-165: leeren Desk mit einem neuen Panel anlegen. */
-  | { type: 'addDesk'; win: string }
+  | { type: 'addDesk'; win: string; std?: ReturnType<typeof DL.standardContent> }
   /** F-27/F-28: Panels in dieses Fenster holen, höchstens so viele, wie Platz haben. */
   | { type: 'fetch'; ids: string[]; setup: ScreenSetup }
-  | { type: 'returnAll'; win: string }
+  | { type: 'returnAll'; win: string; dissolve?: boolean }
+  | ({ type: 'fitSlots' } & S)
+  | ({ type: 'setArrangement'; arr: Arrangement } & S)
   | { type: 'renameWindow'; win: string; name: string }
   /** F-28: Panels auf eine Area legen (auch in einem anderen Fenster); area = Id, 'new' oder ''. */
   | { type: 'move'; ids: string[]; from: ScreenSetup; win: string; area: string }
   /** F-28: Fenster merkt sich seine Bildschirm-Einstellung. */
-  | { type: 'seen'; setup: ScreenSetup };
+  | { type: 'seen'; setup: ScreenSetup }
+  // F-51: Layouts je Desk
+  | { type: 'layoutSwitch'; win: string; id: string }
+  | { type: 'layoutAdd'; win: string; setup: ScreenSetup; from: 'current' | 'even'; name?: string }
+  | { type: 'layoutCopy'; win: string; id: string }
+  | { type: 'layoutRename'; win: string; id: string; name: string }
+  | { type: 'layoutDelete'; win: string; id: string }
+  | { type: 'layoutRestore'; deleted: DL.DeletedLayout }
+  | { type: 'layoutReset'; win: string; std: ReturnType<typeof DL.standardContent> }
+  | { type: 'layoutUnreset'; win: string; old: DL.LayoutContent };
 
 export function reducer(ws: Workspace, a: Action): Workspace {
   const next = step(ws, a);
   // F-27: Fensterliste passend zu den Panels halten (leere Fenster fallen weg).
-  return a.type === 'remote' || next === ws ? next : Win.syncWindows(next);
+  // F-51: leerer Zusatz-Desk mit gespeicherten Layouts wechselt, statt wegzufallen.
+  return a.type === 'remote' || next === ws ? next : Win.syncWindows(DL.rescueEmptyDesks(next));
 }
 
 function step(ws: Workspace, a: Action): Workspace {
@@ -240,6 +253,22 @@ function step(ws: Workspace, a: Action): Workspace {
       return setSiteCategory(ws, a.domain, a.category);
     case 'ruleDelete':
       return deleteRule(ws, a.id).ws;
+    case 'layoutSwitch':
+      return DL.switchLayout(ws, a.win, a.id);
+    case 'layoutAdd':
+      return DL.addLayout(ws, a.win, a.setup, a.from, a.name);
+    case 'layoutCopy':
+      return DL.copyLayout(ws, a.win, a.id);
+    case 'layoutRename':
+      return DL.renameLayout(ws, a.win, a.id, a.name);
+    case 'layoutDelete':
+      return DL.deleteLayout(ws, a.win, a.id).ws;
+    case 'layoutRestore':
+      return DL.restoreLayout(ws, a.deleted);
+    case 'layoutReset':
+      return DL.resetToStandard(ws, a.win, a.std).ws;
+    case 'layoutUnreset':
+      return DL.undoReset(ws, a.win, a.old);
     case 'ruleRestore':
       return restoreRule(ws, a.undo);
     case 'tintPanel':
@@ -256,11 +285,20 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'toWindow':
       return Win.moveToWindow(ws, a.ids, a.win);
     case 'addDesk':
-      return Win.addDesk(ws, a.win, W.newPanel(`Portal ${ws.nextNumber}`));
+      // F-52: neuer Desk mit dem Standard-Layout dieses Geräts
+      return a.std ? DL.addDeskWith(ws, a.win, a.std) : Win.addDesk(ws, a.win, W.newPanel(`Portal ${ws.nextNumber}`));
     case 'fetch':
       return Mv.fetchPanels(ws, a.ids, a.setup).ws;
-    case 'returnAll':
-      return Win.returnAll(ws, a.win);
+    case 'returnAll': {
+      // F-51: „Auflösen“ bestätigt – gespeicherte Layouts fallen mit weg, statt den Desk zu halten
+      if (!a.dissolve || !ws.deskLayouts?.[a.win]) return Win.returnAll(ws, a.win);
+      const { [a.win]: _gone, ...rest } = ws.deskLayouts;
+      return Win.returnAll({ ...ws, deskLayouts: Object.keys(rest).length ? rest : undefined }, a.win);
+    }
+    case 'fitSlots':
+      return W.fitSlots(ws, a.setup);
+    case 'setArrangement':
+      return W.setArrangement(ws, a.setup, a.arr);
     case 'renameWindow':
       return Win.renameWindow(ws, a.win, a.name);
     case 'move':

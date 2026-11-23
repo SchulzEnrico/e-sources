@@ -1,3 +1,4 @@
+import { standardRef } from '../workspace/device';
 /**
  * F-183 Stufe 2: Symbol einer Webseite (Favicon) vor einer Source – direkt von der Seite geholt, ohne
  * Dienst dazwischen (workspace/display.ts). Lädt es nicht oder ist die Anzeige aus, steht der
@@ -11,9 +12,11 @@ const failed = new Set<string>();
 
 /** Aktueller Stand der Anzeige-Einstellungen; aktualisiert sich bei Änderung (auch aus anderen Desks). */
 export function useDisplay() {
-  const [state, setState] = useState(() => ({ compact: compactOn(), favicons: faviconsOn() }));
+  // F-52: Gerät – das Standard-Layout meldet sich über dasselbe Ereignis
+  const read = () => ({ compact: compactOn(), favicons: faviconsOn(), standard: standardRef() });
+  const [state, setState] = useState(read);
   useEffect(() => {
-    const update = () => setState({ compact: compactOn(), favicons: faviconsOn() });
+    const update = () => setState(read());
     window.addEventListener(DISPLAY_EVENT, update);
     window.addEventListener('storage', update);
     return () => {

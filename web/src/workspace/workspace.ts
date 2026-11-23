@@ -1,3 +1,4 @@
+import { SLOTS_MAX } from './screen';
 /**
  * Aktionen auf der ganzen Arbeitsfläche. Panels und Tabs gelten überall, die Anordnung je
  * Bildschirm-Einstellung (F-03). Jede Area kann mehrere Panels tragen und ist dann ein Stapel
@@ -156,7 +157,9 @@ export function normalize(panels: PanelMeta[], stored: Arrangement | null | unde
     }
     areas[id] = { id, panels: members, front: members.includes(old.front) ? old.front : members[0] };
   }
-  if (!tree || T.leaves(tree).length > spec.capacity) return initial(panels, spec);
+  // F-52: Mehr Slots als die Klasse vorsieht (nach „Grenzen aufheben“) bleiben stehen; neu verteilt
+  // wird nur bei unsinnigen Mengen. Neue Portale kommen dann in den Stack ganz rechts.
+  if (!tree || T.leaves(tree).length > Math.max(spec.capacity, SLOTS_MAX)) return initial(panels, spec);
   for (const p of panels) {
     if (seen.has(p.id)) continue;
     if (T.leaves(tree).length < spec.capacity) {
@@ -257,7 +260,7 @@ export function addPanel(ws: Workspace, setup: ScreenSetup, onArea?: string, id?
 /** F-134: True, wenn auf dem Bildschirm noch Platz für eine weitere Area ist. */
 export function canAddArea(ws: Workspace, setup: ScreenSetup): boolean {
   const v = viewOf(ws, setup);
-  return !v.arrangement || T.leaves(v.arrangement.tree).length < v.spec.capacity;
+  return !v.arrangement || T.leaves(v.arrangement.tree).length < (v.spec.max ?? v.spec.capacity);
 }
 
 /**
@@ -747,6 +750,19 @@ export function resetLayout(ws: Workspace, setup: ScreenSetup): Workspace {
   return commit(ws, key, pref ? normalize(panelsIn(ws.panels, setup.win), pref, specOf(setup)) : null);
 }
 
+/**
+ * F-52: Auf die empfohlene Zahl Slots zurück – gleich verteilt wie beim ersten Anzeigen; was nicht
+ * auf einen eigenen Slot passt, liegt im Stack ganz rechts.
+ */
+export function fitSlots(ws: Workspace, setup: ScreenSetup): Workspace {
+  return commit(ws, layoutKey(setup), initial(panelsIn(ws.panels, setup.win), specOf(setup)));
+}
+
+/** F-52: Anordnung direkt setzen (Rückgängig für fitSlots). */
+export function setArrangement(ws: Workspace, setup: ScreenSetup, arr: Arrangement): Workspace {
+  return commit(ws, layoutKey(setup), arr);
+}
+
 /** Einzelnes Panel zurücksetzen: auf die Größe seiner Area in der Wunsch-Anordnung, sonst auf Area-Größe. */
 export function resetPanel(ws: Workspace, setup: ScreenSetup, id: string, min = DEFAULT_MIN): Workspace {
   const pref = ws.preferred[layoutKey(setup)];
@@ -848,7 +864,7 @@ export function tryPlace(ws: Workspace, setup: ScreenSetup, ids: string[], targe
     const sources = new Set(from as string[]);
     if (!fresh && [...sources].every((a) => arr.areas[a].panels.every((m) => ids.includes(m)))) return null;
     for (const id of ids) out = out && takeOut(out, id);
-    if (!out || T.leaves(out.tree).length >= v.spec.capacity) return null;
+    if (!out || T.leaves(out.tree).length >= (v.spec.max ?? v.spec.capacity)) return null;
     const id = newAreaId(ids[0], out.areas);
     out = { tree: T.addToLargest(out.tree, id, v.spec.aspect), areas: { ...out.areas, [id]: { id, panels: [...ids], front: ids[0] } } };
   }

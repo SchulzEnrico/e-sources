@@ -1,3 +1,4 @@
+import type { DeskLayouts } from './deskLayouts';
 import type { FocusRule } from './focus';
 import type { Look } from './look';
 import type { Profile } from './profile';
@@ -194,6 +195,8 @@ export interface Workspace {
   closed?: Closed[];
   /** F-29 Rest: eigene Grenzen der Fokusanzeige; fehlt = Voreinstellung FOCUS_RULE. */
   focus?: FocusRule;
+  /** F-51: benannte Layouts je Desk (Schlüssel '' = Main Desk); fehlt = nur die aktuelle Belegung. */
+  deskLayouts?: Record<string, DeskLayouts>;
   /** F-179: lokales Profil (Name, Kennfarbe, Begrüßung); fehlt = Voreinstellung. */
   profile?: Profile;
 }

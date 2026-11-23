@@ -40,8 +40,8 @@ import { type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace
 import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
-import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf } from './workspace/workspace';
-import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_LOOK_TEXT, DISPLAY_TEXT, JACKPOT_TEXT, TERMS, TINT_TEXT } from './workspace/terms';
+import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
+import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DISPLAY_TEXT, JACKPOT_TEXT, TERMS, TINT_TEXT } from './workspace/terms';
 import { setCompact, setFavicons } from './workspace/display';
 import { useDisplay } from './components/SiteIcon';
 import { categoryIcon } from './workspace/icons';
@@ -52,6 +52,9 @@ import { domainOf } from './workspace/sortHelp';
 
 import { Colors } from './components/Colors';
 import { Closed as ClosedDialog } from './components/Closed';
+import { DeskLayouts as DeskLayoutsDialog } from './components/DeskLayouts';
+import { type DeletedLayout, type LayoutContent, activeLayout, deleteLayout, findLayout, layoutsOf, resetToStandard, standardContent } from './workspace/deskLayouts';
+import { PORTAL_MIN_PX, setStandardRef } from './workspace/device';
 import { FocusRule as FocusRuleDialog } from './components/FocusRule';
 import { ImportBookmarks } from './components/ImportBookmarks';
 import { SortHelp } from './components/SortHelp';
@@ -407,6 +410,10 @@ function DeskApp(props: DeskProps) {
   const [tintUndo, setTintUndo] = useState<TintSnapshot | null>(null);
   /** F-24: Dialog „Zuletzt geschlossen“. */
   const [closedOpen, setClosedOpen] = useState(false);
+  /** F-51: Dialog „Layouts“ dieses Desks. */
+  const [layoutsOpen, setLayoutsOpen] = useState(false);
+  const [layoutUndo, setLayoutUndo] = useState<DeletedLayout | null>(null);
+  const [resetUndo, setResetUndo] = useState<{ old: LayoutContent; name: string } | null>(null);
   /** F-29 Rest: Dialog „Fokusanzeige anpassen“. */
   const [ruleOpen, setRuleOpen] = useState(false);
   /** F-179: Dialog „Profil“ und Begrüßung beim Start (nicht beim allerersten Start – da läuft die Tour –, nicht in Zusatz-Desks). */
@@ -465,6 +472,27 @@ function DeskApp(props: DeskProps) {
   }, [sizeMode]);
   /** Wichtiger Hinweis als Dialog, der bestätigt werden muss (F-26). */
   const [notice, setNotice] = useState<string | null>(null);
+  /** F-52: Rückfrage mit zwei Knöpfen; danach kehrt der Fokus zum Auslöser zurück (NF-03). */
+  const [ask, setAsk] = useState<{ text: string; yes: string; run: () => void } | null>(null);
+  const askBack = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (ask) askBack.current = (document.activeElement as HTMLElement | null) ?? null;
+  }, [ask]);
+  const closeAsk = (run?: () => void) => {
+    setAsk(null);
+    run?.();
+    window.setTimeout(() => {
+      const back = askBack.current;
+      (back?.isConnected && back !== document.body ? back : (document.querySelector<HTMLElement>('button[aria-label^="Neuen Slot anlegen"], .tb-newslot') ?? document.querySelector<HTMLElement>('button[aria-label="Einstellungen"]')))?.focus();
+    });
+  };
+  /** F-52: auf die empfohlene Zahl Slots zurück, mit Rückgängig. */
+  const fitBack = () => {
+    const before = view.arrangement;
+    dispatch({ type: 'fitSlots', setup });
+    setMode({ kind: 'area' });
+    notify(DESK_LAYOUT_TEXT.fitDone(rec), 10000, false, before ? { label: DESK_LAYOUT_TEXT.undo, run: () => { dispatch({ type: 'setArrangement', setup, arr: before }); notify(DESK_LAYOUT_TEXT.fitUndone); } } : undefined);
+  };
   /** F-114: Hinweis an einem Portal (statt Dialog über der Fläche). */
   const [hint, setHint] = useState<{ id: string; text: string } | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
@@ -509,8 +537,10 @@ function DeskApp(props: DeskProps) {
   const detected = detectScreen(area.vw, area.vh);
   const cls = clsOverride === 'auto' ? detected.cls : clsOverride;
   const orientation = oriOverride === 'auto' ? detected.orientation : oriOverride;
-  const setup = setupFor(ws, cls, orientation, win);
-  const view = useMemo(() => viewOf(ws, setup), [ws, setup.cls, setup.orientation, setup.lines, setup.win]); // eslint-disable-line react-hooks/exhaustive-deps
+  // F-52: mit Nachfrage bis doppelt so viele Slots wie empfohlen
+  const rec = screenClass(cls).capacity;
+  const setup = useMemo(() => ({ ...setupFor(ws, cls, orientation, win), capacity: rec * 2 }), [ws.lines, cls, orientation, win, rec]); // eslint-disable-line react-hooks/exhaustive-deps
+  const view = useMemo(() => viewOf(ws, setup), [ws, setup]); // eslint-disable-line react-hooks/exhaustive-deps
   /** F-27: offene Fenster; ein anderes Fenster kann hier ein Panel nach vorn holen lassen. */
   const windows = useOpenWindows(win, (id) => {
     if (!mine.some((x) => x.id === id)) return;
@@ -539,7 +569,10 @@ function DeskApp(props: DeskProps) {
   const iw = Math.max(1, area.width - GAP);
   const ih = Math.max(1, area.height - GAP);
   const slot = slotSize(view.spec);
-  const min: T.Min = { w: Math.min(MIN_W_PX / iw, slot.w * 0.9), h: Math.min(MIN_H_PX / ih, slot.h * 0.9) };
+  // F-52: ohne Grenzen gilt nur die feste Untergrenze je Portal
+  const min: T.Min = view.slots.length > rec
+    ? { w: Math.min(PORTAL_MIN_PX.w / iw, 0.5), h: Math.min(PORTAL_MIN_PX.h / ih, 0.5) }
+    : { w: Math.min(MIN_W_PX / iw, slot.w * 0.9), h: Math.min(MIN_H_PX / ih, slot.h * 0.9) };
   const px = (r: T.FRect) => ({ left: GAP + r.x * iw, top: GAP + r.y * ih, width: Math.max(0, r.w * iw - GAP), height: Math.max(0, r.h * ih - GAP) });
 
   // Lange Hinweise bleiben länger stehen (etwa Lesetempo).
@@ -604,6 +637,24 @@ function DeskApp(props: DeskProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ws.panels]);
   const newSlot = (side: 'right' | 'bottom') => {
+    // F-52: ab der Empfehlung erst nachfragen; dann gleich verteilen – und nur, wenn jedes Portal
+    // danach mindestens 240 × 160 Pixel groß bleibt.
+    if (view.slots.length + 1 > rec) {
+      const n = view.slots.length;
+      if (n >= rec * 2) return notify(DESK_LAYOUT_TEXT.fullSlots(rec * 2), 6000);
+      const even = distributeIn(addAreaTo(ws, setup, side), setup);
+      const fits = [...T.rects(viewOf(even, setup).tree).values()].every((r) => r.w * iw - GAP >= PORTAL_MIN_PX.w && r.h * ih - GAP >= PORTAL_MIN_PX.h);
+      if (!fits) return notify(DESK_LAYOUT_TEXT.noRoom(side === 'right' ? 'rechts' : 'unten'), 8000);
+      return setAsk({
+        text: DESK_LAYOUT_TEXT.askMore(n, rec, rec * 2),
+        yes: DESK_LAYOUT_TEXT.more,
+        run: () => {
+          dispatch({ type: 'addArea', setup, side });
+          dispatch({ type: 'distribute', setup });
+          notify(DESK_LAYOUT_TEXT.small(n + 1, rec), 8000);
+        },
+      });
+    }
     dispatch({ type: 'addArea', setup, side });
     offerColors(side === 'right' ? 'Neuer Slot rechts angelegt.' : 'Neuer Slot unten angelegt.');
   };
@@ -1581,7 +1632,8 @@ function DeskApp(props: DeskProps) {
   const addNewDesk = () => {
     const dest = newId();
     const name = nextWindowName(ws.windows);
-    dispatch({ type: 'addDesk', win: dest });
+    // F-52: neuer Desk startet mit dem Standard-Layout dieses Geräts
+    dispatch({ type: 'addDesk', win: dest, std: standardContent(ws, display.standard, setup) });
     // F-160: Blockiert der Browser das Fenster, erscheint der neue Desk hier (der alte bleibt gesammelt).
     if (!openAppWindow(dest)) return props.onSwitch(dest, `„${name}“ angelegt und hier gezeigt – der Browser hat das neue Fenster blockiert. ${DESK_KEYS}`);
     notify(`„${name}“ angelegt und in neuem Browserfenster geöffnet.`);
@@ -1614,7 +1666,7 @@ function DeskApp(props: DeskProps) {
         return setMode({ kind: 'max', id });
       }
       case 'newSlot':
-        if (!canAddArea(ws, setup)) return notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.capacity} Slots). Weitere Portale legst du über das Plus in der Kopfleiste eines Portals auf seinen Slot.`, 5000);
+        if (!canAddArea(ws, setup)) return notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.max ?? view.spec.capacity} Slots). Weitere Portale legst du über das Plus in der Kopfleiste eines Portals auf seinen Slot.`, 5000);
         return newSlot('right');
       case 'newDesk':
         return addNewDesk();
@@ -1649,6 +1701,10 @@ function DeskApp(props: DeskProps) {
         return restore();
       case 'closed':
         return setClosedOpen(true);
+      case 'layouts':
+        return setLayoutsOpen(true);
+      case 'limits':
+        return view.slots.length > rec ? fitBack() : newSlot('right');
       case 'focusRule':
         return setRuleOpen(true);
       case 'launcher':
@@ -1896,10 +1952,16 @@ function DeskApp(props: DeskProps) {
               disabled={mine.length === 0}
               title={`Alle Portale von ${winLabel} zurück auf den ${MAIN_NAME}`}
               onClick={() => {
-                dispatch({ type: 'returnAll', win });
-                if (!openAppWindow('')) return notify(POPUP_BLOCKED);
-                // Selbst geöffnete Zusatzfenster schließen sich danach; sonst bleibt der Hinweis „leer“.
-                window.setTimeout(() => window.close(), 150);
+                const go = (dissolve: boolean) => {
+                  dispatch({ type: 'returnAll', win, dissolve });
+                  if (!openAppWindow('')) return notify(POPUP_BLOCKED);
+                  // Selbst geöffnete Zusatzfenster schließen sich danach; sonst bleibt der Hinweis „leer“.
+                  window.setTimeout(() => window.close(), 150);
+                };
+                // F-51: gespeicherte Layouts gingen verloren – erst nachfragen
+                const others = layoutsOf(ws, win).list.length - 1;
+                if (others > 0) return setAsk({ text: DESK_LAYOUT_TEXT.askDissolve(winLabel, others), yes: DESK_LAYOUT_TEXT.dissolve, run: () => go(true) });
+                go(false);
               }}
             >
               ⇤<span className="tb-label"> Alles ins {MAIN_NAME}</span>
@@ -1987,9 +2049,16 @@ function DeskApp(props: DeskProps) {
             style={{ '--fx': fx.panel.color } as CSSProperties}
             aria-disabled="true"
             title={`Bildschirm voll – weitere Portale über das Plus eines Portals anlegen (${fx.panel.text})`}
-            onClick={() => notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.capacity} Slots). Weitere Portale legst du über das Plus in der Kopfleiste eines Portals auf seinen Slot.`, 5000)}
+            onClick={() => notify(`Der Bildschirm ist voll (${view.slots.length}/${view.spec.max ?? view.spec.capacity} Slots). Weitere Portale legst du über das Plus in der Kopfleiste eines Portals auf seinen Slot.`, 5000)}
           >
             <Icon name="newSlot" size={15} className="icon tb-plus" /><span className="tb-label"> NewSlot</span>
+          </button>
+        )}
+        {/* F-52: über der Empfehlung – ein Klick zurück auf die empfohlene Zahl */}
+        {view.slots.length > rec && (
+          <button type="button" className="tb-fit" onClick={fitBack} title={DESK_LAYOUT_TEXT.fitTitle(rec)} aria-label={`${DESK_LAYOUT_TEXT.fit(rec)} – ${view.slots.length} von ${rec} empfohlenen Slots`}>
+            <Icon name="restore" size={15} className="icon tb-plus" />
+            <span className="tb-label"> {DESK_LAYOUT_TEXT.fit(rec)}</span>
           </button>
         )}
         {/* F-156: Hilfe – alle Funktionen und Begriffe mit Kürzeln */}
@@ -2010,6 +2079,16 @@ function DeskApp(props: DeskProps) {
                 {ws.ruler.on ? 'Lineal in allen Portalen ausblenden' : 'Lineal in allen Portalen zeigen'}
               </Item>
               <li className="menu__sep" role="separator" />
+              {/* F-51: Layouts dieses Desks */}
+              <Item icon="layouts"
+                onClick={() => {
+                  close();
+                  setLayoutsOpen(true);
+                }}
+              >
+                {DESK_LAYOUT_TEXT.menu}
+                <span className="menu__hint"> {activeLayout(ws, win ?? '').name}</span>
+              </Item>
               <Item icon="dashboard"
                 onClick={() => {
                   dispatch({ type: 'savePreferred', setup });
@@ -2027,7 +2106,7 @@ function DeskApp(props: DeskProps) {
                   close();
                 }}
               >
-                {hasPreferred ? 'Auf Wunsch-Anordnung zurücksetzen' : 'Layout zurücksetzen'}
+                {hasPreferred ? 'Auf Wunsch-Anordnung zurücksetzen' : 'Anordnung zurücksetzen'}
               </Item>
               {hasPreferred && (
                 <Item icon="remove"
@@ -2358,6 +2437,83 @@ function DeskApp(props: DeskProps) {
         />
       )}
       {ruleOpen && <FocusRuleDialog rule={ruleOf(ws)} points={focus.points} onChange={(rule) => dispatch({ type: 'focusRule', rule })} onClose={() => setRuleOpen(false)} />}
+      {layoutsOpen && (
+        <DeskLayoutsDialog
+          ws={ws}
+          win={win ?? ''}
+          desk={winLabel}
+          evenCount={screenClass(setup.cls).capacity}
+          onSwitch={(id) => {
+            setLayoutsOpen(false);
+            dispatch({ type: 'layoutSwitch', win: win ?? '', id });
+            setMode({ kind: 'area' });
+            notify(DESK_LAYOUT_TEXT.switched(layoutsOf(ws, win ?? '').list.find((l) => l.id === id)?.name ?? ''));
+          }}
+          onAdd={(from, name) => {
+            setLayoutsOpen(false);
+            const before = new Set(layoutsOf(ws, win ?? '').list.map((l) => l.id));
+            dispatch({ type: 'layoutAdd', win: win ?? '', setup, from, name });
+            setMode({ kind: 'area' });
+            window.setTimeout(() => {
+              const made = layoutsOf(wsNow.current, win ?? '').list.find((l) => !before.has(l.id));
+              if (made) notify(DESK_LAYOUT_TEXT.added(made.name));
+            });
+          }}
+          onRename={(id, name) => {
+            dispatch({ type: 'layoutRename', win: win ?? '', id, name });
+            notify(DESK_LAYOUT_TEXT.renamed(name.trim()));
+          }}
+          onCopy={(id) => {
+            const before = new Set(layoutsOf(ws, win ?? '').list.map((l) => l.id));
+            dispatch({ type: 'layoutCopy', win: win ?? '', id });
+            window.setTimeout(() => {
+              const made = layoutsOf(wsNow.current, win ?? '').list.find((l) => !before.has(l.id));
+              if (made) notify(DESK_LAYOUT_TEXT.copied(made.name));
+            });
+          }}
+          onDelete={(id) => {
+            const { deleted } = deleteLayout(wsNow.current, win ?? '', id);
+            if (!deleted) return notify(DESK_LAYOUT_TEXT.last);
+            dispatch({ type: 'layoutDelete', win: win ?? '', id });
+            setLayoutUndo(deleted);
+          }}
+          standard={display.standard && findLayout(ws, display.standard.win, display.standard.id) ? display.standard : null}
+          onStandard={(id) => {
+            const here = win ?? '';
+            setStandardRef(id ? { win: here, id } : null);
+            notify(id ? DESK_LAYOUT_TEXT.standardSet(layoutsOf(ws, here).list.find((l) => l.id === id)?.name ?? '') : DESK_LAYOUT_TEXT.standardEvenSet);
+          }}
+          onReset={() => {
+            const here = win ?? '';
+            const std = standardContent(ws, display.standard, setup);
+            const name = activeLayout(ws, here).name;
+            const { undo } = resetToStandard(ws, here, std);
+            dispatch({ type: 'layoutReset', win: here, std });
+            setMode({ kind: 'area' });
+            setResetUndo({ old: undo, name });
+            notify(DESK_LAYOUT_TEXT.resetDone(name, std.name));
+          }}
+          resetUndoName={resetUndo?.name ?? null}
+          onResetUndo={() => {
+            if (!resetUndo) return;
+            dispatch({ type: 'layoutUnreset', win: win ?? '', old: resetUndo.old });
+            notify(DESK_LAYOUT_TEXT.resetUndone(resetUndo.name));
+            setResetUndo(null);
+          }}
+          undoName={layoutUndo?.layout.name ?? null}
+          onUndo={() => {
+            if (!layoutUndo) return;
+            dispatch({ type: 'layoutRestore', deleted: layoutUndo });
+            notify(DESK_LAYOUT_TEXT.undone(layoutUndo.layout.name));
+            setLayoutUndo(null);
+          }}
+          onClose={() => {
+            setLayoutsOpen(false);
+            setLayoutUndo(null);
+            setResetUndo(null);
+          }}
+        />
+      )}
       {closedOpen && (
         <ClosedDialog
           entries={closedOf(ws, win ?? '')}
@@ -2494,6 +2650,21 @@ function DeskApp(props: DeskProps) {
       <main className="area" ref={areaRef}>
         {content}
       </main>
+      {ask && (
+        <div className="notice" role="alertdialog" aria-modal="true" aria-labelledby="ask-text" onClick={() => closeAsk()} onKeyDown={(e) => e.key === 'Escape' && closeAsk()}>
+          <div className="notice__box" onClick={(e) => e.stopPropagation()}>
+            <p id="ask-text">{ask.text}</p>
+            <div className="notice__btns">
+              <button type="button" autoFocus onClick={() => closeAsk(ask.run)}>
+                {ask.yes}
+              </button>
+              <button type="button" onClick={() => closeAsk()}>
+                {DESK_LAYOUT_TEXT.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {notice && (
         <div className="notice" role="alertdialog" aria-modal="true" onClick={() => setNotice(null)}>
           <div className="notice__box" onClick={(e) => e.stopPropagation()}>

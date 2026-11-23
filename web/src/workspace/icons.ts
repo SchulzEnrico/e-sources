@@ -93,6 +93,7 @@ export const ICONS = {
   detach: { d: ['M2 6V2h4', 'M2 2l5 5', 'M9 2.5h4.5v11h-11V9'] },
   home: { d: ['M2 7.5 8 2.5l6 5', 'M3.5 6.5V13.5h9V6.5', 'M6.5 13.5V10h3v3.5'] },
   copy: { d: ['M5.5 5.5h8v8h-8z', 'M3.5 10.5h-1v-8h8v1'] },
+  send: { d: ['M14 2L2 7l5 2 2 5 5-12z', 'M7 9l7-7'] },
   external: { d: ['M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9', 'M9.5 2.5h4v4', 'M13.3 2.7 7.8 8.2'] },
   newWindow: { d: ['M1.5 3.5h9v8h-9z', 'M1.5 6h9', 'M12.5 6v8h-9', 'M14.5 4v6'] },
   blocked: { d: [ring(8, 8, 6), 'M3.8 12.2l8.4-8.4'] },
@@ -130,7 +131,7 @@ export const HELP_ICON: Record<string, IconName> = {
   switchDesk: 'switchDesk', collectDesks: 'collect', distributeDesks: 'spread',
   design: 'design', colorRules: 'category', rules: 'rules', colors: 'colors',
   adjust: 'adjust', focusRule: 'sliders', restore: 'restore', closed: 'closed', layouts: 'layouts', limits: 'maximize',
-  nextTab: 'next', nextPortal: 'next', distribute: 'distribute', swap: 'swap', rename: 'rename', stackDelete: 'remove', ruler: 'ruler', pause: 'pause', webSearch: 'search',
+  nextTab: 'next', nextPortal: 'next', distribute: 'distribute', swap: 'swap', rename: 'rename', stackDelete: 'remove', ruler: 'ruler', pause: 'pause', webSearch: 'search', sendTo: 'send',
   importBookmarks: 'import', sortHelp: 'sort', exportBookmarks: 'export', profile: 'profile', reload: 'reload', exportDesks: 'transfer',
 };
 

@@ -43,8 +43,10 @@ import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DISPLAY_TEXT, JACKPOT_TEXT, PAUSE_TEXT, TERMS, TINT_TEXT, WEB_TEXT } from './workspace/terms';
+import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DISPLAY_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
+import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
+import { useSendReceiver } from './workspace/useSend';
 import { setCompact, setFavicons } from './workspace/display';
 import { useDisplay } from './components/SiteIcon';
 import { categoryIcon } from './workspace/icons';
@@ -235,6 +237,8 @@ interface DeskProps {
   onSwitch: (win: string, said?: string) => void;
   /** Desk wurde in einem anderen Fenster gesammelt: dieses Fenster gibt ihn ab. */
   onPark: () => void;
+  /** F-189 Stufe 2: per „An E-Sources senden“ mitgebrachte Seite (E-Sources war nicht offen). */
+  sent?: string;
 }
 
 function DeskApp(props: DeskProps) {
@@ -1108,6 +1112,97 @@ function DeskApp(props: DeskProps) {
   useEffect(() => {
     document.body.classList.toggle('is-linkdrop', linkDrag || away);
   }, [linkDrag, away]);
+  // ---------------------------------------------------------------- F-189 Stufe 2 „An E-Sources senden“
+
+  /** Gesendete Seite ins aktive Portal (wie ein Treffer der Suche). */
+  const takeSent = (url: string, panel?: string | null) => {
+    const host = hostOf(url);
+    if (isBlocked(ws, url)) {
+      const text = SEND_TEXT.blocked(host);
+      notify(text);
+      return sayLive(text);
+    }
+    const id = panel === null ? null : panel && mine.some((x) => x.id === panel) ? panel : currentPanel();
+    if (!id) {
+      // Kein Portal offen oder „Neuer Slot“ gewählt: neuen Slot mit der Seite anlegen.
+      if (!canAddArea(ws, setup)) return notify(SEND_TEXT.noRoom);
+      dispatch({ type: 'sendNewSlot', setup, url });
+      const text = SEND_TEXT.newSlot(host);
+      notify(text);
+      return sayLive(text);
+    }
+    const name = ws.panels.find((x) => x.id === id)?.name ?? '';
+    const r = openBookmark(ws, id, url).result;
+    if (r === 'full') return notify(SEND_TEXT.full(name, TAB_MAX));
+    dispatch({ type: 'stackFront', setup, id });
+    dispatch({ type: 'openBookmark', panel: id, url });
+    setActive(id);
+    if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
+    const text = r === 'here' ? SEND_TEXT.here(host, name) : r === 'tab' ? SEND_TEXT.tab(host, name) : SEND_TEXT.switched(host, name);
+    notify(text);
+    sayLive(text);
+  };
+  useSendReceiver(
+    win,
+    () => {
+      const cur = currentPanel();
+      const targets = view.slots.flatMap((sl, i) => sl.panels.map((p) => ({ id: p.id, name: p.name, slot: areaLabel(ws, sl) || (sl.panels.length < 2 ? p.name : `Slot ${i + 1}`) })));
+      return { desk: winLabel, portal: ws.panels.find((x) => x.id === cur)?.name ?? null, active: cur, targets };
+    },
+    takeSent,
+  );
+  // E-Sources war nicht offen: Die mitgebrachte Seite einmal beim Start öffnen.
+  const sentDone = useRef(false);
+  useEffect(() => {
+    if (!props.sent || sentDone.current) return;
+    sentDone.current = true;
+    const url = props.sent;
+    window.setTimeout(() => {
+      sayLive(SEND_TEXT.alone);
+      takeRef.current(url);
+    }, 300);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const takeRef = useRef(takeSent);
+  takeRef.current = takeSent;
+  /** Code des Lesezeichens für diese Anwendung (im Testmodus mit test=…). */
+  const sendCode = bookmarklet(sendBase(window.location.href, PROBE_KIND));
+  /** Lesezeichen mit eigenem Symbol (Logo mit Pfeil) als Datei zum Importieren. */
+  const downloadSendBookmark = async () => {
+    let icon = '';
+    try {
+      const img = new Image();
+      // Symbol wie das Favicon, mit grünem Pfeil (public/send-icon.svg), als PNG 32 × 32
+      img.src = '/send-icon.svg';
+      await img.decode();
+      const c = document.createElement('canvas');
+      c.width = c.height = 32;
+      c.getContext('2d')!.drawImage(img, 0, 0, 32, 32);
+      icon = c.toDataURL('image/png');
+    } catch {
+      /* ohne Symbol */
+    }
+    const blob = new Blob([bookmarkFile(sendCode, icon)], { type: 'text/html' });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = BOOKMARK_FILE;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+    notify(SEND_TEXT.fileDone, 15000);
+    sayLive(SEND_TEXT.fileDone);
+  };
+  const copySendCode = () => {
+    const ok = () => {
+      notify(SEND_TEXT.copied, 12000);
+      sayLive(SEND_TEXT.copied);
+    };
+    const fail = () => notify(SEND_TEXT.copyFailed);
+    if (!navigator.clipboard) return fail();
+    navigator.clipboard.writeText(sendCode).then(ok, fail);
+  };
+
   const webSearch = (query: string) => {
     const engine = engineOf(ws);
     searched.current = true;
@@ -2324,6 +2419,39 @@ function DeskApp(props: DeskProps) {
                   </select>
                 </label>
               </li>
+              {/* F-189 Stufe 2: Lesezeichen „An E-Sources senden“ */}
+              <li className="menu__field menu__send">
+                <span id="send-label">{SEND_TEXT.setting}</span>
+                <span className="menu__send-row">
+                  <a
+                    className="sendlink"
+                    ref={(el) => el?.setAttribute('href', sendCode)}
+                    draggable
+                    aria-label={SEND_TEXT.bookmarkLabel}
+                    aria-describedby="send-hint"
+                    title={SEND_TEXT.dragHint}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      notify(SEND_TEXT.notHere, 10000);
+                      sayLive(SEND_TEXT.notHere);
+                    }}
+                  >
+                    <span className="sendlink__logo" aria-hidden="true">
+                      <img src="/send-icon.svg" alt="" width={20} height={20} draggable={false} />
+                    </span>
+                    {BOOKMARK_NAME}
+                  </a>
+                  <button type="button" title={SEND_TEXT.fileHint} aria-description={SEND_TEXT.fileHint} onClick={() => void downloadSendBookmark()}>
+                    {SEND_TEXT.file}
+                  </button>
+                  <button type="button" title={SEND_TEXT.copyHint} aria-description={SEND_TEXT.copyHint} onClick={copySendCode}>
+                    {SEND_TEXT.copy}
+                  </button>
+                </span>
+                <span id="send-hint" className="menu__hint">
+                  {SEND_TEXT.dragHint}
+                </span>
+              </li>
               {/* F-06: Verdecktes pausieren */}
               <li className="menu__field">
                 <label title={PAUSE_TEXT.settingHint}>
@@ -2816,7 +2944,7 @@ function DeskApp(props: DeskProps) {
  * Browserfenster zeigt. Ein Wechsel baut den Desk ohne Neuladen frisch auf (Adresse per
  * replaceState); gibt das Fenster seinen Desk beim Sammeln ab, zeigt es nur noch einen Hinweis.
  */
-export default function App() {
+export default function App(props: { sent?: string }) {
   const [ws, dispatch] = useWorkspace();
   const [desk, setDesk] = useState(() => ({ win: winFromSearch(window.location.search), switched: false, said: '' }));
   const [parked, setParked] = useState(false);
@@ -2826,7 +2954,7 @@ export default function App() {
   }, []);
   const onPark = useCallback(() => setParked(true), []);
   if (parked) return <Parked name={windowName(ws, desk.win)} onBack={() => setParked(false)} />;
-  return <DeskApp key={desk.win} ws={ws} dispatch={dispatch} win={desk.win} switched={desk.switched} said={desk.said} onSwitch={onSwitch} onPark={onPark} />;
+  return <DeskApp key={desk.win} ws={ws} dispatch={dispatch} win={desk.win} switched={desk.switched} said={desk.said} onSwitch={onSwitch} onPark={onPark} sent={desk.switched ? undefined : props.sent} />;
 }
 
 /** F-160: Dieses Fenster hat seinen Desk an ein anderes Fenster abgegeben (Fenster ließ sich nicht selbst schließen). */

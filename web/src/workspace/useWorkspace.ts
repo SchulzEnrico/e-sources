@@ -1,5 +1,6 @@
 import { setPause, toggleKeep } from './pause';
 import { setEngine } from './websearch';
+import { openInNewSlot } from './send';
 import { useEffect, useReducer, useRef } from 'react';
 import type { Lines, Orientation, ScreenClassId, ScreenSetup } from './screen';
 import { WORKSPACE_KEY, loadWorkspace, parseWorkspace, saveWorkspace } from './storage';
@@ -75,6 +76,8 @@ export type Action =
   | { type: 'dropBookmark'; id: string; target: string }
   | { type: 'toggleBookmarkPanel'; id: string; panel: string }
   | { type: 'openBookmark'; panel: string; url: string }
+  /** F-189 Stufe 2: gesendete Seite in einem neuen Slot öffnen. */
+  | ({ type: 'sendNewSlot'; url: string } & S)
   | { type: 'addCategory'; id: string; name: string }
   | { type: 'renameCategory'; id: string; name: string }
   | { type: 'deleteCategory'; id: string }
@@ -223,6 +226,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return B.dropBookmark(ws, a.id, a.target);
     case 'toggleBookmarkPanel':
       return B.toggleBookmarkPanel(ws, a.id, a.panel);
+    case 'sendNewSlot':
+      return openInNewSlot(ws, a.setup, a.url);
     case 'openBookmark':
       return B.openBookmark(ws, a.panel, a.url).ws;
     case 'addCategory':

@@ -35,6 +35,7 @@ import * as Jp from './jackpot';
 import * as Ar from './arrange';
 import * as Pa from './pause';
 import * as Web from './websearch';
+import * as Snd from './send';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -2848,5 +2849,70 @@ describe('F-189 Web-Suche', () => {
     expect(reducer(ws, { type: 'engine', id: 'altavista' })).toBe(ws);
     expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))!.engine).toBe('ecosia');
     expect(reducer(ws, { type: 'engine', id: 'google' }).engine).toBeUndefined();
+  });
+});
+
+describe('F-189 Stufe 2: An E-Sources senden', () => {
+  it('liest nur http(s)-Adressen aus ?open=', () => {
+    expect(Snd.sentUrl('?open=' + encodeURIComponent('https://example.org/a?b=1#c'))).toBe('https://example.org/a?b=1#c');
+    expect(Snd.sentUrl('?open=javascript%3Aalert(1)')).toBeNull();
+    expect(Snd.sentUrl('?open=kein%20link')).toBeNull();
+    expect(Snd.sentUrl('?test=voll')).toBeNull();
+  });
+  it('entfernt ?open= und behält andere Parameter', () => {
+    expect(Snd.withoutSent('http://localhost:2910/?test=voll&open=https%3A%2F%2Fx.de')).toBe('http://localhost:2910/?test=voll');
+  });
+  it('wählt das zuletzt benutzte Fenster, bei Gleichstand den Main Desk', () => {
+    const o = (win: string, at: number) => ({ t: 'offer' as const, id: 'x', win, from: win, at, desk: win || 'Main Desk', portal: null });
+    expect(Snd.pickOffer([])).toBeNull();
+    expect(Snd.pickOffer([o('', 5), o('w2', 9)])?.win).toBe('w2');
+    expect(Snd.pickOffer([o('w2', 5), o('', 5)])?.win).toBe('');
+  });
+  it('Lesezeichen zeigt auf die Anwendung ohne Fenster-Parameter', () => {
+    expect(Snd.sendBase('http://localhost:2910/?win=abc&test=voll', 'voll')).toBe('http://localhost:2910/?test=voll');
+    expect(Snd.sendBase('https://a.de/app/?win=abc', null)).toBe('https://a.de/app/');
+    const code = Snd.bookmarklet('https://a.de/app/');
+    expect(code.startsWith('javascript:')).toBe(true);
+    expect(code).toContain('"https://a.de/app/?open="');
+    expect(Snd.bookmarklet('http://localhost:2910/?test=voll')).toContain('?test=voll&open=');
+  });
+});
+
+describe('F-189 Stufe 2: Ziel wählen und neuer Slot', () => {
+  it('Zielwert hin und zurück', () => {
+    expect(Snd.parseTarget(Snd.targetValue('w2', 'p1'))).toEqual({ win: 'w2', panel: 'p1' });
+    expect(Snd.parseTarget(Snd.targetValue('', null))).toEqual({ win: '', panel: null });
+  });
+  it('voreingestellt: aktives Portal, ohne Portal: neuer Slot', () => {
+    const o = { t: 'offer' as const, id: 'x', win: '', from: 'f', at: 1, desk: 'Main Desk', portal: null };
+    expect(Snd.defaultTarget({ ...o, active: 'p9' })).toBe('|p9');
+    expect(Snd.defaultTarget(o)).toBe('|');
+  });
+  it('ohne Portal öffnet die Seite in einem neuen Slot', () => {
+    const setup: ScreenSetup = { cls: 'superwide', orientation: 'landscape', lines: 2 };
+    const empty: Workspace = { ...W.defaultWorkspace(), panels: [], layouts: {} };
+    const next = Snd.openInNewSlot(empty, setup, 'https://example.org/');
+    expect(next.panels).toHaveLength(1);
+    expect(W.activeTab(next.panels[0]).url).toBe('https://example.org/');
+  });
+});
+
+describe('F-189 Stufe 2: leerer Desk bekommt nichts, solange ein Desk Portale hat', () => {
+  it('Desk mit Portalen vor zuletzt benutztem leeren Desk', () => {
+    const t = [{ id: 'p', name: 'P', slot: 'S' }];
+    const full = { t: 'offer' as const, id: 'x', win: '', from: 'a', at: 1, desk: 'Main Desk', portal: 'P', active: 'p', targets: t };
+    const empty = { t: 'offer' as const, id: 'x', win: 'w9', from: 'b', at: 99, desk: 'Leerer Desk', portal: null, active: null, targets: [] };
+    expect(Snd.pickOffer([empty, full])?.win).toBe('');
+    expect(Snd.pickOffer([empty])?.win).toBe('w9');
+  });
+});
+
+describe('F-189 Stufe 2: Lesezeichen-Datei mit Symbol', () => {
+  it('enthält Code, Symbol und Namen, sauber maskiert', () => {
+    const f = Snd.bookmarkFile(Snd.bookmarklet('https://a.de/'), 'data:image/png;base64,AAA');
+    expect(f).toContain('<!DOCTYPE NETSCAPE-Bookmark-file-1>');
+    expect(f).toContain('ICON="data:image/png;base64,AAA"');
+    expect(f).toContain('&quot;https://a.de/?open=&quot;');
+    expect(f).toContain('>Öffnen in</A>');
   });
 });

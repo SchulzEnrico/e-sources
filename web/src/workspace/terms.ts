@@ -711,6 +711,13 @@ export const BULK_TEXT = {
 };
 
 /** F-200: Entwickler-Modus je Portal. */
+/** V55: Lineal (F-15) – misst in Seiten-Pixeln, auch bei Zoom und Gerät. */
+export const RULER_TEXT = {
+  size: (w: number, h: number) => `${w} × ${h} px`,
+  shown: (pct: number) => `Seite in CSS-Pixeln · angezeigt mit ${pct} %`,
+  sizeTitle: 'Größe, die die Seite sieht (CSS-Pixel). Die Striche zählen ebenfalls Seiten-Pixel, nicht Bildschirmpunkte – auch bei Zoom und gewähltem Gerät.',
+};
+
 export const DEV_TEXT = {
   on: 'Entwickler-Modus',
   menuHint: 'Werkbank für Entwickler: Terminal-Look, eigene Leiste mit Gerät, Drehen, Zoom-Test, Maßen der Seite und Lineal. Zoom und „Breite halten“ ruhen solange (kommen beim Ausschalten zurück).',

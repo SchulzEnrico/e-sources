@@ -3481,3 +3481,23 @@ describe('F-116 Oberfläche (V54): Aktionen, Rückgängig, Farben, Suche', () =>
     expect(Ic.HELP_ICON.cases).toBeDefined();
   });
 });
+
+describe('V55: Lineal misst in Seiten-Pixeln', () => {
+  it('ohne Zoom wie bisher: 10 / 50 / 100, Zahlen alle 100', () => {
+    expect(Dv.rulerSteps(1)).toEqual({ minor: 10, mid: 50, major: 100, label: 100 });
+  });
+  it('eingepasstes Gerät (klein gezeigt): Striche weiter auseinander, nie enger als 8 Punkte', () => {
+    const st = Dv.rulerSteps(0.3);
+    expect(st.minor * 0.3).toBeGreaterThan(7.99);
+    expect(st.label * 0.3).toBeGreaterThan(49.99);
+    expect(st.label % st.major).toBe(0);
+  });
+  it('Zoom-Test 400 %: feinere Striche', () => {
+    const st = Dv.rulerSteps(4);
+    expect(st.minor).toBe(2);
+    expect(st.major).toBe(20);
+  });
+  it('ungültiger Faktor zählt wie 1', () => {
+    expect(Dv.rulerSteps(0).minor).toBe(10);
+  });
+});

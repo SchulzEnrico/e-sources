@@ -2,6 +2,8 @@ import { Icon } from './Icon';
 import { useEffect, useRef, useState } from 'react';
 import type { RulerSettings } from '../workspace/types';
 import { RULER_COLORS } from '../workspace/workspace';
+import { rulerSteps } from '../workspace/dev';
+import { RULER_TEXT } from '../workspace/terms';
 
 /** Symbol Lineal: schräg gestelltes Lineal mit Strichen (wie im alten Projekt). */
 export const RulerIcon = (
@@ -13,21 +15,37 @@ export const RulerIcon = (
   </svg>
 );
 
-/** Striche oben und links: alle 10 px kurz, alle 50 px mittel, alle 100 px lang. */
-function ticks(len: number, horizontal: boolean): string {
+/**
+ * Striche oben und links in Seiten-Pixeln (V55): `f` = Bildschirmpunkte je Seiten-Pixel.
+ * Ohne Zoom wie bisher: alle 10 px kurz, alle 50 px mittel, alle 100 px lang.
+ */
+function ticks(len: number, horizontal: boolean, f: number, st: { minor: number; mid: number; major: number }): string {
   let d = '';
-  for (let i = 10; i < len; i += 10) {
-    const l = i % 100 === 0 ? 14 : i % 50 === 0 ? 9 : 5;
-    d += horizontal ? `M${i + 0.5} 0v${l}` : `M0 ${i + 0.5}h${l}`;
+  for (let i = st.minor; i * f < len; i += st.minor) {
+    const l = i % st.major === 0 ? 14 : i % st.mid === 0 ? 9 : 5;
+    const at = Math.round(i * f) + 0.5;
+    d += horizontal ? `M${at} 0v${l}` : `M0 ${at}h${l}`;
   }
   return d;
 }
 
 /**
  * F-15, F-125: Lineal über der Seite im Panel. Die Seite bleibt bedienbar (nur die kleinen Knöpfe
- * oben rechts nehmen Klicks an). Unten rechts steht die Größe des Anzeigebereichs in Pixeln.
+ * oben rechts nehmen Klicks an). Unten rechts steht die Größe, die die Seite sieht (CSS-Pixel).
+ * V55: `scale` = Bildschirmpunkte je Seiten-Pixel (Zoom, Zoom-Test, eingepasstes Gerät); `box` legt das
+ * Lineal genau auf den Umriss des Geräts. So stimmen die Zahlen für Entwickler auch bei Zoom.
  */
-export function Ruler(props: { settings: RulerSettings; onStyle: (change: { labels?: boolean; color?: number }) => void; onClose: () => void }) {
+export function Ruler(props: {
+  settings: RulerSettings;
+  scale?: number;
+  box?: { left: number; top: number; width: number; height: number } | null;
+  /** genaue Größe der Seite, wenn bekannt (Entwickler-Modus) – sonst aus der Fläche gerechnet */
+  page?: { w: number; h: number };
+  onStyle: (change: { labels?: boolean; color?: number }) => void;
+  onClose: () => void;
+}) {
+  const f = props.scale && props.scale > 0 ? props.scale : 1;
+  const st = rulerSteps(f);
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const { labels, color } = props.settings;
@@ -43,27 +61,31 @@ export function Ruler(props: { settings: RulerSettings; onStyle: (change: { labe
     return () => ro.disconnect();
   }, []);
 
-  const marks = (len: number) => Array.from({ length: Math.floor((len - 1) / 100) }, (_, i) => (i + 1) * 100);
+  // Zahlen in Seiten-Pixeln, an den langen Strichen
+  const marks = (len: number) => Array.from({ length: Math.max(0, Math.floor((len / f - 1) / st.label)) }, (_, i) => (i + 1) * st.label);
+  const page = props.page ?? { w: Math.round(size.w / f), h: Math.round(size.h / f) };
+  const pct = Math.round(f * 100);
 
   return (
-    <div className="ruler" ref={ref} aria-hidden="false">
+    <div className="ruler" ref={ref} aria-hidden="false" style={props.box ? { inset: 'auto', ...props.box } : undefined}>
       <svg className="ruler__svg" width={size.w} height={size.h} style={{ filter: `drop-shadow(0 0 1px ${halo})` }}>
-        <path d={ticks(size.w, true) + ticks(size.h, false)} stroke={stroke} strokeWidth="1" opacity="0.85" />
+        <path d={ticks(size.w, true, f, st) + ticks(size.h, false, f, st)} stroke={stroke} strokeWidth="1" opacity="0.85" />
         {labels &&
           marks(size.w).map((x) => (
-            <text key={`x${x}`} x={x + 3} y={22} fill={stroke} className="ruler__num">
+            <text key={`x${x}`} x={Math.round(x * f) + 3} y={22} fill={stroke} className="ruler__num">
               {x}
             </text>
           ))}
         {labels &&
           marks(size.h).map((y) => (
-            <text key={`y${y}`} x={17} y={y + 4} fill={stroke} className="ruler__num">
+            <text key={`y${y}`} x={17} y={Math.round(y * f) + 4} fill={stroke} className="ruler__num">
               {y}
             </text>
           ))}
       </svg>
-      <span className="ruler__size" style={{ color: stroke }}>
-        {size.w} × {size.h} px
+      <span className="ruler__size" style={{ color: stroke }} title={RULER_TEXT.sizeTitle}>
+        {RULER_TEXT.size(page.w, page.h)}
+        {pct !== 100 && <span className="ruler__shown">{RULER_TEXT.shown(pct)}</span>}
       </span>
       <div className="ruler__tools" onPointerDown={(e) => e.stopPropagation()}>
         <button

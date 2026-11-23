@@ -78,3 +78,18 @@ export function devFrame(v: { device?: string; turned?: boolean; scale?: number 
   const page = { w: Math.round(dev.w / z), h: Math.round(dev.h / z) };
   return { page, shown, scale: shown.w / page.w, device: true };
 }
+
+/**
+ * V55: Abstände der Lineal-Striche in Seiten-Pixeln, passend zum Faktor (Bildschirm ÷ Seite).
+ * Kurze Striche liegen mindestens 8 Bildschirmpunkte auseinander, Zahlen mindestens 50.
+ * Mittel = 5 × kurz, lang = 10 × kurz. Werte aus 1, 2, 5 × 10^n.
+ */
+export function rulerSteps(scale: number): { minor: number; mid: number; major: number; label: number } {
+  const s = scale > 0 && Number.isFinite(scale) ? scale : 1;
+  const nice: number[] = [];
+  for (let k = 0; k <= 5; k++) for (const m of [1, 2, 5]) nice.push(m * 10 ** k);
+  const minor = nice.find((n) => n * s >= 8) ?? nice[nice.length - 1];
+  const major = minor * 10;
+  const label = nice.find((n) => n >= major && n * s >= 50 && n % major === 0) ?? major;
+  return { minor, mid: minor * 5, major, label };
+}

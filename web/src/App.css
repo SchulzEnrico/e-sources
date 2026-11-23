@@ -444,6 +444,7 @@ select {
 
 .win__bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   padding: 4px 6px 4px 10px;
@@ -1886,6 +1887,12 @@ button.is-off:hover,
   padding: 2px 6px;
   border-radius: 6px;
   background: rgba(var(--glass), 0.7);
+}
+.ruler__shown {
+  display: block;
+  font-weight: 400;
+  font-size: 10px;
+  opacity: 0.85;
 }
 .ruler__tools {
   position: absolute;
@@ -5224,28 +5231,6 @@ button.is-off:hover,
 .bm-pickbar__more { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow: auto; }
 .bm-pickbar.is-active .bm-hint { font-size: 11px; }
 
-/* F-200: Entwickler-Modus – Größe der Seite unten links im Portal */
-.devsize {
-  position: absolute;
-  left: 6px;
-  bottom: 6px;
-  z-index: 4;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
-  max-width: calc(100% - 12px);
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.78);
-  color: #fff;
-  font: 600 12px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
-  pointer-events: auto;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-}
-.devsize__cls,
-.devsize__zoom { font-weight: 400; opacity: 0.85; font-family: inherit; }
-@media (forced-colors: active) { .devsize { border: 1px solid CanvasText; background: Canvas; color: CanvasText; } }
 
 /* F-205: Begrüßung wählbar (Profil) */
 .profile__local { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 14px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(var(--tint), 0.35); background: rgba(var(--tint), 0.08); font-size: 14px; line-height: 1.45; color: var(--strong); }
@@ -5389,6 +5374,36 @@ button.is-off:hover,
 .devbar__size { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .devbar__cls { opacity: 0.85; }
 .devbar__end { margin-left: auto; display: inline-flex; gap: 4px; }
+/* V55 (offen seit V47): Kopfzeile schmaler Portale läuft nicht mehr über. Statt Knöpfe zu verstecken
+   bricht sie um – die Adresszeile bekommt eine eigene Zeile, ⋮ und alle Knöpfe bleiben sichtbar und mit
+   Maus wie Tastatur erreichbar (NF-03). Der Kategoriename steht dann nur im Tooltip/aria-label. */
+.win__bar { container: winbar / inline-size; }
+@container winbar (max-width: 520px) {
+  .win__bar > * { flex-shrink: 0; }
+  .win__bar > .win__title { flex: 1 1 3em; max-width: none; min-width: 3em; }
+  .win__bar > .win__address { order: 10; flex: 1 1 100%; min-width: 0; }
+  .win__cat-name { display: none; }
+}
+/* V55: schmale Slots – Leiste in höchstens 2 Zeilen. Beschriftungen bleiben für Bildschirmleser (NF-03)
+   und stehen im Tooltip; sichtbar fallen nur die Wörter „Gerät“ und „Zoom-Test“ weg. */
+.devbar { container: devbar / inline-size; }
+@container devbar (max-width: 560px) {
+  .devbar__lbl {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .devbar__field select { max-width: 22ch; }
+  .devbar__scale span { padding: 2px 5px; }
+  .devbar__end { margin-left: 0; }
+}
+@container devbar (max-width: 380px) {
+  .devbar__cls { display: none; }
+  .devbar__field select { max-width: 17ch; }
+}
 /* Umriss des Geräts im Slot */
 .devscreen {
   position: absolute;

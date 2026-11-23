@@ -41,7 +41,7 @@ export function DevBar(props: {
   return (
     <div className="devbar" role="group" aria-label={DEV_TEXT.bar}>
       <label className="devbar__field" title={DEV_TEXT.deviceTitle}>
-        <span>{DEV_TEXT.device}</span>
+        <span className="devbar__lbl">{DEV_TEXT.device}</span>
         <select value={v.device ?? ''} onChange={(e) => props.onView({ device: e.target.value || null })}>
           <option value="">{DEV_TEXT.free}</option>
           {DEV_DEVICES.map((d) => (
@@ -62,7 +62,7 @@ export function DevBar(props: {
         {size ? (wide ? DEV_TEXT.landscape : DEV_TEXT.portrait) : DEV_TEXT.turn}
       </button>
       <fieldset className="devbar__scales" title={DEV_TEXT.scaleTitle}>
-        <legend>{DEV_TEXT.scale}</legend>
+        <legend className="devbar__lbl">{DEV_TEXT.scale}</legend>
         {DEV_SCALES.map((s) => (
           <label key={s} className="devbar__scale">
             <input type="radio" name={`${id}-scale`} checked={scale === s} onChange={() => props.onView({ scale: s })} />

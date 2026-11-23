@@ -1388,6 +1388,9 @@ export function PanelFrame(p: Props) {
           {rulerShown(p.ws, p.panel) && (
             <Ruler
               settings={p.ws.ruler}
+              scale={dv ? dv.scale : zoomExact / 100}
+              box={devBox}
+              page={dv?.page}
               onStyle={(change) => p.dispatch({ type: 'rulerStyle', ...change })}
               onClose={() => p.dispatch({ type: 'rulerPanel', id: p.panel.id })}
             />

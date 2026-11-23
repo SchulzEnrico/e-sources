@@ -10,6 +10,7 @@ import type { Bookmark, Workspace } from './types';
 import * as B from './bookmarks';
 import * as W from './workspace';
 import * as C from './closed';
+import { mergeSlotTabs } from './jackpot';
 import * as F from './focus';
 import type { FocusRule } from './focus';
 import { followMainLook, type Look, setDeskLook } from './look';
@@ -27,6 +28,8 @@ export type Action =
   | ({ type: 'addArea'; side: 'right' | 'bottom' } & S)
   /** F-24: mit `setup` wird das Portal unter „Zuletzt geschlossen“ gemerkt. */
   | { type: 'remove'; id: string; setup?: ScreenSetup }
+  /** F-170 Stufe 2: Slot zusammenlegen – weitere Seiten als Tabs ins bleibende Portal, die anderen schließen (→ Zuletzt geschlossen). */
+  | { type: 'mergeSlot'; keep: string; others: string[]; setup: ScreenSetup }
   | { type: 'restore'; setup: ScreenSetup; entry?: string }
   /** F-29 Rest: Grenzen der Fokusanzeige; null = Voreinstellung. */
   | { type: 'focusRule'; rule: Partial<FocusRule> | null }
@@ -124,6 +127,11 @@ function step(ws: Workspace, a: Action): Workspace {
       return W.addPanel(ws, a.setup, a.area, a.id);
     case 'addArea':
       return W.addArea(ws, a.setup, a.side);
+    case 'mergeSlot': {
+      let next = mergeSlotTabs(ws, a.keep, a.others);
+      for (const id of a.others) next = C.closePanel(next, id, a.setup);
+      return next;
+    }
     case 'remove':
       return a.setup ? C.closePanel(ws, a.id, a.setup) : W.removePanel(ws, a.id);
     case 'profile':

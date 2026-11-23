@@ -7,10 +7,11 @@
  * bei „Bewegung reduzieren“ kommt das Ergebnis ohne Walzenlauf. Kein Ton.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { type Cleanup, type DupGroup, cleanupFocus, cleanupOf, duplicatesOf, reelLabel, sourceLabel } from '../workspace/jackpot';
-import { pointsText } from '../workspace/focus';
+import { type Cleanup, type DupGroup, type RedundantSlot, cleanupFocus, cleanupOf, duplicatesOf, mergeSlot, redundantSlotsOf, reelLabel, sourceLabel } from '../workspace/jackpot';
+import { focusOf, pointsText } from '../workspace/focus';
+import { AREA_DEFAULT } from '../workspace/workspace';
 import { JACKPOT_TEXT, TERMS } from '../workspace/terms';
-import type { Workspace } from '../workspace/types';
+import type { Slot, Workspace } from '../workspace/types';
 import { windowName } from '../workspace/windows';
 import { sameUrlKey } from '../workspace/bookmarks';
 import { Icon } from './Icon';
@@ -20,7 +21,11 @@ interface Props {
   ws: Workspace;
   /** Desk dieses Fensters ('' = Main Desk) – dort bleibt bei Gleichstand der Fundort. */
   here: string;
+  /** Slots dieses Desks – für redundante Slots (Stufe 2). */
+  slots: Slot[];
   onCleanup: (c: Cleanup) => void;
+  /** Slot zusammenlegen (Stufe 2). */
+  onMerge: (r: RedundantSlot) => void;
   onClose: () => void;
 }
 
@@ -29,13 +34,14 @@ const STOPS = [700, 1050, 1400];
 const SHORT = 3;
 const still = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
-export function SlotMachine({ ws, here, onCleanup, onClose }: Props) {
+export function SlotMachine({ ws, here, slots, onCleanup, onMerge, onClose }: Props) {
   const dlg = useRef<HTMLDialogElement>(null);
   const lever = useRef<HTMLButtonElement>(null);
   const [phase, setPhase] = useState<Phase>('ready');
   // Ergebnis wird beim Ziehen festgehalten, damit es sich während der Anzeige nicht verschiebt
   const [groups, setGroups] = useState<DupGroup[]>([]);
   const [skip, setSkip] = useState<Set<string>>(new Set());
+  const [redundant, setRedundant] = useState<RedundantSlot[]>([]);
   const [reels, setReels] = useState<string[]>(['', '', '']);
   const [arm, setArm] = useState(false);
   const [stopped, setStopped] = useState(3);
@@ -69,6 +75,7 @@ export function SlotMachine({ ws, here, onCleanup, onClose }: Props) {
     timers.current.forEach((t) => window.clearTimeout(t));
     const found = duplicatesOf(ws, here);
     setGroups(found);
+    setRedundant(redundantSlotsOf(ws, slots));
     setSkip(new Set());
     setOpen(new Set());
     setPulled(true);
@@ -115,6 +122,18 @@ export function SlotMachine({ ws, here, onCleanup, onClose }: Props) {
     const text = JACKPOT_TEXT.done(plan.count, after.color, pointsText(after.points));
     setSaid(text);
     setGroups([]);
+    setRedundant([]);
+    setPhase('ready');
+    window.setTimeout(() => lever.current?.focus(), 0);
+  };
+  const slotName = (r: RedundantSlot) => r.name || AREA_DEFAULT;
+  const merge = (r: RedundantSlot) => {
+    onMerge(r);
+    const after = focusOf(mergeSlot(ws, r));
+    setSaid(JACKPOT_TEXT.merged(slotName(r), r.others.length, after.color, pointsText(after.points)));
+    // Liste ist danach veraltet – neue Runde über den Hebel
+    setGroups([]);
+    setRedundant([]);
     setPhase('ready');
     window.setTimeout(() => lever.current?.focus(), 0);
   };
@@ -250,6 +269,27 @@ export function SlotMachine({ ws, here, onCleanup, onClose }: Props) {
               </button>
             </div>
           </>
+        )}
+        {phase === 'done' && redundant.length > 0 && (
+          <section className="jackpot__slots" aria-labelledby="jackpot-slots">
+            <h3 id="jackpot-slots">{JACKPOT_TEXT.slotsHead}</h3>
+            <p className="jackpot__note">{JACKPOT_TEXT.slotsNote}</p>
+            <ul className="jackpot__list">
+              {redundant.map((r, i) => (
+                <li key={r.area} className="jackpot__group jackpot__slot">
+                  <span>
+                    <strong>{JACKPOT_TEXT.slotLine(slotName(r), r.others.length + 1, sourceLabel(r.url))}</strong>
+                    <span id={`jps-${i}`} className="jackpot__moves">
+                      {JACKPOT_TEXT.slotMoves(r.moved, r.dropped)}
+                    </span>
+                  </span>
+                  <button type="button" className="jackpot__go" onClick={() => merge(r)} title={JACKPOT_TEXT.mergeTitle(slotName(r))} aria-describedby={`jps-${i}`}>
+                    {JACKPOT_TEXT.merge}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </div>
     </dialog>

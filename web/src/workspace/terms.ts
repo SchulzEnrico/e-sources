@@ -120,6 +120,7 @@ export const RULES_TEXT = {
   builtin: {
     ask: { name: 'Nach der Kategorie fragen', text: 'Zeigt ein Portal ohne Kategorie eine neue Seite, fragt ein Hinweis unten nach der Kategorie.' },
     offer: { name: 'Farbe anbieten', text: 'Nach einem neuen Portal oder Slot bietet der Hinweis unten „Farbe wählen …“ an. Ab Werk aus – Farben gehen immer über ⋮ → „Farben …“.' },
+    invite: { name: 'Zur Runde einladen', text: 'Steht der Fokus auf rot, sind 3 oder mehr Duplikate offen oder zeigt ein Slot in allen Portalen dieselbe Source, lädt ein Hinweis unten zu einer Runde Slotmaschine ein – höchstens einmal je Stunde; „Später“ pausiert 4 Stunden.' },
     collect: { name: 'Sammeln ansagen', text: 'Schließt ein Desk-Fenster, sagt der Main Desk an, dass der Desk jetzt dort gesammelt ist. Gesammelt wird immer; ausgeschaltet nur ohne Ansage.' },
   },
   ownColor: (hex: string) => `eigener Farbe (${hex})`,
@@ -204,6 +205,24 @@ export const JACKPOT_TEXT = {
   closeAll: (n: number) => (n === 1 ? '1 Duplikat schließen' : `${n} Duplikate schließen`),
   done: (n: number, color: string, points: string) => `${n === 1 ? '1 Duplikat' : `${n} Duplikate`} geschlossen – Fokus jetzt ${color} (${points} Punkte). Zurückholen: Einstellungen › Zuletzt geschlossen oder Alt/⌥+Z.`,
   reels: 'Walzen der Slotmaschine',
+  // Stufe 2: redundante Slots
+  slotsHead: 'Slots zum Zusammenlegen',
+  slotsNote: 'In diesen Slots zeigen alle Portale dieselbe Source. Zusammenlegen = das vordere Portal bleibt, weitere Seiten der anderen wandern als Tabs hinein, die anderen Portale schließen.',
+  slotLine: (name: string, n: number, source: string) => `${name}: ${n} Portale zeigen ${source}`,
+  slotMoves: (moved: number, dropped: number) =>
+    `${moved === 0 ? 'Keine weiteren Seiten' : moved === 1 ? '1 weitere Seite wandert als Tab mit' : `${moved} weitere Seiten wandern als Tabs mit`}${dropped ? ` · ${dropped === 1 ? '1 Seite hat' : `${dropped} Seiten haben`} keinen Platz mehr und schließt mit` : ''}.`,
+  merge: 'Zusammenlegen',
+  mergeTitle: (name: string) => `Slot „${name}“ zu einem Portal zusammenlegen`,
+  merged: (name: string, n: number, color: string, points: string) =>
+    `Slot „${name}“ zusammengelegt – ${n === 1 ? '1 Portal' : `${n} Portale`} geschlossen, Fokus jetzt ${color} (${points} Punkte). Zurückholen: Einstellungen › Zuletzt geschlossen.`,
+  // Stufe 2: Einladung zur Runde
+  invite: {
+    red: 'Fokus steht auf rot – Zeit für eine Runde Slotmaschine? Sie findet doppelt offene Sources.',
+    dups: (n: number) => `${n} Duplikate offen – Zeit für eine Runde Slotmaschine?`,
+    slots: 'Ein Slot zeigt in allen Portalen dieselbe Source – Zeit für eine Runde Slotmaschine?',
+  },
+  later: 'Später',
+  laterSaid: 'Gut – die Einladung kommt frühestens in 4 Stunden wieder. Abschalten: Cockpit › Regeln › „Zur Runde einladen“.',
 } as const;
 
 /** F-185: Herkunft einer Source in Worten (ORIGIN_TEXT[via]). */

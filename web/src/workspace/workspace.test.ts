@@ -2241,7 +2241,7 @@ describe('F-164 Regelübersicht', () => {
 
   it('listet Farbregeln, Seiten und eingebaute Regeln mit Klartext', () => {
     const rows = Ru.ruleList(base());
-    expect(rows.map((r) => r.id)).toEqual(['tint:c-vi', 'site:youtube.com', 'ask', 'offer', 'collect']);
+    expect(rows.map((r) => r.id)).toEqual(['tint:c-vi', 'site:youtube.com', 'ask', 'offer', 'invite', 'collect']);
     expect(rows[0].text).toContain('Herzchakra (Grün)');
     expect(rows[0].portals).toBe(1);
     expect(rows[1].text).toContain('„Video“');
@@ -2426,6 +2426,46 @@ describe('F-170 Slotmaschine', () => {
     const onlyWiki = Jp.cleanupOf(ws, g, new Set([g.find((x) => x.url.includes('example'))!.key]));
     expect(onlyWiki.portals).toHaveLength(0);
     expect(onlyWiki.count).toBe(1);
+  });
+  // Stufe 2: Stack mit zwei Portalen, beide vorn wikipedia; b hat dazu example im Hintergrund
+  const stack = () => {
+    let ws = W.defaultWorkspace();
+    const first = W.viewOf(ws, LAPTOP1).slots[0];
+    const a = first.front.id;
+    ws = W.addPanel(ws, LAPTOP1, first.id);
+    const b = ws.panels[ws.panels.length - 1].id;
+    ws = W.navigatePanel(ws, a, 'wikipedia.org');
+    ws = W.navigatePanel(ws, b, 'wikipedia.org');
+    ws = W.addTab(ws, b, 'example.com');
+    ws = W.selectTab(ws, b, ws.panels.find((p) => p.id === b)!.tabs[0].id);
+    return { ws, a, b };
+  };
+  it('erkennt redundante Slots und legt sie zusammen', () => {
+    const { ws, a, b } = stack();
+    const slots = W.viewOf(ws, LAPTOP1).slots;
+    const r = Jp.redundantSlotsOf(ws, slots);
+    expect(r).toHaveLength(1);
+    expect([r[0].keep, ...r[0].others].sort()).toEqual([a, b].sort());
+    // wandert example mit, wenn a bleibt; bleibt b, ist nichts zu übernehmen
+    expect(r[0].moved).toBe(r[0].keep === a ? 1 : 0);
+    const after = Jp.mergeSlot(ws, r[0]);
+    expect(after.panels).toHaveLength(ws.panels.length - 1);
+    expect(after.panels.find((p) => p.id === r[0].keep)!.tabs.map((t) => t.url).some((u) => u?.includes('example'))).toBe(true);
+    expect(Jp.dupCount(after)).toBe(0);
+    expect(Jp.redundantSlotsOf(after, W.viewOf(after, LAPTOP1).slots)).toHaveLength(0);
+    // zeigt ein Portal etwas anderes, ist der Slot nicht redundant
+    const other = W.navigatePanel(ws, a, 'example.org');
+    expect(Jp.redundantSlotsOf(other, W.viewOf(other, LAPTOP1).slots)).toHaveLength(0);
+  });
+  it('Einladung: Grund und Schwelle', () => {
+    const { ws } = stack();
+    const slots = W.viewOf(ws, LAPTOP1).slots;
+    expect(Jp.inviteWhy(ws, slots, 'grün')).toBe('slots');
+    expect(Jp.inviteWhy(ws, slots, 'rot')).toBe('red');
+    expect(Jp.inviteWhy(W.defaultWorkspace(), [], 'grün')).toBeNull();
+    expect(Jp.INVITE_DUPS).toBe(3);
+    // Regel ist ab Werk an und steht in der Regelübersicht
+    expect(Ru.ruleOn(ws, 'invite')).toBe(true);
   });
   it('Hilfe, Suche und Symbol', () => {
     expect(H.searchHelp('Duplikate')[0].id).toBe('jackpot');

@@ -4565,6 +4565,12 @@ button.is-off:hover,
 .jackpot__go { padding: 6px 14px; font-weight: 600; }
 .overview__jackpot .icon { display: inline-block; }
 .jackpot__more { margin-left: 76px; padding: 1px 8px; font-size: 12px; }
+/* F-170 Stufe 2: redundante Slots */
+.jackpot__slots { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.jackpot__slots h3 { margin: 0 0 4px; font-size: 14px; }
+.jackpot__note { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.jackpot__slot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.jackpot__moves { display: block; font-size: 13px; color: var(--muted); }
 
 /* F-170: Gehäuse wie ein echter Spielautomat (feste Casino-Farben, in jedem Design gleich) */
 .jackpot { width: min(600px, calc(100vw - 32px)); }

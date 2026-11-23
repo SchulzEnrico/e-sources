@@ -35,13 +35,13 @@ import { PROBE, PROBE_KIND } from './workspace/probe';
 import { Help } from './components/Help';
 import { Tour } from './components/Tour';
 import { SlotMachine } from './components/SlotMachine';
-import type { Cleanup } from './workspace/jackpot';
+import { type Cleanup, type InviteWhy, type RedundantSlot, INVITE_KEY, INVITE_LATER, INVITE_PAUSE, dupCount, inviteWhy } from './workspace/jackpot';
 import { type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace/tour';
 import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf } from './workspace/workspace';
-import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_LOOK_TEXT, DISPLAY_TEXT, TERMS, TINT_TEXT } from './workspace/terms';
+import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_LOOK_TEXT, DISPLAY_TEXT, JACKPOT_TEXT, TERMS, TINT_TEXT } from './workspace/terms';
 import { setCompact, setFavicons } from './workspace/display';
 import { useDisplay } from './components/SiteIcon';
 import { categoryIcon } from './workspace/icons';
@@ -950,6 +950,61 @@ function DeskApp(props: DeskProps) {
       dispatch({ type: 'remove', id, setup: here ? setup : (setupOfWindow(ws, p.win ?? '') ?? setup) });
     }
   };
+  /** F-170 Stufe 2: Slot zusammenlegen (nur Slots dieses Desks). */
+  const mergeSlot = (r: RedundantSlot) => dispatch({ type: 'mergeSlot', keep: r.keep, others: r.others, setup });
+
+  /**
+   * F-170 Stufe 2: Einladung zur Runde. Wird der Grund neu wahr (Fokus rot, ab 3 Duplikaten, redundanter
+   * Slot), zeigt der Hinweis unten „Hebel ziehen“ und „Später“ – höchstens einmal je Stunde (gemeinsam für
+   * alle Desk-Fenster), „Später“ pausiert 4 Stunden; nur im Fenster, das gerade den Fokus hat; erst
+   * 15 s nach dem Start. Der Hinweis ist role=status und nimmt den Tastaturfokus nicht weg (NF-03).
+   */
+  const inviteWas = useRef<InviteWhy | null>(null);
+  const memPause = useRef(0);
+  const [inviteReady, setInviteReady] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setInviteReady(true), 15000);
+    return () => window.clearTimeout(t);
+  }, []);
+  const pauseUntil = (): number => {
+    if (PROBE) return memPause.current;
+    try {
+      return Number(localStorage.getItem(INVITE_KEY)) || 0;
+    } catch {
+      return memPause.current;
+    }
+  };
+  const pauseFor = (ms: number) => {
+    memPause.current = Date.now() + ms;
+    if (PROBE) return;
+    try {
+      localStorage.setItem(INVITE_KEY, String(memPause.current));
+    } catch {
+      /* ohne Speicher gilt die Pause nur in diesem Fenster */
+    }
+  };
+  useEffect(() => {
+    if (!inviteReady) return;
+    const why = ruleOn(ws, 'invite') ? inviteWhy(ws, view.slots, focus.color) : null;
+    const before = inviteWas.current;
+    inviteWas.current = why;
+    if (!why || before !== null || jackpot) return;
+    if (typeof document.hasFocus === 'function' && !document.hasFocus()) return;
+    if (Date.now() < pauseUntil()) return;
+    pauseFor(INVITE_PAUSE);
+    const text = why === 'dups' ? JACKPOT_TEXT.invite.dups(dupCount(ws)) : JACKPOT_TEXT.invite[why];
+    notify(text, 12000, false, [
+      { label: JACKPOT_TEXT.lever, run: () => setJackpot(true) },
+      {
+        label: JACKPOT_TEXT.later,
+        run: () => {
+          pauseFor(INVITE_LATER);
+          notify(JACKPOT_TEXT.laterSaid);
+        },
+      },
+    ]);
+  }, [ws, view.slots, focus.color, inviteReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /** Neuesten (oder gewählten) Eintrag zurückholen, ansagen, Fokus auf den Tab. */
   const restore = (entry?: string) => {
     const r = restoreClosed(ws, setup, entry);
@@ -2254,7 +2309,7 @@ function DeskApp(props: DeskProps) {
             </Colors>
           );
         })()}
-      {jackpot && <SlotMachine ws={ws} here={win ?? ''} onCleanup={cleanupDuplicates} onClose={() => setJackpot(false)} />}
+      {jackpot && <SlotMachine ws={ws} here={win ?? ''} slots={view.slots} onCleanup={cleanupDuplicates} onMerge={mergeSlot} onClose={() => setJackpot(false)} />}
       {bmImport && (
         <ImportBookmarks
           ws={ws}

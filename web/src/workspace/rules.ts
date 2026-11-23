@@ -11,8 +11,8 @@ import { ACCENTS } from './look';
 import { RULES_TEXT } from './terms';
 import type { Tint, Workspace } from './types';
 
-export type BuiltinRule = 'ask' | 'offer' | 'collect';
-export const BUILTIN_RULES: BuiltinRule[] = ['ask', 'offer', 'collect'];
+export type BuiltinRule = 'ask' | 'offer' | 'invite' | 'collect';
+export const BUILTIN_RULES: BuiltinRule[] = ['ask', 'offer', 'invite', 'collect'];
 
 export type RuleKind = 'tint' | 'site' | 'builtin';
 

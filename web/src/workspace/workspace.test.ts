@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { type ScreenSetup, detectScreen, specOf } from './screen';
 import * as T from './tree';
-import { parseWorkspace } from './storage';
+import { keepDeviceFields, onlyDeviceChanged, parseWorkspace } from './storage';
 import type { Workspace } from './types';
 import * as X from './transfer';
 import * as B from './bookmarks';
@@ -3527,6 +3527,13 @@ describe('F-169 Stufe 2: Abgleich über GitHub Gist', () => {
     const t = Date.parse('2026-11-23T11:00:00.000Z');
     expect(Gi.newerWins(t - 5000, '2026-11-23T11:00:00.000Z')).toBe('pull');
     expect(Gi.newerWins(t + 5000, '2026-11-23T11:00:00.000Z')).toBe('push');
+  });
+  it('zählt eine andere Bildschirm-Einstellung nicht als Änderung und behält sie beim Holen', () => {
+    const a = { panels: [], winSetup: { '': 'small:landscape:1' } } as unknown as Workspace;
+    const b = { panels: [], winSetup: { '': 'phone:portrait:1' } } as unknown as Workspace;
+    expect(onlyDeviceChanged(JSON.stringify(a), b)).toBe(true);
+    expect(onlyDeviceChanged(JSON.stringify(a), { ...b, panels: [1] } as unknown as Workspace)).toBe(false);
+    expect(keepDeviceFields(a, b).winSetup).toEqual(b.winSetup);
   });
   it('bereinigt eingefügte Schlüssel', () => {
     expect(Gi.cleanToken('  token ghp_abc\n123 ')).toBe('ghp_abc123');

@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useSyncExternalStore, type Dispatch } from 'react';
 import { GistError, fetchRemote, loadGist, newerWins, planSync, pushRemote, saveGist } from './gist';
-import { WORKSPACE_KEY, loadSyncMeta, parseWorkspace, storeImported } from './storage';
+import { WORKSPACE_KEY, keepDeviceFields, loadSyncMeta, parseWorkspace, storeImported } from './storage';
 import { deviceLabel } from './transfer';
 import type { Workspace } from './types';
 import type { Action } from './useWorkspace';
@@ -94,8 +94,9 @@ export function useGistSync(ws: Workspace, dispatch: Dispatch<Action>) {
               // ohne Platz kein Rückgängig
             }
           }
-          storeImported(remote!.workspace);
-          dispatch({ type: 'replace', ws: remote!.workspace });
+          const next = keepDeviceFields(remote!.workspace, wsRef.current); // Bildschirm-Einstellung bleibt die dieses Geräts
+          storeImported(next);
+          dispatch({ type: 'replace', ws: next });
           saveGist({ ...c, seen: remote!.savedAt, syncedAt: Date.now() });
           return set({ status: 'idle', at: Date.now(), last: 'pulled', undo: both });
         }

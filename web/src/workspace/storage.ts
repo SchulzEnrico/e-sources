@@ -362,6 +362,34 @@ export function storeImported(ws: Workspace): void {
   }
 }
 
+/** Felder, die nur zu diesem Gerät gehören und beim Abgleich (F-169) nicht übernommen werden. */
+export const DEVICE_FIELDS = ['winSetup'] as const;
+
+/** Stand ohne geräteeigene Felder (für Vergleiche beim Abgleich). */
+export function sharedPart(ws: Workspace): string {
+  const copy: Record<string, unknown> = { ...ws };
+  for (const k of DEVICE_FIELDS) delete copy[k];
+  return JSON.stringify(copy);
+}
+
+/** Unterscheidet sich der neue Stand vom gespeicherten nur in geräteeigenen Feldern? */
+export function onlyDeviceChanged(prevJson: string, ws: Workspace): boolean {
+  try {
+    return sharedPart(JSON.parse(prevJson) as Workspace) === sharedPart(ws);
+  } catch {
+    return false;
+  }
+}
+
+/** Geholter Stand mit den geräteeigenen Feldern dieses Geräts (F-169). */
+export function keepDeviceFields(remote: Workspace, local: Workspace): Workspace {
+  const out: Record<string, unknown> = { ...remote };
+  for (const k of DEVICE_FIELDS) {
+    if (local[k] !== undefined) out[k] = local[k];
+  }
+  return out as unknown as Workspace;
+}
+
 export function saveWorkspace(ws: Workspace): void {
   if (EMBEDDED) return;
   try {
@@ -370,7 +398,9 @@ export function saveWorkspace(ws: Workspace): void {
     if (prev === next) return; // nichts geändert (z. B. direkt nach dem Laden)
     localStorage.setItem(KEY, next);
     // Der allererste Stand (leeres Gerät) zählt nicht als Änderung, sonst fragt der erste Import unnötig.
-    if (prev !== null) saveSyncMeta({ ...loadSyncMeta(), changedAt: Date.now() });
+    // V58: Nur geräteeigene Felder geändert (Bildschirm-Einstellung je Fenster) zählt ebenfalls nicht –
+    // sonst hält jedes Gerät beim Öffnen seinen Stand für neuer und überschreibt beim Abgleich die anderen.
+    if (prev !== null && !onlyDeviceChanged(prev, ws)) saveSyncMeta({ ...loadSyncMeta(), changedAt: Date.now() });
   } catch {
     // Speicher voll oder gesperrt (z. B. privater Modus): Arbeitsfläche läuft weiter, nur ohne Speichern.
   }

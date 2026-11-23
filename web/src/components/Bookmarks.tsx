@@ -2,7 +2,7 @@ import { Icon } from './Icon';
 import { SiteIcon, useDisplay } from './SiteIcon';
 import { categoryIcon } from '../workspace/icons';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import type { Action } from '../workspace/useWorkspace';
+import { type Action, reducer } from '../workspace/useWorkspace';
 import type { Bookmark, Workspace } from '../workspace/types';
 import { type BulkChange, NO_CATEGORY, bulkSources, categoryByName, collectionSize, groups, originOf, originText } from '../workspace/bookmarks';
 import { hostOf, newId } from '../workspace/workspace';
@@ -579,6 +579,8 @@ export function PickBar(props: { ws: Workspace; shownIds: string[]; picked: Set<
   const allBox = useRef<HTMLInputElement>(null);
   const hintId = useId();
   const [cat, setCat] = useState(NO_CATEGORY);
+  /** V54 (Wunsch Enrico): neue Kategorie direkt in der Mehrfachauswahl anlegen */
+  const [newCat, setNewCat] = useState('');
   const [tags, setTags] = useState('');
   const [panel, setPanel] = useState(ws.panels[0]?.id ?? '');
   const [sure, setSure] = useState(false);
@@ -616,8 +618,8 @@ export function PickBar(props: { ws: Workspace; shownIds: string[]; picked: Set<
     finish();
   };
   // F-204: gemeinsam einstellen, Bestätigung unten mit „Rückgängig“; Auswahl bleibt (außer beim Löschen)
-  const bulk = (change: BulkChange, what: string) => {
-    const r = bulkSources(ws, pickedIds, change);
+  const bulk = (change: BulkChange, what: string, base: Workspace = ws) => {
+    const r = bulkSources(base, pickedIds, change);
     if (r.changed.length === 0) return flash({ text: BULK_TEXT.nothing, ms: 4000 });
     const before = ws.bookmarks.filter((b) => r.changed.includes(b.id));
     const order = ws.bookmarks.map((b) => b.id);
@@ -685,10 +687,47 @@ export function PickBar(props: { ws: Workspace; shownIds: string[]; picked: Set<
                     {c.name}
                   </option>
                 ))}
+                <option value={NEW}>{BULK_TEXT.newCategory}</option>
               </select>
             </label>
-            <button type="button" onClick={() => bulk({ kind: 'category', category: cat }, BULK_TEXT.what.category(catName(cat)))}>
-              {BULK_TEXT.setCategory}
+            {cat === NEW && (
+              <label className="bm-pickbar__label">
+                <span className="sr-only">{BULK_TEXT.newCategoryName}</span>
+                <input
+                  type="text"
+                  autoFocus
+                  value={newCat}
+                  aria-label={BULK_TEXT.newCategoryName}
+                  placeholder={BULK_TEXT.newCategoryPlaceholder}
+                  onChange={(e) => setNewCat(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    (e.currentTarget.closest('.bm-pickbar__row')?.querySelector('.bm-pickbar__setcat') as HTMLButtonElement | null)?.click();
+                  }}
+                />
+              </label>
+            )}
+            <button
+              type="button"
+              className="bm-pickbar__setcat"
+              disabled={cat === NEW && !newCat.trim()}
+              title={cat === NEW ? BULK_TEXT.newCategoryTitle : undefined}
+              onClick={() => {
+                if (cat !== NEW) return bulk({ kind: 'category', category: cat }, BULK_TEXT.what.category(catName(cat)));
+                const name = newCat.trim();
+                if (!name) return;
+                // Gibt es den Namen schon, wird diese Kategorie genommen; sonst angelegt und gleich gesetzt
+                const found = categoryByName(ws, name);
+                const id = found?.id ?? newId();
+                const base = found ? ws : reducer(ws, { type: 'addCategory', id, name });
+                if (!found) props.dispatch({ type: 'addCategory', id, name });
+                bulk({ kind: 'category', category: id }, BULK_TEXT.what.category(found?.name ?? name), base);
+                setCat(id);
+                setNewCat('');
+              }}
+            >
+              {cat === NEW ? BULK_TEXT.createCategory : BULK_TEXT.setCategory}
             </button>
           </div>
           <div className="bm-pickbar__row">

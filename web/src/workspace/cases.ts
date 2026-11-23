@@ -203,6 +203,47 @@ export function pickCase(ws: Workspace, win: string, caseId: string | null): { w
   return { ws: next, offer, switched: null };
 }
 
+// ---------------------------------------------------------------- Rückgängig, Farben (V54)
+
+/** Stand von Spaces und Cases für „Rückgängig“ nach dem Löschen. */
+export type CasesSnap = Pick<Workspace, 'spheres' | 'scenarios' | 'layoutCases' | 'activeCase'>;
+
+export const snapCases = (ws: Workspace): CasesSnap => ({ spheres: ws.spheres, scenarios: ws.scenarios, layoutCases: ws.layoutCases, activeCase: ws.activeCase });
+
+/** Setzt den gemerkten Stand wieder ein; Zuordnungen zu inzwischen gelöschten Layouts schaden nicht. */
+export function restoreCases(ws: Workspace, snap: CasesSnap): Workspace {
+  const { layoutCases: _l, activeCase: _a, ...base } = ws; // eslint-disable-line @typescript-eslint/no-unused-vars
+  return { ...base, spheres: snap.spheres, scenarios: snap.scenarios, ...(snap.layoutCases ? { layoutCases: snap.layoutCases } : {}), ...(snap.activeCase ? { activeCase: snap.activeCase } : {}) };
+}
+
+/** Erste noch nicht benutzte Farbe (sonst reihum). */
+export function nextColor(used: (string | undefined)[]): string {
+  return CASE_COLORS.find((c) => !used.includes(c)) ?? CASE_COLORS[used.length % CASE_COLORS.length];
+}
+
+/** Zuordnungen eines gelöschten Layouts entfernen. */
+export function dropLayoutCases(ws: Workspace, win: string, layout: string): Workspace {
+  const key = layoutKey(win, layout);
+  if (!ws.layoutCases?.[key]) return ws;
+  const all = { ...ws.layoutCases };
+  delete all[key];
+  const { layoutCases: _l, ...base } = ws; // eslint-disable-line @typescript-eslint/no-unused-vars
+  return Object.keys(all).length ? { ...base, layoutCases: all } : base;
+}
+
+/** Suche (V54): Cases, deren Name oder Space alle Wörter enthält; Treffer im Case-Namen vorn. */
+export function searchCases(ws: Workspace, query: string, max = 4): { c: Case; space: Space }[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const all = casesOf(ws).flatMap((c) => {
+    const space = spacesOf(ws).find((s) => s.id === c.space);
+    return space ? [{ c, space }] : [];
+  });
+  const found = all.filter((h) => words.every((w) => `${h.c.name} ${h.space.name}`.toLowerCase().includes(w)));
+  const inName = (h: { c: Case }) => words.every((w) => h.c.name.toLowerCase().includes(w));
+  return [...found.filter(inName), ...found.filter((h) => !inName(h))].slice(0, max);
+}
+
 export const activeCaseOf = (ws: Workspace, win: string): Case | undefined => {
   const id = ws.activeCase?.[win];
   return id ? casesOf(ws).find((c) => c.id === id) : undefined;

@@ -164,7 +164,7 @@ export const HELP_ICON: Record<string, IconName> = {
   newSlot: 'newSlot', newDesk: 'newDesk', newPortal: 'portal', newTab: 'tab',
   switchDesk: 'switchDesk', collectDesks: 'collect', distributeDesks: 'spread',
   design: 'design', colorRules: 'category', rules: 'rules', colors: 'colors',
-  adjust: 'adjust', focusRule: 'sliders', restore: 'restore', closed: 'closed', layouts: 'layouts', limits: 'maximize',
+  adjust: 'adjust', focusRule: 'sliders', restore: 'restore', closed: 'closed', layouts: 'layouts', cases: 'layouts', limits: 'maximize',
   nextTab: 'next', nextPortal: 'next', distribute: 'distribute', swap: 'swap', rename: 'rename', stackDelete: 'remove', ruler: 'ruler', pause: 'pause', zoom: 'zoom', webSearch: 'search', sendTo: 'send',
   importBookmarks: 'import', sortHelp: 'sort', exportBookmarks: 'export', profile: 'profile', reload: 'reload', exportDesks: 'transfer',
 };

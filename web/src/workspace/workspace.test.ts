@@ -3443,3 +3443,41 @@ describe('V54: Untersuchen erklären (F-200 e) und Tour „Entwickler-Modus“',
     expect(H.helpById('tourDev')?.run).toBe('tourDev');
   });
 });
+
+describe('F-116 Oberfläche (V54): Aktionen, Rückgängig, Farben, Suche', () => {
+  it('Aktionen im Reducer: anlegen mit eigener Id, Space löschen nimmt Cases mit, Rückgängig holt alles zurück', () => {
+    let ws = W.defaultWorkspace();
+    ws = reducer(ws, { type: 'spaceAdd', id: 's1', name: 'Firma', color: '#64a970' });
+    ws = reducer(ws, { type: 'caseAdd', id: 'c1', space: 's1', name: 'Kunde XY' });
+    const layout = DL.activeLayout(ws).id;
+    ws = reducer(ws, { type: 'layoutCase', win: '', layout, caseId: 'c1', on: true });
+    ws = reducer(ws, { type: 'casePick', win: '', caseId: 'c1' });
+    expect(ws.activeCase).toEqual({ '': 'c1' });
+    const snap = Cs.snapCases(ws);
+    ws = reducer(ws, { type: 'spaceDelete', id: 's1' });
+    expect(ws.scenarios).toHaveLength(0);
+    expect(ws.layoutCases).toBeUndefined();
+    ws = reducer(ws, { type: 'casesRestore', snap });
+    expect(ws.scenarios.map((c) => c.id)).toEqual(['c1']);
+    expect(Cs.casesOfLayout(ws, '', layout).map((c) => c.name)).toEqual(['Kunde XY']);
+    expect(ws.activeCase).toEqual({ '': 'c1' });
+  });
+  it('nächste freie Farbe, Suche nach Case und Space (Treffer im Namen vorn)', () => {
+    expect(Cs.nextColor([])).toBe(Cs.CASE_COLORS[0]);
+    expect(Cs.nextColor([Cs.CASE_COLORS[0]])).toBe(Cs.CASE_COLORS[1]);
+    let ws = W.defaultWorkspace();
+    ws = reducer(ws, { type: 'spaceAdd', id: 's1', name: 'Firma' });
+    ws = reducer(ws, { type: 'spaceAdd', id: 's2', name: 'Privat' });
+    ws = reducer(ws, { type: 'caseAdd', id: 'c1', space: 's2', name: 'Urlaub Firma-Ausflug' });
+    ws = reducer(ws, { type: 'caseAdd', id: 'c2', space: 's1', name: 'Kunde XY' });
+    expect(Cs.searchCases(ws, 'firma').map((h) => h.c.id)).toEqual(['c1', 'c2']);
+    expect(Cs.searchCases(ws, 'kunde firma').map((h) => h.c.id)).toEqual(['c2']);
+    expect(Cs.searchCases(ws, '')).toHaveLength(0);
+  });
+  it('Hilfe-Eintrag „Spaces und Cases“ mit Fragen und Symbol', () => {
+    const e = H.helpById('cases');
+    expect(e?.run).toBe('cases');
+    expect(e?.questions).toContain('Was ist ein Case?');
+    expect(Ic.HELP_ICON.cases).toBeDefined();
+  });
+});

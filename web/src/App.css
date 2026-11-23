@@ -5400,3 +5400,41 @@ button.is-off:hover,
   .devbar__scale input:checked + span { background: Highlight; color: HighlightText; }
   .devscreen { box-shadow: none; outline: 2px solid CanvasText; }
 }
+
+/* F-116 (V54): Spaces und Cases */
+.cases__dot { display: inline-block; width: 0.7em; height: 0.7em; border-radius: 50%; border: 1px solid currentColor; vertical-align: -0.05em; flex: none; }
+.cases__body { display: flex; flex-direction: column; gap: 12px; }
+.cases__space { border: 1px solid color-mix(in srgb, currentColor 22%, transparent); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.cases__space--new { border-style: dashed; }
+.cases__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cases__name { margin: 0; font-size: 1em; display: inline-flex; align-items: center; gap: 6px; flex: 1 1 10ch; min-width: 0; overflow-wrap: anywhere; }
+h3.cases__name { font-size: 1.05em; }
+.cases__tools { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.cases__color, .cases__move { display: inline-flex; align-items: center; gap: 4px; }
+.cases__list { list-style: none; margin: 0; padding: 0 0 0 14px; display: flex; flex-direction: column; gap: 4px; }
+.cases__edit, .cases__add { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cases__edit input, .cases__add input { min-width: 0; flex: 1 1 14ch; }
+.cases__add label { display: contents; }
+.cases__none { margin: 0 0 0 14px; }
+.cases__ask { flex-basis: 100%; }
+.cases__chips { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.cases__chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border: 1px solid color-mix(in srgb, currentColor 35%, transparent); border-radius: 999px; font-size: 0.9em; }
+.cases__assign { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.cases__assign fieldset { margin: 0; padding: 4px 8px; border: 1px solid color-mix(in srgb, currentColor 22%, transparent); border-radius: 6px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.cases__assign legend { display: inline-flex; align-items: center; gap: 5px; padding: 0 4px; }
+.cases__assign label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.lc__case { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+.lc__case label { display: inline-flex; align-items: center; gap: 6px; }
+.lc__offer { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lc__card-cases { display: inline-flex; gap: 3px; margin-top: 2px; }
+@media (forced-colors: active) {
+  .cases__dot { forced-color-adjust: none; border-color: CanvasText; }
+}
+/* V54: Kennzeichnung „Aktiver Slot“ / „Gewählter Slot“ über der Portal-Liste im Cockpit */
+.radar__side { min-width: 0; }
+.radar__detail-kind { margin: 0 8px 6px; font-size: 12px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; opacity: 0.85; }
+.radar__detail-kind.is-active { opacity: 1; font-weight: 600; }
+.radar__detail-dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; flex: none; align-self: center; }
+.radar__detail-kind.is-active .radar__detail-dot { background: var(--ok, #3fb950); border-color: var(--ok, #3fb950); }
+.radar__detail-why { font-weight: 400; opacity: 0.8; }
+@media (forced-colors: active) { .radar__detail-kind.is-active .radar__detail-dot { background: Highlight; border-color: Highlight; } }

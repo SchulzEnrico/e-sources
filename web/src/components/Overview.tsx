@@ -8,7 +8,7 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { ARRANGE_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
+import { ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import type { Action } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
@@ -788,6 +788,9 @@ export function Overview(p: OverviewProps) {
     : selTile
       ? `${selTile.w.here ? '' : `${selTile.w.title} · `}${selTile.a.title} · ${selTile.a.panels.length} ${selTile.a.panels.length === 1 ? 'Portal' : 'Portale'}`
       : '';
+  /** V54 (Wunsch Enrico): sagen, welcher Slot rechts steht – der aktive (mit dem Portal im Fokus) oder ein gewählter. */
+  const selIsActive = !!selTile && selTile.a.panels.some((x) => x.meta.id === p.activeId);
+  const detailKind = q || !selTile ? '' : selIsActive ? COCKPIT_TEXT.activeSlot : COCKPIT_TEXT.pickedSlot;
 
   return (
     <>
@@ -959,10 +962,19 @@ export function Overview(p: OverviewProps) {
         ) : (
           <div className="radar">
             <div className="radar__maps">{wins.map(map)}</div>
-            <section className="radar__detail" aria-label={detailHead}>
-              <h3 className="radar__detail-head">{detailHead}</h3>
-              {rows.length === 0 ? <p className="overview__empty">Kein Portal passt.</p> : <ul className="overview__list">{rows.map(row)}</ul>}
-            </section>
+            {/* V54 (Wunsch Enrico): Kennzeichnung über dem Rahmen, nicht darin */}
+            <div className="radar__side">
+              {detailKind && (
+                <p className={selIsActive ? 'radar__detail-kind is-active' : 'radar__detail-kind'} title={selIsActive ? COCKPIT_TEXT.activeSlotTitle : COCKPIT_TEXT.pickedSlotTitle} aria-hidden="true">
+                  <span className="radar__detail-dot" /> {detailKind}
+                  <span className="radar__detail-why"> – {selIsActive ? COCKPIT_TEXT.activeSlotWhy : COCKPIT_TEXT.pickedSlotWhy}</span>
+                </p>
+              )}
+              <section className="radar__detail" aria-label={detailKind ? `${detailKind} (${selIsActive ? COCKPIT_TEXT.activeSlotWhy : COCKPIT_TEXT.pickedSlotWhy}): ${detailHead}` : detailHead}>
+                <h3 className="radar__detail-head">{detailHead}</h3>
+                {rows.length === 0 ? <p className="overview__empty">Kein Portal passt.</p> : <ul className="overview__list">{rows.map(row)}</ul>}
+              </section>
+            </div>
           </div>
         )}
         {drag && (

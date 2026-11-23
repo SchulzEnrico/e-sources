@@ -24,6 +24,7 @@ import { clearDeskTints, restoreTints, setPanelTint, setSlotTint, type TintKind,
 import { type ImportPlan, applyImport } from './browserBookmarks';
 import { sortAll, sortInto } from './sortHelp';
 import { setCategoryIcon, setCategoryTint, setPanelCategory, setPanelNewCategory } from './category';
+import * as Cs from './cases';
 import { type RuleUndo, deleteRule, restoreRule, setRuleOn, setSiteCategory } from './rules';
 
 type S = { setup: ScreenSetup };
@@ -156,7 +157,17 @@ export type Action =
   | { type: 'layoutSlotSwap'; win: string; id: string; setup: ScreenSetup; a: string; b: string }
   | { type: 'layoutSlotClose'; win: string; id: string; setup: ScreenSetup; area: string }
   | { type: 'layoutContent'; win: string; id: string; content: DL.LayoutContent }
-  | { type: 'layoutArrange'; win: string; id: string; setup: ScreenSetup; op: DL.ArrangeOp };
+  | { type: 'layoutArrange'; win: string; id: string; setup: ScreenSetup; op: DL.ArrangeOp }
+  // F-116: Spaces und Cases (Id kommt vom Aufrufer, damit er gleich darauf zeigen kann)
+  | { type: 'spaceAdd'; id: string; name: string; color?: string }
+  | { type: 'spaceEdit'; id: string; name?: string; color?: string | null }
+  | { type: 'spaceDelete'; id: string }
+  | { type: 'caseAdd'; id: string; space: string; name: string; color?: string }
+  | { type: 'caseEdit'; id: string; name?: string; color?: string | null; space?: string }
+  | { type: 'caseDelete'; id: string }
+  | { type: 'casesRestore'; snap: Cs.CasesSnap }
+  | { type: 'layoutCase'; win: string; layout: string; caseId: string; on: boolean }
+  | { type: 'casePick'; win: string; caseId: string | null };
 
 export function reducer(ws: Workspace, a: Action): Workspace {
   const next = step(ws, a);
@@ -316,6 +327,24 @@ function step(ws: Workspace, a: Action): Workspace {
       return deleteRule(ws, a.id).ws;
     case 'layoutSwitch':
       return DL.switchLayout(ws, a.win, a.id);
+    case 'spaceAdd':
+      return Cs.addSpace(ws, a.name, () => a.id, a.color).ws;
+    case 'spaceEdit':
+      return Cs.editSpace(ws, a.id, a);
+    case 'spaceDelete':
+      return Cs.deleteSpace(ws, a.id);
+    case 'caseAdd':
+      return Cs.addCase(ws, a.space, a.name, () => a.id, a.color).ws;
+    case 'caseEdit':
+      return Cs.editCase(ws, a.id, a);
+    case 'caseDelete':
+      return Cs.deleteCase(ws, a.id);
+    case 'casesRestore':
+      return Cs.restoreCases(ws, a.snap);
+    case 'layoutCase':
+      return Cs.setLayoutCase(ws, a.win, a.layout, a.caseId, a.on);
+    case 'casePick':
+      return Cs.pickCase(ws, a.win, a.caseId).ws;
     case 'layoutAdd':
       return DL.addLayout(ws, a.win, a.setup, a.from, a.name);
     case 'layoutCopy':

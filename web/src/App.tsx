@@ -46,7 +46,7 @@ import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
+import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { browserOf, currentUa, modKey } from './workspace/browser';
@@ -63,6 +63,8 @@ import { Colors } from './components/Colors';
 import { Closed as ClosedDialog } from './components/Closed';
 import type { LayoutOps } from './components/DeskLayouts';
 import { type DeletedLayout, type LayoutContent, activeLayout, deleteLayout, findLayout, layoutsOf, resetToStandard, standardContent } from './workspace/deskLayouts';
+import { pickCase } from './workspace/cases';
+import { CasesDialog } from './components/Cases';
 import { PORTAL_MIN_PX, setStandardRef } from './workspace/device';
 import { FocusRule as FocusRuleDialog } from './components/FocusRule';
 import { ImportBookmarks } from './components/ImportBookmarks';
@@ -434,6 +436,8 @@ function DeskApp(props: DeskProps) {
   const [ruleOpen, setRuleOpen] = useState(false);
   /** F-179: Dialog „Profil“ und Begrüßung beim Start (nicht beim allerersten Start – da läuft die Tour –, nicht in Zusatz-Desks). */
   const [profileOpen, setProfileOpen] = useState(false);
+  /** F-116: Dialog „Spaces und Cases“ (aus Hilfe und Suche; im Cockpit öffnet ihn der Layout-Modus selbst) */
+  const [casesOpen, setCasesOpen] = useState(false);
   const [greetOn, setGreetOn] = useState(() => !win && !props.switched && !tourAutoStart('start') && profileOf(ws).greet);
   /** Zuletzt offenes Portal – beim Start gelesen, bevor das aktuelle es überschreibt. */
   const [lastAtStart] = useState(() => loadLast(win ?? ''));
@@ -1029,8 +1033,30 @@ function DeskApp(props: DeskProps) {
     setOverview(true);
   };
   const here = win ?? '';
+  /** F-116: Case aus der Suche wählen – ein Layout = wechseln, mehrere = Layout-Modus des Cockpits zeigt das Angebot. */
+  const pickCaseHere = (caseId: string) => {
+    const res = pickCase(ws, here, caseId);
+    const c = ws.scenarios.find((x) => x.id === caseId);
+    dispatch({ type: 'casePick', win: here, caseId });
+    if (!c) return;
+    if (res.switched) {
+      setMode({ kind: 'area' });
+      return notify(CASE_TEXT.switched(c.name, res.switched.name));
+    }
+    if (res.offer.length > 1) {
+      notify(CASE_TEXT.offer(c.name, res.offer.length));
+      return openLayouts();
+    }
+    notify(CASE_TEXT.noLayouts(c.name));
+  };
   const layoutOps: LayoutOps = {
     evenCount: screenClass(setup.cls).capacity,
+    onPickCase: (caseId) => {
+      const res = pickCase(ws, here, caseId);
+      dispatch({ type: 'casePick', win: here, caseId });
+      if (res.switched) setMode({ kind: 'area' });
+      return res;
+    },
     onSwitch: (id) => {
       dispatch({ type: 'layoutSwitch', win: here, id });
       setMode({ kind: 'area' });
@@ -2163,6 +2189,9 @@ function DeskApp(props: DeskProps) {
         return setClosedOpen(true);
       case 'layouts':
         return openLayouts();
+      case 'cases':
+        setOverview(false);
+        return setCasesOpen(true);
       case 'limits':
         return view.slots.length > rec ? fitBack() : newSlot('right');
       case 'focusRule':
@@ -2499,7 +2528,7 @@ function DeskApp(props: DeskProps) {
           </button>
         )}
         {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
-        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} onRun={runHelp} onHelp={(id) => setHelpAt({ at: id })} launchHow={launcher.how} onWebSearch={webSearch} engineName={engineOf(ws).name} />
+        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} onRun={runHelp} onHelp={(id) => setHelpAt({ at: id })} launchHow={launcher.how} onWebSearch={webSearch} engineName={engineOf(ws).name} onPickCase={pickCaseHere} />
         {/* F-40: Launcher für Sources, die sich nicht einbetten lassen */}
         {(() => {
           const n = launcherCount(ws);
@@ -3047,6 +3076,7 @@ function DeskApp(props: DeskProps) {
         />
       )}
       {update.found && <UpdateNotice onReload={() => window.location.reload()} onLater={update.later} />}
+      {casesOpen && <CasesDialog ws={ws} dispatch={dispatch} say={sayLive} onClose={() => setCasesOpen(false)} />}
       {profileOpen && <ProfileDialog profile={profileOf(ws)} onChange={(change) => dispatch({ type: 'profile', change })} onRestored={() => sayLive(DIALOG_TEXT.resetDone)} onClose={() => setProfileOpen(false)} />}
       {sortOpen && (
         <SortHelp

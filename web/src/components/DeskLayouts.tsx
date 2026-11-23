@@ -18,6 +18,9 @@ import * as T from '../workspace/tree';
 import { ARRANGE_TEXT as AT, DESK_LAYOUT_TEXT as LT, DIALOG_TEXT } from '../workspace/terms';
 import { DialogFoot } from './DialogFoot';
 import type { Workspace } from '../workspace/types';
+import * as Cs from '../workspace/cases';
+import { CASE_TEXT as CT } from '../workspace/terms';
+import { CasePicker, CasesDialog, Dot, LayoutCases } from './Cases';
 import type { Action } from '../workspace/useWorkspace';
 
 /** Bedienung der Layouts, die App bereitstellt (Hinweise, Rückgängig, Gerätemerker). */
@@ -40,6 +43,8 @@ export interface LayoutOps {
   onReset: () => void;
   resetUndoName: string | null;
   onResetUndo: () => void;
+  /** F-116: Case wählen (App wechselt bei genau einem Layout und sagt es an). */
+  onPickCase: (caseId: string | null) => ReturnType<typeof Cs.pickCase>;
 }
 
 interface Props {
@@ -93,6 +98,8 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [stdOpen, setStdOpen] = useState(false);
+  /** F-116: Dialog „Spaces und Cases“ */
+  const [casesOpen, setCasesOpen] = useState(false);
   const [slotUndo, setSlotUndo] = useState<{ id: string; content: DL.LayoutContent; text: string } | null>(null);
   const cards = useRef(new Map<string, HTMLButtonElement>());
   const tiles = useRef(new Map<string, HTMLButtonElement>());
@@ -367,10 +374,14 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
         </div>
       </div>
 
+      {/* F-116: Case wählen – ein Layout = gleich gewechselt, mehrere = Angebot */}
+      <CasePicker ws={ws} win={win} onPick={ops.onPickCase} onSwitch={ops.onSwitch} say={say} />
+
       <ul className="lc__cards" aria-label={LT.title(desk)}>
         {d.list.map((l, i) => {
           const lv = views.get(l.id)!;
           const on = l.id === shown.id;
+          const lcs = Cs.casesOfLayout(ws, win, l.id);
           return (
             <li key={l.id}>
               <button
@@ -381,7 +392,7 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
                 }}
                 className={`lc__card${on ? ' is-sel' : ''}${l.id === d.active ? ' is-active' : ''}`}
                 aria-pressed={on}
-                aria-label={`${l.name}${l.id === d.active ? `, ${LT.active}` : ''}${isStd(l.id) ? `, ${LT.standardBadge}` : ''}, ${LT.counts(lv.slots.length, lv.portals)}`}
+                aria-label={`${l.name}${l.id === d.active ? `, ${LT.active}` : ''}${isStd(l.id) ? `, ${LT.standardBadge}` : ''}, ${LT.counts(lv.slots.length, lv.portals)}${lcs.length ? `, ${CT.cardCases(lcs.map((c) => c.name))}` : ''}`}
                 onClick={() => show(l.id)}
                 onKeyDown={(e) => onCardKey(e, i)}
               >
@@ -392,6 +403,13 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
                   {isStd(l.id) && <b>{LT.standardBadge}</b>}
                   {LT.counts(lv.slots.length, lv.portals)}
                 </span>
+                {lcs.length > 0 && (
+                  <span className="lc__card-cases" title={CT.cardCases(lcs.map((c) => c.name))} aria-hidden="true">
+                    {lcs.map((c) => (
+                      <Dot key={c.id} color={c.color} />
+                    ))}
+                  </span>
+                )}
               </button>
             </li>
           );
@@ -655,11 +673,14 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
               {error}
             </p>
           )}
+          {/* F-116: Cases dieses Layouts */}
+          <LayoutCases ws={ws} win={win} layout={shown} dispatch={dispatch} say={say} onManage={() => setCasesOpen(true)} />
           <button type="button" ref={stdBtn} className="help__run lc__std" onClick={() => setStdOpen(true)} title={LT.standardTerm}>
             <Icon name="star" size={13} className="icon icon--inline" /> {LT.standardMenu}
           </button>
         </section>
       </div>
+      {casesOpen && <CasesDialog ws={ws} dispatch={dispatch} say={say} onClose={() => setCasesOpen(false)} />}
       {stdOpen && (
         <StandardLayout
           ws={ws}

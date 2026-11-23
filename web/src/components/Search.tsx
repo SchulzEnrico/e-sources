@@ -18,6 +18,9 @@ import { type HelpEntry, type QuestionHit, QUESTION_TEXT, asksQuestion, searchHe
 import { Icon } from './Icon';
 import { WEB_TEXT } from '../workspace/terms';
 import { helpIcon } from '../workspace/icons';
+import { searchCases } from '../workspace/cases';
+import { CASE_TEXT } from '../workspace/terms';
+import { Dot } from './Cases';
 
 interface Props {
   ws: Workspace;
@@ -36,6 +39,8 @@ interface Props {
   /** F-189: im Web suchen (neuer Browser-Tab); mit Name der Suchmaschine. */
   onWebSearch?: (query: string) => void;
   engineName?: string;
+  /** F-116: Case wählen (wie im Layout-Modus des Cockpits). */
+  onPickCase?: (caseId: string) => void;
 }
 
 /** Name eines offenen Tabs: Titel des Lesezeichens, sonst die Domain; ohne Doppelte. */
@@ -43,7 +48,8 @@ function tabNames(ws: Workspace, h: PanelHit): string[] {
   return [...new Set(h.tabs.map((t) => bookmarkOf(ws, t.url, h.panel.id)?.title || tabLabel(t)))];
 }
 
-type Item = { kind: 'web'; hit: string } | { kind: 'panel'; hit: PanelHit } | { kind: 'bookmark'; hit: SearchHit } | { kind: 'help'; hit: HelpEntry } | { kind: 'question'; hit: QuestionHit };
+type CaseHit = ReturnType<typeof searchCases>[number];
+type Item = { kind: 'case'; hit: CaseHit } | { kind: 'web'; hit: string } | { kind: 'panel'; hit: PanelHit } | { kind: 'bookmark'; hit: SearchHit } | { kind: 'help'; hit: HelpEntry } | { kind: 'question'; hit: QuestionHit };
 
 export function Search(props: Props) {
   const { ws, activeName, onOpen, onShowPanel, onRun, onHelp, launchHow } = props;
@@ -69,6 +75,7 @@ export function Search(props: Props) {
     });
   }, [ws, query]);
   const panelHits = useMemo(() => searchPanels(ws, query), [ws, query]);
+  const caseHits = useMemo(() => (props.onPickCase ? searchCases(ws, query) : []), [ws, query, props.onPickCase]);
   const helpHits = useMemo(() => searchHelp(query, 4), [query]);
   // F-186: Fragen als Vorschläge; beginnt die Eingabe mit „wie“, „warum“ …, stehen sie ganz oben
   const qHits = useMemo(() => searchQuestions(query, 3), [query]);
@@ -77,6 +84,7 @@ export function Search(props: Props) {
     const qs = qHits.map((hit) => ({ kind: 'question' as const, hit }));
     return [
       ...(qFirst ? qs : []),
+      ...caseHits.map((hit) => ({ kind: 'case' as const, hit })),
       ...panelHits.map((hit) => ({ kind: 'panel' as const, hit })),
       ...hits.map((hit) => ({ kind: 'bookmark' as const, hit })),
       ...(qFirst ? [] : qs),
@@ -84,12 +92,13 @@ export function Search(props: Props) {
       // F-189: zuletzt immer „Im Web suchen“
       ...(props.onWebSearch && query.trim() ? [{ kind: 'web' as const, hit: query.trim() }] : []),
     ];
-  }, [panelHits, hits, helpHits, qHits, qFirst, query, props.onWebSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [caseHits, panelHits, hits, helpHits, qHits, qFirst, query, props.onWebSearch]); // eslint-disable-line react-hooks/exhaustive-deps
   /** Treffer ohne „Im Web suchen“. */
   const found = items.filter((it) => it.kind !== 'web').length;
   // Startnummern der Gruppen in `items` (für die ids der Optionen)
-  const qBase = qFirst ? 0 : panelHits.length + hits.length;
-  const pBase = qFirst ? qHits.length : 0;
+  const cBase = qFirst ? qHits.length : 0;
+  const pBase = cBase + caseHits.length;
+  const qBase = qFirst ? 0 : pBase + panelHits.length + hits.length;
   const helpBase = pBase + panelHits.length + hits.length + (qFirst ? 0 : qHits.length);
   const show = open && query.trim() !== '';
   const cur = Math.min(sel, Math.max(items.length - 1, 0));
@@ -136,6 +145,9 @@ export function Search(props: Props) {
     if (it.kind === 'web') {
       setQuery('');
       props.onWebSearch?.(it.hit);
+    } else if (it.kind === 'case') {
+      setQuery('');
+      props.onPickCase?.(it.hit.c.id);
     } else if (it.kind === 'panel') onShowPanel(it.hit.panel.id, it.hit.tabs[0]?.id);
     else if (it.kind === 'bookmark') onOpen(it.hit, swap);
     // F-186: Frage → Antwort in der Hilfe zeigen
@@ -292,7 +304,7 @@ export function Search(props: Props) {
         onKeyDown={onKeyDown}
       />
       <span id={`${uid}-help`} className="sr-only">
-        Sucht in Portalen (Name, Slot, Case), in der Library (Titel, Adresse, Kategorie, Tags, Herkunft) und in den Funktionen; passende Fragen erscheinen als Vorschläge. Pfeiltasten wählen, Enter öffnet oder führt aus, Umschalt+Enter zeigt die Hilfe, Escape schließt. Sources mit „neuer Tab“ oder „neues Fenster“ öffnen außerhalb von E-Sources; Strg/⌘+Enter nimmt die andere Art.
+        Sucht nach Cases, in Portalen (Name, Slot, Case), in der Library (Titel, Adresse, Kategorie, Tags, Herkunft) und in den Funktionen; passende Fragen erscheinen als Vorschläge. Pfeiltasten wählen, Enter öffnet oder führt aus, Umschalt+Enter zeigt die Hilfe, Escape schließt. Sources mit „neuer Tab“ oder „neues Fenster“ öffnen außerhalb von E-Sources; Strg/⌘+Enter nimmt die andere Art.
       </span>
       {/* Ansage für Bildschirmleser, wie viele Treffer es gibt */}
       <span className="sr-only" role="status" aria-live="polite">
@@ -306,6 +318,28 @@ export function Search(props: Props) {
             </li>
           )}
           {qFirst && questionBlock()}
+          {caseHits.length > 0 && (
+            <li className="search__head" role="presentation">
+              Cases
+            </li>
+          )}
+          {caseHits.map((h, k) =>
+            option(
+              cBase + k,
+              CASE_TEXT.searchHitOf(h.c.name, h.space.name),
+              <>
+                <span className="search__title">
+                  <Dot color={h.c.color} /> {h.c.name}
+                </span>
+                <span className="search__where">
+                  <span className="search__cat">
+                    {h.space.name} · {CASE_TEXT.searchHit}
+                  </span>
+                </span>
+              </>,
+              CASE_TEXT.caseTerm,
+            ),
+          )}
           {panelHits.length > 0 && (
             <li className="search__head" role="presentation">
               Portale

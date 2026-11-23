@@ -5,13 +5,14 @@ import { createPortal } from 'react-dom';
 import type { Bookmark, Named, PanelMeta, Workspace } from '../workspace/types';
 import type { Action } from '../workspace/useWorkspace';
 import type { MoveTarget } from '../workspace/move';
-import { bookmarkOf, collectionSize } from '../workspace/bookmarks';
+import { bookmarkOf, collectionSize, searchAll } from '../workspace/bookmarks';
 import { BookmarkEditor, CollectionDrawer, CollectionIcon, draftFor } from './Bookmarks';
 import { FOCUS_WARN, NEW_AREA, TAB_MAX, rulerShown, activeTab, canGoBack, canGoForward, hostOf, isSelfUrl, loadColor, tabLabel } from '../workspace/workspace';
 import { StackBar, type StackProps, useSwipe } from './StackBar';
 import { Ruler, RulerIcon } from './Ruler';
 import * as FH from '../workspace/frameHistory';
-import { CATEGORY_TEXT, TERMS, TINT_TEXT } from '../workspace/terms';
+import { CATEGORY_TEXT, PAUSE_TEXT, TERMS, TINT_TEXT, WEB_TEXT } from '../workspace/terms';
+import { looksLikeAddress } from '../workspace/websearch';
 import type { ShownTint } from '../workspace/tint';
 import { rgbOf } from '../workspace/look';
 import { Icon } from './Icon';
@@ -103,6 +104,18 @@ interface Props {
   moveTargets: (whole: boolean) => MoveTarget[];
   /** F-28: Panel (whole = ganze Area) auf ein Ziel legen. */
   onMove: (target: MoveTarget, whole: boolean) => void;
+  /** F-06: Ist dieser Tab geladen? Fehlt = alle Tabs geladen. */
+  awake?: (tab: string) => boolean;
+  /** F-06: „Nicht pausieren“ umschalten. */
+  onKeep?: () => void;
+  /** F-189: Text ohne Adresse – im Web suchen (neuer Browser-Tab). */
+  onSearch?: (query: string) => void;
+  /** F-189: Ein Link wird gerade von außen über E-Sources gezogen – Ablagefläche zeigen. */
+  linkDrag?: boolean;
+  /** F-189: Link als neuen Tab in diesem Portal öffnen. */
+  onOpenNewTab?: (url: string) => void;
+  /** F-189: Name der Suchmaschine für den Vorschlag „im Web suchen“. */
+  engineName?: string;
 }
 
 /** Seitenleiste im Panel: Sammlung oder Lesezeichen bearbeiten. */
@@ -461,6 +474,59 @@ export function PanelFrame(p: Props) {
     else p.notify('Das ist kein Link – bitte eine Adresse hineinziehen.');
   };
   const inputRef = useRef<HTMLInputElement>(null);
+  // F-189: Vorschläge unter der Adresszeile
+  const [sugOpen, setSugOpen] = useState(false);
+  const [sugSel, setSugSel] = useState(0);
+  const sugId = useId().replace(/:/g, '');
+  const typed = address.trim();
+  type Sug = { kind: 'go' | 'bm'; url: string; label: string } | { kind: 'web'; label: string };
+  const sugItems: Sug[] =
+    sugOpen && typed && typed !== (url ?? '')
+      ? [
+          ...(looksLikeAddress(typed) ? [{ kind: 'go' as const, url: typed, label: WEB_TEXT.go(typed) }] : []),
+          ...searchAll(p.ws, typed, 6).map((h) => ({ kind: 'bm' as const, url: h.bookmark.url, label: h.bookmark.title || hostOf(h.bookmark.url) })),
+          ...(p.onSearch ? [{ kind: 'web' as const, label: WEB_TEXT.searchFor(typed, p.engineName ?? 'Google') }] : []),
+        ]
+      : [];
+  const sugShown = sugItems.length > 0;
+  const pickSug = (it: Sug) => {
+    if (it.kind === 'web') {
+      p.onSearch?.(typed);
+      setAddress(url ?? '');
+    } else if (it.kind === 'bm') p.onOpenBookmark(it.url);
+    else p.onNavigate(it.url);
+  };
+  /** F-189: Link über der Tab-Leiste bzw. über einer Hälfte der Ablagefläche. */
+  const [tabsOver, setTabsOver] = useState(false);
+  const [padOver, setPadOver] = useState<null | 'here' | 'tab'>(null);
+  useEffect(() => {
+    if (!p.linkDrag) setPadOver(null);
+    if (!p.linkDrag) setTabsOver(false);
+  }, [p.linkDrag]);
+  const hasLink = (e: DragEvent) => [...e.dataTransfer.types].some((t) => t === 'text/uri-list' || t === 'text/plain');
+  const padZone = (zone: 'here' | 'tab', label: string) => (
+    <div
+      className={`linkpad__zone${padOver === zone ? ' is-over' : ''}`}
+      onDragOver={(e) => {
+        if (!hasLink(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setPadOver(zone);
+      }}
+      onDragLeave={() => setPadOver((z) => (z === zone ? null : z))}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setPadOver(null);
+        const link = linkFromDrop(e.dataTransfer);
+        if (!link) return p.notify('Das ist kein Link – bitte eine Adresse hineinziehen.');
+        if (zone === 'here') p.onNavigate(link);
+        else p.onOpenNewTab?.(link);
+      }}
+    >
+      {label}
+    </div>
+  );
   const swipe = useSwipe(p.stack?.onStep);
   // E-Source darf sich selbst laden (F-18), aber nur auf oberster Ebene: Eine eingebettete
   // E-Source lädt sich nicht noch einmal, sonst verschachtelt es sich endlos.
@@ -470,6 +536,8 @@ export function PanelFrame(p: Props) {
   /** Anzahl auf dieser Area für die Ampel (F-26). */
   const load = p.stack ? p.stack.members.length : 1;
   const tabCount = p.panel.tabs.length;
+  /** F-06: Tab mit Adresse, der gerade nicht geladen ist. */
+  const isPaused = (t: { id: string; url?: string }) => !!t.url && t.id !== tab.id && !!p.awake && !p.awake(t.id);
 
   /** Neuer Tab mit Ampel-Regel (F-26): Hinweis bei 5, Grenze bei 9. */
   const addTab = () => {
@@ -623,24 +691,67 @@ export function PanelFrame(p: Props) {
             className="win__address"
             onSubmit={(e) => {
               e.preventDefault();
-              p.onNavigate(address);
+              // F-189: gewählter Vorschlag (Adresse, Source aus der Library, Web-Suche); sonst Adresse
+              if (sugItems[sugSel]) pickSug(sugItems[sugSel]);
+              else p.onNavigate(address);
+              setSugOpen(false);
               (document.activeElement as HTMLElement | null)?.blur();
             }}
           >
             <input
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={(e) => {
+                setAddress(e.target.value);
+                setSugOpen(true);
+                setSugSel(0);
+              }}
               onFocus={(e) => e.target.select()}
+              onBlur={() => setSugOpen(false)}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
+                  if (sugShown) return setSugOpen(false);
                   setAddress(url ?? '');
                   e.currentTarget.blur();
                 }
+                if (sugShown && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                  e.preventDefault();
+                  const n = sugItems.length;
+                  setSugSel((i) => (i + (e.key === 'ArrowDown' ? 1 : -1) + n) % n);
+                }
               }}
-              placeholder="Adresse eingeben, z. B. wikipedia.org"
+              placeholder="Adresse oder Suchwort, z. B. wikipedia.org"
               aria-label="Adresse"
               spellCheck={false}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={sugShown}
+              aria-controls={sugId}
+              aria-activedescendant={sugShown ? `${sugId}-${sugSel}` : undefined}
             />
+            {/* F-189: Vorschläge – Adresse, Sources aus der Library, zuletzt die Web-Suche */}
+            {sugShown && (
+              <ul className="addrsug" id={sugId} role="listbox" aria-label={WEB_TEXT.suggest} onMouseDown={(e) => e.preventDefault()}>
+                {sugItems.map((it, i) => (
+                  <li
+                    key={i}
+                    id={`${sugId}-${i}`}
+                    role="option"
+                    aria-selected={i === sugSel}
+                    className={i === sugSel ? 'addrsug__item is-on' : 'addrsug__item'}
+                    onMouseEnter={() => setSugSel(i)}
+                    onClick={() => {
+                      pickSug(it);
+                      setSugOpen(false);
+                    }}
+                  >
+                    <Icon name={it.kind === 'bm' ? 'source' : it.kind === 'web' ? 'search' : 'portal'} size={13} />
+                    <span className="addrsug__title">{it.label}</span>
+                    {it.kind === 'bm' && <span className="addrsug__where">{hostOf(it.url)}</span>}
+                    {it.kind === 'web' && <span className="addrsug__where">↗ eigenes Fenster</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
             {/* F-14: Lesezeichen speichern – Stern in der Adresszeile wie im Browser */}
             {url && (
               <button
@@ -810,6 +921,11 @@ export function PanelFrame(p: Props) {
                   <Item icon="ruler" onClick={run(() => p.dispatch({ type: 'rulerPanel', id: p.panel.id }))}>
                     {rulerShown(p.ws, p.panel) ? 'Lineal in diesem Portal ausblenden' : 'Lineal in diesem Portal zeigen'}
                   </Item>
+                  {p.onKeep && (
+                    <Item icon="pause" checked={!!p.panel.keep} title={PAUSE_TEXT.keepTitle} onClick={run(p.onKeep)}>
+                      {PAUSE_TEXT.keepMenu}
+                    </Item>
+                  )}
                   <Item icon="rename" onClick={run(() => startEdit('panel'))}>Portal umbenennen</Item>
                   {p.onColors && <Item icon="colors" onClick={run(p.onColors)}>{TINT_TEXT.menu}</Item>}
                   {p.stack && <Item icon="rename" onClick={run(() => startEdit('area'))}>Slot umbenennen</Item>}
@@ -849,7 +965,32 @@ export function PanelFrame(p: Props) {
           </button>
         </header>
         {/* F-21, F-22: Tabs unter der Kopfleiste (die Kopfleiste bleibt der Griff zum Verschieben), Ampel an der unteren Kante (F-26) */}
-        <div className={p.stack ? 'tabs tabs--stacked' : 'tabs'} role="tablist" aria-label="Tabs" style={{ '--tabload': loadColor(tabCount) } as CSSProperties}>
+        <div
+          className={['tabs', p.stack && 'tabs--stacked', tabsOver && 'tabs--drop'].filter(Boolean).join(' ')}
+          role="tablist"
+          aria-label="Tabs"
+          style={{ '--tabload': loadColor(tabCount) } as CSSProperties}
+          title={tabsOver ? WEB_TEXT.tabbar : undefined}
+          // F-189: Link von außen auf die Tab-Leiste = neuer Tab
+          onDragOver={(e) => {
+            if (dragTab.current || !p.onOpenNewTab || !hasLink(e)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            setTabsOver(true);
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) setTabsOver(false);
+          }}
+          onDrop={(e) => {
+            if (dragTab.current || !p.onOpenNewTab) return;
+            const link = linkFromDrop(e.dataTransfer);
+            setTabsOver(false);
+            if (!link) return;
+            e.preventDefault();
+            e.stopPropagation();
+            p.onOpenNewTab(link);
+          }}
+        >
           {p.panel.tabs.map((t, i) => (
             <div
               key={t.id}
@@ -866,7 +1007,8 @@ export function PanelFrame(p: Props) {
                 p.onSelectTab(p.panel.tabs[to].id);
                 window.setTimeout(() => el?.querySelectorAll<HTMLElement>('[role="tab"]')[to]?.focus());
               }}
-              className={t.id === tab.id ? 'tab tab--on' : 'tab'}
+              className={['tab', t.id === tab.id && 'tab--on', isPaused(t) && 'tab--paused'].filter(Boolean).join(' ')}
+              aria-description={isPaused(t) ? PAUSE_TEXT.paused : undefined}
               draggable
               onDragStart={(e) => {
                 dragTab.current = t.id;
@@ -876,7 +1018,7 @@ export function PanelFrame(p: Props) {
               onDragOver={(e) => dragTab.current && e.preventDefault()}
               onDrop={(e) => dropTab(e, i)}
               onClick={() => p.onSelectTab(t.id)}
-              title={t.url ?? 'Neuer Tab'}
+              title={`${t.url ?? 'Neuer Tab'}${isPaused(t) ? ` · ${PAUSE_TEXT.paused}` : ''}`}
             >
               <span className="tab__label">{tabLabel(t)}</span>
               <button
@@ -925,9 +1067,9 @@ export function PanelFrame(p: Props) {
           }}
           onDrop={linkDrop}
         >
-          {/* Alle Tabs bleiben geladen (wie im Browser), sichtbar ist nur der aktive. */}
+          {/* F-06: Tabs im Hintergrund bleiben eine Weile geladen (wie im Browser) und pausieren dann; sichtbar ist nur der aktive. */}
           {p.panel.tabs.map((t) =>
-            t.url && !isSelf(t.url) && !p.isBlocked(t.url) ? (
+            t.url && !isSelf(t.url) && !p.isBlocked(t.url) && (t.id === tab.id || !p.awake || p.awake(t.id)) ? (
               <iframe
                 key={`${t.id}#${t.url}#${reloads[t.id] ?? 0}`}
                 onLoad={() => FH.loaded(frameKey(t))}
@@ -944,6 +1086,13 @@ export function PanelFrame(p: Props) {
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"
               />
             ) : null,
+          )}
+          {/* F-189: Link von außen über einer Seite – hier öffnen oder als neuer Tab */}
+          {p.linkDrag && url && (
+            <div className="linkpad" aria-hidden="true" title={WEB_TEXT.padTitle}>
+              {padZone('here', WEB_TEXT.here)}
+              {p.onOpenNewTab && padZone('tab', WEB_TEXT.newTab)}
+            </div>
           )}
           {isSelf(url) ? (
             <p className="win__placeholder win__placeholder--small">In einer eingebetteten E-Source lädt sich E-Source nicht noch einmal.</p>

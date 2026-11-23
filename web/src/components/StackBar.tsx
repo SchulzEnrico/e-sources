@@ -2,7 +2,7 @@ import { useRef, useState, type PointerEvent, type TouchEvent, type WheelEvent }
 import type { PanelMeta } from '../workspace/types';
 import { type Fx, StackAddIcon } from './PanelFrame';
 import { Icon } from './Icon';
-import { TERMS } from '../workspace/terms';
+import { PAUSE_TEXT, TERMS } from '../workspace/terms';
 
 /** F-08: Stapel-Leiste rechts am Panel – Klick wählt, Mausrad und Pfeile blättern. */
 export interface StackProps {
@@ -23,9 +23,11 @@ export interface StackProps {
   onRenameArea: (name: string) => void;
   /** F-28: Eintrag auf eine andere Area ziehen (dort obendrauf legen); fehlt außerhalb der Arbeitsfläche. */
   onDragStart?: (e: PointerEvent, id: string) => void;
+  /** F-06: Ist dieses Portal gerade pausiert (nicht geladen)? */
+  paused?: (m: PanelMeta) => boolean;
 }
 
-export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, addFx, onRename, onDragStart }: StackProps) {
+export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, addFx, onRename, onDragStart, paused }: StackProps) {
   const lastWheel = useRef(0);
   /** Panel, dessen Name gerade bearbeitet wird; solange hat das Eingabefeld den Fokus und die Leiste bleibt offen. */
   const [editing, setEditing] = useState<string | null>(null);
@@ -82,7 +84,8 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
               type="button"
               role="tab"
               aria-selected={m.id === frontId}
-              className={m.id === frontId ? 'stack__item stack__item--on' : 'stack__item'}
+              className={['stack__item', m.id === frontId && 'stack__item--on', paused?.(m) && 'stack__item--paused'].filter(Boolean).join(' ')}
+              aria-description={paused?.(m) ? PAUSE_TEXT.paused : undefined}
               onClick={() => onSelect(m.id)}
               onPointerDown={(e) => {
                 if (e.button === 0) onDragStart?.(e, m.id);
@@ -91,7 +94,7 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
                 setDraft(m.name);
                 setEditing(m.id);
               }}
-              title={`${m.name} · Doppelklick oder F2: umbenennen · Entf: schließen${onDragStart ? ' · Ziehen: in einem anderen Portal ablegen' : ''}`}
+              title={`${m.name}${paused?.(m) ? ` · ${PAUSE_TEXT.paused}` : ''} · Doppelklick oder F2: umbenennen · Entf: schließen${onDragStart ? ' · Ziehen: in einem anderen Portal ablegen' : ''}`}
               aria-keyshortcuts="F2 Delete"
               // NF-03: Das × ist mit der Maus erreichbar; per Tastatur schließt Entf, F2 benennt um.
               onKeyDown={(e) => {

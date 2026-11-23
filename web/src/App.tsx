@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import './App.css';
+import { usePause } from './workspace/usePause';
+import { PAUSE_CHOICES, pauseMinutes, tabKey } from './workspace/pause';
 import logoUrl from './assets/e-sources-logo.svg';
 import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, MenuHead, PanelFrame } from './components/PanelFrame';
@@ -41,7 +43,8 @@ import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DISPLAY_TEXT, JACKPOT_TEXT, TERMS, TINT_TEXT } from './workspace/terms';
+import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DISPLAY_TEXT, JACKPOT_TEXT, PAUSE_TEXT, TERMS, TINT_TEXT, WEB_TEXT } from './workspace/terms';
+import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { setCompact, setFavicons } from './workspace/display';
 import { useDisplay } from './components/SiteIcon';
 import { categoryIcon } from './workspace/icons';
@@ -1064,6 +1067,55 @@ function DeskApp(props: DeskProps) {
   };
   /** F-170: Slotmaschine offen? */
   const [jackpot, setJackpot] = useState(false);
+
+  // ---------------------------------------------------------------- F-189 Web-Suche und Links von außen
+  /** Ein Link wird von außen über E-Sources gezogen (Ablageflächen an den Portalen). */
+  const [linkDrag, setLinkDrag] = useState(false);
+  /** Nach einer Web-Suche: E-Sources ist im Hintergrund – eingebettete Seiten lassen Gezogenes durch. */
+  const [away, setAway] = useState(false);
+  const searched = useRef(false);
+  useEffect(() => {
+    let inner = false;
+    const start = () => (inner = true);
+    const end = () => (inner = false);
+    const enter = (e: DragEvent) => {
+      if (inner || !e.dataTransfer) return;
+      if ([...e.dataTransfer.types].some((t) => t === 'text/uri-list' || t === 'text/plain')) setLinkDrag(true);
+    };
+    const leave = (e: DragEvent) => {
+      if (e.relatedTarget === null && (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight)) setLinkDrag(false);
+    };
+    const drop = () => window.setTimeout(() => setLinkDrag(false));
+    const blur = () => window.setTimeout(() => setAway(searched.current && !document.hasFocus()), 50);
+    const focus = () => setAway(false);
+    window.addEventListener('dragstart', start, true);
+    window.addEventListener('dragend', end, true);
+    window.addEventListener('dragenter', enter, true);
+    window.addEventListener('dragleave', leave, true);
+    window.addEventListener('drop', drop, true);
+    window.addEventListener('blur', blur);
+    window.addEventListener('focus', focus);
+    return () => {
+      window.removeEventListener('dragstart', start, true);
+      window.removeEventListener('dragend', end, true);
+      window.removeEventListener('dragenter', enter, true);
+      window.removeEventListener('dragleave', leave, true);
+      window.removeEventListener('drop', drop, true);
+      window.removeEventListener('blur', blur);
+      window.removeEventListener('focus', focus);
+    };
+  }, []);
+  useEffect(() => {
+    document.body.classList.toggle('is-linkdrop', linkDrag || away);
+  }, [linkDrag, away]);
+  const webSearch = (query: string) => {
+    const engine = engineOf(ws);
+    searched.current = true;
+    openBeside(searchUrl(ws, query));
+    const text = WEB_TEXT.opened(engine.name);
+    notify(text, 12000);
+    sayLive(text);
+  };
   /** F-170: Duplikate schließen (nach Bestätigung im Dialog); alles wird gemerkt (Zuletzt geschlossen). */
   const cleanupDuplicates = (c: Cleanup) => {
     for (const t of c.tabs) dispatch({ type: 'closeTab', id: t.panel, tab: t.tab });
@@ -1269,7 +1321,7 @@ function DeskApp(props: DeskProps) {
     if (!props.said) return;
     const t = window.setTimeout(() => {
       sayLive(props.said);
-      const tab = document.querySelector<HTMLElement>('main [role="tab"][aria-selected="true"]');
+      const tab = document.querySelector<HTMLElement>('main .tile__layer:not(.is-back) [role="tab"][aria-selected="true"], main .maximized [role="tab"][aria-selected="true"], main .split [role="tab"][aria-selected="true"]');
       (tab ?? document.querySelector<HTMLElement>('.tb-desk-switch button'))?.focus({ preventScroll: true });
     }, 250);
     return () => window.clearTimeout(t);
@@ -1553,6 +1605,17 @@ function DeskApp(props: DeskProps) {
   /** Panel, das auf einer Area sichtbar ist (beim Stapel das vorderste). */
   const shown = (slotId: string): PanelMeta | null => shownView.slots.find((s) => s.id === slotId)?.front ?? null;
 
+  // F-06: Verdecktes (Tabs im Hintergrund, Portale hinten im Stack) lädt erst beim Ansehen und pausiert nach einer Weile.
+  const pauseShown: PanelMeta[] =
+    mine.length === 0
+      ? []
+      : mode.kind === 'max'
+        ? ws.panels.filter((x) => x.id === mode.id)
+        : mode.kind === 'split'
+          ? splitSelection(view, active && areaOf(view, active), mode.count).map(shown).filter((m): m is PanelMeta => !!m)
+          : shownView.slots.map((s) => s.front);
+  const isAwake = usePause(shownView.slots.flatMap((s) => s.panels), pauseShown, pauseMinutes(ws));
+
   const frame = (meta: PanelMeta, onArea?: { slotId: string; rect: T.FRect }) => {
     const slotOfMeta = shownView.slots.find((s) => s.panels.some((m) => m.id === meta.id));
     const inStack = !!slotOfMeta && slotOfMeta.panels.length > 1;
@@ -1586,6 +1649,7 @@ function DeskApp(props: DeskProps) {
                 addFx: fx.panel,
                 onRename: (id, name) => dispatch({ type: 'rename', id, name }),
                 onDragStart: onArea ? (e, id) => startStackDrag(e, id, slotOfMeta.id) : undefined,
+                paused: (m) => m.id !== slotOfMeta.front.id && !isAwake(m.id, m.keep),
               }
             : undefined
         }
@@ -1603,6 +1667,22 @@ function DeskApp(props: DeskProps) {
         onAddTab={() => dispatch({ type: 'addTab', id: meta.id })}
         onCloseTab={(tab) => closeTabOf(meta.id, tab)}
         onSelectTab={(tab) => dispatch({ type: 'selectTab', id: meta.id, tab })}
+        awake={(tab) => isAwake(tabKey(meta.id, tab), meta.keep)}
+        onSearch={webSearch}
+        engineName={engineOf(ws).name}
+        linkDrag={linkDrag}
+        onOpenNewTab={(url) => {
+          if (meta.tabs.length >= TAB_MAX) return notify(`Höchstens ${TAB_MAX} Tabs je Portal – lege den Link lieber in ein anderes Portal.`);
+          dispatch({ type: 'addTab', id: meta.id, url });
+          setActive(meta.id);
+          sayLive(WEB_TEXT.openedNewTab(hostOf(url)));
+        }}
+        onKeep={() => {
+          dispatch({ type: 'keepPanel', id: meta.id });
+          const text = meta.keep ? PAUSE_TEXT.keepOff(meta.name) : PAUSE_TEXT.keepOn(meta.name);
+          notify(text);
+          sayLive(text);
+        }}
         onMoveTab={(tab, to) => dispatch({ type: 'moveTab', id: meta.id, tab, to })}
         isBlocked={(u) => isBlocked(ws, u)}
         onEmbed={(url, ok) => {
@@ -1842,7 +1922,14 @@ function DeskApp(props: DeskProps) {
           const over = drag?.target === s.id ? drag.zone : null;
           return (
             <div key={s.id} className={`tile${resizing.has(s.id) ? ' tile--resizing' : ''}`} style={px(s.rect)}>
-              {meta && frame(meta, { slotId: s.id, rect: s.rect })}
+              {/* F-06: Portale hinten im Stack bleiben eine Weile geladen (verborgen), dann pausieren sie. */}
+              {s.panels.map((m) =>
+                m.id === meta?.id || isAwake(m.id, m.keep) ? (
+                  <div key={m.id} className={m.id === meta?.id ? 'tile__layer' : 'tile__layer is-back'} aria-hidden={m.id === meta?.id ? undefined : true}>
+                    {frame(m, { slotId: s.id, rect: s.rect })}
+                  </div>
+                ) : null,
+              )}
               {grips(s.id)}
               {/* F-155: im Größen-Modus fängt diese Fläche Mausrad und Klick ab (statt der eingebetteten Seite) */}
               {sizeMode && (
@@ -2071,7 +2158,7 @@ function DeskApp(props: DeskProps) {
           </button>
         )}
         {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
-        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} onRun={runHelp} onHelp={(id) => setHelpAt({ at: id })} launchHow={launcher.how} />
+        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} onRun={runHelp} onHelp={(id) => setHelpAt({ at: id })} launchHow={launcher.how} onWebSearch={webSearch} engineName={engineOf(ws).name} />
         {/* F-40: Launcher für Sources, die sich nicht einbetten lassen */}
         {(() => {
           const n = launcherCount(ws);
@@ -2212,6 +2299,47 @@ function DeskApp(props: DeskProps) {
                     {SCREEN_CLASSES.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.label} – {c.capacity} sichtbar
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </li>
+              {/* F-189: Suchmaschine für „Im Web suchen“ */}
+              <li className="menu__field">
+                <label title={WEB_TEXT.engineHint}>
+                  {WEB_TEXT.engine}
+                  <select
+                    value={engineOf(ws).id}
+                    aria-description={WEB_TEXT.engineHint}
+                    onChange={(e) => {
+                      dispatch({ type: 'engine', id: e.target.value });
+                      sayLive(WEB_TEXT.engineChanged(ENGINES.find((x) => x.id === e.target.value)?.name ?? ''));
+                    }}
+                  >
+                    {ENGINES.map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </li>
+              {/* F-06: Verdecktes pausieren */}
+              <li className="menu__field">
+                <label title={PAUSE_TEXT.settingHint}>
+                  {PAUSE_TEXT.setting}
+                  <select
+                    value={pauseMinutes(ws)}
+                    aria-description={PAUSE_TEXT.settingHint}
+                    onChange={(e) => {
+                      const min = Number(e.target.value);
+                      dispatch({ type: 'pause', minutes: min });
+                      sayLive(PAUSE_TEXT.changed(min));
+                    }}
+                  >
+                    {PAUSE_CHOICES.map((m) => (
+                      <option key={m} value={m}>
+                        {PAUSE_TEXT.choice(m)}
                       </option>
                     ))}
                   </select>

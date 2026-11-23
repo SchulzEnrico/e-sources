@@ -33,6 +33,8 @@ import * as Ic from './icons';
 import * as Dis from './display';
 import * as Jp from './jackpot';
 import * as Ar from './arrange';
+import * as Pa from './pause';
+import * as Web from './websearch';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -2786,5 +2788,65 @@ describe('F-187 Stufe 2 Anordnung im Layout-Modus', () => {
     const rects = new Map([['a', { x: 0, y: 0, w: 0.5, h: 1 }], ['b', { x: 0.5, y: 0, w: 0.5, h: 1 }]]);
     expect(Ar.neighbourLeaf(rects, 'a', 1, 0)).toBe('b');
     expect(Ar.neighbourLeaf(rects, 'a', -1, 0)).toBeNull();
+  });
+});
+
+describe('F-06 Portale pausieren', () => {
+  const vis = (...k: string[]) => new Set(k);
+  it('merkt Sichtbares und seit wann es verdeckt ist; Unbekanntes fällt weg', () => {
+    let s = Pa.track({}, vis('a'), ['a', 'b'], 1000);
+    expect(s).toEqual({ a: null });
+    s = Pa.track(s, vis('b'), ['a', 'b'], 2000);
+    expect(s).toEqual({ a: 2000, b: null });
+    const same = Pa.track(s, vis('b'), ['a', 'b'], 9000);
+    expect(same).toBe(s);
+    expect(Pa.track(s, vis('b'), ['b'], 3000)).toEqual({ b: null });
+  });
+  it('lädt Unbekanntes erst beim Ansehen und pausiert nach der eingestellten Zeit', () => {
+    const s: Pa.Seen = { a: 0, b: null };
+    expect(Pa.awake(s, 'c', vis(), 1000, 10)).toBe(false);
+    expect(Pa.awake(s, 'c', vis('c'), 1000, 10)).toBe(true);
+    expect(Pa.awake(s, 'b', vis(), 1000, 10)).toBe(true);
+    expect(Pa.awake(s, 'a', vis(), 9 * 60_000, 10)).toBe(true);
+    expect(Pa.awake(s, 'a', vis(), 10 * 60_000, 10)).toBe(false);
+    expect(Pa.awake(s, 'a', vis(), 10 * 60_000, 10, true)).toBe(true);
+    expect(Pa.awake(s, 'c', vis(), 10 * 60_000, 0)).toBe(true);
+  });
+  it('sichtbar sind das gezeigte Portal und sein aktiver Tab', () => {
+    const p = { id: 'p', name: 'P', tabs: [{ id: 't1' }, { id: 't2' }], activeTab: 't2' };
+    expect([...Pa.visibleKeys([p])]).toEqual(['p', 'p/t2']);
+    expect(Pa.keysOf(p)).toEqual(['p', 'p/t1', 'p/t2']);
+  });
+  it('Einstellung und „Nicht pausieren“ über den Reducer, gespeichert und wieder gelesen', () => {
+    let ws = W.defaultWorkspace();
+    const id = ws.panels[0].id;
+    expect(Pa.pauseMinutes(ws)).toBe(Pa.PAUSE_DEFAULT);
+    ws = reducer(ws, { type: 'pause', minutes: 30 });
+    expect(ws.pause).toBe(30);
+    expect(reducer(ws, { type: 'pause', minutes: 7 })).toBe(ws);
+    ws = reducer(ws, { type: 'keepPanel', id });
+    expect(ws.panels[0].keep).toBe(true);
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(back.pause).toBe(30);
+    expect(back.panels[0].keep).toBe(true);
+    ws = reducer(reducer(ws, { type: 'keepPanel', id }), { type: 'pause', minutes: Pa.PAUSE_DEFAULT });
+    expect(ws.panels[0].keep).toBeUndefined();
+    expect(ws.pause).toBeUndefined();
+  });
+});
+
+describe('F-189 Web-Suche', () => {
+  it('erkennt Adressen und Suchwörter', () => {
+    for (const a of ['wikipedia.org', 'https://x.de/a?b=1', 'localhost:2910', 'de.wikipedia.org/wiki/Hamburg', '192.168.0.1']) expect(Web.looksLikeAddress(a)).toBe(true);
+    for (const q of ['Hamburg Hafen', 'wetter', 'e-sources', 'was ist 2.5', '']) expect(Web.looksLikeAddress(q)).toBe(false);
+  });
+  it('baut die Such-Adresse der gewählten Suchmaschine, gespeichert und wieder gelesen', () => {
+    let ws = W.defaultWorkspace();
+    expect(Web.searchUrl(ws, ' Hafen & Elbe ')).toBe('https://www.google.com/search?q=Hafen%20%26%20Elbe');
+    ws = reducer(ws, { type: 'engine', id: 'ecosia' });
+    expect(Web.searchUrl(ws, 'a')).toBe('https://www.ecosia.org/search?q=a');
+    expect(reducer(ws, { type: 'engine', id: 'altavista' })).toBe(ws);
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))!.engine).toBe('ecosia');
+    expect(reducer(ws, { type: 'engine', id: 'google' }).engine).toBeUndefined();
   });
 });

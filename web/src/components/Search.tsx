@@ -16,6 +16,7 @@ import { type How, HOW_IN, HOW_NAME } from '../workspace/launcher';
 import type { Workspace } from '../workspace/types';
 import { type HelpEntry, type QuestionHit, QUESTION_TEXT, asksQuestion, searchHelp, searchQuestions } from '../workspace/help';
 import { Icon } from './Icon';
+import { WEB_TEXT } from '../workspace/terms';
 import { helpIcon } from '../workspace/icons';
 
 interface Props {
@@ -32,6 +33,9 @@ interface Props {
   onRun: (entry: HelpEntry) => void;
   /** F-156: Hilfe an dieser Stelle öffnen (Umschalt+Enter, oder Enter bei Begriffen). */
   onHelp: (id: string) => void;
+  /** F-189: im Web suchen (neuer Browser-Tab); mit Name der Suchmaschine. */
+  onWebSearch?: (query: string) => void;
+  engineName?: string;
 }
 
 /** Name eines offenen Tabs: Titel des Lesezeichens, sonst die Domain; ohne Doppelte. */
@@ -39,9 +43,10 @@ function tabNames(ws: Workspace, h: PanelHit): string[] {
   return [...new Set(h.tabs.map((t) => bookmarkOf(ws, t.url, h.panel.id)?.title || tabLabel(t)))];
 }
 
-type Item = { kind: 'panel'; hit: PanelHit } | { kind: 'bookmark'; hit: SearchHit } | { kind: 'help'; hit: HelpEntry } | { kind: 'question'; hit: QuestionHit };
+type Item = { kind: 'web'; hit: string } | { kind: 'panel'; hit: PanelHit } | { kind: 'bookmark'; hit: SearchHit } | { kind: 'help'; hit: HelpEntry } | { kind: 'question'; hit: QuestionHit };
 
-export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, launchHow }: Props) {
+export function Search(props: Props) {
+  const { ws, activeName, onOpen, onShowPanel, onRun, onHelp, launchHow } = props;
   const uid = useId().replace(/:/g, '');
   const listId = `${uid}-list`;
   const optId = (i: number) => `${uid}-opt-${i}`;
@@ -76,8 +81,12 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
       ...hits.map((hit) => ({ kind: 'bookmark' as const, hit })),
       ...(qFirst ? [] : qs),
       ...helpHits.map((hit) => ({ kind: 'help' as const, hit })),
+      // F-189: zuletzt immer „Im Web suchen“
+      ...(props.onWebSearch && query.trim() ? [{ kind: 'web' as const, hit: query.trim() }] : []),
     ];
-  }, [panelHits, hits, helpHits, qHits, qFirst]);
+  }, [panelHits, hits, helpHits, qHits, qFirst, query, props.onWebSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Treffer ohne „Im Web suchen“. */
+  const found = items.filter((it) => it.kind !== 'web').length;
   // Startnummern der Gruppen in `items` (für die ids der Optionen)
   const qBase = qFirst ? 0 : panelHits.length + hits.length;
   const pBase = qFirst ? qHits.length : 0;
@@ -124,7 +133,10 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
     if (!it) return;
     setOpen(false);
     input.current?.blur();
-    if (it.kind === 'panel') onShowPanel(it.hit.panel.id, it.hit.tabs[0]?.id);
+    if (it.kind === 'web') {
+      setQuery('');
+      props.onWebSearch?.(it.hit);
+    } else if (it.kind === 'panel') onShowPanel(it.hit.panel.id, it.hit.tabs[0]?.id);
     else if (it.kind === 'bookmark') onOpen(it.hit, swap);
     // F-186: Frage → Antwort in der Hilfe zeigen
     else if (it.kind === 'question') {
@@ -204,8 +216,8 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
 
   const status = !query.trim()
     ? ''
-    : items.length === 0
-      ? 'Nichts gefunden.'
+    : found === 0
+      ? `Nichts gefunden.${props.onWebSearch ? ' Enter sucht im Web.' : ''}`
       : `${qHits.length ? `${QUESTION_TEXT.count(qHits.length)}, ` : ''}${panelHits.length} ${panelHits.length === 1 ? 'Portal' : 'Portale'}, ${hits.length} ${hits.length === 1 ? 'Source' : 'Sources'} in der Library${helpHits.length ? `, ${helpHits.length} ${helpHits.length === 1 ? 'Funktion' : 'Funktionen'}` : ''} gefunden. Pfeiltasten wählen, Enter öffnet${helpHits.length ? ', Umschalt+Enter zeigt die Hilfe' : ''}.`;
 
   const option = (i: number, label: string, children: ReactNode, title?: string) => (
@@ -288,7 +300,7 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
       </span>
       {show && (
         <ul className="search__list" id={listId} role="listbox" aria-label="Suchtreffer" ref={list}>
-          {items.length === 0 && (
+          {found === 0 && (
             <li className="search__empty" role="presentation">
               Nichts gefunden.
             </li>
@@ -384,6 +396,22 @@ export function Search({ ws, activeName, onOpen, onShowPanel, onRun, onHelp, lau
               h.text,
             );
           })}
+          {items[items.length - 1]?.kind === 'web' && (
+            <>
+              <li className="search__head" role="presentation">
+                {WEB_TEXT.searchItem}
+              </li>
+              {option(
+                items.length - 1,
+                `${WEB_TEXT.searchFor(query.trim(), props.engineName ?? 'Google')}. Öffnet ein eigenes Fenster daneben.`,
+                <span className="search__title">
+                  <Icon name="search" className="icon search__icon" />
+                  {WEB_TEXT.searchFor(query.trim(), props.engineName ?? 'Google')}
+                  <span className="search__cat"> ↗ eigenes Fenster</span>
+                </span>,
+              )}
+            </>
+          )}
           {hits.length >= SEARCH_MAX && (
             <li className="search__empty" role="presentation">
               Nur die ersten {SEARCH_MAX} Treffer – Suche genauer eingeben.

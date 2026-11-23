@@ -1,3 +1,5 @@
+import { setPause, toggleKeep } from './pause';
+import { setEngine } from './websearch';
 import { useEffect, useReducer, useRef } from 'react';
 import type { Lines, Orientation, ScreenClassId, ScreenSetup } from './screen';
 import { WORKSPACE_KEY, loadWorkspace, parseWorkspace, saveWorkspace } from './storage';
@@ -81,6 +83,11 @@ export type Action =
   /** F-15, F-125: Lineal. */
   | { type: 'rulerAll' }
   | { type: 'rulerPanel'; id: string }
+  /** F-06: Portale pausieren. */
+  | { type: 'pause'; minutes: number }
+  | { type: 'keepPanel'; id: string }
+  /** F-189: Suchmaschine. */
+  | { type: 'engine'; id: string }
   | { type: 'rulerStyle'; labels?: boolean; color?: number }
   /** F-60, F-61: Darstellung. */
   | ({ type: 'look'; win?: string } & Partial<Look>)
@@ -238,6 +245,12 @@ function step(ws: Workspace, a: Action): Workspace {
       return W.toggleRulerAll(ws);
     case 'rulerPanel':
       return W.toggleRulerPanel(ws, a.id);
+    case 'pause':
+      return setPause(ws, a.minutes);
+    case 'keepPanel':
+      return toggleKeep(ws, a.id);
+    case 'engine':
+      return setEngine(ws, a.id);
     case 'rulerStyle':
       return W.setRulerStyle(ws, { labels: a.labels, color: a.color });
     case 'look':

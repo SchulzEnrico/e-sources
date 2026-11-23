@@ -2,6 +2,8 @@ import { CATEGORY_ICONS } from './icons';
 import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
 import { parseDeskLooks, parseLook } from './look';
 import { parseTint } from './tint';
+import { PAUSE_CHOICES } from './pause';
+import { ENGINE_DEFAULT, isEngine } from './websearch';
 import { parseProfile } from './profile';
 import { type FocusRule, fixRule } from './focus';
 import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } from './workspace';
@@ -73,6 +75,7 @@ function parsePanel(v: unknown): PanelMeta | null {
   const tint = parseTint(v.tint);
   if (tint) panel.tint = tint;
   if (typeof v.category === 'string') panel.category = v.category;
+  if (v.keep === true) panel.keep = true;
   return panel;
 }
 
@@ -264,6 +267,8 @@ export function parseWorkspace(data: unknown): Workspace | null {
     winSetup,
     deskLooks: parseDeskLooks(data.deskLooks, winIds),
     ...(deskLayouts ? { deskLayouts } : {}),
+    ...(isNum(data.pause) && (PAUSE_CHOICES as readonly number[]).includes(data.pause as number) ? { pause: data.pause as number } : {}),
+    ...(isEngine(data.engine) && data.engine !== ENGINE_DEFAULT ? { engine: data.engine } : {}),
   };
 }
 

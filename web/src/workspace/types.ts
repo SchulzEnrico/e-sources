@@ -49,6 +49,8 @@ export interface PanelMeta {
    * fehlt = noch nicht gefragt.
    */
   category?: string;
+  /** F-06: Portal nie pausieren (z. B. Musik, Chat, laufender Upload); bleibt mit allen Tabs geladen. */
+  keep?: boolean;
 }
 
 /** F-162: Rahmen- und Akzentfarbe (#rrggbb); was fehlt, erbt. */
@@ -199,6 +201,10 @@ export interface Workspace {
   deskLayouts?: Record<string, DeskLayouts>;
   /** F-179: lokales Profil (Name, Kennfarbe, Begrüßung); fehlt = Voreinstellung. */
   profile?: Profile;
+  /** F-06: Minuten, nach denen Verdecktes pausiert; 0 = nie; fehlt = PAUSE_DEFAULT. */
+  pause?: number;
+  /** F-189: Suchmaschine für „Im Web suchen“ (Id aus ENGINES); fehlt = Google. */
+  engine?: string;
 }
 
 /** F-24: ein geschlossenes Portal (mit Tabs und Verlauf) oder ein geschlossener Tab. */

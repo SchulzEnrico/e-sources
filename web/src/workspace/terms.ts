@@ -313,6 +313,37 @@ export const ARRANGE_TEXT = {
   edgeTitle: 'Ziehen: Größe ändern',
 } as const;
 
+/** F-06: Portale pausieren. */
+export const PAUSE_TEXT = {
+  setting: 'Verdecktes pausieren',
+  settingHint: 'Tabs im Hintergrund und Portale hinten im Stack werden nach dieser Zeit entladen und laden beim Anklicken neu. Das spart Arbeitsspeicher und Akku.',
+  choice: (min: number) => (min === 0 ? 'Nie (alles bleibt geladen)' : min === 60 ? 'nach 1 Stunde' : `nach ${min} Minuten`),
+  changed: (min: number) => (min === 0 ? 'Verdeckte Tabs und Portale bleiben jetzt geladen.' : `Verdeckte Tabs und Portale pausieren jetzt ${min === 60 ? 'nach 1 Stunde' : `nach ${min} Minuten`}.`),
+  keepMenu: 'Nicht pausieren',
+  keepTitle: 'Dieses Portal bleibt mit allen Tabs geladen, auch verdeckt – z. B. für Musik, Chat oder einen laufenden Upload.',
+  keepOn: (name: string) => `„${name}“ pausiert nicht mehr – es bleibt mit allen Tabs geladen.`,
+  keepOff: (name: string) => `„${name}“ pausiert wieder, wenn es länger verdeckt ist.`,
+  /** Zusatz an Tab- und Stack-Einträgen (Tooltip und Ansage). */
+  paused: 'pausiert – lädt beim Anklicken neu',
+} as const;
+
+/** F-189: Web-Suche und Links aus dem Web. */
+export const WEB_TEXT = {
+  engine: 'Suchmaschine',
+  engineHint: 'Für „Im Web suchen“: Text ohne Adresse in der Adresszeile eines Portals oder in der Suche oben.',
+  engineChanged: (name: string) => `Im Web suchen nutzt jetzt ${name}.`,
+  searchFor: (q: string, name: string) => `„${q}“ mit ${name} im Web suchen`,
+  searchItem: 'Im Web suchen',
+  opened: (name: string) => `${name} ist in einem eigenen Fenster rechts daneben offen. Einen Treffer ziehst du einfach herüber in E-Sources: auf ein Portal = dort öffnen, auf die Tab-Leiste = als neuer Tab.`,
+  go: (a: string) => `Öffnen: ${a}`,
+  suggest: 'Vorschläge aus Library und Web',
+  here: 'Hier öffnen',
+  newTab: 'Als neuer Tab',
+  padTitle: 'Link loslassen',
+  tabbar: 'Loslassen: als neuer Tab',
+  openedNewTab: (host: string) => `${host} als neuer Tab geöffnet.`,
+} as const;
+
 export const JACKPOT_TEXT = {
   title: 'Slotmaschine',
   open: 'Slotmaschine',

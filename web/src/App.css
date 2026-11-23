@@ -4689,3 +4689,5 @@ button.is-off:hover,
 .lc__new { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
 .lc__reset { border-bottom: 0; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line, rgba(127,127,127,.3)); }
 @media (max-width: 760px) { .lc__body { grid-template-columns: 1fr; } }
+.lc__tile { touch-action: none; cursor: grab; }
+.lc__tile.is-drop { border-width: 2px; border-color: var(--strong); background: rgba(var(--accent-rgb), 0.22); }

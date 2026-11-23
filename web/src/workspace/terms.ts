@@ -122,6 +122,8 @@ export const DESK_LAYOUT_TEXT = {
   swap: 'Platz tauschen …',
   swapPick: (name: string) => `„${name}“ tauschen mit … – Ziel-Slot anklicken oder mit Pfeiltasten wählen und Enter; Esc bricht ab.`,
   swapHere: 'hierhin tauschen',
+  dragTitle: 'Ziehen auf einen anderen Slot = Platz tauschen · Tastatur: „Platz tauschen …“',
+  dropHere: 'Platz tauschen',
   swapCancel: 'Tauschen abgebrochen.',
   swapped: (a: string, b: string) => `„${a}“ und „${b}“ haben den Platz getauscht.`,
   slotClose: 'Slot schließen',

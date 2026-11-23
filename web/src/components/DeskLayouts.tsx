@@ -7,7 +7,7 @@
  * schließen) und Layouts (wechseln, umbenennen, kopieren, löschen, anlegen).
  * Tastatur (NF-03): Pfeile zwischen Karten bzw. Slots, Enter wählt, Esc bricht Tauschen ab.
  */
-import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import * as DL from '../workspace/deskLayouts';
 import { screenClass, specOf, type ScreenSetup } from '../workspace/screen';
@@ -77,6 +77,9 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
   const cards = useRef(new Map<string, HTMLButtonElement>());
   const tiles = useRef(new Map<string, HTMLButtonElement>());
   const stdBtn = useRef<HTMLButtonElement>(null);
+  /** Ziehen einer Slot-Kachel auf eine andere = Platz tauschen (Maus; Tastatur: „Platz tauschen …“). */
+  const [drag, setDrag] = useState<{ from: string; over: string | null } | null>(null);
+  const dragged = useRef(false);
   const focusLater = (f: () => void) => window.setTimeout(f, 0);
 
   // Beim Öffnen: Fokus auf die Karte des aktiven Layouts.
@@ -136,7 +139,41 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
     const next = v.slots[(i + step + v.slots.length) % v.slots.length];
     tiles.current.get(next.id)?.focus();
   };
+  const startDrag = (e: ReactPointerEvent, from: string) => {
+    if (e.button !== 0 || swapFrom) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let started = false;
+    let over: string | null = null;
+    dragged.current = false;
+    const move = (ev: PointerEvent) => {
+      if (!started && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+      started = true;
+      dragged.current = true;
+      const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+      const id = el?.closest<HTMLElement>('.lc__tile')?.dataset.id ?? null;
+      over = id && id !== from ? id : null;
+      setDrag({ from, over });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setDrag(null);
+      if (!started || !over) return;
+      const a = v.slots.find((s) => s.id === from);
+      const b = v.slots.find((s) => s.id === over);
+      dispatch({ type: 'layoutSlotSwap', win, id: shown.id, setup, a: from, b: over });
+      setSel(from);
+      say(LT.swapped(a?.title ?? '', b?.title ?? ''));
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   const pickTile = (id: string) => {
+    if (dragged.current) {
+      dragged.current = false;
+      return;
+    }
     if (swapFrom && swapFrom !== id) {
       const a = v.slots.find((s) => s.id === swapFrom);
       const b = v.slots.find((s) => s.id === id);
@@ -251,7 +288,7 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
         <section className="lc__view" aria-label={`${shown.name}: ${LT.arrangement}`}>
           <div className="lc__map radar__map" style={{ ['--ar' as string]: ar }}>
             {v.slots.map((s, i) => {
-              const cls = ['radar__tile', 'lc__tile', s.id === sel && 'is-sel', s.over && 'is-over', swapFrom === s.id && 'is-from', swapFrom && swapFrom !== s.id && 'is-target'].filter(Boolean).join(' ');
+              const cls = ['radar__tile', 'lc__tile', s.id === sel && 'is-sel', s.over && 'is-over', swapFrom === s.id && 'is-from', swapFrom && swapFrom !== s.id && 'is-target', drag?.from === s.id && 'is-from', drag?.over === s.id && 'is-drop'].filter(Boolean).join(' ');
               return (
                 <button
                   key={s.id}
@@ -266,12 +303,20 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
                   aria-pressed={s.id === sel}
                   aria-label={`${s.title}, ${LT.portalsOf(s.count)}${s.over ? `, ${LT.overMark}` : ''}${swapFrom && swapFrom !== s.id ? `, ${LT.swapHere}` : ''}`}
                   onFocus={() => !swapFrom && setSel(s.id)}
+                  data-id={s.id}
+                  title={LT.dragTitle}
+                  onPointerDown={(e) => startDrag(e, s.id)}
                   onClick={() => pickTile(s.id)}
                   onKeyDown={(e) => onTileKey(e, i)}
                 >
                   <span className="radar__title">{s.title}</span>
                   <span className="lc__tile-meta">{LT.portalsOf(s.count)}</span>
                   {s.over && <span className="lc__over">{LT.overMark}</span>}
+                  {drag?.over === s.id && (
+                    <span className="radar__droplabel" aria-hidden="true">
+                      {LT.dropHere}
+                    </span>
+                  )}
                 </button>
               );
             })}

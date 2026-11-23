@@ -419,3 +419,25 @@ export function sendTour(browser: BrowserName | null, mod: string): TourStep[] {
     },
   ];
 }
+
+/** F-203: Touren aus jedem Bauteil starten (App hört auf das Ereignis). */
+export const TOUR_EVENT = 'esource:tour';
+export function requestTour(id: TourId): void {
+  window.dispatchEvent(new CustomEvent<TourId>(TOUR_EVENT, { detail: id }));
+}
+
+/**
+ * F-203: Eine Tour einmalig anbieten, wenn man ihr Thema zum ersten Mal berührt – nur wenn Touren
+ * von selbst starten dürfen und sie noch nicht gesehen ist. Gibt true zurück, wenn jetzt angeboten wird.
+ */
+export function offerTourOnce(id: TourId): boolean {
+  if (!tourAutoStart(id)) return false;
+  const key = `esource.tour.offered.${id}`;
+  try {
+    if (localStorage.getItem(key)) return false;
+    localStorage.setItem(key, '1');
+  } catch {
+    return false;
+  }
+  return true;
+}

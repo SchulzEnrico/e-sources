@@ -2851,9 +2851,8 @@ button.is-off:hover,
 }
 /* F-159: Desk-Name als ruhige Beschriftung neben dem Logo – kein Knopf-Look; die Fokusfarbe (F-167) als Punkt */
 .toolbar .brand .tb-win:not(.tb-win--edit) {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  /* V51: inline-block statt Flex – nur so kürzt text-overflow lange Namen mit „…“ */
+  display: inline-block;
   padding: 3px 4px;
   border: 0;
   border-radius: 6px;
@@ -2866,7 +2865,9 @@ button.is-off:hover,
 }
 .toolbar .brand .tb-win:not(.tb-win--edit)::before {
   content: '';
-  flex: none;
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: 1px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -2900,6 +2901,9 @@ button.is-off:hover,
 }
 .toolbar > .brand { justify-self: stretch; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .toolbar > .brand .tb-win { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* V51 (Enrico): Der Desk-Name hat Vorrang vor dem Suchfeld – „Main Desk“ bleibt immer ganz lesbar,
+   erst längere eigene Namen werden gekürzt; „+ NewDesk“ steht daneben, nie darüber */
+.toolbar > .brand .tb-win:not(.tb-win--edit) { flex: 0 1 auto; min-width: calc(9ch + 22px); max-width: 18ch; }
 /* Schmale Kopfleiste: Knöpfe nur noch als Zeichen; der Name bleibt für Bildschirmleser und im Tooltip */
 @media (max-width: 1100px) {
   .toolbar .tb-label {
@@ -2920,16 +2924,16 @@ button.is-off:hover,
 }
 @media (max-width: 760px) {
   .toolbar > .brand { gap: 4px; }
-  .toolbar > .brand .tb-win { max-width: 9ch; padding: 3px 6px; }
+  .toolbar > .brand .tb-win { padding: 3px 6px; }
   .tb-center .search { width: clamp(80px, 20vw, 160px); }
 }
 /* Smartphone: keine Mittelachse mehr – Mitte füllt den Rest, das Suchfeld gibt nach */
 @media (max-width: 600px) {
   .toolbar { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .toolbar > .brand { justify-self: start; max-width: 40vw; }
+  .toolbar > .brand { justify-self: start; max-width: 50vw; }
   .tb-center { justify-self: stretch; gap: 4px; }
   .tb-center .search { flex: 1 1 0; width: auto; min-width: 44px; }
-  .toolbar > .brand .tb-win { max-width: 6ch; }
+  .toolbar > .brand .tb-win:not(.tb-win--edit) { max-width: 12ch; }
 }
 @media (max-width: 480px) {
   .toolbar .brand-logo { height: 22px; margin-right: 0; }
@@ -2995,7 +2999,7 @@ button.is-off:hover,
   .toolbar > .tb-end { grid-area: end; }
   .toolbar > .tb-center { grid-area: center; justify-self: stretch; position: relative; }
   .toolbar .brand-logo { display: block; }
-  .toolbar > .brand .tb-win { max-width: 10ch; }
+  .toolbar > .brand .tb-win:not(.tb-win--edit) { max-width: 22ch; }
   .toolbar .tb-center .search { flex: 1 1 0; min-width: 44px; max-width: none; }
   .toolbar .tb-center .search .search__input::placeholder { color: var(--muted, #8a8a92); }
   .toolbar .tb-center .search,
@@ -5199,3 +5203,40 @@ button.is-off:hover,
 @media (max-width: 430px) {
   .overview__head > .overview__name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
+
+/* F-204: Mehrfachauswahl – je Einstellung eine Zeile (Beschriftung, Feld, Knöpfe); F-203: Tour-Knopf */
+.bm-pickbar__head { display: flex; align-items: center; gap: 8px; }
+.bm-pickbar__tour { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 8px; }
+.bm-pickbar__actions { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.bm-pickbar__row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bm-pickbar__label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted, inherit); min-width: 0; }
+.bm-pickbar__label > span:first-child,
+.bm-pickbar__row > .bm-pickbar__label:first-child { min-width: 7.5em; }
+.bm-pickbar__label select,
+.bm-pickbar__label input { min-width: 0; max-width: 14em; font-size: 12px; }
+.bm-pickbar__end { padding-top: 4px; border-top: 1px solid rgba(var(--tint), 0.15); }
+.bm-pickbar__more { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow: auto; }
+.bm-pickbar.is-active .bm-hint { font-size: 11px; }
+
+/* F-200: Entwickler-Modus – Größe der Seite unten links im Portal */
+.devsize {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  max-width: calc(100% - 12px);
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font: 600 12px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  pointer-events: auto;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.devsize__cls,
+.devsize__zoom { font-weight: 400; opacity: 0.85; font-family: inherit; }
+@media (forced-colors: active) { .devsize { border: 1px solid CanvasText; background: Canvas; color: CanvasText; } }

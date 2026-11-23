@@ -406,3 +406,77 @@ export function originText(o: BookmarkOrigin | undefined): string {
   if (o.folder) how += `, Ordner ${o.folder}`;
   return how ? `${head} · ${how}` : head;
 }
+
+/** F-204: Was die Mehrfachauswahl gemeinsam an Sources einstellen kann. */
+export type BulkChange =
+  | { kind: 'category'; category: string }
+  | { kind: 'addTags'; tags: string[] }
+  | { kind: 'removeTags'; tags: string[] }
+  | { kind: 'addPanel'; panel: string }
+  | { kind: 'removePanel'; panel: string }
+  | { kind: 'delete' };
+
+/**
+ * F-204: Ändert alle gewählten Sources auf einmal. Gibt die neue Arbeitsfläche und die Ids zurück,
+ * die sich wirklich geändert haben (für Ansage und „Rückgängig“).
+ */
+export function bulkSources(ws: Workspace, ids: readonly string[], c: BulkChange): { ws: Workspace; changed: string[] } {
+  const set = new Set(ids);
+  const changed: string[] = [];
+  if (c.kind === 'delete') {
+    const bookmarks = ws.bookmarks.filter((b) => {
+      if (!set.has(b.id)) return true;
+      changed.push(b.id);
+      return false;
+    });
+    return { ws: changed.length ? { ...ws, bookmarks } : ws, changed };
+  }
+  if (c.kind === 'category' && c.category !== NO_CATEGORY && !ws.categories.some((x) => x.id === c.category)) return { ws, changed };
+  if ((c.kind === 'addPanel' || c.kind === 'removePanel') && !ws.panels.some((p) => p.id === c.panel)) return { ws, changed };
+  const tags = c.kind === 'addTags' || c.kind === 'removeTags' ? parseTags(c.tags) : [];
+  const low = new Set(tags.map((t) => t.toLowerCase()));
+  const bookmarks = ws.bookmarks.map((b) => {
+    if (!set.has(b.id)) return b;
+    let next: Bookmark = b;
+    switch (c.kind) {
+      case 'category':
+        if (b.category !== c.category) next = { ...b, category: c.category };
+        break;
+      case 'addTags': {
+        const t = parseTags([...b.tags, ...tags]);
+        if (t.length !== b.tags.length) next = { ...b, tags: t };
+        break;
+      }
+      case 'removeTags': {
+        const t = b.tags.filter((x) => !low.has(x.toLowerCase()));
+        if (t.length !== b.tags.length) next = { ...b, tags: t };
+        break;
+      }
+      case 'addPanel':
+        if (!b.panels.includes(c.panel)) next = { ...b, panels: [...b.panels, c.panel] };
+        break;
+      case 'removePanel':
+        if (b.panels.includes(c.panel)) next = { ...b, panels: b.panels.filter((p) => p !== c.panel) };
+        break;
+    }
+    if (next !== b) changed.push(b.id);
+    return next;
+  });
+  return { ws: changed.length ? { ...ws, bookmarks } : ws, changed };
+}
+
+/**
+ * F-204: „Rückgängig“ – setzt die vorherigen Fassungen dieser Sources wieder ein (gelöschte an ihrer
+ * alten Stelle), ohne andere inzwischen gemachte Änderungen anzufassen.
+ */
+export function restoreSources(ws: Workspace, before: readonly Bookmark[], order: readonly string[]): Workspace {
+  const byId = new Map(before.map((b) => [b.id, b]));
+  const kept = ws.bookmarks.filter((b) => !byId.has(b.id));
+  const out: Bookmark[] = [];
+  const pos = new Map(order.map((id, i) => [id, i]));
+  // Reihenfolge wie vorher: erst alles nach alter Position, Neues ans Ende
+  const all = [...kept, ...before];
+  all.sort((a, b) => (pos.get(a.id) ?? Infinity) - (pos.get(b.id) ?? Infinity));
+  for (const b of all) out.push(b);
+  return { ...ws, bookmarks: out };
+}

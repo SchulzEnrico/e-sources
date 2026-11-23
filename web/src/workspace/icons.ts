@@ -78,6 +78,8 @@ export const ICONS = {
   check: { d: ['M3 8.6 6.4 12 13 4.4'], w: 1.6 },
   // F-194: Zoom – Lupe mit Plus
   zoom: { d: [ring(6.5, 6.5, 4.5), 'M10 10l4 4', 'M6.5 4.6v3.8', 'M4.6 6.5h3.8'] },
+  /** F-200: Entwickler-Modus – spitze Klammern </> */
+  dev: { d: ['M5 4 1.5 8 5 12', 'M11 4l3.5 4-3.5 4', 'M9.5 2.5l-3 11'] },
   ruler: { d: ['M1.5 10.5l9-9 4 4-9 9z', 'M4 8l1.5 1.5', 'M6.5 5.5 8 7', 'M9 3l1.5 1.5'] },
   import: { d: ['M8 2v8', 'M5 7l3 3 3-3', 'M2.5 11v2.5h11V11'] },
   export: { d: ['M8 10V2', 'M5 5l3-3 3 3', 'M2.5 11v2.5h11V11'] },
@@ -154,6 +156,7 @@ export type IconName = keyof typeof ICONS;
 
 /** Symbol je Hilfe-Eintrag (HELP, F-156) – gleiche Ids. Fehlt ein Eintrag, meldet das der Test. */
 export const HELP_ICON: Record<string, IconName> = {
+  devMode: 'dev',
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',
   cockpit: 'cockpit', view: 'view', maximize: 'maximize', search: 'search',

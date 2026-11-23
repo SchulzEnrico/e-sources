@@ -4,9 +4,10 @@ import { categoryIcon } from '../workspace/icons';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { Bookmark, Workspace } from '../workspace/types';
-import { NO_CATEGORY, categoryByName, collectionSize, groups, originOf, originText } from '../workspace/bookmarks';
+import { type BulkChange, NO_CATEGORY, bulkSources, categoryByName, collectionSize, groups, originOf, originText } from '../workspace/bookmarks';
 import { hostOf, newId } from '../workspace/workspace';
-import { DIALOG_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
+import { BULK_TEXT, DIALOG_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
+import { offerTourOnce, requestTour } from '../workspace/tour';
 import { flash } from '../workspace/flash';
 
 /** Zuletzt gewählte Kategorie, damit mehrere Lesezeichen hintereinander schnell in dieselbe gehen. */
@@ -577,12 +578,27 @@ export function PickBar(props: { ws: Workspace; shownIds: string[]; picked: Set<
   const { ws, shownIds, picked } = props;
   const allBox = useRef<HTMLInputElement>(null);
   const hintId = useId();
+  const [cat, setCat] = useState(NO_CATEGORY);
+  const [tags, setTags] = useState('');
+  const [panel, setPanel] = useState(ws.panels[0]?.id ?? '');
+  const [sure, setSure] = useState(false);
+  const [more, setMore] = useState(false);
+  const moreId = useId();
   // Nur, was noch existiert, zählt als gewählt (gelöschte Sources fallen heraus)
   const pickedIds = ws.bookmarks.filter((b) => picked.has(b.id)).map((b) => b.id);
   const shownPicked = shownIds.filter((id) => picked.has(id)).length;
   useEffect(() => {
     if (allBox.current) allBox.current.indeterminate = shownPicked > 0 && shownPicked < shownIds.length;
   });
+  useEffect(() => {
+    if (pickedIds.length === 0) setSure(false);
+  }, [pickedIds.length]);
+  // F-203: Tour beim ersten Mal anbieten, nicht nur über die Suche
+  useEffect(() => {
+    if (!offerTourOnce('sources')) return;
+    const t = window.setTimeout(() => flash({ text: BULK_TEXT.tourOffer, ms: 12000, action: { label: BULK_TEXT.tourStart, run: () => requestTour('sources') } }), 600);
+    return () => window.clearTimeout(t);
+  }, []);
   const pickAll = (on: boolean) => {
     const next = new Set(picked);
     for (const id of shownIds) if (on) next.add(id);
@@ -599,31 +615,129 @@ export function PickBar(props: { ws: Workspace; shownIds: string[]; picked: Set<
     keepSourcesWithUndo(ws, props.dispatch, pickedIds, on);
     finish();
   };
+  // F-204: gemeinsam einstellen, Bestätigung unten mit „Rückgängig“; Auswahl bleibt (außer beim Löschen)
+  const bulk = (change: BulkChange, what: string) => {
+    const r = bulkSources(ws, pickedIds, change);
+    if (r.changed.length === 0) return flash({ text: BULK_TEXT.nothing, ms: 4000 });
+    const before = ws.bookmarks.filter((b) => r.changed.includes(b.id));
+    const order = ws.bookmarks.map((b) => b.id);
+    props.dispatch({ type: 'bulkSources', ids: r.changed, change });
+    flash({
+      text: BULK_TEXT.done(what, r.changed.length),
+      ms: 8000,
+      action: {
+        label: PAUSE_TEXT.undo,
+        run: () => {
+          props.dispatch({ type: 'restoreSources', before, order });
+          flash({ text: PAUSE_TEXT.undone, ms: 3000 });
+        },
+      },
+    });
+    if (change.kind === 'delete') finish();
+  };
+  const catName = (id: string) => ws.categories.find((c) => c.id === id)?.name ?? BULK_TEXT.noCategory;
+  const panelName = (id: string) => ws.panels.find((p) => p.id === id)?.name ?? '';
+  const tagList = () => tags.split(',').map((t) => t.trim()).filter(Boolean);
+  const tagWords = () => tagList().map((t) => `#${t.replace(/^#+/, '')}`).join(', ');
   return (
     <div className={pickedIds.length ? 'bm-pickbar is-active' : 'bm-pickbar'} role="group" aria-label={PAUSE_TEXT.selectAll}>
-      <label className="bm-check bm-pickbar__all">
-        <input ref={allBox} type="checkbox" checked={shownIds.length > 0 && shownPicked === shownIds.length} disabled={shownIds.length === 0} onChange={(e) => pickAll(e.target.checked)} />
-        {PAUSE_TEXT.selectAll}
-      </label>
+      <div className="bm-pickbar__head">
+        <label className="bm-check bm-pickbar__all">
+          <input ref={allBox} type="checkbox" checked={shownIds.length > 0 && shownPicked === shownIds.length} disabled={shownIds.length === 0} onChange={(e) => pickAll(e.target.checked)} />
+          {PAUSE_TEXT.selectAll}
+        </label>
+        <button type="button" className="bm-pickbar__tour" title={BULK_TEXT.tourTitle} aria-label={BULK_TEXT.tourTitle} onClick={() => requestTour('sources')}>
+          <Icon name="tour" className="icon icon--inline" /> {BULK_TEXT.tour}
+        </button>
+      </div>
       <span className="sr-only" role="status" aria-live="polite">
         {pickedIds.length > 0 ? PAUSE_TEXT.selected(pickedIds.length) : ''}
       </span>
       {pickedIds.length > 0 && (
         <div className="bm-pickbar__actions">
-          <span className="bm-pickbar__count" aria-hidden="true">
-            {PAUSE_TEXT.selected(pickedIds.length)}
-          </span>
-          <button type="button" onClick={() => keep(true)} aria-describedby={hintId}>
-            <Icon name="keep" className="icon icon--inline bm-keep-icon" /> {PAUSE_TEXT.keepSelected}
-          </button>
-          <button type="button" onClick={() => keep(false)}>
-            <Icon name="pause" className="icon icon--inline" /> {PAUSE_TEXT.unkeepSelected}
-          </button>
-          <button type="button" className="drawer__primary" title={PAUSE_TEXT.doneSelectionTitle} onClick={finish}>
-            {PAUSE_TEXT.doneSelection}
-          </button>
+          <div className="bm-pickbar__row">
+            <span className="bm-pickbar__count" aria-hidden="true">
+              {PAUSE_TEXT.selected(pickedIds.length)}
+            </span>
+            <button type="button" onClick={() => keep(true)} aria-describedby={hintId}>
+              <Icon name="keep" className="icon icon--inline bm-keep-icon" /> {PAUSE_TEXT.keepSelected}
+            </button>
+            <button type="button" onClick={() => keep(false)}>
+              <Icon name="pause" className="icon icon--inline" /> {PAUSE_TEXT.unkeepSelected}
+            </button>
+            <button type="button" aria-expanded={more} aria-controls={moreId} onClick={() => setMore(!more)}>
+              {more ? BULK_TEXT.less : BULK_TEXT.more}
+            </button>
+            <span className="drawer__grow" />
+            <button type="button" className="drawer__primary" title={PAUSE_TEXT.doneSelectionTitle} onClick={finish}>
+              {PAUSE_TEXT.doneSelection}
+            </button>
+          </div>
+          {more && (
+          <div className="bm-pickbar__more" id={moreId}>
+          <div className="bm-pickbar__row">
+            <label className="bm-pickbar__label">
+              {BULK_TEXT.category}
+              <select value={cat} onChange={(e) => setCat(e.target.value)}>
+                <option value={NO_CATEGORY}>{BULK_TEXT.noCategory}</option>
+                {ws.categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" onClick={() => bulk({ kind: 'category', category: cat }, BULK_TEXT.what.category(catName(cat)))}>
+              {BULK_TEXT.setCategory}
+            </button>
+          </div>
+          <div className="bm-pickbar__row">
+            <label className="bm-pickbar__label">
+              {BULK_TEXT.tags}
+              <input type="text" value={tags} placeholder={BULK_TEXT.tagsPlaceholder} onChange={(e) => setTags(e.target.value)} />
+            </label>
+            <button type="button" disabled={tagList().length === 0} onClick={() => bulk({ kind: 'addTags', tags: tagList() }, BULK_TEXT.what.addTags(tagWords()))}>
+              {BULK_TEXT.addTags}
+            </button>
+            <button type="button" disabled={tagList().length === 0} onClick={() => bulk({ kind: 'removeTags', tags: tagList() }, BULK_TEXT.what.removeTags(tagWords()))}>
+              {BULK_TEXT.removeTags}
+            </button>
+          </div>
+          {ws.panels.length > 0 && (
+            <div className="bm-pickbar__row">
+              <label className="bm-pickbar__label">
+                {BULK_TEXT.panel}
+                <select value={panel} onChange={(e) => setPanel(e.target.value)}>
+                  {ws.panels.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" disabled={!panel} onClick={() => bulk({ kind: 'addPanel', panel }, BULK_TEXT.what.addPanel(panelName(panel)))}>
+                {BULK_TEXT.addPanel}
+              </button>
+              <button type="button" disabled={!panel} onClick={() => bulk({ kind: 'removePanel', panel }, BULK_TEXT.what.removePanel(panelName(panel)))}>
+                {BULK_TEXT.removePanel}
+              </button>
+            </div>
+          )}
+          <div className="bm-pickbar__row bm-pickbar__end">
+            {sure ? (
+              <button type="button" className="drawer__danger" autoFocus onClick={() => bulk({ kind: 'delete' }, BULK_TEXT.what.delete)} onBlur={() => setSure(false)}>
+                {BULK_TEXT.removeSure(pickedIds.length)}
+              </button>
+            ) : (
+              <button type="button" className="drawer__quiet" onClick={() => setSure(true)}>
+                {BULK_TEXT.remove}
+              </button>
+            )}
+          </div>
+          </div>
+          )}
           <p className="bm-hint" id={hintId}>
-            {PAUSE_TEXT.selectHint}
+            {more ? `${PAUSE_TEXT.selectHint} ${BULK_TEXT.hint}` : PAUSE_TEXT.selectHint}
           </p>
         </div>
       )}

@@ -38,6 +38,7 @@ import * as Ic from './icons';
 import * as Dis from './display';
 import * as Jp from './jackpot';
 import * as Ar from './arrange';
+import * as Dv from './dev';
 import * as Pa from './pause';
 import * as Web from './websearch';
 import * as Snd from './send';
@@ -3189,3 +3190,56 @@ describe('F-202 Sources nie pausieren', () => {
   });
 });
 
+
+describe('F-204 Mehrfachauswahl', () => {
+  const base = () => {
+    let ws = W.defaultWorkspace();
+    ws = { ...ws, categories: [...ws.categories, { id: 'c1', name: 'Arbeit' }] };
+    ws = B.saveBookmark(ws, { id: 'b1', title: 'A', url: 'https://a.example', category: '', tags: ['alt'], panels: [] });
+    ws = B.saveBookmark(ws, { id: 'b2', title: 'B', url: 'https://b.example', category: '', tags: [], panels: [] });
+    ws = B.saveBookmark(ws, { id: 'b3', title: 'C', url: 'https://c.example', category: '', tags: [], panels: [] });
+    return ws;
+  };
+  it('setzt Kategorie, Tags und Portal-Library nur bei den gewählten', () => {
+    let ws = base();
+    let r = B.bulkSources(ws, ['b1', 'b2'], { kind: 'category', category: 'c1' });
+    expect(r.changed).toEqual(['b1', 'b2']);
+    ws = r.ws;
+    expect(ws.bookmarks.find((b) => b.id === 'b3')?.category).toBe('');
+    r = B.bulkSources(ws, ['b1', 'b2'], { kind: 'addTags', tags: ['#Alt', 'neu'] });
+    expect(r.ws.bookmarks.find((b) => b.id === 'b1')?.tags).toEqual(['alt', 'neu']);
+    expect(r.ws.bookmarks.find((b) => b.id === 'b2')?.tags).toEqual(['Alt', 'neu']);
+    r = B.bulkSources(r.ws, ['b1', 'b2'], { kind: 'removeTags', tags: ['ALT'] });
+    expect(r.changed).toHaveLength(2);
+    const pid = ws.panels[0].id;
+    r = B.bulkSources(r.ws, ['b2'], { kind: 'addPanel', panel: pid });
+    expect(r.ws.bookmarks.find((b) => b.id === 'b2')?.panels).toEqual([pid]);
+    expect(B.bulkSources(r.ws, ['b2'], { kind: 'addPanel', panel: pid }).changed).toHaveLength(0);
+    expect(B.bulkSources(r.ws, ['b1'], { kind: 'category', category: 'gibtsnicht' }).changed).toHaveLength(0);
+  });
+  it('löscht und stellt an alter Stelle wieder her', () => {
+    const ws = base();
+    const order = ws.bookmarks.map((b) => b.id);
+    const before = ws.bookmarks.filter((b) => b.id !== 'b2');
+    const r = B.bulkSources(ws, ['b1', 'b3'], { kind: 'delete' });
+    expect(r.ws.bookmarks.map((b) => b.id)).toEqual(['b2']);
+    const back = B.restoreSources(r.ws, before, order);
+    expect(back.bookmarks.map((b) => b.id)).toEqual(order);
+  });
+});
+
+describe('F-200 Entwickler-Modus', () => {
+  it('schaltet je Portal und rechnet die Seitengröße', () => {
+    let ws = W.defaultWorkspace();
+    const id = ws.panels[0].id;
+    ws = W.toggleDevPanel(ws, id);
+    expect(ws.panels[0].dev).toBe(true);
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))?.panels[0].dev).toBe(true);
+    ws = W.toggleDevPanel(ws, id);
+    expect(ws.panels[0].dev).toBeUndefined();
+    expect(Dv.pageSize(800, 400, 80)).toEqual({ w: 1000, h: 500 });
+    expect(Dv.breakpointOf(375)).toBe('Smartphone');
+    expect(Dv.breakpointOf(1024)).toBe('Laptop');
+    expect(Dv.breakpointOf(2560)).toBe('Großer Bildschirm');
+  });
+});

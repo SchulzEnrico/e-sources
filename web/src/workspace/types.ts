@@ -57,6 +57,8 @@ export interface PanelMeta {
   zoom?: number;
   /** F-194 Stufe 2: „Breite halten“ – so breit (px) sieht die Seite, der Zoom folgt der Slot-Breite; fehlt = aus. */
   fit?: number;
+  /** F-200: Entwickler-Modus – zeigt die echte Größe der Seite in CSS-Pixeln; fehlt = aus. */
+  dev?: boolean;
 }
 
 /** F-162: Rahmen- und Akzentfarbe (#rrggbb); was fehlt, erbt. */

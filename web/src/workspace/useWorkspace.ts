@@ -88,6 +88,8 @@ export type Action =
   /** F-15, F-125: Lineal. */
   | { type: 'rulerAll' }
   | { type: 'rulerPanel'; id: string }
+  /** F-200: Entwickler-Modus je Portal */
+  | { type: 'devPanel'; id: string }
   /** F-06: Portale pausieren. */
   | { type: 'pause'; minutes: number }
   | { type: 'keepPanel'; id: string }
@@ -95,6 +97,9 @@ export type Action =
   | { type: 'keepTab'; id: string; tab: string }
   /** F-202: Sources nie pausieren (eine oder viele) */
   | { type: 'keepSources'; ids: string[]; keep: boolean }
+  /** F-204: Mehrfachauswahl – gemeinsam einstellen und Rückgängig */
+  | { type: 'bulkSources'; ids: string[]; change: B.BulkChange }
+  | { type: 'restoreSources'; before: Bookmark[]; order: string[] }
   | { type: 'zoomPanel'; id: string; zoom: number }
   | { type: 'fitPanel'; id: string; fit?: number; zoom?: number }
   /** F-189: Suchmaschine. */
@@ -260,6 +265,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return W.toggleRulerAll(ws);
     case 'rulerPanel':
       return W.toggleRulerPanel(ws, a.id);
+    case 'devPanel':
+      return W.toggleDevPanel(ws, a.id);
     case 'pause':
       return setPause(ws, a.minutes);
     case 'keepPanel':
@@ -270,6 +277,10 @@ function step(ws: Workspace, a: Action): Workspace {
       return toggleKeepTab(ws, a.id, a.tab);
     case 'keepSources':
       return setSourcesKeep(ws, a.ids, a.keep);
+    case 'bulkSources':
+      return B.bulkSources(ws, a.ids, a.change).ws;
+    case 'restoreSources':
+      return B.restoreSources(ws, a.before, a.order);
     case 'zoomPanel':
       return setZoom(ws, a.id, a.zoom);
     case 'fitPanel':

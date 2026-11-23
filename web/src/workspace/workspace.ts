@@ -854,6 +854,15 @@ export function toggleRulerPanel(ws: Workspace, id: string): Workspace {
   });
 }
 
+/** F-200: Entwickler-Modus für dieses Portal ein/aus. */
+export function toggleDevPanel(ws: Workspace, id: string): Workspace {
+  return mapPanel(ws, id, (p) => {
+    if (!p.dev) return { ...p, dev: true };
+    const { dev: _drop, ...rest } = p;
+    return rest;
+  });
+}
+
 /** Beschriftung oder Farbe ändern (gilt für alle Lineale). Die Farbe läuft im Kreis. */
 export function setRulerStyle(ws: Workspace, change: { labels?: boolean; color?: number }): Workspace {
   const n = RULER_COLORS.length;

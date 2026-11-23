@@ -1,3 +1,5 @@
+import { DevSize } from './DevSize';
+import { TOUR_EVENT } from '../workspace/tour';
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { ZOOM_DEFAULT, ZOOM_STEPS, nearestStep, setFrameWidth, shownZoom, zoomStep, zoomStyle } from '../workspace/zoom';
 import { LauncherIcon } from './Launcher';
@@ -12,7 +14,7 @@ import { FOCUS_WARN, NEW_AREA, TAB_MAX, rulerShown, activeTab, canGoBack, canGoF
 import { StackBar, type StackProps, useSwipe } from './StackBar';
 import { Ruler, RulerIcon } from './Ruler';
 import * as FH from '../workspace/frameHistory';
-import { CATEGORY_TEXT, PAUSE_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT, DIALOG_TEXT } from '../workspace/terms';
+import { CATEGORY_TEXT, DEV_TEXT, PAUSE_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT, DIALOG_TEXT } from '../workspace/terms';
 import { looksLikeAddress } from '../workspace/websearch';
 import type { ShownTint } from '../workspace/tint';
 import { rgbOf } from '../workspace/look';
@@ -510,6 +512,12 @@ export function PanelFrame(p: Props) {
   };
   useEffect(() => setAddress(url ?? ''), [url, tab.id]);
   const [drawer, setDrawer] = useState<Drawer>(null);
+  // F-203: Startet eine Tour (z. B. aus der Library), geht die Library zu – sonst verdeckt sie die Schritte
+  useEffect(() => {
+    const on = () => setDrawer(null);
+    window.addEventListener(TOUR_EVENT, on);
+    return () => window.removeEventListener(TOUR_EVENT, on);
+  }, []);
   const saved = bookmarkOf(p.ws, url, p.panel.id);
   const ownCount = collectionSize(p.ws, p.panel.id);
   /** F-14: aktuelle Seite speichern bzw. ihr Lesezeichen bearbeiten. */
@@ -1009,6 +1017,10 @@ export function PanelFrame(p: Props) {
                       );
                     })()}
                   <li className="menu__sep" role="separator" />
+                  {/* F-200: Entwickler-Modus je Portal */}
+                  <Item icon="dev" checked={!!p.panel.dev} hint={DEV_TEXT.menuHint} onClick={run(() => p.dispatch({ type: 'devPanel', id: p.panel.id }))}>
+                    {DEV_TEXT.on}
+                  </Item>
                   <Item icon="ruler" onClick={run(() => p.dispatch({ type: 'rulerPanel', id: p.panel.id }))}>
                     {rulerShown(p.ws, p.panel) ? 'Lineal in diesem Portal ausblenden' : 'Lineal in diesem Portal zeigen'}
                   </Item>
@@ -1326,6 +1338,7 @@ export function PanelFrame(p: Props) {
               )}
             </>
           ) : null}
+          {p.panel.dev && <DevSize zoom={zoomExact} />}
           {rulerShown(p.ws, p.panel) && (
             <Ruler
               settings={p.ws.ruler}

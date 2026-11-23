@@ -628,3 +628,48 @@ export const ZOOM_TEXT = {
   fitOff: (name: string, z: number) => `„${name}“: Breite halten aus, Zoom bleibt bei ${z} %.`,
   btnFitTitle: (z: number, px: number) => `Zoom: Breite halten – Seite ${px} px breit, gerade ${z} %`,
 };
+
+/** F-204: Mehrfachauswahl – gemeinsame Einstellungen; F-203: Tour sichtbar anbieten. */
+export const BULK_TEXT = {
+  category: 'Kategorie',
+  noCategory: 'Ohne Kategorie',
+  setCategory: 'Setzen',
+  tags: 'Tags',
+  tagsPlaceholder: 'z. B. Kunde, wichtig',
+  addTags: 'Hinzufügen',
+  removeTags: 'Entfernen',
+  panel: 'Library von Portal',
+  addPanel: 'Zuordnen',
+  removePanel: 'Entfernen',
+  remove: 'Löschen …',
+  removeSure: (n: number) => (n === 1 ? '1 Source wirklich löschen' : `${n} Sources wirklich löschen`),
+  pause: 'Pausieren',
+  more: 'Mehr …',
+  less: 'Weniger',
+  hint: 'Jede Änderung gilt für alle gewählten Sources und lässt sich unten mit „Rückgängig“ zurücknehmen.',
+  done: (what: string, n: number) => `${n === 1 ? '1 Source' : `${n} Sources`}: ${what}.`,
+  nothing: 'Bei den gewählten Sources war das schon so – nichts geändert.',
+  what: {
+    category: (name: string) => `Kategorie „${name}“`,
+    addTags: (t: string) => `Tags ${t} hinzugefügt`,
+    removeTags: (t: string) => `Tags ${t} entfernt`,
+    addPanel: (name: string) => `in der Library von „${name}“`,
+    removePanel: (name: string) => `aus der Library von „${name}“ genommen`,
+    delete: 'gelöscht',
+  },
+  tour: 'Tour',
+  tourTitle: 'Tour „Verhalten von Sources“: zeigt alle Stellen, an denen du einstellst, wie sich eine Source verhält',
+  tourOffer: 'Neu hier? Die Tour „Verhalten von Sources“ zeigt in 9 Schritten, wo du Sources einstellst.',
+  tourStart: 'Tour starten',
+};
+
+/** F-200: Entwickler-Modus je Portal. */
+export const DEV_TEXT = {
+  on: 'Entwickler-Modus',
+  menuHint: 'Zeigt unten rechts, wie groß die Seite wirklich ist (CSS-Pixel) und welche Geräteklasse das ist – läuft beim Verschieben und Größe ändern mit.',
+  size: (w: number, h: number) => `${w} × ${h} px`,
+  zoomed: (zoom: number, w: number, h: number) => `${zoom} % · im Slot ${w} × ${h} px`,
+  title: 'Entwickler-Modus: So groß ist die Seite in CSS-Pixeln – danach richten sich ihre Media Queries. Bei Zoom steht dahinter, wie groß sie im Slot erscheint.',
+  said: (w: number, h: number, cls: string, zoom: number) => `Seite ${w} mal ${h} Pixel, ${cls}${zoom !== 100 ? `, Zoom ${zoom} Prozent` : ''}.`,
+  switched: (name: string, on: boolean) => (on ? `Entwickler-Modus in „${name}“ an: unten rechts steht die echte Größe der Seite.` : `Entwickler-Modus in „${name}“ aus.`),
+};

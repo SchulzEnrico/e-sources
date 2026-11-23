@@ -41,12 +41,12 @@ import { Help } from './components/Help';
 import { Tour } from './components/Tour';
 import { SlotMachine } from './components/SlotMachine';
 import { type Cleanup, type InviteWhy, type RedundantSlot, INVITE_KEY, INVITE_LATER, INVITE_PAUSE, dupCount, inviteWhy } from './workspace/jackpot';
-import { type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace/tour';
+import { TOUR_EVENT, type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace/tour';
 import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
+import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { browserOf, currentUa, modKey } from './workspace/browser';
@@ -613,6 +613,17 @@ function DeskApp(props: DeskProps) {
     window.addEventListener(FLASH_EVENT, on);
     return () => window.removeEventListener(FLASH_EVENT, on);
   }, [notify]);
+  // F-203: Touren aus Bauteilen starten (z. B. Knopf „Tour“ in Library und Cockpit „Sources“)
+  useEffect(() => {
+    const on = (e: Event) => {
+      const id = (e as CustomEvent<TourId>).detail;
+      if (id !== 'sources') return;
+      setOverview(false);
+      window.setTimeout(() => setTour('sources'), 0);
+    };
+    window.addEventListener(TOUR_EVENT, on);
+    return () => window.removeEventListener(TOUR_EVENT, on);
+  }, []);
 
   // F-162: Nach dem Anlegen bietet der Hinweis die Farbwahl an; das neueste Portal steht hinten in der Liste.
   const wsNow = useRef(ws);
@@ -2158,6 +2169,13 @@ function DeskApp(props: DeskProps) {
         return setProfileOpen(true);
       case 'reload':
         return window.location.reload();
+      case 'devMode': {
+        const id = currentPanel();
+        const pm = id ? ws.panels.find((x) => x.id === id) : undefined;
+        if (!pm) return notify('Erst ein Portal anklicken, dann den Entwickler-Modus einschalten.');
+        dispatch({ type: 'devPanel', id: pm.id });
+        return notify(DEV_TEXT.switched(pm.name, !pm.dev));
+      }
       case 'search':
         return window.setTimeout(() => document.querySelector<HTMLInputElement>('.search__input')?.focus(), 0);
     }

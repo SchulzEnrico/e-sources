@@ -71,6 +71,7 @@ function parsePanel(v: unknown): PanelMeta | null {
   if (typeof sphere === 'string') panel.sphere = sphere;
   if (typeof v.scenario === 'string') panel.scenario = v.scenario;
   if (typeof v.ruler === 'boolean') panel.ruler = v.ruler;
+  if (v.dev === true) panel.dev = true;
   if (typeof v.areaName === 'string') panel.areaName = v.areaName;
   if (typeof v.win === 'string' && v.win) panel.win = v.win;
   const tint = parseTint(v.tint);

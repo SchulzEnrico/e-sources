@@ -49,7 +49,7 @@ function parseTab(v: unknown): Tab | null {
 }
 
 /** Panel im Format v5 oder v4 (ohne Tabs: die Seite wird zum ersten Tab). */
-function parsePanel(v: unknown): PanelMeta | null {
+export function parsePanel(v: unknown): PanelMeta | null {
   if (!isObj(v) || typeof v.id !== 'string' || typeof v.name !== 'string' || !optStr(v.home)) return null;
   let tabs: Tab[];
   if (Array.isArray(v.tabs)) {

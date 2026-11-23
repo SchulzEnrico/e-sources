@@ -8,7 +8,7 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
+import { ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import type { Action } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
@@ -93,6 +93,9 @@ export interface OverviewProps {
   onDistribute?: () => void;
   onClose: (id: string) => void;
   onRename: (id: string, name: string) => void;
+  /** F-158: Slot (Portale in Stack-Reihenfolge, vorderes) als Datei speichern bzw. eine Slot-Datei laden. */
+  onExportSlot?: (ids: string[], front: string) => void;
+  onImportSlot?: () => void;
   /** F-28: Ziele für ein Panel bzw. seine ganze Area (whole). */
   moveTargets: (id: string, whole: boolean) => MoveTarget[];
   /** F-28: Panel bzw. ganze Area auf ein Ziel legen. */
@@ -973,6 +976,31 @@ export function Overview(p: OverviewProps) {
               <section className="radar__detail" aria-label={detailKind ? `${detailKind} (${selIsActive ? COCKPIT_TEXT.activeSlotWhy : COCKPIT_TEXT.pickedSlotWhy}): ${detailHead}` : detailHead}>
                 <h3 className="radar__detail-head">{detailHead}</h3>
                 {rows.length === 0 ? <p className="overview__empty">Kein Portal passt.</p> : <ul className="overview__list">{rows.map(row)}</ul>}
+                {/* F-158: gewählten Slot als Datei speichern, Slot-Datei laden */}
+                {!q && selTile && (p.onExportSlot || p.onImportSlot) && (
+                  <div className="radar__slotfile" role="group" aria-label={SLOT_FILE_TEXT.group}>
+                    <span className="muted" aria-hidden="true">{SLOT_FILE_TEXT.group}:</span>
+                    {p.onExportSlot && selTile.a.panels.length > 0 && (
+                      <button
+                        type="button"
+                        title={SLOT_FILE_TEXT.saveTitle}
+                        aria-label={`${SLOT_FILE_TEXT.save}: ${selTile.a.title}`}
+                        onClick={() => {
+                          const ids = selTile.a.panels.map((x) => x.meta.id);
+                          const front = (selTile.a.panels.find((x) => x.front) ?? selTile.a.panels[0]).meta.id;
+                          p.onExportSlot?.(ids, front);
+                        }}
+                      >
+                        <Icon name="transfer" size={13} className="icon icon--inline" /> {SLOT_FILE_TEXT.saveShort}
+                      </button>
+                    )}
+                    {p.onImportSlot && (
+                      <button type="button" title={SLOT_FILE_TEXT.loadTitle} aria-label={SLOT_FILE_TEXT.load} onClick={p.onImportSlot}>
+                        <Icon name="import" size={13} className="icon icon--inline" /> {SLOT_FILE_TEXT.loadShort}
+                      </button>
+                    )}
+                  </div>
+                )}
               </section>
             </div>
           </div>

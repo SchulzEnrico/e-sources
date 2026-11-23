@@ -16,7 +16,7 @@ import { FOCUS_WARN, NEW_AREA, TAB_MAX, rulerShown, activeTab, canGoBack, canGoF
 import { StackBar, type StackProps, useSwipe } from './StackBar';
 import { Ruler } from './Ruler';
 import * as FH from '../workspace/frameHistory';
-import { CATEGORY_TEXT, DEV_TEXT, PAUSE_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT, DIALOG_TEXT } from '../workspace/terms';
+import { CATEGORY_TEXT, DEV_TEXT, PAUSE_TEXT, SLOT_FILE_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT, DIALOG_TEXT } from '../workspace/terms';
 import { looksLikeAddress } from '../workspace/websearch';
 import type { ShownTint } from '../workspace/tint';
 import { rgbOf } from '../workspace/look';
@@ -46,6 +46,8 @@ interface Props {
   tint?: ShownTint;
   /** F-162: Dialog „Farben“ öffnen. */
   onColors?: () => void;
+  /** F-158: Slot dieses Portals als Datei speichern. */
+  onExportSlot?: () => void;
   /** F-163: Kategorie des Portals – Name und ihre Rahmenfarbe (falls gesetzt), in der Kopfzeile. */
   category?: { name: string; color?: string; icon?: IconName };
   /** F-163: „Farben“ mit Fokus auf der Kategorie öffnen (Klick auf die Kategorie in der Kopfzeile). */
@@ -1032,6 +1034,8 @@ export function PanelFrame(p: Props) {
                         </Item>
                       );
                     })()}
+                  {/* F-158: ganzen Slot als Datei */}
+                  {p.onExportSlot && <Item icon="transfer" title={SLOT_FILE_TEXT.saveTitle} onClick={run(p.onExportSlot)}>{SLOT_FILE_TEXT.save}</Item>}
                   <li className="menu__sep" role="separator" />
                   {/* F-200: Entwickler-Modus je Portal */}
                   <Item icon="dev" checked={!!p.panel.dev} hint={DEV_TEXT.menuHint} onClick={run(() => p.dispatch({ type: 'devPanel', id: p.panel.id }))}>

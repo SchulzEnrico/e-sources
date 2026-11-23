@@ -851,6 +851,52 @@ export const TRANSFER_TEXT = {
     `Dieser Browser kann nicht direkt an ein anderes Gerät senden – darum als ${name} gespeichert. Schick die Datei z. B. per AirDrop, Mail oder über einen gemeinsamen Ordner und wähle auf dem anderen Gerät Einstellungen (Zahnrad) › „Desks aus Datei laden …“.`,
 };
 
+/** F-147: Farbpipette. */
+export const PICKER_TEXT = {
+  menu: 'Farbpipette …',
+  menuTitle: 'Nimmt eine Farbe von irgendeiner Stelle des Bildschirms auf – auch aus Seiten in Portalen – und kopiert sie als HEX oder RGB.',
+  title: 'Farbpipette',
+  intro: 'Farbe aufnehmen: Knopf drücken, dann irgendwo auf dem Bildschirm klicken – auch in eine Seite in einem Portal. Esc bricht ab. Die Farbe wird als HEX kopiert und kommt in die Liste.',
+  pick: 'Farbe aufnehmen',
+  pickTitle: 'Danach irgendwo auf dem Bildschirm klicken; Esc bricht ab.',
+  noPipette:
+    'Dieser Browser kann keine Farbe direkt vom Bildschirm aufnehmen – das geht in Chrome und Edge am Computer. Hier hilft die Farbwahl des Systems: Auf dem Mac hat sie selbst eine Pipette (Lupe im Farbfenster).',
+  system: 'Farbwahl des Systems …',
+  systemTitle: 'Öffnet die Farbwahl deines Systems; die gewählte Farbe kommt in die Liste.',
+  hex: 'HEX oder Farbe eingeben',
+  hexAdd: 'Hinzufügen',
+  hexBad: 'Bitte eine Farbe wie #3a7bd5 oder 3a7 eingeben.',
+  recent: 'Zuletzt aufgenommen',
+  none: 'Noch keine Farbe aufgenommen.',
+  copyHex: 'HEX kopieren',
+  copyRgb: 'RGB kopieren',
+  remove: 'Aus der Liste nehmen',
+  clear: 'Liste leeren',
+  picked: (hex: string, name: string, copied: boolean) => `${hex.toUpperCase()} (${name}) aufgenommen${copied ? ' und als HEX kopiert' : ''}.`,
+  copied: (v: string) => `${v} kopiert.`,
+  copyFailed: (v: string) => `Kopieren ging nicht – bitte von Hand markieren: ${v}`,
+  cancelled: 'Aufnahme abgebrochen.',
+  cleared: 'Liste geleert.',
+};
+
+/** F-158: Export und Import je Slot. */
+export const SLOT_FILE_TEXT = {
+  save: 'Slot als Datei speichern',
+  saveTitle:
+    'Speichert diesen Slot mit allen Portalen im Stack, ihren Tabs, Namen und Farben als Datei – zum Weitergeben, als Vorlage oder für einen anderen Desk bzw. ein anderes Gerät. Die Library ist nicht dabei.',
+  saveShort: 'Speichern',
+  load: 'Slot aus Datei laden …',
+  loadTitle: 'Lädt einen gespeicherten Slot als neuen Slot rechts auf diesem Desk. Was schon da ist, bleibt, wie es ist.',
+  loadShort: 'Slot laden …',
+  group: 'Slot als Datei',
+  saved: (name: string, n: number, file: string) =>
+    `${name ? `Slot „${name}“` : 'Slot'} mit ${n} ${n === 1 ? 'Portal' : 'Portalen'} als ${file} gespeichert. Laden: Einstellungen (Zahnrad) › „Slot aus Datei laden …“.`,
+  loaded: (name: string, n: number, device: string) =>
+    `${name ? `Slot „${name}“` : 'Slot'} mit ${n} ${n === 1 ? 'Portal' : 'Portalen'} geladen (von ${device}) – rechts als neuer Slot.`,
+  full: (n: number) =>
+    `Auf dem Bildschirm ist kein Slot mehr frei (${n} belegt). Schließe einen Slot oder lade den Slot auf einem anderen Desk.`,
+};
+
 /** F-169 Stufe 2: Abgleich zwischen Geräten über ein geheimes GitHub Gist. */
 export const SYNC_TEXT = {
   menu: 'Abgleich zwischen Geräten …',

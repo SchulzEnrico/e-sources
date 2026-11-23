@@ -5521,3 +5521,26 @@ h3.cases__name { font-size: 1.05em; }
   .notice__btns { flex-direction: column; align-items: stretch; }
   .notice__btns button { width: 100%; white-space: normal; }
 }
+
+/* F-158: Slot als Datei (unter der Portal-Liste im Cockpit) */
+.radar__slotfile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 6px 2px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 12px; }
+.radar__slotfile button { padding: 2px 9px; font-size: 12px; }
+
+/* F-147: Farbpipette */
+.picker { width: min(460px, 94vw); }
+.picker.is-picking { opacity: 0; }
+.picker.is-picking::backdrop { background: transparent; }
+.picker__body { display: grid; gap: 10px; }
+.picker__tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.picker__pick { font-weight: 600; }
+.picker__hex { display: flex; gap: 6px; align-items: center; margin-left: auto; }
+.picker__hex input { width: 9ch; font-family: ui-monospace, monospace; }
+.picker__bad { margin: 0; color: var(--warn, #ff9a3c); font-size: 13px; }
+.picker__head { margin: 4px 0 0; font-size: 13px; }
+.picker__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.picker__list li { display: flex; align-items: center; gap: 8px; }
+.picker__swatch { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); flex: none; }
+.picker__val { flex: 1; min-width: 0; font-size: 13px; }
+.picker__list button { padding: 2px 8px; font-size: 12px; }
+.picker__clear { justify-self: start; font-size: 12px; }
+.picker__hexlabel { display: flex; align-items: center; gap: 6px; font-size: 12px; }

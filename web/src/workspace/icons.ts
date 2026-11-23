@@ -80,6 +80,7 @@ export const ICONS = {
   zoom: { d: [ring(6.5, 6.5, 4.5), 'M10 10l4 4', 'M6.5 4.6v3.8', 'M4.6 6.5h3.8'] },
   /** F-200: Entwickler-Modus – spitze Klammern </> */
   dev: { d: ['M5 4 1.5 8 5 12', 'M11 4l3.5 4-3.5 4', 'M9.5 2.5l-3 11'] },
+  pipette: { d: ['M11.5 1.8a1.5 1.5 0 0 1 2.1 0l.6.6a1.5 1.5 0 0 1 0 2.1L12.3 6.4 9.6 3.7z', 'M10.6 5.4 4 12l-2.3.8.8-2.3 6.6-6.6', 'M8.8 2.9l4.3 4.3'] },
   ruler: { d: ['M1.5 10.5l9-9 4 4-9 9z', 'M4 8l1.5 1.5', 'M6.5 5.5 8 7', 'M9 3l1.5 1.5'] },
   import: { d: ['M8 2v8', 'M5 7l3 3 3-3', 'M2.5 11v2.5h11V11'] },
   export: { d: ['M8 10V2', 'M5 5l3-3 3 3', 'M2.5 11v2.5h11V11'] },
@@ -166,8 +167,8 @@ export const HELP_ICON: Record<string, IconName> = {
   switchDesk: 'switchDesk', collectDesks: 'collect', distributeDesks: 'spread',
   design: 'design', colorRules: 'category', rules: 'rules', colors: 'colors',
   adjust: 'adjust', focusRule: 'sliders', restore: 'restore', closed: 'closed', layouts: 'layouts', cases: 'layouts', limits: 'maximize',
-  nextTab: 'next', nextPortal: 'next', distribute: 'distribute', swap: 'swap', rename: 'rename', stackDelete: 'remove', ruler: 'ruler', pause: 'pause', zoom: 'zoom', webSearch: 'search', sendTo: 'send',
-  importBookmarks: 'import', sortHelp: 'sort', exportBookmarks: 'export', profile: 'profile', reload: 'reload', exportDesks: 'send', loadDesks: 'import', syncDesks: 'sync',
+  nextTab: 'next', nextPortal: 'next', distribute: 'distribute', swap: 'swap', rename: 'rename', stackDelete: 'remove', ruler: 'ruler', colorPicker: 'pipette', pause: 'pause', zoom: 'zoom', webSearch: 'search', sendTo: 'send',
+  importBookmarks: 'import', sortHelp: 'sort', exportBookmarks: 'export', profile: 'profile', reload: 'reload', exportDesks: 'send', loadDesks: 'import', syncDesks: 'sync', saveSlot: 'transfer', loadSlot: 'import',
 };
 
 /** F-183 Stufe 2: Zeichen zur Wahl für Kategorien, in dieser Reihenfolge im Dialog „Farben“. */

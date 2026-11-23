@@ -45,8 +45,10 @@ import { TOUR_EVENT, type TourId, setToursAuto, tourAutoStart, toursAuto } from 
 import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
+import { ColorPicker } from './components/ColorPicker';
+import { importSlot, isSlotFile, readSlotFile, slotFileName, slotToFile } from './workspace/slotFile';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
+import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { browserOf, currentUa, modKey } from './workspace/browser';
@@ -436,6 +438,8 @@ function DeskApp(props: DeskProps) {
   const [resetUndo, setResetUndo] = useState<{ old: LayoutContent; name: string } | null>(null);
   /** F-29 Rest: Dialog „Fokusanzeige anpassen“. */
   const [ruleOpen, setRuleOpen] = useState(false);
+  /** F-147: Farbpipette */
+  const [pickerOpen, setPickerOpen] = useState(false);
   /** F-179: Dialog „Profil“ und Begrüßung beim Start (nicht beim allerersten Start – da läuft die Tour –, nicht in Zusatz-Desks). */
   const [profileOpen, setProfileOpen] = useState(false);
   /** F-116: Dialog „Spaces und Cases“ (aus Hilfe und Suche; im Cockpit öffnet ihn der Layout-Modus selbst) */
@@ -542,6 +546,8 @@ function DeskApp(props: DeskProps) {
   /** F-114: Hinweis an einem Portal (statt Dialog über der Fläche). */
   const [hint, setHint] = useState<{ id: string; text: string } | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
+  /** F-158: Datei-Wahl für „Slot aus Datei laden …“ */
+  const slotImportRef = useRef<HTMLInputElement>(null);
   // F-36: Lesezeichen-Datei aus dem Browser
   const bookmarkFileRef = useRef<HTMLInputElement>(null);
   // F-180
@@ -1941,6 +1947,7 @@ function DeskApp(props: DeskProps) {
         fx={fx}
         tint={shownTint(meta, slotOfMeta ? slotTint(ws, slotOfMeta) : undefined, categoryTint(ws, meta))}
         onColors={() => setColorsFor(meta.id)}
+        onExportSlot={() => (slotOfMeta ? exportSlot(slotOfMeta.panels.map((x) => x.id), slotOfMeta.front.id) : exportSlot([meta.id], meta.id))}
         onCategory={() => (setColorsCat(true), setColorsFor(meta.id))}
         category={(() => {
           const c = categoryOf(ws, meta);
@@ -2232,6 +2239,16 @@ function DeskApp(props: DeskProps) {
         return void sendWorkspace();
       case 'loadDesks':
         return importRef.current?.click();
+      case 'saveSlot': {
+        const id = currentPanel();
+        const slot = id ? view.slots.find((x) => x.panels.some((m) => m.id === id)) : view.slots[0];
+        if (!slot) return notify('Auf diesem Desk ist noch kein Slot.');
+        return exportSlot(slot.panels.map((m) => m.id), slot.front.id);
+      }
+      case 'loadSlot':
+        return slotImportRef.current?.click();
+      case 'colorPicker':
+        return setPickerOpen(true);
       case 'syncDesks':
         return setSyncOpen(true);
       case 'tourSync':
@@ -2425,11 +2442,49 @@ function DeskApp(props: DeskProps) {
       notify(TRANSFER_TEXT.noShare(FILE_NAME));
     }
   };
+  // F-158: einen Slot (Stack mit Portalen, Tabs, Name, Farben) als Datei speichern
+  const exportSlot = (ids: string[], front: string) => {
+    const data = slotToFile(ws, ids, front, device());
+    if (!data) return;
+    const name = slotFileName(data.name ?? ws.panels.find((x) => x.id === front)?.name);
+    const href = URL.createObjectURL(new File([JSON.stringify(data, null, 2)], name, { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+    const text = SLOT_FILE_TEXT.saved(data.name ?? '', data.panels.length, name);
+    notify(text);
+    sayLive(text);
+  };
+  // F-158: Slot-Datei als neuen Slot rechts auf diesem Desk laden
+  const loadSlotText = (text: string) => {
+    const read = readSlotFile(text);
+    if (!read.ok) return notify(read.error, 6000);
+    const r = importSlot(ws, setup, read.file);
+    if (!r.ok) return notify(SLOT_FILE_TEXT.full(view.slots.length), 6000);
+    dispatch({ type: 'replace', ws: r.ws });
+    setActive(r.front);
+    setMode({ kind: 'area' });
+    const msg = SLOT_FILE_TEXT.loaded(r.name, read.file.panels.length, read.file.device);
+    notify(msg);
+    sayLive(msg);
+  };
+  const importSlotFile = async (input: HTMLInputElement) => {
+    const chosen = input.files?.[0];
+    input.value = '';
+    if (chosen) loadSlotText(await chosen.text());
+  };
   const importWorkspace = async (input: HTMLInputElement) => {
     const chosen = input.files?.[0];
     input.value = ''; // dieselbe Datei darf später noch einmal gewählt werden
     if (!chosen) return;
-    const result = readTransferFile(await chosen.text());
+    const raw = await chosen.text();
+    // F-158: Slot-Datei hier gewählt → als neuen Slot laden statt Fehlermeldung
+    if (isSlotFile(raw)) return loadSlotText(raw);
+    const result = readTransferFile(raw);
     if (!result.ok) {
       setNotice(result.error);
       return;
@@ -2677,6 +2732,15 @@ function DeskApp(props: DeskProps) {
               >
                 {ws.ruler.on ? 'Lineal in allen Portalen ausblenden' : 'Lineal in allen Portalen zeigen'}
               </Item>
+              {/* F-147: Farbpipette – Werkzeug wie das Lineal */}
+              <Item icon="pipette" title={PICKER_TEXT.menuTitle}
+                onClick={() => {
+                  close();
+                  setPickerOpen(true);
+                }}
+              >
+                {PICKER_TEXT.menu}
+              </Item>
               <li className="menu__sep" role="separator" />
               {/* F-51: Layouts dieses Desks */}
               <Item icon="layouts"
@@ -2910,6 +2974,14 @@ function DeskApp(props: DeskProps) {
               >
                 {TRANSFER_TEXT.load}
               </Item>
+              <Item icon="import" title={SLOT_FILE_TEXT.loadTitle}
+                onClick={() => {
+                  slotImportRef.current?.click();
+                  close();
+                }}
+              >
+                {SLOT_FILE_TEXT.load}
+              </Item>
               {/* F-169 Stufe 2: automatischer Abgleich über ein geheimes GitHub Gist */}
               <Item icon="sync" title={SYNC_TEXT.menuTitle}
                 onClick={() => {
@@ -2999,6 +3071,7 @@ function DeskApp(props: DeskProps) {
           )}
         </Menu>
         <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={(e) => void importWorkspace(e.currentTarget)} />
+        <input ref={slotImportRef} type="file" accept="application/json,.json" hidden aria-hidden="true" tabIndex={-1} onChange={(e) => void importSlotFile(e.currentTarget)} />
         <input ref={bookmarkFileRef} type="file" accept="text/html,.html,.htm" hidden aria-label="Lesezeichen-Datei wählen" onChange={(e) => void chooseBookmarkFile(e.currentTarget)} />
         {swapFrom && <span className="hint">Ziel-Portal anklicken · Esc bricht ab</span>}
         </div>
@@ -3186,6 +3259,7 @@ function DeskApp(props: DeskProps) {
           onClose={() => setSortOpen(false)}
         />
       )}
+      {pickerOpen && <ColorPicker onClose={() => setPickerOpen(false)} />}
       {ruleOpen && <FocusRuleDialog rule={ruleOf(ws)} points={focus.points} onChange={(rule) => dispatch({ type: 'focusRule', rule })} onClose={() => setRuleOpen(false)} />}
       {closedOpen && (
         <ClosedDialog
@@ -3242,6 +3316,8 @@ function DeskApp(props: DeskProps) {
           onDistribute={distributeDesks}
           onClose={(id) => closePortal(id)}
           onRename={(id, name) => dispatch({ type: 'rename', id, name })}
+          onExportSlot={exportSlot}
+          onImportSlot={() => slotImportRef.current?.click()}
           moveTargets={targetsFor}
           onMove={moveTo}
           onNewWindow={(id, whole) => toWindow(id, null, whole)}

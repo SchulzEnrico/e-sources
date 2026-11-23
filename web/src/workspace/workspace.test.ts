@@ -38,6 +38,8 @@ import * as Ru from './rules';
 import * as DL from './deskLayouts';
 import * as Ic from './icons';
 import * as Dis from './display';
+import * as SF from './slotFile';
+import * as Pk from './picker';
 import * as Jp from './jackpot';
 import * as Ar from './arrange';
 import * as Dv from './dev';
@@ -3555,5 +3557,106 @@ describe('F-169 Stufe 2: Abgleich über GitHub Gist', () => {
   });
   it('bereinigt eingefügte Schlüssel', () => {
     expect(Gi.cleanToken('  token ghp_abc\n123 ')).toBe('ghp_abc123');
+  });
+});
+
+describe('F-158: Export und Import je Slot', () => {
+  const setup: ScreenSetup = { cls: 'superwide', orientation: 'landscape', lines: 2 };
+  const base = (): Workspace => {
+    let ws: Workspace = { ...W.defaultWorkspace(), categories: [{ id: 'c1', name: 'Recherche', icon: Ic.CATEGORY_ICONS[0], tint: { frame: '#ff0000' } }] };
+    ws = W.navigatePanel(ws, ws.panels[0].id, 'https://example.org/');
+    ws = { ...ws, panels: ws.panels.map((p, i) => (i === 0 ? { ...p, category: 'c1', win: 'w1', areaName: 'alt', zoom: 125 } : p)) };
+    return ws;
+  };
+  it('exportiert Portale, Tabs, Kategorien und lässt Gerätebezüge weg', () => {
+    const ws = base();
+    const p = ws.panels[0];
+    const f = SF.slotToFile(ws, [p.id], p.id, 'Mac')!;
+    expect(f.format).toBe(SF.SLOT_FORMAT);
+    expect(f.panels).toHaveLength(1);
+    expect(f.panels[0].win).toBeUndefined();
+    expect(f.panels[0].areaName).toBeUndefined();
+    expect(f.panels[0].zoom).toBe(125);
+    expect(f.categories).toEqual([{ id: 'c1', name: 'Recherche', tint: { frame: '#ff0000' }, icon: Ic.CATEGORY_ICONS[0] }]);
+    expect(SF.slotToFile(ws, ['gibt-es-nicht'], 'x', 'Mac')).toBeNull();
+  });
+  it('liest die Datei zurück und erkennt Desk-Dateien', () => {
+    const ws = base();
+    const p = ws.panels[0];
+    const text = JSON.stringify(SF.slotToFile(ws, [p.id], p.id, 'Mac'));
+    const r = SF.readSlotFile(text);
+    expect(r.ok).toBe(true);
+    expect(SF.isSlotFile(text)).toBe(true);
+    const desks = SF.readSlotFile(JSON.stringify({ format: 'e-sources-arbeitsflaeche', version: 4 }));
+    expect(desks.ok).toBe(false);
+    expect(!desks.ok && desks.desks).toBe(true);
+    expect(SF.readSlotFile('kein json').ok).toBe(false);
+    expect(SF.readSlotFile(JSON.stringify({ format: SF.SLOT_FORMAT, version: 99, panels: [] })).ok).toBe(false);
+  });
+  it('lädt als neuen Slot mit neuen Ids, ordnet Kategorien über den Namen zu', () => {
+    const src = base();
+    const p = src.panels[0];
+    const file = { ...SF.slotToFile(src, [p.id], p.id, 'Mac')!, name: 'Recherche-Slot' };
+    let n = 0;
+    const id = () => `n${++n}`;
+    const target: Workspace = { ...W.defaultWorkspace(), categories: [{ id: 'eigen', name: 'recherche' }] };
+    const before = W.viewOf(target, setup).slots.length;
+    const r = SF.importSlot(target, setup, file, id);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const v = W.viewOf(r.ws, setup);
+    expect(v.slots.length).toBe(before + 1);
+    const fresh = r.ws.panels.find((x) => x.id === r.front)!;
+    expect(fresh.id === p.id).toBe(false);
+    expect(fresh.category).toBe('eigen');
+    expect(r.ws.categories).toHaveLength(1);
+    expect(W.activeTab(fresh).url).toBe('https://example.org/');
+    expect(r.name).toBe('Recherche-Slot');
+    expect(r.ws.panels).toHaveLength(target.panels.length + 1);
+    // zweimal laden: Name bekommt eine Nummer
+    const again = SF.importSlot(r.ws, setup, file, id);
+    expect(again.ok && again.name).toBe('Recherche-Slot 2');
+  });
+  it('legt fehlende Kategorien an und meldet vollen Bildschirm', () => {
+    const src = base();
+    const p = src.panels[0];
+    const file = SF.slotToFile(src, [p.id], p.id, 'Mac')!;
+    const target: Workspace = { ...W.defaultWorkspace(), categories: [] };
+    const r = SF.importSlot(target, setup, file, () => 'neu' + Math.random());
+    expect(r.ok && r.ws.categories[0].name).toBe('Recherche');
+    let full = target;
+    while (W.canAddArea(full, setup)) full = W.addArea(full, setup, 'right');
+    expect(SF.importSlot(full, setup, file).ok).toBe(false);
+  });
+  it('Dateiname aus dem Slot-Namen', () => {
+    expect(SF.slotFileName('Größe & Übung')).toBe('e-sources-slot-groesse-uebung.json');
+    expect(SF.slotFileName(undefined)).toBe('e-sources-slot.json');
+  });
+});
+
+describe('F-147: Farbpipette', () => {
+  it('HEX vereinheitlichen und in RGB umrechnen', () => {
+    expect(Pk.normalizeHex('#ABC')).toBe('#aabbcc');
+    expect(Pk.normalizeHex('3A7BD5')).toBe('#3a7bd5');
+    expect(Pk.normalizeHex('#12345')).toBeNull();
+    expect(Pk.normalizeHex('blau')).toBeNull();
+    expect(Pk.rgbText('#ff8000')).toBe('rgb(255, 128, 0)');
+  });
+  it('Liste: neue vorn, keine Doppelten, höchstens 12', () => {
+    let l: string[] = [];
+    for (let i = 0; i < 14; i++) l = Pk.pushColor(l, `#0000${i.toString(16).padStart(2, '0')}`);
+    expect(l).toHaveLength(Pk.PICKER_MAX);
+    expect(l[0]).toBe('#00000d');
+    l = Pk.pushColor(l, '#00000A');
+    expect(l[0]).toBe('#00000a');
+    expect(l.filter((x) => x === '#00000a')).toHaveLength(1);
+    expect(Pk.parseColors(['#fff', 'x', '#FFFFFF', 3])).toEqual(['#ffffff']);
+  });
+  it('Farbname für die Ansage', () => {
+    expect(Pk.colorName('#000000')).toBe('Schwarz');
+    expect(Pk.colorName('#ffffff')).toBe('Weiß');
+    expect(Pk.colorName('#ff0000')).toBe('Rot');
+    expect(Pk.colorName('#00008b')).toBe('dunkles Blau');
+    expect(Pk.colorName('#ffd84d')).toBe('Gelb');
   });
 });

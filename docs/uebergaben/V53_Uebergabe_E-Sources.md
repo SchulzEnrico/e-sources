@@ -4,7 +4,7 @@ Stand: 23.11.2026 · Chat V53 abgeschlossen · Nächster Chat: **V54 E-Sources**
 
 ## Startanweisung für den neuen Chat
 
-> Das ist Chat **V54 E-Sources**. Lies diese Übergabedatei und das Lastenheft unter `docs/Lastenheft/Lastenheft_E-Sources.md`. Frag Enrico kurz nach seiner Prüfung von V53 (Entwickler-Modus Stufe 2: Leiste, Gerät, Slot wächst mit, Grün; Knopf „Übernehmen“; Cockpit-Symbol an der Fokusanzeige). Dann die **Oberfläche von F-116** bauen (Datenmodell steht, siehe „Nächste Schritte“ 2). Halte dich an die Arbeitsregeln am Ende dieser Datei.
+> Das ist Chat **V54 E-Sources**. Lies diese Übergabedatei und das Lastenheft unter `docs/Lastenheft/Lastenheft_E-Sources.md`. Frag Enrico kurz nach seiner Prüfung von V53 (Entwickler-Modus Stufe 2: Leiste, Gerät, Slot wächst mit, Grün; Knopf „Übernehmen“; Cockpit-Symbol an der Fokusanzeige). Dann zuerst **„Untersuchen“ erklären** (Hilfe-Eintrag + kurze Tour „Entwickler-Modus“, siehe „Nächste Schritte“ 3) und danach die **Oberfläche von F-116** bauen (Datenmodell steht, siehe „Nächste Schritte“ 2). Halte dich an die Arbeitsregeln am Ende dieser Datei.
 
 ## Links
 
@@ -20,6 +20,7 @@ Stand: 23.11.2026 · Chat V53 abgeschlossen · Nächster Chat: **V54 E-Sources**
 - **Fokusanzeige:** Cockpit-Symbol (Tacho) davor, damit man sieht, dass sich das Cockpit öffnet. **Mobil:** Equalizer bleibt sichtbar (schmaler, ohne Pfeil); unter 420 px ohne Symbol.
 - **F-200 Stufe 2 – Werkbank (Wunsch Enrico, vor F-116):** Portal im Entwickler-Modus im Terminal-Look, nur dieses Portal (`.win--dev`, Regeln am Ende von App.css mit `:root .win.win--dev`, schlagen die Retro-Designs). Grün `#3ee07a` ohne Leuchten (Enrico: erst „zu grell“, dann „etwas satter“), Auswahl als dunkle Füllung; Desk im Design „Terminal“ → Portal weiß. Eigene Farben (F-162) ruhen. Neue Leiste `components/DevBar.tsx` unter der Kopfzeile: Gerät (Auswahlliste, `DEV_DEVICES` in dev.ts), Hoch-/Querformat, Zoom-Test 100/200/400 % (Radiogruppe), Maße + Geräteklasse (Ansage nach 0,9 s; Tooltip nennt auf Retina die Bildschirmpunkte), Lineal, Beenden. `PanelMeta.devView {device, turned, scale}` (gespeichert, fällt beim Ausschalten weg), `devFrame()` passt das Gerät ganz und mittig ein (`.devscreen` als Umriss), Aktion `devView`. Lupe und Alt/⌥+Plus/Minus wirken im Entwickler-Modus nicht (Ansage `DEV_TEXT.noZoom`). Lineal-Knopf in der Kopfzeile entfällt (nur noch Leiste, ⋮, Suche). Anzeige unten links (`DevSize.tsx`) wird nicht mehr benutzt.
 - **Wunsch Enrico:** Gerät wählen/drehen → **Slot wächst auf das Seitenverhältnis** des Geräts (`onSetSize` mit Anteilen aus Desk-Größe, nicht bei maximiertem Portal).
+- **Untersuchen (Enrico geprüft):** Rechtsklick → Untersuchen klappt im Portal, aber nur mit Entwicklerwerkzeugen im eigenen Fenster (angedockt wird E-Sources schmaler, Slots ordnen sich neu, Portal rutscht nach hinten). In Hilfe und Tour festhalten (Nächste Schritte 3).
 - **Pixel geprüft (Enrico, MacBook Pro):** Anzeige 850 × 354 px = 1 700 × 708 Punkte im Screenshot (Retina × 2) – stimmt.
 - **F-116 Datenmodell:** neues Modul `workspace/cases.ts` (siehe Lastenheft F-116 „Umsetzung V53“). Typen `Space`/`Case` in types.ts; `spheres: Space[]`, `scenarios: Case[]` (Pflichtfeld `space`), `layoutCases`, `activeCase`; storage liest alles (Cases ohne gültigen Space fallen weg).
 - Tests: **276 grün** (neu: F-200 Stufe 2 ×2, F-116 ×3); `tsc --noEmit` sauber. Im Browser geprüft: Leiste, Geräte, Drehen, Zoom-Test, Tastatur (Tab-Folge, Pfeile in der Radiogruppe), Beenden, Terminal-Desk → weiß, Slot wächst.
@@ -28,10 +29,11 @@ Stand: 23.11.2026 · Chat V53 abgeschlossen · Nächster Chat: **V54 E-Sources**
 
 1. **Enrico prüfen lassen:** ⋮ → Entwickler-Modus; Gerät wählen (Slot wächst), Drehen, Zoom-Test, Beenden; Farbe; Profil → „Übernehmen“; Fokusanzeige mit Symbol, schmales Fenster.
 2. **F-116 Oberfläche** (Datenmodell fertig in `cases.ts`): (a) Dialog „Spaces und Cases verwalten“ (Space: Name, Farbe aus `CASE_COLORS`, löschen mit Rückfrage `ask` und „Rückgängig“; Cases darunter anlegen/umbenennen/Farbe/Space wechseln/löschen) – sichtbarer Abschluss (F-191). (b) Layout-Modus im Cockpit (`LayoutCockpit` in DeskLayouts.tsx): je Layout Case-Chips + „Cases …“ (Haken je Case, gruppiert nach Space) → `setLayoutCase`. (c) Case-Wahl oben im Layout-Modus (Liste nach Space) → `pickCase`; bei genau einem Layout gewechselt (Ansage), sonst Angebot der Layouts. (d) Suche: Cases als Treffer („Case wählen“), heute sucht sie nur Namen an Portalen (bookmarks.ts Z. ~293). (e) Aktionen in useWorkspace (`addSpace` usw. – `newId` aus workspace), Texte in terms.ts (Begriffe Space/Case erklären), Hilfe-Einträge mit Fragen, Tour-Schritt im Cockpit. Barrierefreiheit!
-3. F-200 Stufe 2 Rest: Leiste bricht in schmalen Slots auf mehrere Zeilen um → Slot-Rechnung bleibt dadurch etwas zu schmal (ggf. zweiter Durchgang nach dem Umbruch); später Raster-Overlay, Maße kopieren, Screenshot, „In eigenem Tab öffnen“ (Enrico entscheidet).
-4. Aufräumen: `web/src/components/DevSize.tsx` und CSS `.devsize` sind unbenutzt (Löschen braucht Freigabe – sonst nach `_to_delete`).
-5. F-201 Rest: (4) Video in View „2“ zu groß/abgeschnitten, (5) Neuladen mit E-Sources-Kopie.
-6. Geschichte der Anwendung: Ausblick nachziehen.
+3. **Untersuchen erklären (Wunsch Enrico, V53, klein – als Erstes in V54, vor F-116):** Hilfe-Eintrag Entwickler-Modus um „Untersuchen“ ergänzen (Rechtsklick in die Seite → Untersuchen; Entwicklerwerkzeuge über ⋮ → Dock side → „Undock into separate window“ in ein eigenes Fenster, sonst ordnet E-Sources die Slots neu und das Portal rutscht nach hinten) + Frage „Wie sehe ich den Code einer Seite?“. Dazu kurze Tour „Entwickler-Modus“ (Leiste: Gerät, Drehen, Zoom-Test, Maße, Lineal, Beenden; letzter Schritt Untersuchen) – Tour-Angebot einmal beim ersten Einschalten. Von Enrico geprüft: funktioniert.
+4. F-200 Stufe 2 Rest: Leiste bricht in schmalen Slots auf mehrere Zeilen um → Slot-Rechnung bleibt dadurch etwas zu schmal (ggf. zweiter Durchgang nach dem Umbruch); später Raster-Overlay, Maße kopieren, Screenshot, „In eigenem Tab öffnen“ (Enrico entscheidet).
+5. Aufräumen: `web/src/components/DevSize.tsx` und CSS `.devsize` sind unbenutzt (Löschen braucht Freigabe – sonst nach `_to_delete`).
+6. F-201 Rest: (4) Video in View „2“ zu groß/abgeschnitten, (5) Neuladen mit E-Sources-Kopie.
+7. Geschichte der Anwendung: Ausblick nachziehen.
 
 ## Commit-Text V53
 
@@ -189,3 +191,14 @@ Git nur bei Enrico (GitHub Desktop). Repo-Ordner per Ordnerzugriff freigeben (`~
 ## Arbeitsregeln
 
 Wie V15–V50: Funktion vor Design · Barrierefreiheit immer (NF-03) · Begriffe erklären (Texte nur in terms.ts/help.ts) · offene Punkte im Blick, Restplatz mit kleinen Punkten füllen · Lastenheft zuerst · Sammelmodus `>START` … `<ENDE` · Terminal: nur nächster Schritt · „PO“ = Push Origin · Übergabe spätestens bei 60–70 %, nie mitten in einer Aufgabe · Datei `Vxx_Uebergabe_E-Sources.md` unter `docs/uebergaben/` · Usability: so einfach und wirksam wie möglich für den Anwender · **Am Ende jedes Chats fertigen Commit-Text liefern (Summary + Description für GitHub Desktop).**
+
+## Commit-Text Nachtrag V53
+
+**Summary:** `V53 Nachtrag: Untersuchen im Lastenheft und in der Übergabe`
+
+**Description:**
+```
+F-200 (e): Untersuchen mit den Browser-Werkzeugen – Entwicklerwerkzeuge
+in eigenem Fenster, sonst ordnet E-Sources die Slots neu. Für V54 als
+Hilfe-Eintrag und Tour vorgemerkt.
+```

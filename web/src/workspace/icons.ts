@@ -102,6 +102,7 @@ export const ICONS = {
   home: { d: ['M2 7.5 8 2.5l6 5', 'M3.5 6.5V13.5h9V6.5', 'M6.5 13.5V10h3v3.5'] },
   copy: { d: ['M5.5 5.5h8v8h-8z', 'M3.5 10.5h-1v-8h8v1'] },
   send: { d: ['M14 2L2 7l5 2 2 5 5-12z', 'M7 9l7-7'] },
+  sync: { d: ['M2.5 7A5.5 5.5 0 0 1 12.6 4.5', 'M13 1.8v3h-3', 'M13.5 9A5.5 5.5 0 0 1 3.4 11.5', 'M3 14.2v-3h3'] },
   external: { d: ['M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9', 'M9.5 2.5h4v4', 'M13.3 2.7 7.8 8.2'] },
   newWindow: { d: ['M1.5 3.5h9v8h-9z', 'M1.5 6h9', 'M12.5 6v8h-9', 'M14.5 4v6'] },
   blocked: { d: [ring(8, 8, 6), 'M3.8 12.2l8.4-8.4'] },
@@ -166,7 +167,7 @@ export const HELP_ICON: Record<string, IconName> = {
   design: 'design', colorRules: 'category', rules: 'rules', colors: 'colors',
   adjust: 'adjust', focusRule: 'sliders', restore: 'restore', closed: 'closed', layouts: 'layouts', cases: 'layouts', limits: 'maximize',
   nextTab: 'next', nextPortal: 'next', distribute: 'distribute', swap: 'swap', rename: 'rename', stackDelete: 'remove', ruler: 'ruler', pause: 'pause', zoom: 'zoom', webSearch: 'search', sendTo: 'send',
-  importBookmarks: 'import', sortHelp: 'sort', exportBookmarks: 'export', profile: 'profile', reload: 'reload', exportDesks: 'send', loadDesks: 'import',
+  importBookmarks: 'import', sortHelp: 'sort', exportBookmarks: 'export', profile: 'profile', reload: 'reload', exportDesks: 'send', loadDesks: 'import', syncDesks: 'sync',
 };
 
 /** F-183 Stufe 2: Zeichen zur Wahl für Kategorien, in dieser Reihenfolge im Dialog „Farben“. */

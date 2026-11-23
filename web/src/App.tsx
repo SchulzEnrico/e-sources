@@ -46,7 +46,7 @@ import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
+import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { browserOf, currentUa, modKey } from './workspace/browser';
@@ -79,6 +79,8 @@ import { BOOKMARKS_FILE_NAME, type BrowserBookmark, bookmarkFileOf, looksLikeBoo
 import { closedOf, restoreClosed, restoredSaid } from './workspace/closed';
 import { PORTAL_ALONE, nextTabOf, portalSaid, stepIn, tabAlone, tabSaid } from './workspace/cycle';
 import { Icon } from './components/Icon';
+import { SyncDialog } from './components/Sync';
+import { syncNow, useGistState, useGistSync } from './workspace/useGistSync';
 import { FLASH_EVENT, type FlashRequest } from './workspace/flash';
 
 /** Knopf im Hinweis unten (F-162, F-163). */
@@ -438,6 +440,21 @@ function DeskApp(props: DeskProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   /** F-116: Dialog „Spaces und Cases“ (aus Hilfe und Suche; im Cockpit öffnet ihn der Layout-Modus selbst) */
   const [casesOpen, setCasesOpen] = useState(false);
+  /** F-169 Stufe 2: Dialog „Abgleich zwischen Geräten“; Konflikt „später entscheiden“ */
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [conflictLater, setConflictLater] = useState('');
+  const gist = useGistState();
+  const gistSeen = useRef(gist.at);
+  useEffect(() => {
+    if (gist.at === gistSeen.current) return;
+    gistSeen.current = gist.at;
+    if (gist.last === 'pulled') notify(SYNC_TEXT.pulled); // NF-03: Ansage über den Hinweis unten
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gist.at, gist.last]);
+  // Konflikt während der Dialog offen ist: Dialog schließen, sonst liegt die Rückfrage darunter (modal)
+  useEffect(() => {
+    if (gist.status === 'conflict' && gist.remote && conflictLater !== gist.remote.savedAt) setSyncOpen(false);
+  }, [gist.status, gist.remote, conflictLater]);
   const [greetOn, setGreetOn] = useState(() => !win && !props.switched && !tourAutoStart('start') && profileOf(ws).greet);
   /** Zuletzt offenes Portal – beim Start gelesen, bevor das aktuelle es überschreibt. */
   const [lastAtStart] = useState(() => loadLast(win ?? ''));
@@ -2206,6 +2223,8 @@ function DeskApp(props: DeskProps) {
         return void sendWorkspace();
       case 'loadDesks':
         return importRef.current?.click();
+      case 'syncDesks':
+        return setSyncOpen(true);
       case 'sortHelp':
         return setSortOpen(true);
       case 'profile':
@@ -2614,6 +2633,20 @@ function DeskApp(props: DeskProps) {
             <span className="tb-label"> {DESK_LAYOUT_TEXT.fit(rec)}</span>
           </button>
         )}
+        {/* F-169 Stufe 2: ruhiges Zeichen für den Abgleich (nur wenn eingerichtet) */}
+        {gist.status !== 'off' && (
+          <button
+            type="button"
+            className={`tb-sync is-${gist.status}`}
+            onClick={() => setSyncOpen(true)}
+            title={`${SYNC_TEXT.badge[gist.status]}${gist.status === 'error' && gist.error ? ` – ${gist.error}` : ''} (Klick: Einzelheiten)`}
+            aria-label={`${SYNC_TEXT.badge[gist.status]} – Einzelheiten`}
+            aria-haspopup="dialog"
+          >
+            <Icon name="sync" size={15} />
+            {(gist.status === 'error' || gist.status === 'conflict') && <span className="tb-sync__dot" aria-hidden="true">!</span>}
+          </button>
+        )}
         {/* F-156: Hilfe – alle Funktionen und Begriffe mit Kürzeln */}
         <button type="button" className="tb-help" onClick={() => setHelpAt({ at: null })} title="Hilfe: alle Funktionen und Begriffe mit Tastenkürzeln (?)" aria-label="Hilfe" aria-haspopup="dialog">
           ?
@@ -2864,6 +2897,15 @@ function DeskApp(props: DeskProps) {
               >
                 {TRANSFER_TEXT.load}
               </Item>
+              {/* F-169 Stufe 2: automatischer Abgleich über ein geheimes GitHub Gist */}
+              <Item icon="sync" title={SYNC_TEXT.menuTitle}
+                onClick={() => {
+                  close();
+                  setSyncOpen(true);
+                }}
+              >
+                {SYNC_TEXT.menu}
+              </Item>
               {/* F-36 */}
               <Item icon="import"
                 onClick={() => {
@@ -3109,6 +3151,34 @@ function DeskApp(props: DeskProps) {
       )}
       {update.found && <UpdateNotice onReload={() => window.location.reload()} onLater={update.later} />}
       {casesOpen && <CasesDialog ws={ws} dispatch={dispatch} say={sayLive} onClose={() => setCasesOpen(false)} />}
+      {syncOpen && (
+        <SyncDialog
+          onClose={() => setSyncOpen(false)}
+          onSend={() => {
+            setSyncOpen(false);
+            void sendWorkspace();
+          }}
+          say={(text) => notify(text)}
+        />
+      )}
+      {gist.status === 'conflict' && gist.remote && conflictLater !== gist.remote.savedAt && (
+        <div className="notice" role="alertdialog" aria-modal="true" aria-labelledby="sync-conflict" onKeyDown={(e) => e.key === 'Escape' && setConflictLater(gist.remote?.savedAt ?? '')}>
+          <div className="notice__box">
+            <p id="sync-conflict">{SYNC_TEXT.conflict(gist.remote.device, new Date(gist.remote.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</p>
+            <div className="notice__btns">
+              <button type="button" autoFocus onClick={() => void syncNow('local')}>
+                {SYNC_TEXT.keepHere}
+              </button>
+              <button type="button" onClick={() => void syncNow('remote')}>
+                {SYNC_TEXT.takeRemote(gist.remote.device)}
+              </button>
+              <button type="button" title={SYNC_TEXT.laterNote} onClick={() => setConflictLater(gist.remote?.savedAt ?? '')}>
+                {SYNC_TEXT.later}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {profileOpen && <ProfileDialog profile={profileOf(ws)} onChange={(change) => dispatch({ type: 'profile', change })} onRestored={() => sayLive(DIALOG_TEXT.resetDone)} onClose={() => setProfileOpen(false)} />}
       {sortOpen && (
         <SortHelp
@@ -3310,6 +3380,7 @@ const HINT_SHORT = 2000;
 
 export default function App(props: { sent?: string }) {
   const [ws, dispatch] = useWorkspace();
+  useGistSync(ws, dispatch);
   const [desk, setDesk] = useState<{ win: string; switched: boolean; said: string; focus?: string }>(() => ({ win: winFromSearch(window.location.search), switched: false, said: '' }));
   const [parked, setParked] = useState(false);
   const onSwitch = useCallback((target: string, said = '', focus?: string) => {

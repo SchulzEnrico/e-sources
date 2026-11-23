@@ -850,3 +850,51 @@ export const TRANSFER_TEXT = {
   noShare: (name: string) =>
     `Dieser Browser kann nicht direkt an ein anderes Gerät senden – darum als ${name} gespeichert. Schick die Datei z. B. per AirDrop, Mail oder über einen gemeinsamen Ordner und wähle auf dem anderen Gerät Einstellungen (Zahnrad) › „Desks aus Datei laden …“.`,
 };
+
+/** F-169 Stufe 2: Abgleich zwischen Geräten über ein geheimes GitHub Gist. */
+export const SYNC_TEXT = {
+  menu: 'Abgleich zwischen Geräten …',
+  menuTitle: 'Hält alle deine Geräte automatisch auf demselben Stand – über dein kostenloses GitHub-Konto. Ohne GitHub: „An anderes Gerät senden …“.',
+  title: 'Abgleich zwischen Geräten',
+  intro:
+    'Damit Mac, iPhone, iPad und andere Geräte denselben Stand haben, legt E-Sources ihn in deinem kostenlosen GitHub-Konto ab – in einem geheimen Gist (eine kleine private Ablage für Dateien). Jedes Gerät holt sich dort den neuesten Stand und schickt seine Änderungen hin.',
+  what: 'Abgeglichen werden alle Desks mit Portalen, Tabs und Layouts, die Library sowie Profil und Begrüßung. Das Standard-Layout je Gerät bleibt auf jedem Gerät eigen.',
+  step1: 'GitHub-Konto anlegen oder bei GitHub anmelden.',
+  step1Link: 'Bei GitHub registrieren',
+  step2: 'Einen Schlüssel anlegen: Die Seite ist schon ausgefüllt (Name „E-Sources Abgleich“, nur das Recht „gist“). Bei „Expiration“ eine Laufzeit wählen, unten auf „Generate token“ klicken und den Schlüssel kopieren (beginnt mit ghp_).',
+  step2Link: 'GitHub-Seite für den Schlüssel öffnen',
+  step3: 'Schlüssel hier einfügen und verbinden.',
+  field: 'Schlüssel (Token)',
+  connect: 'Verbinden',
+  connecting: 'Prüfe den Schlüssel …',
+  empty: 'Bitte zuerst den Schlüssel einfügen.',
+  privacy:
+    'Der Schlüssel bleibt nur auf diesem Gerät (nicht in Dateien, nicht im Abgleich). Geheim heißt nicht verschlüsselt: Wer den Link zum Gist kennt, kann es lesen. Auf jedem Gerät einmal einrichten – mit demselben GitHub-Konto.',
+  noGithub: 'Ohne GitHub geht es von Hand: „An anderes Gerät senden …“ schickt alles als Datei, auf dem anderen Gerät lädst du sie mit „Desks aus Datei laden …“.',
+  sendInstead: 'An anderes Gerät senden …',
+  connected: (login: string) => `Verbunden mit GitHub${login ? ` als ${login}` : ''}.`,
+  how: 'E-Sources holt den Stand beim Start und beim Zurückkehren in die App und sendet Änderungen nach 30 Sekunden Ruhe. Haben zwei Geräte zugleich geändert, fragt E-Sources, welcher Stand bleibt.',
+  never: 'Noch nicht abgeglichen.',
+  at: (when: string) => `Zuletzt abgeglichen: ${when}.`,
+  busy: 'Gleiche gerade ab …',
+  syncNow: 'Jetzt abgleichen',
+  view: 'Gist auf GitHub ansehen',
+  disconnect: 'Trennen',
+  disconnectTitle: 'Löscht den Schlüssel auf diesem Gerät. Der Stand auf GitHub bleibt erhalten (dort löschbar).',
+  disconnected: 'Abgleich getrennt. Der Schlüssel ist von diesem Gerät gelöscht; das Gist liegt weiter in deinem GitHub-Konto.',
+  pulled: 'Neuer Stand von einem anderen Gerät übernommen (Abgleich).',
+  pushedFirst: 'Verbunden – dein Stand liegt jetzt geheim in deinem GitHub-Konto.',
+  conflict: (device: string, when: string) =>
+    `Seit dem letzten Abgleich wurde hier und auf einem anderen Gerät geändert (${device}, ${when}). Welcher Stand soll bleiben? Der andere wird ersetzt.`,
+  keepHere: 'Stand dieses Geräts behalten',
+  takeRemote: (device: string) => `Stand von ${device} übernehmen`,
+  later: 'Später entscheiden',
+  laterNote: 'Bis du entscheidest, ruht der Abgleich.',
+  badge: {
+    idle: 'Abgleich aktiv',
+    busy: 'Gleiche ab …',
+    error: 'Abgleich gestört',
+    conflict: 'Abgleich: Entscheidung nötig',
+  } as Record<string, string>,
+  unavailable: 'Im Testmodus und in eingebetteten E-Sources gibt es keinen Abgleich.',
+};

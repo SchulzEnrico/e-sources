@@ -28,6 +28,7 @@ import * as La from './launcher';
 import * as BB from './browserBookmarks';
 import * as SH from './sortHelp';
 import * as Pr from './profile';
+import * as Gi from './gist';
 import * as Wc from './welcome';
 import * as Up from './update';
 import * as Br from './browser';
@@ -3499,5 +3500,30 @@ describe('V55: Lineal misst in Seiten-Pixeln', () => {
   });
   it('ungültiger Faktor zählt wie 1', () => {
     expect(Dv.rulerSteps(0).minor).toBe(10);
+  });
+});
+
+describe('F-169 Stufe 2: Abgleich über GitHub Gist', () => {
+  const c = { seen: '2026-11-23T10:00:00.000Z', syncedAt: 1000 };
+  it('sendet, solange im Gist nichts liegt', () => {
+    expect(Gi.planSync(0, c, null)).toBe('push');
+  });
+  it('tut nichts ohne Änderungen', () => {
+    expect(Gi.planSync(900, c, c.seen)).toBe('none');
+  });
+  it('sendet nach Änderung nur hier', () => {
+    expect(Gi.planSync(2000, c, c.seen)).toBe('push');
+  });
+  it('holt nach Änderung nur auf dem anderen Gerät', () => {
+    expect(Gi.planSync(900, c, '2026-11-23T11:00:00.000Z')).toBe('pull');
+  });
+  it('fragt, wenn beide Seiten geändert haben', () => {
+    expect(Gi.planSync(2000, c, '2026-11-23T11:00:00.000Z')).toBe('conflict');
+  });
+  it('fragt beim ersten Verbinden, wenn hier schon etwas steht', () => {
+    expect(Gi.planSync(500, { seen: '', syncedAt: 0 }, '2026-11-23T11:00:00.000Z')).toBe('conflict');
+  });
+  it('bereinigt eingefügte Schlüssel', () => {
+    expect(Gi.cleanToken('  token ghp_abc\n123 ')).toBe('ghp_abc123');
   });
 });

@@ -5475,3 +5475,29 @@ h3.cases__name { font-size: 1.05em; }
 .radar__detail-kind.is-active .radar__detail-dot { background: var(--ok, #3fb950); border-color: var(--ok, #3fb950); }
 .radar__detail-why { font-weight: 400; opacity: 0.8; }
 @media (forced-colors: active) { .radar__detail-kind.is-active .radar__detail-dot { background: Highlight; border-color: Highlight; } }
+
+/* ================================================================ F-169 Stufe 2: Abgleich zwischen Geräten */
+.help.sync { width: min(620px, calc(100vw - 24px)); }
+.sync__body { line-height: 1.5; }
+.sync__body > p { margin: 0 0 12px; }
+.sync__note { font-size: 14px; color: var(--text); }
+.sync__note .icon, .sync__ok .icon, .sync__btns .icon { display: inline-block; vertical-align: -2px; }
+.sync__ok { color: var(--strong); font-weight: 600; }
+.sync__err { color: #e5484d; min-height: 1.2em; }
+.sync__steps { margin: 0 0 14px; padding-left: 22px; }
+.sync__steps li { margin-bottom: 10px; }
+.sync__steps a, .sync__btns a { color: rgb(var(--tint)); }
+.sync__form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-top: 8px; }
+.sync__form label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px; }
+.sync__form input { font: inherit; padding: 6px 8px; }
+.sync__btns { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; }
+.tb-sync { position: relative; }
+.tb-sync .icon { display: inline-block; }
+.tb-sync.is-idle { opacity: 0.6; }
+.tb-sync.is-idle:hover, .tb-sync.is-idle:focus-visible { opacity: 1; }
+.tb-sync.is-busy .icon { animation: tb-sync-spin 1.2s linear infinite; }
+@keyframes tb-sync-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .tb-sync.is-busy .icon { animation: none; } }
+.tb-sync__dot { position: absolute; top: -2px; right: -2px; min-width: 14px; height: 14px; border-radius: 7px; background: #e5484d; color: #fff; font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; }
+.tb-sync.is-conflict .tb-sync__dot { background: #f5a524; color: #111; }
+@media (forced-colors: active) { .tb-sync__dot { forced-color-adjust: none; border: 1px solid CanvasText; } }

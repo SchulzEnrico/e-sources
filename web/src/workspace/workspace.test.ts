@@ -2859,6 +2859,44 @@ describe('F-06 Portale pausieren', () => {
   });
 });
 
+describe('F-06 Stufe 2: sichtbare Portale, Ausnahme je Tab', () => {
+  const base = { now: 10 * 60_000, minutes: 5, keep: false, active: false, manual: false };
+  it('sichtbares Portal schläft nach der Zeit ohne Benutzung, nie das aktive, von Hand sofort', () => {
+    expect(Pa.dozing({ ...base, used: 6 * 60_000 })).toBe(false);
+    expect(Pa.dozing({ ...base, used: 5 * 60_000 })).toBe(true);
+    expect(Pa.dozing({ ...base, used: 0, active: true })).toBe(false);
+    expect(Pa.dozing({ ...base, used: 0, minutes: 0 })).toBe(false);
+    expect(Pa.dozing({ ...base, used: undefined })).toBe(false);
+    expect(Pa.dozing({ ...base, used: base.now, manual: true, active: true, minutes: 0 })).toBe(true);
+    expect(Pa.dozing({ ...base, used: 0, manual: true, keep: true })).toBe(false);
+  });
+  it('merkt Benutzung: neu Sichtbares bekommt „jetzt“, Verschwundenes fällt weg', () => {
+    let u = Pa.trackUse({}, ['a', 'b'], 100);
+    expect(u).toEqual({ a: 100, b: 100 });
+    expect(Pa.trackUse(u, ['a', 'b'], 900)).toBe(u);
+    u = Pa.trackUse(u, ['b', 'c'], 900);
+    expect(u).toEqual({ b: 100, c: 900 });
+  });
+  it('Einstellung und „Nicht pausieren“ je Tab über den Reducer, gespeichert und wieder gelesen', () => {
+    let ws = W.defaultWorkspace();
+    const p = ws.panels[0];
+    expect(Pa.shownMinutes(ws)).toBe(Pa.SHOWN_DEFAULT);
+    ws = reducer(ws, { type: 'pauseShown', minutes: 120 });
+    expect(ws.pauseShown).toBe(120);
+    expect(reducer(ws, { type: 'pauseShown', minutes: 7 })).toBe(ws);
+    ws = reducer(ws, { type: 'keepTab', id: p.id, tab: p.activeTab });
+    expect(Pa.keepTabOf(ws.panels[0], p.activeTab)).toBe(true);
+    expect(ws.panels[0].keep).toBeUndefined();
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(back.pauseShown).toBe(120);
+    expect(back.panels[0].tabs[0].keep).toBe(true);
+    ws = reducer(reducer(ws, { type: 'keepTab', id: p.id, tab: p.activeTab }), { type: 'pauseShown', minutes: Pa.SHOWN_DEFAULT });
+    expect(ws.panels[0].tabs[0].keep).toBeUndefined();
+    expect(ws.pauseShown).toBeUndefined();
+    expect(Pa.keepTabOf({ keep: true, tabs: [{ id: 'x' }] }, 'x')).toBe(true);
+  });
+});
+
 describe('F-189 Web-Suche', () => {
   it('erkennt Adressen und Suchwörter', () => {
     for (const a of ['wikipedia.org', 'https://x.de/a?b=1', 'localhost:2910', 'de.wikipedia.org/wiki/Hamburg', '192.168.0.1']) expect(Web.looksLikeAddress(a)).toBe(true);

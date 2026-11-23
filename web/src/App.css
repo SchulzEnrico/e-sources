@@ -4733,10 +4733,8 @@ button.is-off:hover,
 
 /* ---------- F-06: Portale pausieren */
 /* Portale eines Stacks liegen übereinander; nur das vordere ist zu sehen, die hinteren bleiben eine Weile geladen. */
-.tile__layer {
-  display: contents;
-}
-.tile__layer.is-back {
+/* F-06 Stufe 2: verborgene, aber geladene Portale (Stack hinten, andere View) */
+.tile.is-back {
   display: none;
 }
 /* Pausiert = nicht geladen: blasser, lädt beim Anklicken neu */
@@ -4744,6 +4742,41 @@ button.is-off:hover,
 .stack__item--paused {
   opacity: 0.55;
   font-style: italic;
+}
+/* F-06 Stufe 2: sichtbares, pausiertes Portal – die ganze Fläche ist der Knopf zum Neuladen */
+.win__paused {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.win__paused:hover,
+.win__paused:focus-visible {
+  opacity: 1;
+}
+.win__paused:focus-visible {
+  outline-offset: -4px;
+}
+.win__paused .icon {
+  display: inline-block;
+}
+.win__paused-title {
+  font-size: 1.1em;
+  font-weight: 600;
+}
+.win__paused-host {
+  font-size: 0.85em;
+  opacity: 0.8;
 }
 
 /* ---------- F-189: Links von außen hineinziehen */

@@ -109,6 +109,14 @@ interface Props {
   awake?: (tab: string) => boolean;
   /** F-06: „Nicht pausieren“ umschalten. */
   onKeep?: () => void;
+  /** F-06 Stufe 2: Portal ist sichtbar, aber pausiert (Platzhalter statt Seite). */
+  asleep?: boolean;
+  /** F-06 Stufe 2: Benutzung melden; wake = auch von Hand Pausiertes wecken (Klick). */
+  onUse?: (wake: boolean) => void;
+  /** F-06 Stufe 2: dieses Portal jetzt pausieren. */
+  onPauseNow?: () => void;
+  /** F-06 Stufe 2: „Nicht pausieren“ für den sichtbaren Tab umschalten. */
+  onKeepTab?: () => void;
   /** F-194: Zoom dieses Portals setzen (Prozent). */
   onZoom?: (zoom: number) => void;
   /** F-194 Stufe 2: „Breite halten“ ein- oder ausschalten. */
@@ -574,7 +582,7 @@ export function PanelFrame(p: Props) {
   const load = p.stack ? p.stack.members.length : 1;
   const tabCount = p.panel.tabs.length;
   /** F-06: Tab mit Adresse, der gerade nicht geladen ist. */
-  const isPaused = (t: { id: string; url?: string }) => !!t.url && t.id !== tab.id && !!p.awake && !p.awake(t.id);
+  const isPaused = (t: { id: string; url?: string }) => !!t.url && (t.id === tab.id ? !!p.asleep : !!p.awake && !p.awake(t.id));
 
   /** Neuer Tab mit Ampel-Regel (F-26): Hinweis bei 5, Grenze bei 9. */
   const addTab = () => {
@@ -645,6 +653,16 @@ export function PanelFrame(p: Props) {
     <section
       className={cls}
       onMouseDown={p.onActivate}
+      onPointerDownCapture={() => p.onUse?.(true)}
+      onFocusCapture={() => p.onUse?.(false)}
+      // Das Portal selbst scrollt nie (overflow: hidden). Fokus auf ein breites Element (z. B. das
+      // Menü in einem schmalen Portal) schob den Inhalt sonst seitlich weg, und er blieb verschoben.
+      onScroll={(e) => {
+        const el = e.currentTarget;
+        if (e.target !== el || (!el.scrollLeft && !el.scrollTop)) return;
+        el.scrollLeft = 0;
+        el.scrollTop = 0;
+      }}
       aria-label={p.panel.name}
       data-panel-id={p.panel.id}
       style={
@@ -998,6 +1016,16 @@ export function PanelFrame(p: Props) {
                       {PAUSE_TEXT.keepMenu}
                     </Item>
                   )}
+                  {p.onKeepTab && p.panel.tabs.length > 1 && (
+                    <Item icon="pause" checked={!!tab.keep || !!p.panel.keep} disabled={!!p.panel.keep} title={PAUSE_TEXT.keepTabTitle} onClick={run(p.onKeepTab)}>
+                      {PAUSE_TEXT.keepTabMenu}
+                    </Item>
+                  )}
+                  {p.onPauseNow && url && !p.asleep && (
+                    <Item icon="pause" disabled={!!p.panel.keep || !!tab.keep} title={p.panel.keep || tab.keep ? PAUSE_TEXT.pauseNowKept : PAUSE_TEXT.pauseNowTitle} onClick={run(p.onPauseNow)}>
+                      {PAUSE_TEXT.pauseNow}
+                    </Item>
+                  )}
                   <Item icon="rename" onClick={run(() => startEdit('panel'))}>Portal umbenennen</Item>
                   {p.onColors && <Item icon="colors" onClick={run(p.onColors)}>{TINT_TEXT.menu}</Item>}
                   {p.stack && <Item icon="rename" onClick={run(() => startEdit('area'))}>Slot umbenennen</Item>}
@@ -1080,7 +1108,7 @@ export function PanelFrame(p: Props) {
                 window.setTimeout(() => el?.querySelectorAll<HTMLElement>('[role="tab"]')[to]?.focus());
               }}
               className={['tab', t.id === tab.id && 'tab--on', isPaused(t) && 'tab--paused'].filter(Boolean).join(' ')}
-              aria-description={isPaused(t) ? PAUSE_TEXT.paused : undefined}
+              aria-description={isPaused(t) ? PAUSE_TEXT.paused : t.keep && !p.panel.keep ? PAUSE_TEXT.tabKept : undefined}
               draggable
               onDragStart={(e) => {
                 dragTab.current = t.id;
@@ -1090,7 +1118,7 @@ export function PanelFrame(p: Props) {
               onDragOver={(e) => dragTab.current && e.preventDefault()}
               onDrop={(e) => dropTab(e, i)}
               onClick={() => p.onSelectTab(t.id)}
-              title={`${t.url ?? 'Neuer Tab'}${isPaused(t) ? ` · ${PAUSE_TEXT.paused}` : ''}`}
+              title={`${t.url ?? 'Neuer Tab'}${isPaused(t) ? ` · ${PAUSE_TEXT.paused}` : t.keep && !p.panel.keep ? ` · ${PAUSE_TEXT.tabKept}` : ''}`}
             >
               <span className="tab__label">{tabLabel(t)}</span>
               <button
@@ -1159,7 +1187,7 @@ export function PanelFrame(p: Props) {
           )}
           {/* F-06: Tabs im Hintergrund bleiben eine Weile geladen (wie im Browser) und pausieren dann; sichtbar ist nur der aktive. */}
           {p.panel.tabs.map((t) =>
-            t.url && !isSelf(t.url) && !p.isBlocked(t.url) && (t.id === tab.id || !p.awake || p.awake(t.id)) ? (
+            t.url && !isSelf(t.url) && !p.isBlocked(t.url) && (t.id === tab.id ? !p.asleep : !p.awake || p.awake(t.id)) ? (
               <iframe
                 key={`${t.id}#${t.url}#${reloads[t.id] ?? 0}`}
                 onLoad={() => FH.loaded(frameKey(t))}
@@ -1209,6 +1237,13 @@ export function PanelFrame(p: Props) {
                 Trotzdem hier versuchen
               </button>
             </div>
+          ) : url && p.asleep ? (
+            // F-06 Stufe 2: sichtbar, aber pausiert – ein Klick lädt die Seite neu
+            <button type="button" className="win__paused" onClick={() => p.onUse?.(true)} title={PAUSE_TEXT.wakeTitle}>
+              <Icon name="pause" size={28} />
+              <span className="win__paused-title">{PAUSE_TEXT.asleep}</span>
+              <span className="win__paused-host">{hostOf(url)}</span>
+            </button>
           ) : !url ? (
             <>
               <p className="win__placeholder">{p.panel.name}</p>

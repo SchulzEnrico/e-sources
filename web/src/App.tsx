@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { ZOOM_DEFAULT, fitFor, fitStart, frameWidth, nearestStep, shownZoom, zoomOf, zoomStep } from './workspace/zoom';
 import './App.css';
 import { usePause } from './workspace/usePause';
-import { PAUSE_CHOICES, pauseMinutes, tabKey } from './workspace/pause';
+import { PAUSE_CHOICES, SHOWN_CHOICES, keepTabOf, pauseMinutes, shownMinutes, tabKey } from './workspace/pause';
 import logoUrl from './assets/e-sources-logo.svg';
 import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, MenuHead, PanelFrame } from './components/PanelFrame';
@@ -1504,7 +1504,7 @@ function DeskApp(props: DeskProps) {
     if (!props.said) return;
     const t = window.setTimeout(() => {
       sayLive(props.said);
-      const tab = document.querySelector<HTMLElement>('main .tile__layer:not(.is-back) [role="tab"][aria-selected="true"], main .maximized [role="tab"][aria-selected="true"], main .split [role="tab"][aria-selected="true"]');
+      const tab = document.querySelector<HTMLElement>('main .tile:not(.is-back) [role="tab"][aria-selected="true"]');
       (tab ?? document.querySelector<HTMLElement>('.tb-desk-switch button'))?.focus({ preventScroll: true });
     }, 250);
     return () => window.clearTimeout(t);
@@ -1835,7 +1835,9 @@ function DeskApp(props: DeskProps) {
         : mode.kind === 'split'
           ? splitSelection(view, active && areaOf(view, active), mode.count).map(shown).filter((m): m is PanelMeta => !!m)
           : shownView.slots.map((s) => s.front);
-  const isAwake = usePause(shownView.slots.flatMap((s) => s.panels), pauseShown, pauseMinutes(ws));
+  const { isAwake, asleep, touch: usedNow, pauseNow } = usePause(shownView.slots.flatMap((s) => s.panels), pauseShown, pauseMinutes(ws), shownMinutes(ws), active);
+  /** F-06 Stufe 2: Tab geladen? „Nicht pausieren“ (Portal oder Tab) immer; im pausierten Portal sonst nichts. */
+  const tabAwake = (meta: PanelMeta, tab: string) => keepTabOf(meta, tab) || (!asleep(meta.id) && isAwake(tabKey(meta.id, tab)));
 
   const frame = (meta: PanelMeta, onArea?: { slotId: string; rect: T.FRect }) => {
     const slotOfMeta = shownView.slots.find((s) => s.panels.some((m) => m.id === meta.id));
@@ -1887,8 +1889,31 @@ function DeskApp(props: DeskProps) {
         onHome={() => dispatch({ type: 'home', id: meta.id })}
         onAddTab={() => dispatch({ type: 'addTab', id: meta.id })}
         onCloseTab={(tab) => closeTabOf(meta.id, tab)}
-        onSelectTab={(tab) => dispatch({ type: 'selectTab', id: meta.id, tab })}
-        awake={(tab) => isAwake(tabKey(meta.id, tab), meta.keep)}
+        onSelectTab={(tab) => {
+          usedNow(meta.id, true);
+          dispatch({ type: 'selectTab', id: meta.id, tab });
+        }}
+        awake={(tab) => tabAwake(meta, tab)}
+        asleep={asleep(meta.id)}
+        onUse={(wake) => {
+          if (wake && asleep(meta.id)) sayLive(PAUSE_TEXT.woke(meta.name));
+          usedNow(meta.id, wake);
+        }}
+        onPauseNow={() => {
+          pauseNow(meta.id);
+          const text = PAUSE_TEXT.pausedNow(meta.name);
+          notify(text);
+          sayLive(text);
+        }}
+        onKeepTab={() => {
+          const t = meta.tabs.find((x) => x.id === meta.activeTab);
+          if (!t) return;
+          dispatch({ type: 'keepTab', id: meta.id, tab: t.id });
+          const label = t.url ? hostOf(t.url) : 'Neuer Tab';
+          const text = t.keep ? PAUSE_TEXT.keepTabOff(label) : PAUSE_TEXT.keepTabOn(label);
+          notify(text);
+          sayLive(text);
+        }}
         onSearch={webSearch}
         engineName={engineOf(ws).name}
         linkDrag={linkDrag}
@@ -2129,57 +2154,71 @@ function DeskApp(props: DeskProps) {
         )}
       </div>
     );
-  } else if (mode.kind === 'max') {
-    const meta = ws.panels.find((p) => p.id === mode.id);
-    content = meta ? <div className="maximized">{frame(meta)}</div> : null;
-  } else if (mode.kind === 'split') {
-    const chosen = splitSelection(view, active && areaOf(view, active), mode.count)
-      .map(shown)
-      .filter((m): m is PanelMeta => !!m);
-    content = (
-      <div className={`split split--${chosen.length >= 4 ? 4 : chosen.length}`}>
-        {chosen.map((m) => (
-          <div key={m.id} className="split__cell">
-            {frame(m)}
-          </div>
-        ))}
-      </div>
-    );
   } else {
+    // F-06 Stufe 2: Alle Portale liegen in fester Reihenfolge unter einem Eltern-Element; die View
+    // (Dashboard, Maximieren, 2 × 2) ändert nur Lage und Sichtbarkeit. So bleiben Seiten beim
+    // Wechsel geladen – ein iframe, das im DOM verschoben wird, lädt sonst neu.
+    const chosen =
+      mode.kind === 'split'
+        ? splitSelection(view, active && areaOf(view, active), mode.count)
+            .map(shown)
+            .filter((m): m is PanelMeta => !!m)
+        : [];
+    const cols = chosen.length >= 4 ? 2 : Math.max(1, chosen.length);
+    const rows = chosen.length >= 4 ? 2 : 1;
+    const cellStyle = (i: number): CSSProperties => {
+      const c = i % cols;
+      const r = Math.floor(i / cols);
+      const w = `((100% - ${16 + (cols - 1) * 8}px) / ${cols})`;
+      const h = `((100% - ${16 + (rows - 1) * 8}px) / ${rows})`;
+      return { left: `calc(8px + ${c} * (${w} + 8px))`, top: `calc(8px + ${r} * (${h} + 8px))`, width: `calc(${w})`, height: `calc(${h})` };
+    };
+    const MAX_STYLE: CSSProperties = { left: 8, top: 8, width: 'calc(100% - 16px)', height: 'calc(100% - 16px)' };
+    const slotOfId = new Map(shownView.slots.flatMap((sl) => sl.panels.map((m) => [m.id, sl] as const)));
+    const list = ws.panels.filter((m) => slotOfId.has(m.id) || (mode.kind === 'max' && m.id === mode.id));
     content = (
       <>
-        {shownView.slots.map((s) => {
-          const meta = shown(s.id);
-          const over = drag?.target === s.id ? drag.zone : null;
+        {list.map((m) => {
+          const s = slotOfId.get(m.id);
+          const meta = s ? shown(s.id) : null;
+          const front = !!s && meta?.id === m.id;
+          const at = chosen.findIndex((x) => x.id === m.id);
+          const visible = mode.kind === 'max' ? m.id === mode.id : mode.kind === 'split' ? at >= 0 : front;
+          if (!visible && !isAwake(m.id, m.keep)) return null;
+          const style = mode.kind === 'max' ? MAX_STYLE : mode.kind === 'split' ? (at >= 0 ? cellStyle(at) : undefined) : s ? px(s.rect) : undefined;
+          const onSlot = mode.kind === 'area' && front && s;
+          const over = onSlot && drag?.target === s.id ? drag.zone : null;
           return (
-            <div key={s.id} className={`tile${resizing.has(s.id) ? ' tile--resizing' : ''}`} style={px(s.rect)}>
-              {/* F-06: Portale hinten im Stack bleiben eine Weile geladen (verborgen), dann pausieren sie. */}
-              {s.panels.map((m) =>
-                m.id === meta?.id || isAwake(m.id, m.keep) ? (
-                  <div key={m.id} className={m.id === meta?.id ? 'tile__layer' : 'tile__layer is-back'} aria-hidden={m.id === meta?.id ? undefined : true}>
-                    {frame(m, { slotId: s.id, rect: s.rect })}
-                  </div>
-                ) : null,
-              )}
-              {grips(s.id)}
-              {/* F-155: im Größen-Modus fängt diese Fläche Mausrad und Klick ab (statt der eingebetteten Seite) */}
-              {sizeMode && (
-                <div
-                  className={`sizepad${meta?.id === active ? ' is-active' : ''}`}
-                  aria-hidden="true"
-                  title="Scrollen: Kante verschieben · Klick: dieses Portal wählen"
-                  onWheel={(e) => onSizeWheel(e, s)}
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    if (meta) setActive(meta.id);
-                    setSizeSaid(`Jetzt „${slotName(s)}“: ${placeText(s.rect)}.`);
-                  }}
-                />
-              )}
-              {over && (
-                <div className={`drop drop--${over} ${drag?.stack ? (drag.stack.ok ? 'drop--in' : 'drop--no') : zoneClass(over)}`}>
-                  <span>{drag?.stack ? (drag.stack.ok ? 'Im Portal ablegen' : `Stack voll (${STACK_MAX})`) : ZONE_LABEL[over]}</span>
-                </div>
+            <div
+              key={m.id}
+              className={['tile', !visible && 'is-back', onSlot && resizing.has(s.id) && 'tile--resizing'].filter(Boolean).join(' ')}
+              style={style}
+              aria-hidden={visible ? undefined : true}
+            >
+              {frame(m, mode.kind === 'area' && s ? { slotId: s.id, rect: s.rect } : undefined)}
+              {onSlot && (
+                <>
+                  {grips(s.id)}
+                  {/* F-155: im Größen-Modus fängt diese Fläche Mausrad und Klick ab (statt der eingebetteten Seite) */}
+                  {sizeMode && (
+                    <div
+                      className={`sizepad${meta?.id === active ? ' is-active' : ''}`}
+                      aria-hidden="true"
+                      title="Scrollen: Kante verschieben · Klick: dieses Portal wählen"
+                      onWheel={(e) => onSizeWheel(e, s)}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        if (meta) setActive(meta.id);
+                        setSizeSaid(`Jetzt „${slotName(s)}“: ${placeText(s.rect)}.`);
+                      }}
+                    />
+                  )}
+                  {over && (
+                    <div className={`drop drop--${over} ${drag?.stack ? (drag.stack.ok ? 'drop--in' : 'drop--no') : zoneClass(over)}`}>
+                      <span>{drag?.stack ? (drag.stack.ok ? 'Im Portal ablegen' : `Stack voll (${STACK_MAX})`) : ZONE_LABEL[over]}</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           );
@@ -2612,6 +2651,27 @@ function DeskApp(props: DeskProps) {
                     {PAUSE_CHOICES.map((m) => (
                       <option key={m} value={m}>
                         {PAUSE_TEXT.choice(m)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </li>
+              {/* F-06 Stufe 2: Sichtbares pausieren */}
+              <li className="menu__field">
+                <label title={PAUSE_TEXT.shownHint}>
+                  {PAUSE_TEXT.shownSetting}
+                  <select
+                    value={shownMinutes(ws)}
+                    aria-description={PAUSE_TEXT.shownHint}
+                    onChange={(e) => {
+                      const min = Number(e.target.value);
+                      dispatch({ type: 'pauseShown', minutes: min });
+                      sayLive(PAUSE_TEXT.shownChanged(min));
+                    }}
+                  >
+                    {SHOWN_CHOICES.map((m) => (
+                      <option key={m} value={m}>
+                        {PAUSE_TEXT.shownChoice(m)}
                       </option>
                     ))}
                   </select>

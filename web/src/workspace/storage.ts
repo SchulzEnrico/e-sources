@@ -3,7 +3,7 @@ import { parseFit, parseZoom } from './zoom';
 import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
 import { parseDeskLooks, parseLook } from './look';
 import { parseTint } from './tint';
-import { PAUSE_CHOICES } from './pause';
+import { PAUSE_CHOICES, SHOWN_CHOICES } from './pause';
 import { ENGINE_DEFAULT, isEngine } from './websearch';
 import { parseProfile } from './profile';
 import { type FocusRule, fixRule } from './focus';
@@ -43,7 +43,7 @@ function pageOf(v: Record<string, unknown>): Omit<Tab, 'id'> | null {
 function parseTab(v: unknown): Tab | null {
   if (!isObj(v) || typeof v.id !== 'string') return null;
   const page = pageOf(v);
-  return page && { id: v.id, ...page };
+  return page && { id: v.id, ...page, ...(v.keep === true ? { keep: true } : {}) };
 }
 
 /** Panel im Format v5 oder v4 (ohne Tabs: die Seite wird zum ersten Tab). */
@@ -273,6 +273,7 @@ export function parseWorkspace(data: unknown): Workspace | null {
     deskLooks: parseDeskLooks(data.deskLooks, winIds),
     ...(deskLayouts ? { deskLayouts } : {}),
     ...(isNum(data.pause) && (PAUSE_CHOICES as readonly number[]).includes(data.pause as number) ? { pause: data.pause as number } : {}),
+    ...(isNum(data.pauseShown) && (SHOWN_CHOICES as readonly number[]).includes(data.pauseShown as number) ? { pauseShown: data.pauseShown as number } : {}),
     ...(isEngine(data.engine) && data.engine !== ENGINE_DEFAULT ? { engine: data.engine } : {}),
   };
 }

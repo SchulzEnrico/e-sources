@@ -79,3 +79,64 @@ export function toggleKeep(ws: Workspace, id: string): Workspace {
     }),
   };
 }
+
+/* ---------- F-06 Stufe 2: sichtbare Portale, Ausnahme je Tab ---------- */
+
+/** Wahl „Sichtbares pausieren“, in Minuten; 0 = nie. */
+export const SHOWN_CHOICES = [30, 60, 120, 0] as const;
+export const SHOWN_DEFAULT = 60;
+
+/** Minuten, nach denen ein sichtbares, unbenutztes Portal pausiert. */
+export const shownMinutes = (ws: Pick<Workspace, 'pauseShown'>): number => ws.pauseShown ?? SHOWN_DEFAULT;
+
+/** Einstellung „Sichtbares pausieren“; die Voreinstellung wird nicht eigens gespeichert. */
+export function setPauseShown(ws: Workspace, minutes: number): Workspace {
+  if (!(SHOWN_CHOICES as readonly number[]).includes(minutes)) return ws;
+  const { pauseShown: _drop, ...rest } = ws;
+  return minutes === SHOWN_DEFAULT ? rest : { ...rest, pauseShown: minutes };
+}
+
+/** „Nicht pausieren“ für einen einzelnen Tab ein- oder ausschalten. */
+export function toggleKeepTab(ws: Workspace, id: string, tab: string): Workspace {
+  return {
+    ...ws,
+    panels: ws.panels.map((p) =>
+      p.id !== id
+        ? p
+        : {
+            ...p,
+            tabs: p.tabs.map((t) => {
+              if (t.id !== tab) return t;
+              const { keep: _drop, ...rest } = t;
+              return t.keep ? rest : { ...rest, keep: true };
+            }),
+          },
+    ),
+  };
+}
+
+/** Bleibt dieser Tab immer geladen? (Portal oder Tab mit „Nicht pausieren“) */
+export const keepTabOf = (p: Pick<PanelMeta, 'keep' | 'tabs'>, tab: string): boolean => !!p.keep || !!p.tabs.find((t) => t.id === tab)?.keep;
+
+/**
+ * Schläft ein sichtbares Portal? Von Hand pausiert oder länger als die eingestellte Zeit nicht
+ * benutzt. Nie, wenn das Portal oder sein sichtbarer Tab „Nicht pausieren“ hat, und nie das
+ * gewählte (aktive) Portal – außer von Hand.
+ */
+export function dozing(o: { used?: number; now: number; minutes: number; keep: boolean; active: boolean; manual: boolean }): boolean {
+  if (o.keep) return false;
+  if (o.manual) return true;
+  if (o.active || o.minutes <= 0 || o.used === undefined) return false;
+  return o.now - o.used >= o.minutes * 60_000;
+}
+
+/** Letzte Benutzung der sichtbaren Portale: neu sichtbare bekommen „jetzt“, verschwundene fallen weg. */
+export function trackUse(prev: Record<string, number>, shown: readonly string[], now: number): Record<string, number> {
+  const next: Record<string, number> = {};
+  let changed = Object.keys(prev).length !== shown.length;
+  for (const id of shown) {
+    next[id] = prev[id] ?? now;
+    if (prev[id] === undefined) changed = true;
+  }
+  return changed ? next : prev;
+}

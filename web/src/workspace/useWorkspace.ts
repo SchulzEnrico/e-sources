@@ -1,6 +1,6 @@
 import { setFit, setZoom } from './zoom';
 import { type ColorsSnap, type DesignSnap, restoreColors, restoreDesign } from './reset';
-import { setPause, toggleKeep } from './pause';
+import { setPause, setPauseShown, toggleKeep, toggleKeepTab } from './pause';
 import { setEngine } from './websearch';
 import { openInNewSlot } from './send';
 import { useEffect, useReducer, useRef } from 'react';
@@ -91,6 +91,8 @@ export type Action =
   /** F-06: Portale pausieren. */
   | { type: 'pause'; minutes: number }
   | { type: 'keepPanel'; id: string }
+  | { type: 'pauseShown'; minutes: number }
+  | { type: 'keepTab'; id: string; tab: string }
   | { type: 'zoomPanel'; id: string; zoom: number }
   | { type: 'fitPanel'; id: string; fit?: number; zoom?: number }
   /** F-189: Suchmaschine. */
@@ -260,6 +262,10 @@ function step(ws: Workspace, a: Action): Workspace {
       return setPause(ws, a.minutes);
     case 'keepPanel':
       return toggleKeep(ws, a.id);
+    case 'pauseShown':
+      return setPauseShown(ws, a.minutes);
+    case 'keepTab':
+      return toggleKeepTab(ws, a.id, a.tab);
     case 'zoomPanel':
       return setZoom(ws, a.id, a.zoom);
     case 'fitPanel':

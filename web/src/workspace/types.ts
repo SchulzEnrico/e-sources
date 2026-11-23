@@ -16,6 +16,8 @@ export interface Tab {
   history?: string[];
   /** Position von `url` in `history`. */
   pos?: number;
+  /** F-06 Stufe 2: dieser Tab pausiert nie (z. B. Musik, Chat, laufender Upload). */
+  keep?: boolean;
 }
 
 /** Ein Panel – gilt für alle Bildschirmklassen. */
@@ -207,6 +209,8 @@ export interface Workspace {
   profile?: Profile;
   /** F-06: Minuten, nach denen Verdecktes pausiert; 0 = nie; fehlt = PAUSE_DEFAULT. */
   pause?: number;
+  /** F-06 Stufe 2: Minuten, nach denen ein sichtbares, unbenutztes Portal pausiert; 0 = nie; fehlt = SHOWN_DEFAULT. */
+  pauseShown?: number;
   /** F-189: Suchmaschine für „Im Web suchen“ (Id aus ENGINES); fehlt = Google. */
   engine?: string;
 }

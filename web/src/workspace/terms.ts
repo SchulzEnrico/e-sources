@@ -354,6 +354,24 @@ export const PAUSE_TEXT = {
   keepOff: (name: string) => `„${name}“ pausiert wieder, wenn es länger verdeckt ist.`,
   /** Zusatz an Tab- und Stack-Einträgen (Tooltip und Ansage). */
   paused: 'pausiert – lädt beim Anklicken neu',
+  shownSetting: 'Sichtbares pausieren',
+  shownHint: 'Sichtbare Portale, die du so lange nicht benutzt (anklicken, Tab wechseln, in der Seite tippen), werden entladen. Das gewählte Portal pausiert nie von selbst.',
+  shownChoice: (min: number) => (min === 0 ? 'Nie' : min === 60 ? 'nach 1 Stunde' : min === 120 ? 'nach 2 Stunden' : `nach ${min} Minuten`),
+  shownChanged: (min: number) =>
+    min === 0 ? 'Sichtbare Portale bleiben jetzt geladen.' : `Sichtbare Portale pausieren jetzt, wenn du sie ${min === 60 ? '1 Stunde' : min === 120 ? '2 Stunden' : `${min} Minuten`} nicht benutzt.`,
+  keepTabMenu: 'Diesen Tab nicht pausieren',
+  keepTabTitle: 'Nur dieser Tab bleibt geladen, auch verdeckt – z. B. Musik oder Chat. Die anderen Tabs pausieren wie gewohnt.',
+  keepTabOn: (tab: string) => `Tab „${tab}“ pausiert nicht mehr.`,
+  keepTabOff: (tab: string) => `Tab „${tab}“ pausiert wieder, wenn er länger verdeckt ist.`,
+  /** Zusatz an Tabs mit eigener Ausnahme (Tooltip und Ansage). */
+  tabKept: 'pausiert nie',
+  pauseNow: 'Jetzt pausieren',
+  pauseNowTitle: 'Entlädt die Seiten dieses Portals sofort. Ein Klick ins Portal lädt sie neu.',
+  pauseNowKept: 'Geht nicht: „Nicht pausieren“ ist eingeschaltet.',
+  pausedNow: (name: string) => `„${name}“ ist pausiert. Klicken lädt neu.`,
+  asleep: 'Pausiert – Klicken lädt neu',
+  wakeTitle: 'Seite wieder laden',
+  woke: (name: string) => `„${name}“ lädt neu.`,
 } as const;
 
 /** F-189: Web-Suche und Links aus dem Web. */

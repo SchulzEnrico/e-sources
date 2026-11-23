@@ -475,6 +475,48 @@ export const DIALOG_TEXT = {
   hint: 'Änderungen gelten sofort als Vorschau.',
 };
 
+/** F-205: Wahl der Begrüßung im Profil. */
+export const WELCOME_TEXT = {
+  legend: 'Begrüßung',
+  modes: {
+    standard: 'Standard',
+    regional: 'Regional',
+    quote: 'Spruch',
+    random: 'Zufall',
+    custom: 'Eigener Text',
+  },
+  modeHints: {
+    standard: 'nach Tageszeit: Guten Morgen, Guten Tag, Guten Abend',
+    regional: 'ein Gruß aus einer Region oder Sprache, z. B. Moin, Servus, Grüezi',
+    quote: 'ein bekannter Spruch aus Spielen, Filmen und Technik',
+    random: 'wechselt zwischen Grüßen, die du ankreuzt',
+    custom: 'dein eigener Text',
+  },
+  greet: 'Gruß',
+  groupRegional: 'Deutschland, Österreich, Schweiz',
+  groupInternational: 'International',
+  quote: 'Spruch',
+  form: 'Form des Spruchs',
+  forms: { orig: 'Original', name: 'Original mit Name', de: 'Deutsch' },
+  pool: 'Diese Grüße wechseln sich ab',
+  poolCount: (n: number) => (n === 1 ? '1 gewählt' : `${n} gewählt`),
+  poolEmpty: 'Nichts angekreuzt – es kommt der Standard.',
+  every: 'Wechsel',
+  everyDay: 'jeden Tag ein anderer',
+  everyOpen: 'bei jedem Öffnen ein anderer',
+  custom: 'Dein Text',
+  customHint: '{Name} wird durch deinen Namen ersetzt, z. B. „Ahoi, {Name}!“',
+  hours: (t: string) => `nur ${t}, sonst Standard`,
+  preview: 'Vorschau jetzt',
+  apply: 'Übernehmen',
+  applyTitle: 'Diese Begrüßung ab dem nächsten Start verwenden',
+  applied: (t: string) => `Begrüßung übernommen: „${t}“`,
+  unchanged: 'Übernommen',
+  pending: 'Noch nicht übernommen – „Übernehmen“ oder „Fertig“ speichert die Wahl.',
+  local: 'Dein Profil bleibt nur hier in diesem Browser gespeichert – kein Konto, nichts geht an einen Server.',
+  invite: 'Leg dir ein Profil an – Name und Begrüßung –, dann begrüßt dich E-Sources persönlich. Gespeichert wird nur lokal in diesem Browser.',
+};
+
 export const GREET_TEXT = {
   more: 'Mehr …',
   moreTitle: 'Zuletzt benutzte Desks, Slots, Portale und Lesezeichen zeigen und hier öffnen',
@@ -666,10 +708,10 @@ export const BULK_TEXT = {
 /** F-200: Entwickler-Modus je Portal. */
 export const DEV_TEXT = {
   on: 'Entwickler-Modus',
-  menuHint: 'Zeigt unten rechts, wie groß die Seite wirklich ist (CSS-Pixel) und welche Geräteklasse das ist – läuft beim Verschieben und Größe ändern mit.',
+  menuHint: 'Zeigt unten links, wie groß die Seite wirklich ist (CSS-Pixel) und welche Geräteklasse das ist – läuft beim Verschieben und Größe ändern mit. Stellt den Zoom auf 100 % und „Breite halten“ aus (kommt beim Ausschalten zurück).',
   size: (w: number, h: number) => `${w} × ${h} px`,
   zoomed: (zoom: number, w: number, h: number) => `${zoom} % · im Slot ${w} × ${h} px`,
   title: 'Entwickler-Modus: So groß ist die Seite in CSS-Pixeln – danach richten sich ihre Media Queries. Bei Zoom steht dahinter, wie groß sie im Slot erscheint.',
   said: (w: number, h: number, cls: string, zoom: number) => `Seite ${w} mal ${h} Pixel, ${cls}${zoom !== 100 ? `, Zoom ${zoom} Prozent` : ''}.`,
-  switched: (name: string, on: boolean) => (on ? `Entwickler-Modus in „${name}“ an: unten rechts steht die echte Größe der Seite.` : `Entwickler-Modus in „${name}“ aus.`),
+  switched: (name: string, on: boolean) => (on ? `Entwickler-Modus in „${name}“ an: Zoom 100 %, unten links steht die echte Größe der Seite.` : `Entwickler-Modus in „${name}“ aus, Zoom wie vorher.`),
 };

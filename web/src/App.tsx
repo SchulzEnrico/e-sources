@@ -71,7 +71,8 @@ import { Greeting } from './components/Greeting';
 import { UpdateNotice } from './components/UpdateNotice';
 import { useUpdateCheck } from './workspace/useUpdate';
 import { ProfileDialog } from './components/Profile';
-import { greetingFor, loadLast, profileOf, saveLast } from './workspace/profile';
+import { loadLast, profileOf, saveLast } from './workspace/profile';
+import { welcomeText } from './workspace/welcome';
 import { BOOKMARKS_FILE_NAME, type BrowserBookmark, bookmarkFileOf, looksLikeBookmarkFile, parseBookmarkFile } from './workspace/browserBookmarks';
 import { closedOf, restoreClosed, restoredSaid } from './workspace/closed';
 import { PORTAL_ALONE, nextTabOf, portalSaid, stepIn, tabAlone, tabSaid } from './workspace/cycle';
@@ -1386,10 +1387,12 @@ function DeskApp(props: DeskProps) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const lastPanel = lastAtStart ? mine.find((x) => x.id === lastAtStart) : undefined;
   const greetLast = lastPanel ? { name: lastPanel.name, source: hostOf(panelUrl(lastPanel) ?? '') } : null;
-  const greetText = greetingFor(new Date().getHours(), profileOf(ws).name);
+  // F-205: gewählte Begrüßung; Zufall „bei jedem Öffnen“ würfelt einmal je Start
+  const [greetSeed] = useState(Math.random);
+  const greetText = welcomeText(profileOf(ws).welcome, new Date(), profileOf(ws).name, greetSeed);
   // Begrüßung höflich ansagen (einmal beim Start)
   useEffect(() => {
-    if (greetOn) sayLive(`${greetText}.${greetLast ? ` Zuletzt offen: ${greetLast.name}. Weitermachen steht in der Begrüßung oben rechts.` : ''}`);
+    if (greetOn) sayLive(`${greetText}${/[.!?…]$/.test(greetText) ? '' : '.'}${greetLast ? ` Zuletzt offen: ${greetLast.name}. Weitermachen steht in der Begrüßung oben rechts.` : ''}`);
   }, []);
   const closeGreeting = useCallback(() => setGreetOn(false), []);
   const continueLast = () => {

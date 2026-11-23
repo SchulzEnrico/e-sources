@@ -856,10 +856,16 @@ export function toggleRulerPanel(ws: Workspace, id: string): Workspace {
 
 /** F-200: Entwickler-Modus für dieses Portal ein/aus. */
 export function toggleDevPanel(ws: Workspace, id: string): Workspace {
+  // Entscheidung Enrico (V52): Entwickler-Modus zeigt die Seite unverzerrt – Zoom 100 %, „Breite halten“ aus;
+  // beides kommt beim Ausschalten zurück.
   return mapPanel(ws, id, (p) => {
-    if (!p.dev) return { ...p, dev: true };
-    const { dev: _drop, ...rest } = p;
-    return rest;
+    if (!p.dev) {
+      const { zoom, fit, ...rest } = p;
+      const keep = { ...(zoom !== undefined ? { zoom } : {}), ...(fit !== undefined ? { fit } : {}) };
+      return { ...rest, dev: true, ...(zoom !== undefined || fit !== undefined ? { devKeep: keep } : {}) };
+    }
+    const { dev: _drop, devKeep, ...rest } = p; // eslint-disable-line @typescript-eslint/no-unused-vars
+    return { ...rest, ...(devKeep?.zoom !== undefined && rest.zoom === undefined ? { zoom: devKeep.zoom } : {}), ...(devKeep?.fit !== undefined && rest.fit === undefined ? { fit: devKeep.fit } : {}) };
   });
 }
 

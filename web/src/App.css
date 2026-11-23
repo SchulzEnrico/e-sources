@@ -5240,3 +5240,37 @@ button.is-off:hover,
 .devsize__cls,
 .devsize__zoom { font-weight: 400; opacity: 0.85; font-family: inherit; }
 @media (forced-colors: active) { .devsize { border: 1px solid CanvasText; background: Canvas; color: CanvasText; } }
+
+/* F-205: Begrüßung wählbar (Profil) */
+.profile__local { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 14px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(var(--tint), 0.35); background: rgba(var(--tint), 0.08); font-size: 14px; line-height: 1.45; color: var(--strong); }
+.profile__local .icon { display: inline-block; flex: none; margin-top: 2px; }
+.welcome { margin: 10px 0 0; padding: 8px 10px 10px; border: 1px solid rgba(var(--tint), 0.2); border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
+.welcome legend { padding: 0 4px; font-size: 14px; color: var(--muted); }
+.welcome__modes { display: flex; flex-wrap: wrap; gap: 6px; }
+.welcome__mode { position: relative; cursor: pointer; }
+.welcome__mode input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.welcome__mode > span:not(.sr-only) { display: inline-block; padding: 5px 11px; border-radius: 999px; border: 1px solid rgba(var(--tint), 0.35); font-size: 14px; }
+.welcome__mode input:checked + span { background: rgba(var(--tint), 0.22); border-color: var(--strong); color: var(--strong); font-weight: 600; }
+.welcome__mode input:focus-visible + span { outline: 2px solid rgba(var(--tint), 0.9); outline-offset: 2px; }
+.welcome__hint { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.welcome__label { font-size: 13px; color: var(--muted); }
+.welcome__field { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
+.welcome__field select, .welcome__field input { font-size: 15px; padding: 5px 8px; max-width: 100%; }
+.welcome__forms { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 14px; }
+.welcome__forms label, .welcome__group label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.welcome__pool { margin: 0; padding: 6px 8px 8px; border: 1px solid rgba(var(--tint), 0.15); border-radius: 6px; max-height: 32vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.welcome__pool legend { font-size: 13px; }
+.welcome__group { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 14px; }
+.welcome__group .welcome__label { flex-basis: 100%; font-weight: 600; }
+.welcome__preview { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: rgba(var(--tint), 0.08); }
+.welcome__preview output { font-size: 18px; font-weight: 600; color: var(--strong); }
+.welcome__apply { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.welcome__apply button { padding: 5px 14px; }
+@media (forced-colors: active) {
+  .welcome__mode input:checked + span { border: 2px solid Highlight; }
+}
+.greeting__invite { margin: 4px 0 0; font-size: 13px; line-height: 1.4; color: var(--muted); max-width: 46ch; }
+/* V52 (Wunsch Enrico): Begrüßung möglichst einzeilig – die Karte wächst mit dem Gruß (bis 680 px), Folgezeilen bestimmen die Breite nicht mit */
+.greeting:not(.is-open) { width: fit-content; min-width: min(420px, calc(100vw - 32px)); max-width: min(680px, calc(100vw - 32px)); box-sizing: border-box; }
+.greeting:not(.is-open) .greeting__last, .greeting:not(.is-open) .greeting__invite { width: 0; min-width: 100%; }
+.greeting__title { text-wrap: balance; }

@@ -12,7 +12,7 @@ import type { Profile } from '../workspace/profile';
 import type { RecentItem, RecentLists } from '../workspace/recent';
 import type { Bookmark } from '../workspace/types';
 import { hostOf } from '../workspace/workspace';
-import { GREET_TEXT as G } from '../workspace/terms';
+import { GREET_TEXT as G, WELCOME_TEXT } from '../workspace/terms';
 import { Avatar } from './Profile';
 import { SiteIcon, useDisplay } from './SiteIcon';
 
@@ -110,6 +110,8 @@ export function Greeting({ profile, greeting, last, onContinue, recent, onPortal
         ) : (
           <p className="greeting__last">Schön, dass du da bist.</p>
         )}
+        {/* F-205: ohne Profil zum Anlegen einladen (Demo), mit Hinweis „nur lokal“ */}
+        {!profile.name && <p className="greeting__invite">{WELCOME_TEXT.invite}</p>}
         <div className="greeting__actions">
           {last && (
             <button type="button" className="greeting__go" onClick={onContinue}>

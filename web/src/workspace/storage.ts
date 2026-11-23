@@ -82,6 +82,12 @@ function parsePanel(v: unknown): PanelMeta | null {
   if (zoom) panel.zoom = zoom;
   const fit = parseFit(v.fit);
   if (fit) panel.fit = fit;
+  if (panel.dev && v.devKeep && typeof v.devKeep === 'object') {
+    const k = v.devKeep as Record<string, unknown>;
+    const kz = parseZoom(k.zoom);
+    const kf = parseFit(k.fit);
+    if (kz || kf) panel.devKeep = { ...(kz ? { zoom: kz } : {}), ...(kf ? { fit: kf } : {}) };
+  }
   return panel;
 }
 

@@ -4,6 +4,7 @@
  * Portal zuletzt offen war, merkt sich jeder Desk nur im Browser. Im Testmodus wird nichts gespeichert.
  */
 import type { Workspace } from './types';
+import { type Welcome, isDefaultWelcome, parseWelcome, standardGreeting } from './welcome';
 
 export interface Profile {
   /** frei, auch leer */
@@ -12,6 +13,8 @@ export interface Profile {
   color: number;
   /** Begrüßung beim Start zeigen */
   greet: boolean;
+  /** F-205: Wahl der Begrüßung (fehlt = Standard nach Tageszeit) */
+  welcome?: Welcome;
 }
 
 /** Kennfarben – kräftig genug für weiße Initialen (Kontrast ≥ 4,5:1). */
@@ -37,7 +40,8 @@ export function parseProfile(data: unknown): Profile | undefined {
   const d = data as Record<string, unknown>;
   const name = typeof d.name === 'string' ? cleanName(d.name) : '';
   const c = typeof d.color === 'number' && Number.isInteger(d.color) && d.color >= 0 && d.color < PROFILE_COLORS.length ? d.color : 0;
-  return { name, color: c, greet: d.greet !== false };
+  const welcome = parseWelcome(d.welcome);
+  return { name, color: c, greet: d.greet !== false, ...(welcome && !isDefaultWelcome(welcome) ? { welcome } : {}) };
 }
 
 /** Leerzeichen zusammenziehen, Länge begrenzen. */
@@ -47,7 +51,8 @@ export const cleanName = (s: string): string => s.replace(/\s+/g, ' ').trim().sl
 export function setProfile(ws: Workspace, change: Partial<Profile>): Workspace {
   const next: Profile = { ...profileOf(ws), ...change };
   next.name = cleanName(next.name);
-  const plain = !next.name && next.color === 0 && next.greet;
+  if (next.welcome && isDefaultWelcome(next.welcome)) delete next.welcome;
+  const plain = !next.name && next.color === 0 && next.greet && !next.welcome;
   if (plain) {
     if (!ws.profile) return ws;
     const { profile: _drop, ...rest } = ws; // eslint-disable-line @typescript-eslint/no-unused-vars
@@ -67,9 +72,7 @@ export function initialsOf(name: string): string {
 
 /** Gruß je Tageszeit (Stunde 0–23): Morgen 5–9, Tag 9–17, Abend 17–23 Uhr, nachts „Hallo“ (Wunsch Enrico V43); mit Namen „Guten Abend, Enrico“. */
 export function greetingFor(hour: number, name = ''): string {
-  const g = hour >= 5 && hour < 9 ? 'Guten Morgen' : hour >= 9 && hour < 17 ? 'Guten Tag' : hour >= 17 && hour < 23 ? 'Guten Abend' : 'Hallo';
-  const n = cleanName(name);
-  return n ? `${g}, ${n}` : g;
+  return standardGreeting(hour, cleanName(name));
 }
 
 // ---------------------------------------------------------------- Zuletzt offen (je Desk, nur Browser)

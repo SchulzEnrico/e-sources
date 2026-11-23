@@ -59,6 +59,8 @@ export interface PanelMeta {
   fit?: number;
   /** F-200: Entwickler-Modus – zeigt die echte Größe der Seite in CSS-Pixeln; fehlt = aus. */
   dev?: boolean;
+  /** F-200 (Entscheidung Enrico V52): Zoom und „Breite halten“ vor dem Entwickler-Modus – kommen beim Ausschalten zurück */
+  devKeep?: { zoom?: number; fit?: number };
 }
 
 /** F-162: Rahmen- und Akzentfarbe (#rrggbb); was fehlt, erbt. */

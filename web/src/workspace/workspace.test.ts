@@ -28,6 +28,7 @@ import * as La from './launcher';
 import * as BB from './browserBookmarks';
 import * as SH from './sortHelp';
 import * as Pr from './profile';
+import * as Wc from './welcome';
 import * as Up from './update';
 import * as Br from './browser';
 import * as Ti from './tint';
@@ -3241,5 +3242,81 @@ describe('F-200 Entwickler-Modus', () => {
     expect(Dv.breakpointOf(375)).toBe('Smartphone');
     expect(Dv.breakpointOf(1024)).toBe('Laptop');
     expect(Dv.breakpointOf(2560)).toBe('Großer Bildschirm');
+  });
+  it('Einschalten: Zoom 100 % und „Breite halten“ aus; Ausschalten holt beides zurück (V52)', () => {
+    let ws = W.defaultWorkspace();
+    const id = ws.panels[0].id;
+    ws = { ...ws, panels: ws.panels.map((p, i) => (i === 0 ? { ...p, zoom: 80, fit: 1280 } : p)) };
+    ws = W.toggleDevPanel(ws, id);
+    expect(ws.panels[0].zoom).toBeUndefined();
+    expect(ws.panels[0].fit).toBeUndefined();
+    const saved = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(saved.panels[0].devKeep).toEqual({ zoom: 80, fit: 1280 });
+    ws = W.toggleDevPanel(saved, id);
+    expect(ws.panels[0].zoom).toBe(80);
+    expect(ws.panels[0].fit).toBe(1280);
+    expect(ws.panels[0].devKeep).toBeUndefined();
+  });
+});
+
+describe('F-205 Begrüßung wählbar', () => {
+  const at = (h: number, day = 23) => new Date(2026, 10, day, h, 5);
+  const w = (c: Partial<Wc.Welcome>): Wc.Welcome => ({ ...Wc.WELCOME_DEFAULT, ...c });
+  it('Listen wie im Doc: 18 Regionalgrüße, 10 internationale, 20 Sprüche, Ids eindeutig', () => {
+    expect(Wc.REGIONAL).toHaveLength(18);
+    expect(Wc.INTERNATIONAL).toHaveLength(10);
+    expect(Wc.QUOTES).toHaveLength(20);
+    expect(new Set(Wc.POOL_ALL.map((p) => p.key)).size).toBe(48);
+    for (const g of [...Wc.REGIONAL, ...Wc.INTERNATIONAL]) expect(g.text).toContain('{Name}');
+  });
+  it('Platzhalter {Name}: eingesetzt bzw. ohne Namen samt Komma weg', () => {
+    expect(Wc.fillName('Moin, {Name}!', 'Enrico')).toBe('Moin, Enrico!');
+    expect(Wc.fillName('Moin, {Name}!', '')).toBe('Moin!');
+    expect(Wc.fillName('Na, {Name}?', ' ')).toBe('Na?');
+    expect(Wc.fillName('Hoi {Name}!', '')).toBe('Hoi!');
+    expect(Wc.fillName('Wake up, {Name} …', '')).toBe('Wake up …');
+  });
+  it('Regional mit Zeitfenster fällt außerhalb auf den Standard zurück', () => {
+    const m = w({ mode: 'regional', greet: 'mahlzeit' });
+    expect(Wc.welcomeText(m, at(12), 'Enrico')).toBe('Mahlzeit, Enrico!');
+    expect(Wc.welcomeText(m, at(14), 'Enrico')).toBe('Guten Tag, Enrico');
+    expect(Wc.welcomeText(w({ mode: 'regional', greet: 'moin' }), at(2), 'Enrico')).toBe('Moin, Enrico!');
+    expect(Wc.welcomeText(w({ mode: 'regional', greet: 'tach' }), at(20), '')).toBe('Guten Abend');
+  });
+  it('Spruch als Original, mit Name oder deutsch; „mit Name“ ohne Namen = Original', () => {
+    const q = (form: Wc.QuoteForm) => w({ mode: 'quote', quote: 'commander', form });
+    expect(Wc.welcomeText(q('orig'), at(10), 'Enrico')).toBe('Welcome back, Commander.');
+    expect(Wc.welcomeText(q('name'), at(10), 'Enrico')).toBe('Welcome back, Commander Enrico.');
+    expect(Wc.welcomeText(q('de'), at(10), 'Enrico')).toBe('Willkommen zurück, Commander Enrico.');
+    expect(Wc.welcomeText(q('name'), at(10), '')).toBe('Welcome back, Commander.');
+    expect(Wc.welcomeText(w({ mode: 'quote', quote: 'vietnam' }), at(15), 'Enrico')).toBe('Guten Tag, Enrico');
+  });
+  it('Zufall: je Tag gleich, nächster Tag anders; bei jedem Öffnen nach Wurf; nur Passendes', () => {
+    const r = w({ mode: 'random', pool: ['r:moin', 'r:servus', 'r:gude'], every: 'day' });
+    const a = Wc.welcomeText(r, at(10, 23), 'E', 0.1);
+    expect(Wc.welcomeText(r, at(18, 23), 'E', 0.9)).toBe(a);
+    expect(Wc.welcomeText(r, at(10, 24), 'E', 0.1) === a).toBe(false);
+    const o = w({ mode: 'random', pool: ['r:moin', 'r:servus'], every: 'open' });
+    expect(Wc.welcomeText(o, at(10), 'E', 0.1)).toBe('Moin, E!');
+    expect(Wc.welcomeText(o, at(10), 'E', 0.9)).toBe('Servus, E!');
+    expect(Wc.welcomeText(w({ mode: 'random', pool: ['r:mahlzeit'] }), at(20), 'E')).toBe('Guten Abend, E');
+    expect(Wc.welcomeText(w({ mode: 'random', pool: [] }), at(10), '')).toBe('Guten Tag');
+  });
+  it('Eigener Text; leer = Standard', () => {
+    expect(Wc.welcomeText(w({ mode: 'custom', custom: 'Ahoi, {Name}!' }), at(10), 'Enrico')).toBe('Ahoi, Enrico!');
+    expect(Wc.welcomeText(w({ mode: 'custom', custom: '  ' }), at(10), 'Enrico')).toBe('Guten Tag, Enrico');
+  });
+  it('Profil speichert die Wahl, Voreinstellung fällt weg, Unbekanntes wird bereinigt', () => {
+    const ws = Pr.setProfile(W.defaultWorkspace(), { welcome: w({ mode: 'quote', quote: 'force' }) });
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))?.profile;
+    expect(back?.welcome?.mode).toBe('quote');
+    expect(back?.welcome?.quote).toBe('force');
+    expect(Pr.setProfile(ws, { welcome: Wc.WELCOME_DEFAULT }).profile).toBeUndefined();
+    const p = Wc.parseWelcome({ mode: 'x', quote: 'gibtsnicht', pool: ['r:moin', 'r:moin', 'q:nix', 7], every: 'open', form: 'de' });
+    expect(p?.mode).toBe('standard');
+    expect(p?.quote).toBe('commander');
+    expect(p?.pool).toEqual(['r:moin']);
+    expect(p?.every).toBe('open');
+    expect(p?.form).toBe('de');
   });
 });

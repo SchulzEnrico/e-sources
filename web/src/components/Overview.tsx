@@ -6,10 +6,11 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { JACKPOT_TEXT, RULES_TEXT, TERMS } from '../workspace/terms';
+import { DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, TERMS } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import type { Action } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
+import { LayoutCockpit, type LayoutOps } from './DeskLayouts';
 import { Icon } from './Icon';
 
 /**
@@ -110,6 +111,9 @@ export interface OverviewProps {
   dispatch?: (a: Action) => void;
   shown?: Shown;
   startRules?: boolean;
+  /** F-187: Modus „Layouts“ – Bedienung der Layouts und gleich in diesem Modus öffnen. */
+  layoutOps?: LayoutOps;
+  startLayouts?: boolean;
 }
 
 /** F-153: Schrittweite für Alt+Umschalt+Pfeil (Anteil der Fläche). */
@@ -218,6 +222,14 @@ export function Overview(p: OverviewProps) {
   /** F-164: Regelübersicht statt Radar. */
   const [rules, setRules] = useState(!!p.startRules && !!p.dispatch);
   const rulesBtn = useRef<HTMLButtonElement>(null);
+  /** F-187: Modus „Layouts“ statt Portale. */
+  const [layouts, setLayouts] = useState(!!p.startLayouts && !!p.layoutOps && !!p.dispatch);
+  const modeBtns = useRef<(HTMLButtonElement | null)[]>([]);
+  const setMode = (on: boolean) => {
+    setLayouts(on);
+    if (on) setRules(false);
+    setSaid(on ? DESK_LAYOUT_TEXT.modeOn : '');
+  };
   /** F-28: Panel (oder ganze Area), für das gerade ein Ziel gewählt wird. */
   const [moving, setMoving] = useState<{ id: string; whole: boolean } | null>(null);
   const rowBtns = useRef(new Map<string, HTMLButtonElement>());
@@ -810,7 +822,7 @@ export function Overview(p: OverviewProps) {
       <div
         id="overview"
         ref={box}
-        className="overview"
+        className={layouts ? 'overview is-layouts' : 'overview'}
         role="dialog"
         aria-label="Cockpit: alle Portale auf einen Blick"
         aria-describedby="overview-help"
@@ -823,7 +835,11 @@ export function Overview(p: OverviewProps) {
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             e.stopPropagation();
-            dismiss();
+            // F-187: Esc führt aus den Layout-Einstellungen erst zurück zu den Portalen.
+            if (layouts) {
+              setMode(false);
+              window.setTimeout(() => modeBtns.current[0]?.focus(), 0);
+            } else dismiss();
           }
         }}
       >
@@ -832,7 +848,30 @@ export function Overview(p: OverviewProps) {
           <span className="overview__focus">{focusText(p.focus)}</span>
           <span className="overview__focus">{p.info}</span>
           <span className="grow" />
-          {!rules && <input
+          {/* F-187: Umschalter Portale | Layouts (Pfeiltasten wechseln) */}
+          {p.layoutOps && p.dispatch && (
+            <div className="overview__mode" role="group" aria-label={DESK_LAYOUT_TEXT.modeGroup}>
+              {[false, true].map((on, i) => (
+                <button
+                  key={i}
+                  ref={(el) => (modeBtns.current[i] = el)}
+                  type="button"
+                  className={layouts === on ? 'is-on' : undefined}
+                  aria-pressed={layouts === on}
+                  onClick={() => setMode(on)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                    e.preventDefault();
+                    setMode(!on);
+                    modeBtns.current[on ? 0 : 1]?.focus();
+                  }}
+                >
+                  <Icon name={on ? 'layouts' : 'radar'} size={13} className="icon icon--inline" /> {on ? DESK_LAYOUT_TEXT.modeLayouts : DESK_LAYOUT_TEXT.modePortals}
+                </button>
+              ))}
+            </div>
+          )}
+          {!rules && !layouts && <input
             ref={filterRef}
             className="radar__filter"
             type="search"
@@ -865,7 +904,7 @@ export function Overview(p: OverviewProps) {
             </button>
           )}
           {/* F-170: Hebel der Slotmaschine – klein, nur Symbol (Name im Tooltip und aria-label) */}
-          {p.onJackpot && !rules && (
+          {p.onJackpot && !rules && !layouts && (
             <button type="button" className="overview__tour overview__jackpot" onClick={p.onJackpot} title={JACKPOT_TEXT.openTitle} aria-label={JACKPOT_TEXT.openTitle}>
               <Icon name="jackpot" />
             </button>
@@ -880,6 +919,7 @@ export function Overview(p: OverviewProps) {
               title={rules ? RULES_TEXT.backTitle : RULES_TEXT.openTitle}
               onClick={() => {
                 setRules(!rules);
+                setLayouts(false);
                 if (rules) window.setTimeout(() => rulesBtn.current?.focus(), 0);
               }}
             >
@@ -929,7 +969,9 @@ export function Overview(p: OverviewProps) {
               />
             );
           })()}
-        {rules && p.dispatch ? (
+        {layouts && p.layoutOps && p.dispatch ? (
+          <LayoutCockpit ws={p.ws} win={p.win} desk={windowName(p.ws, p.win)} setup={p.setup} ops={p.layoutOps} dispatch={p.dispatch} say={setSaid} />
+        ) : rules && p.dispatch ? (
           <Rules ws={p.ws} shown={p.shown ?? 'dark'} dispatch={p.dispatch} say={setSaid} />
         ) : tiles.length === 0 ? (
           <p className="overview__empty">Noch keine Portale – lege oben mit „+ NewSlot“ eine an.</p>

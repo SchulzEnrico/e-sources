@@ -12,7 +12,8 @@ import { DESK_LAYOUT_TEXT } from './terms';
 import type { ScreenSetup } from './screen';
 import { screenClass } from './screen';
 import type { Arrangement, PanelMeta, SlotName, Workspace } from './types';
-import { newId, newPanel } from './workspace';
+import { areaLabel, closeSlot, dropSlot, newId, newPanel, viewOf } from './workspace';
+import * as T from './tree';
 
 /** Gespeicherte Belegung eines nicht aktiven Layouts. Schlüssel der Anordnungen ohne Desk-Vorsilbe. */
 export interface LayoutContent {
@@ -288,4 +289,87 @@ export function resetToStandard(ws: Workspace, win: string, std: { content: Layo
 /** Rückgängig für „Auf Standard zurücksetzen“. */
 export function undoReset(ws: Workspace, win: string, old: LayoutContent): Workspace {
   return putIn(takeOut(ws, win).rest, win, old);
+}
+
+// ---------------------------------------------------------------- F-187 Layouts im Cockpit
+
+/** Belegung eines Layouts (aktiv: aus der Arbeitsfläche; sonst der Vorrat). */
+export function contentOf(ws: Workspace, win: string, id: string): LayoutContent | null {
+  const d = layoutsOf(ws, win);
+  const l = d.list.find((x) => x.id === id);
+  if (!l) return null;
+  return id === d.active ? takeOut(ws, win).content : (l.saved ?? null);
+}
+
+/**
+ * Wendet eine Änderung auf ein beliebiges Layout eines Desks an. Ein nicht aktives Layout wird dazu
+ * kurz eingesetzt, geändert und wieder in den Vorrat gelegt – so gilt aller übrige Code auch dafür.
+ */
+export function inLayout(ws: Workspace, win: string, id: string, fn: (w: Workspace) => Workspace): Workspace {
+  const d = layoutsOf(ws, win);
+  const l = d.list.find((x) => x.id === id);
+  if (!l) return ws;
+  if (id === d.active) return fn(ws);
+  if (!l.saved) return ws;
+  const own = takeOut(ws, win);
+  const tried = fn(putIn(own.rest, win, l.saved));
+  const back = takeOut(tried, win);
+  const list = d.list.map((x) => (x.id === id ? { ...x, saved: back.content } : x));
+  return withDesk(putIn(back.rest, win, own.content), win, { ...d, list });
+}
+
+/** Rückgängig für Slot-Änderungen: setzt die Belegung eines Layouts wieder ein. */
+export function setContent(ws: Workspace, win: string, id: string, c: LayoutContent): Workspace {
+  const d = layoutsOf(ws, win);
+  if (!d.list.some((x) => x.id === id)) return ws;
+  if (id === d.active) return putIn(takeOut(ws, win).rest, win, c);
+  return withDesk(ws, win, { ...d, list: d.list.map((x) => (x.id === id ? { ...x, saved: c } : x)) });
+}
+
+/** Einstellung für einen bestimmten Desk. */
+const at = (setup: ScreenSetup, win: string): ScreenSetup => {
+  const { win: _w, ...rest } = setup;
+  return win ? { ...rest, win } : rest;
+};
+
+/** Ein Slot eines Layouts für die Vorschau: Lage, Name, Portalzahl, über der Empfehlung? */
+export interface LayoutSlot {
+  id: string;
+  rect: T.FRect;
+  title: string;
+  count: number;
+  over: boolean;
+}
+
+/** F-187: Anordnung eines Layouts auf dieser Bildschirm-Einstellung (auch nicht aktive). */
+export function layoutView(ws: Workspace, win: string, id: string, setup: ScreenSetup): { slots: LayoutSlot[]; portals: number; recommended: number } {
+  const recommended = screenClass(setup.cls).capacity;
+  let shown: Workspace | null = null;
+  inLayout(ws, win, id, (w) => ((shown = w), w));
+  if (!shown) return { slots: [], portals: 0, recommended };
+  const w: Workspace = shown;
+  const v = viewOf(w, at(setup, win));
+  const order = T.readingOrder(v.tree);
+  // Über der Empfehlung: die zuletzt dazugekommenen Slots (Reihenfolge im Teilungsbaum).
+  const made = T.leaves(v.tree).filter((id) => v.slots.some((s) => s.id === id));
+  const slots = v.slots
+    .map((s) => ({ id: s.id, rect: s.rect, title: areaLabel(w, s) || s.front.name, count: s.panels.length, over: made.indexOf(s.id) >= recommended }))
+    .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  return { slots, portals: w.panels.filter((p) => (p.win ?? '') === win).length, recommended };
+}
+
+/** F-187: zwei Slots eines Layouts tauschen ihren Platz. */
+export function swapSlots(ws: Workspace, win: string, id: string, setup: ScreenSetup, a: string, b: string): Workspace {
+  return inLayout(ws, win, id, (w) => dropSlot(w, at(setup, win), a, b, 'center'));
+}
+
+/** F-187: Slot eines Layouts schließen (Portale in einen Nachbar-Slot); null = passt nirgends. */
+export function closeLayoutSlot(ws: Workspace, win: string, id: string, setup: ScreenSetup, area: string): Workspace | null {
+  let ok = false;
+  const next = inLayout(ws, win, id, (w) => {
+    const r = closeSlot(w, at(setup, win), area);
+    ok = !!r;
+    return r ? r.ws : w;
+  });
+  return ok ? next : null;
 }

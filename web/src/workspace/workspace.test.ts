@@ -2660,3 +2660,66 @@ describe('F-52 Standard je Gerät und Grenzen aufheben', () => {
     expect(W.panelsIn(gone.panels).length).toBe(6);
   });
 });
+
+describe('F-187 Layouts im Cockpit', () => {
+  const setup: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
+  /** Main Desk mit zwei Layouts: aktiv „Gleichmäßig“ (4 Slots), daneben das alte (6 Slots, 2 über der Empfehlung). */
+  const two = (): { ws: Workspace; old: string; even: string } => {
+    const wide = { ...setup, capacity: 8 };
+    let ws = W.defaultWorkspace();
+    ws = W.addPanel(ws, wide);
+    while (W.viewOf(ws, wide).slots.length < 6) ws = W.addArea(ws, wide, 'right');
+    const old = DL.activeLayout(ws).id;
+    ws = DL.addLayout(ws, '', setup, 'even');
+    return { ws, old, even: DL.activeLayout(ws).id };
+  };
+
+  it('zeigt auch ein nicht aktives Layout an, ohne die Arbeitsfläche zu ändern', () => {
+    const { ws, old, even } = two();
+    const v = DL.layoutView(ws, '', old, setup);
+    expect(v.slots).toHaveLength(6);
+    expect(v.recommended).toBe(4);
+    expect(v.slots.filter((s) => s.over)).toHaveLength(2);
+    expect(DL.layoutView(ws, '', even, setup).slots.filter((s) => s.over)).toHaveLength(0);
+    expect(DL.activeLayout(ws).id).toBe(even);
+  });
+
+  it('Slots tauschen und schließen geht im nicht aktiven Layout; das aktive bleibt unberührt', () => {
+    const { ws, old, even } = two();
+    const before = DL.layoutView(ws, '', old, setup).slots;
+    const swapped = reducer(ws, { type: 'layoutSlotSwap', win: '', id: old, setup, a: before[0].id, b: before[1].id });
+    const after = DL.layoutView(swapped, '', old, setup).slots;
+    expect(after[0].id).toBe(before[1].id);
+    expect(W.panelsIn(swapped.panels).map((p) => p.id)).toEqual(W.panelsIn(ws.panels).map((p) => p.id));
+    const last = before[before.length - 1];
+    const closed = reducer(ws, { type: 'layoutSlotClose', win: '', id: old, setup, area: last.id });
+    const v = DL.layoutView(closed, '', old, setup);
+    expect(v.slots).toHaveLength(5);
+    expect(v.portals).toBe(DL.layoutView(ws, '', old, setup).portals);
+    expect(DL.activeLayout(closed).id).toBe(even);
+    // Rückgängig
+    const undo = reducer(closed, { type: 'layoutContent', win: '', id: old, content: DL.contentOf(ws, '', old)! });
+    expect(DL.layoutView(undo, '', old, setup).slots).toHaveLength(6);
+  });
+
+  it('Slot schließen im aktiven Layout legt die Portale auf den Nachbarn', () => {
+    const { ws, even } = two();
+    const s = DL.layoutView(ws, '', even, setup).slots;
+    const next = DL.closeLayoutSlot(ws, '', even, setup, s[1].id)!;
+    const v = DL.layoutView(next, '', even, setup);
+    expect(v.slots).toHaveLength(3);
+    expect(v.slots[0].count).toBe(2);
+  });
+
+  it('der letzte Slot lässt sich nicht schließen', () => {
+    const ws = W.defaultWorkspace();
+    const id = DL.activeLayout(ws).id;
+    const s = DL.layoutView(ws, '', id, setup).slots;
+    if (s.length === 1) expect(DL.closeLayoutSlot(ws, '', id, setup, s[0].id)).toBeNull();
+    else {
+      let w: Workspace | null = ws;
+      for (const x of s.slice(1)) w = w && DL.closeLayoutSlot(w, '', id, setup, x.id);
+      expect(DL.closeLayoutSlot(w!, '', id, setup, DL.layoutView(w!, '', id, setup).slots[0].id)).toBeNull();
+    }
+  });
+});

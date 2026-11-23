@@ -125,7 +125,11 @@ export type Action =
   | { type: 'layoutDelete'; win: string; id: string }
   | { type: 'layoutRestore'; deleted: DL.DeletedLayout }
   | { type: 'layoutReset'; win: string; std: ReturnType<typeof DL.standardContent> }
-  | { type: 'layoutUnreset'; win: string; old: DL.LayoutContent };
+  | { type: 'layoutUnreset'; win: string; old: DL.LayoutContent }
+  // F-187: Slots eines (auch nicht aktiven) Layouts
+  | { type: 'layoutSlotSwap'; win: string; id: string; setup: ScreenSetup; a: string; b: string }
+  | { type: 'layoutSlotClose'; win: string; id: string; setup: ScreenSetup; area: string }
+  | { type: 'layoutContent'; win: string; id: string; content: DL.LayoutContent };
 
 export function reducer(ws: Workspace, a: Action): Workspace {
   const next = step(ws, a);
@@ -267,6 +271,12 @@ function step(ws: Workspace, a: Action): Workspace {
       return DL.restoreLayout(ws, a.deleted);
     case 'layoutReset':
       return DL.resetToStandard(ws, a.win, a.std).ws;
+    case 'layoutSlotSwap':
+      return DL.swapSlots(ws, a.win, a.id, a.setup, a.a, a.b);
+    case 'layoutSlotClose':
+      return DL.closeLayoutSlot(ws, a.win, a.id, a.setup, a.area) ?? ws;
+    case 'layoutContent':
+      return DL.setContent(ws, a.win, a.id, a.content);
     case 'layoutUnreset':
       return DL.undoReset(ws, a.win, a.old);
     case 'ruleRestore':

@@ -4652,3 +4652,40 @@ button.is-off:hover,
 /* F-52: Rückfrage mit zwei Knöpfen, Knopf „Auf n Slots zurück“ */
 .notice__btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .toolbar .tb-fit { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+
+/* F-187: Cockpit im Modus „Layouts“ – eindeutig erkennbar (Band, gestrichelter Rahmen) */
+.overview__mode { display: inline-flex; flex-shrink: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.overview__mode button { border: 0; border-radius: 0; padding: 3px 10px; font-size: 12px; background: transparent; box-shadow: none; display: inline-flex; align-items: center; gap: 5px; }
+.overview__mode button.is-on { background: rgba(var(--accent-rgb), 0.22); color: var(--strong); font-weight: 700; }
+.overview.is-layouts { box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), 0.55), 0 12px 40px rgba(0, 0, 0, 0.45); }
+.lc__band { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; padding: 7px 12px; border-radius: 8px; background: rgba(var(--accent-rgb), 0.18); border: 1px solid rgba(var(--accent-rgb), 0.6); font-size: 13px; }
+.lc__band strong { text-transform: uppercase; letter-spacing: 0.04em; font-size: 12px; }
+.lc__cards { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; padding: 0; }
+.lc__card { display: grid; gap: 3px; justify-items: start; width: 150px; padding: 7px 8px; text-align: left; font-size: 12px; border-radius: 9px; border: 1px solid var(--line); box-shadow: none; }
+.lc__card.is-sel { border-width: 2px; border-color: rgba(var(--accent-rgb), 0.95); background: rgba(var(--accent-rgb), 0.12); }
+.lc__card.is-active .lc__card-name { text-decoration: underline; text-underline-offset: 2px; }
+.lc__card--add { place-content: center; justify-items: center; min-height: 92px; border-style: dashed; }
+.lc__card-name { font-weight: 700; color: var(--strong); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc__card-meta { display: flex; flex-wrap: wrap; gap: 5px; color: var(--muted, inherit); font-size: 11px; }
+.lc__card-meta b { color: var(--accent); font-weight: 600; }
+.lc__mini { position: relative; display: block; width: 100%; aspect-ratio: var(--ar, 1.6); max-height: 70px; border: 1px solid var(--line); border-radius: 5px; }
+.lc__mini-slot { position: absolute; border-radius: 3px; background: rgba(var(--tint), 0.16); border: 1px solid rgba(var(--tint), 0.25); }
+.lc__mini-slot.is-over, .lc__tile.is-over { background-image: repeating-linear-gradient(135deg, rgba(255, 170, 60, 0.32) 0 6px, transparent 6px 12px); border-color: rgba(255, 170, 60, 0.8); border-style: dashed; }
+.lc__body { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 14px; align-items: start; }
+.lc__map { width: min(100%, calc(240px * var(--ar, 1.6))); border: 2px dashed rgba(var(--accent-rgb), 0.7); }
+.lc__tile-meta { font-size: 11px; color: var(--name-accent); }
+.lc__over { align-self: flex-start; font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 4px; background: rgba(255, 170, 60, 0.85); color: #1a1206; }
+.lc__tile.is-from { outline: 2px dashed var(--strong); outline-offset: -4px; }
+.lc__tile.is-target:hover, .lc__tile.is-target:focus-visible { border-width: 2px; border-color: var(--strong); }
+.lc__hint { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 0; font-size: 12px; }
+.lc__side { display: grid; gap: 8px; justify-items: start; font-size: 13px; }
+.lc__side .help__run { opacity: 1; }
+.lc__name { margin: 0; font-size: 15px; }
+.lc__muted { color: var(--muted, inherit); font-weight: 400; font-size: 12px; }
+.lc__facts { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.lc__facts .is-over { color: rgb(255, 170, 60); font-weight: 600; }
+.lc__sub { margin: 6px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted, inherit); }
+.lc__std { margin-top: 8px; }
+.lc__new { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.lc__reset { border-bottom: 0; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line, rgba(127,127,127,.3)); }
+@media (max-width: 760px) { .lc__body { grid-template-columns: 1fr; } }

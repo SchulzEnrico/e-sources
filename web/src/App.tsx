@@ -52,7 +52,7 @@ import { domainOf } from './workspace/sortHelp';
 
 import { Colors } from './components/Colors';
 import { Closed as ClosedDialog } from './components/Closed';
-import { DeskLayouts as DeskLayoutsDialog } from './components/DeskLayouts';
+import type { LayoutOps } from './components/DeskLayouts';
 import { type DeletedLayout, type LayoutContent, activeLayout, deleteLayout, findLayout, layoutsOf, resetToStandard, standardContent } from './workspace/deskLayouts';
 import { PORTAL_MIN_PX, setStandardRef } from './workspace/device';
 import { FocusRule as FocusRuleDialog } from './components/FocusRule';
@@ -411,7 +411,8 @@ function DeskApp(props: DeskProps) {
   /** F-24: Dialog „Zuletzt geschlossen“. */
   const [closedOpen, setClosedOpen] = useState(false);
   /** F-51: Dialog „Layouts“ dieses Desks. */
-  const [layoutsOpen, setLayoutsOpen] = useState(false);
+  /** F-187: Cockpit im Modus „Layouts“ öffnen (Zahnrad › „Layouts …“, Hilfe, Suche). */
+  const [overviewLayouts, setOverviewLayouts] = useState(false);
   const [layoutUndo, setLayoutUndo] = useState<DeletedLayout | null>(null);
   const [resetUndo, setResetUndo] = useState<{ old: LayoutContent; name: string } | null>(null);
   /** F-29 Rest: Dialog „Fokusanzeige anpassen“. */
@@ -970,6 +971,78 @@ function DeskApp(props: DeskProps) {
       setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
       setOverview(true);
     }, 60);
+  };
+
+  // ---------------------------------------------------------------- F-51/F-187 Layouts (Cockpit-Modus)
+  const openLayouts = () => {
+    setOverviewRules(false);
+    setOverviewLayouts(true);
+    setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
+    setOverview(true);
+  };
+  const here = win ?? '';
+  const layoutOps: LayoutOps = {
+    evenCount: screenClass(setup.cls).capacity,
+    onSwitch: (id) => {
+      dispatch({ type: 'layoutSwitch', win: here, id });
+      setMode({ kind: 'area' });
+      notify(DESK_LAYOUT_TEXT.switched(layoutsOf(ws, here).list.find((l) => l.id === id)?.name ?? ''));
+    },
+    onAdd: (from, name) => {
+      const before = new Set(layoutsOf(ws, here).list.map((l) => l.id));
+      dispatch({ type: 'layoutAdd', win: here, setup, from, name });
+      setMode({ kind: 'area' });
+      window.setTimeout(() => {
+        const made = layoutsOf(wsNow.current, here).list.find((l) => !before.has(l.id));
+        if (made) notify(DESK_LAYOUT_TEXT.added(made.name));
+      });
+    },
+    onRename: (id, name) => {
+      dispatch({ type: 'layoutRename', win: here, id, name });
+      notify(DESK_LAYOUT_TEXT.renamed(name.trim()));
+    },
+    onCopy: (id) => {
+      const before = new Set(layoutsOf(ws, here).list.map((l) => l.id));
+      dispatch({ type: 'layoutCopy', win: here, id });
+      window.setTimeout(() => {
+        const made = layoutsOf(wsNow.current, here).list.find((l) => !before.has(l.id));
+        if (made) notify(DESK_LAYOUT_TEXT.copied(made.name));
+      });
+    },
+    onDelete: (id) => {
+      const { deleted } = deleteLayout(wsNow.current, here, id);
+      if (!deleted) return notify(DESK_LAYOUT_TEXT.last);
+      dispatch({ type: 'layoutDelete', win: here, id });
+      setLayoutUndo(deleted);
+    },
+    undoName: layoutUndo?.layout.name ?? null,
+    onUndo: () => {
+      if (!layoutUndo) return;
+      dispatch({ type: 'layoutRestore', deleted: layoutUndo });
+      notify(DESK_LAYOUT_TEXT.undone(layoutUndo.layout.name));
+      setLayoutUndo(null);
+    },
+    standard: display.standard && findLayout(ws, display.standard.win, display.standard.id) ? display.standard : null,
+    onStandard: (id) => {
+      setStandardRef(id ? { win: here, id } : null);
+      notify(id ? DESK_LAYOUT_TEXT.standardSet(layoutsOf(ws, here).list.find((l) => l.id === id)?.name ?? '') : DESK_LAYOUT_TEXT.standardEvenSet);
+    },
+    onReset: () => {
+      const std = standardContent(ws, display.standard, setup);
+      const name = activeLayout(ws, here).name;
+      const { undo } = resetToStandard(ws, here, std);
+      dispatch({ type: 'layoutReset', win: here, std });
+      setMode({ kind: 'area' });
+      setResetUndo({ old: undo, name });
+      notify(DESK_LAYOUT_TEXT.resetDone(name, std.name));
+    },
+    resetUndoName: resetUndo?.name ?? null,
+    onResetUndo: () => {
+      if (!resetUndo) return;
+      dispatch({ type: 'layoutUnreset', win: here, old: resetUndo.old });
+      notify(DESK_LAYOUT_TEXT.resetUndone(resetUndo.name));
+      setResetUndo(null);
+    },
   };
 
   // ---------------------------------------------------------------- F-24 Zuletzt geschlossen
@@ -1702,7 +1775,7 @@ function DeskApp(props: DeskProps) {
       case 'closed':
         return setClosedOpen(true);
       case 'layouts':
-        return setLayoutsOpen(true);
+        return openLayouts();
       case 'limits':
         return view.slots.length > rec ? fitBack() : newSlot('right');
       case 'focusRule':
@@ -2083,7 +2156,7 @@ function DeskApp(props: DeskProps) {
               <Item icon="layouts"
                 onClick={() => {
                   close();
-                  setLayoutsOpen(true);
+                  openLayouts();
                 }}
               >
                 {DESK_LAYOUT_TEXT.menu}
@@ -2437,83 +2510,6 @@ function DeskApp(props: DeskProps) {
         />
       )}
       {ruleOpen && <FocusRuleDialog rule={ruleOf(ws)} points={focus.points} onChange={(rule) => dispatch({ type: 'focusRule', rule })} onClose={() => setRuleOpen(false)} />}
-      {layoutsOpen && (
-        <DeskLayoutsDialog
-          ws={ws}
-          win={win ?? ''}
-          desk={winLabel}
-          evenCount={screenClass(setup.cls).capacity}
-          onSwitch={(id) => {
-            setLayoutsOpen(false);
-            dispatch({ type: 'layoutSwitch', win: win ?? '', id });
-            setMode({ kind: 'area' });
-            notify(DESK_LAYOUT_TEXT.switched(layoutsOf(ws, win ?? '').list.find((l) => l.id === id)?.name ?? ''));
-          }}
-          onAdd={(from, name) => {
-            setLayoutsOpen(false);
-            const before = new Set(layoutsOf(ws, win ?? '').list.map((l) => l.id));
-            dispatch({ type: 'layoutAdd', win: win ?? '', setup, from, name });
-            setMode({ kind: 'area' });
-            window.setTimeout(() => {
-              const made = layoutsOf(wsNow.current, win ?? '').list.find((l) => !before.has(l.id));
-              if (made) notify(DESK_LAYOUT_TEXT.added(made.name));
-            });
-          }}
-          onRename={(id, name) => {
-            dispatch({ type: 'layoutRename', win: win ?? '', id, name });
-            notify(DESK_LAYOUT_TEXT.renamed(name.trim()));
-          }}
-          onCopy={(id) => {
-            const before = new Set(layoutsOf(ws, win ?? '').list.map((l) => l.id));
-            dispatch({ type: 'layoutCopy', win: win ?? '', id });
-            window.setTimeout(() => {
-              const made = layoutsOf(wsNow.current, win ?? '').list.find((l) => !before.has(l.id));
-              if (made) notify(DESK_LAYOUT_TEXT.copied(made.name));
-            });
-          }}
-          onDelete={(id) => {
-            const { deleted } = deleteLayout(wsNow.current, win ?? '', id);
-            if (!deleted) return notify(DESK_LAYOUT_TEXT.last);
-            dispatch({ type: 'layoutDelete', win: win ?? '', id });
-            setLayoutUndo(deleted);
-          }}
-          standard={display.standard && findLayout(ws, display.standard.win, display.standard.id) ? display.standard : null}
-          onStandard={(id) => {
-            const here = win ?? '';
-            setStandardRef(id ? { win: here, id } : null);
-            notify(id ? DESK_LAYOUT_TEXT.standardSet(layoutsOf(ws, here).list.find((l) => l.id === id)?.name ?? '') : DESK_LAYOUT_TEXT.standardEvenSet);
-          }}
-          onReset={() => {
-            const here = win ?? '';
-            const std = standardContent(ws, display.standard, setup);
-            const name = activeLayout(ws, here).name;
-            const { undo } = resetToStandard(ws, here, std);
-            dispatch({ type: 'layoutReset', win: here, std });
-            setMode({ kind: 'area' });
-            setResetUndo({ old: undo, name });
-            notify(DESK_LAYOUT_TEXT.resetDone(name, std.name));
-          }}
-          resetUndoName={resetUndo?.name ?? null}
-          onResetUndo={() => {
-            if (!resetUndo) return;
-            dispatch({ type: 'layoutUnreset', win: win ?? '', old: resetUndo.old });
-            notify(DESK_LAYOUT_TEXT.resetUndone(resetUndo.name));
-            setResetUndo(null);
-          }}
-          undoName={layoutUndo?.layout.name ?? null}
-          onUndo={() => {
-            if (!layoutUndo) return;
-            dispatch({ type: 'layoutRestore', deleted: layoutUndo });
-            notify(DESK_LAYOUT_TEXT.undone(layoutUndo.layout.name));
-            setLayoutUndo(null);
-          }}
-          onClose={() => {
-            setLayoutsOpen(false);
-            setLayoutUndo(null);
-            setResetUndo(null);
-          }}
-        />
-      )}
       {closedOpen && (
         <ClosedDialog
           entries={closedOf(ws, win ?? '')}
@@ -2578,7 +2574,13 @@ function DeskApp(props: DeskProps) {
             const s = w === win ? setup : setupOfWindow(ws, w);
             if (s) dispatch({ type: 'setLayout', setup: s, tree });
           }}
-          onDismiss={() => (setOverview(false), setOverviewRules(false))}
+          onDismiss={() => {
+            setOverview(false);
+            setOverviewRules(false);
+            setOverviewLayouts(false);
+            setLayoutUndo(null);
+            setResetUndo(null);
+          }}
           onTour={startCockpitTour}
           onJackpot={() => {
             setOverview(false);
@@ -2589,6 +2591,8 @@ function DeskApp(props: DeskProps) {
           dispatch={dispatch}
           shown={shownTheme}
           startRules={overviewRules}
+          layoutOps={layoutOps}
+          startLayouts={overviewLayouts}
         />
       )}
       {/* F-142: schnelle Tooltips */}

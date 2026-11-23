@@ -703,6 +703,31 @@ export function swapPanels(ws: Workspace, setup: ScreenSetup, a: string, b: stri
   });
 }
 
+/**
+ * F-187: Slot schließen – seine Portale wandern in einen Nachbar-Slot (in Lesereihenfolge erst
+ * der davor, dann der danach), der Slot fällt weg. Passt der Stapel nirgends (STACK_MAX), kommt null.
+ */
+export function closeSlot(ws: Workspace, setup: ScreenSetup, area: string): { ws: Workspace; into: string } | null {
+  const v = viewOf(ws, setup);
+  const arr = v.arrangement;
+  const src = arr?.areas[area];
+  if (!arr || !src || T.leaves(arr.tree).length < 2) return null;
+  const order = T.readingOrder(arr.tree);
+  const at = order.indexOf(area);
+  const near = order
+    .filter((id) => id !== area)
+    .sort((a, b) => {
+      const da = Math.abs(order.indexOf(a) - at) * 2 + (order.indexOf(a) > at ? 1 : 0);
+      const db = Math.abs(order.indexOf(b) - at) * 2 + (order.indexOf(b) > at ? 1 : 0);
+      return da - db;
+    });
+  for (const target of near) {
+    const next = tryPlace(ws, setup, [...src.panels], target);
+    if (next) return { ws: next, into: target };
+  }
+  return null;
+}
+
 /** Ziehen & Ablegen einer Area samt Stapel: Mitte = tauschen, Rand = andocken. */
 export function dropSlot(ws: Workspace, setup: ScreenSetup, area: string, target: string, zone: T.Zone): Workspace {
   return change(ws, setup, (arr) => withTree(arr, T.drop(arr.tree, area, target, zone)));

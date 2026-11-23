@@ -354,6 +354,24 @@ export const DESK_GONE_TEXT = {
   returned: 'Alle Portale sind zurück. Hier ist jetzt der Main Desk.',
 };
 
+/** F-193: Begrüßung – „Zuletzt benutzt“ aufklappen. */
+export const GREET_TEXT = {
+  more: 'Mehr …',
+  moreTitle: 'Zuletzt benutzte Desks, Slots, Portale und Lesezeichen zeigen und hier öffnen',
+  less: 'Weniger',
+  title: 'Zuletzt benutzt',
+  desks: 'Desks und Slots',
+  desksNote: 'Portal wählen = dorthin wechseln',
+  sources: 'Lesezeichen',
+  sourcesNew: 'Neu in der Library',
+  sourcesNote: 'Öffnet im aktiven Portal',
+  noDesks: 'Noch keine Portale.',
+  noSources: 'Noch keine Lesezeichen in der Library.',
+  here: 'dieser Desk',
+  front: 'vorn',
+  moreIn: (n: number) => (n === 1 ? '+ 1 weiteres Portal' : `+ ${n} weitere Portale`),
+};
+
 export const SEND_TEXT = {
   bookmark: 'An E-Sources senden',
   bookmarkLabel: 'An E-Sources senden – in die Lesezeichenleiste ziehen',

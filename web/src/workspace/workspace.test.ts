@@ -36,6 +36,7 @@ import * as Ar from './arrange';
 import * as Pa from './pause';
 import * as Web from './websearch';
 import * as Snd from './send';
+import * as Rc from './recent';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -2926,5 +2927,46 @@ describe('F-189 Stufe 2: Lesezeichen-Datei mit Symbol', () => {
     expect(f).toContain('ICON="data:image/png;base64,AAA"');
     expect(f).toContain('&quot;https://a.de/?open=&quot;');
     expect(f).toContain('>Öffnen in</A>');
+  });
+});
+
+describe('F-193 Zuletzt benutzt in der Begrüßung', () => {
+  const pm = (id: string) => ({ meta: { id, name: `P ${id}` } as any, front: id.endsWith('1'), tabs: 1, host: '' });
+  const area = (id: string, ...ps: string[]) => ({ id, win: '', other: false, open: true, title: `S ${id}`, panels: ps.map(pm), rect: null });
+  const desk = (win: string, here: boolean, ...areas: any[]) => ({ win, title: win || 'Main Desk', here, open: true, aspect: 1.6, tree: null, areas });
+  const radar: any[] = [
+    desk('', true, area('a', 'a1', 'a2'), area('b', 'b1'), area('c', 'c1')),
+    desk('d2', false, area('x', 'x1'), area('y', 'y1')),
+    desk('d3', false, area('m', 'm1')),
+    desk('d4', false, area('n', 'n1')),
+  ];
+  it('touch: neueste zuerst, ohne Doppel, begrenzt', () => {
+    let l = Rc.touch([], 'a', 1);
+    l = Rc.touch(l, 'b', 2);
+    l = Rc.touch(l, 'a', 3);
+    expect(l.map((e) => e.id)).toEqual(['a', 'b']);
+    expect(Rc.touch(l, 'c', 4, 2).map((e) => e.id)).toEqual(['c', 'a']);
+    expect(Rc.parseRecent('kaputt')).toEqual({ panels: [], urls: [] });
+  });
+  it('ohne Verlauf: Reihenfolge des Radars, 3 Desks, 5 Slots, jeder Desk mit Slot', () => {
+    const d = Rc.recentDesks(radar, []);
+    expect(d.map((x) => x.win)).toEqual(['', 'd2', 'd3']);
+    expect(d.flatMap((x) => x.slots).length).toBe(5);
+    expect(d[2].slots.map((s) => s.id)).toEqual(['m']);
+  });
+  it('mit Verlauf: zuletzt benutzte Desks, Slots und Portale zuerst', () => {
+    const d = Rc.recentDesks(radar, [{ id: 'n1', at: 3 }, { id: 'a2', at: 2 }, { id: 'y1', at: 1 }], 3, 5, 1);
+    expect(d.map((x) => x.win)).toEqual(['d4', '', 'd2']);
+    expect(d[1].slots[0].portals.map((p) => p.id)).toEqual(['a2']);
+    expect(d[1].slots[0].more).toBe(1);
+    expect(d[2].slots[0].id).toBe('y');
+  });
+  it('Lesezeichen: nur aus der Library, gleiche Adresse, höchstens 5', () => {
+    const bm = (id: string, url: string) => ({ id, title: id, url, category: '', tags: [], panels: [] });
+    const lib = [bm('A', 'https://a.de/'), bm('B', 'https://b.de/x')];
+    const urls = [{ id: 'https://fremd.de/', at: 3 }, { id: 'https://b.de/x', at: 2 }, { id: 'https://a.de', at: 1 }];
+    expect(Rc.recentSources(lib, urls).map((b) => b.id)).toEqual(['B', 'A']);
+    expect(Rc.recentSources(lib, urls, 1).map((b) => b.id)).toEqual(['B']);
+    expect(Rc.newestSources(lib, 1).map((b) => b.id)).toEqual(['B']);
   });
 });

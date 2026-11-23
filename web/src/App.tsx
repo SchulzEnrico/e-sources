@@ -16,7 +16,7 @@ import {
   slotSize,
 } from './workspace/screen';
 import * as T from './workspace/tree';
-import type { PanelMeta, Slot } from './workspace/types';
+import type { Bookmark, PanelMeta, Slot } from './workspace/types';
 import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { type Action, useWorkspace } from './workspace/useWorkspace';
@@ -27,7 +27,8 @@ import { type How, type LauncherState, HOW_IN, launcherCount, loadLauncher, open
 import { Search } from './components/Search';
 import { Tooltips } from './components/Tooltip';
 import { FocusMeter, Overview } from './components/Overview';
-import { arrangeText, deskFocusOf, effectOf, focusOf, placeText, ruleOf } from './workspace/focus';
+import { arrangeText, deskFocusOf, effectOf, focusOf, placeText, radarOf, ruleOf } from './workspace/focus';
+import { loadRecent, newestSources, recentDesks, recentSources, saveRecent, touch } from './workspace/recent';
 import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
 import { contrastWarning, hasOwnLook, lookOf, pickLook, shownAccent, THEMES, resolveTheme, rgbOf } from './workspace/look';
 import { MAIN_NAME, collectedDesks, deskGone, deskRing, deskSaid, nextWindowName, stepDesk, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
@@ -234,7 +235,9 @@ interface DeskProps {
   /** Ansage nach dem Wechsel. */
   said: string;
   /** Anderen Desk in diesem Browserfenster zeigen, ohne die Seite neu zu laden. */
-  onSwitch: (win: string, said?: string) => void;
+  onSwitch: (win: string, said?: string, focus?: string) => void;
+  /** F-193: Portal, das nach dem Wechsel nach vorn kommt. */
+  focus?: string;
   /** Desk wurde in einem anderen Fenster gesammelt: dieses Fenster gibt ihn ab. */
   onPark: () => void;
   /** F-189 Stufe 2: per „An E-Sources senden“ mitgebrachte Seite (E-Sources war nicht offen). */
@@ -1136,6 +1139,7 @@ function DeskApp(props: DeskProps) {
     if (r === 'full') return notify(SEND_TEXT.full(name, TAB_MAX));
     dispatch({ type: 'stackFront', setup, id });
     dispatch({ type: 'openBookmark', panel: id, url });
+    rememberUrl(url);
     setActive(id);
     if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
     const text = r === 'here' ? SEND_TEXT.here(host, name) : r === 'tab' ? SEND_TEXT.tab(host, name) : SEND_TEXT.switched(host, name);
@@ -1301,6 +1305,7 @@ function DeskApp(props: DeskProps) {
       return notify(`Im Portal „${name}“ sind schon ${TAB_MAX} Tabs offen. Schließe dort einen Tab.`);
     dispatch({ type: 'stackFront', setup, id });
     dispatch({ type: 'openBookmark', panel: id, url: h.bookmark.url });
+    rememberUrl(h.bookmark.url);
     setActive(id);
     if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
   };
@@ -1308,7 +1313,21 @@ function DeskApp(props: DeskProps) {
   // F-179: aktives Portal je Desk merken (nur im Browser, nicht im Testmodus)
   useEffect(() => {
     if (!PROBE && active) saveLast(win ?? '', active);
+    // F-193: Verlauf für „Zuletzt benutzt“
+    if (active) {
+      const r = loadRecent(!PROBE);
+      saveRecent({ ...r, panels: touch(r.panels, active, Date.now()) }, !PROBE);
+    }
   }, [active, win]);
+  /** F-193: geöffnete Adresse für „Zuletzt benutzt“ merken. */
+  const rememberUrl = (url: string) => {
+    const r = loadRecent(!PROBE);
+    saveRecent({ ...r, urls: touch(r.urls, url, Date.now()) }, !PROBE);
+  };
+  /** F-193: nach einem Wechsel mit Ziel-Portal dieses nach vorn holen. */
+  useEffect(() => {
+    if (props.focus && mine.some((x) => x.id === props.focus)) focusPortal(props.focus);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const lastPanel = lastAtStart ? mine.find((x) => x.id === lastAtStart) : undefined;
   const greetLast = lastPanel ? { name: lastPanel.name, source: hostOf(panelUrl(lastPanel) ?? '') } : null;
   const greetText = greetingFor(new Date().getHours(), profileOf(ws).name);
@@ -1319,11 +1338,26 @@ function DeskApp(props: DeskProps) {
   const closeGreeting = useCallback(() => setGreetOn(false), []);
   const continueLast = () => {
     setGreetOn(false);
-    if (!lastPanel) return;
-    showPanel(lastPanel.id);
-    sayLive(`${lastPanel.name} ist aktiv.`);
+    if (lastPanel) focusPortal(lastPanel.id);
+  };
+  /** Portal dieses Desks nach vorn holen, ansagen und den Fokus in seine Adresszeile setzen. */
+  const focusPortal = (id: string) => {
+    showPanel(id);
+    sayLive(`${ws.panels.find((x) => x.id === id)?.name ?? 'Portal'} ist aktiv.`);
     // Fokus ins Portal (Adresszeile), damit die Tastatur dort weitermacht
-    window.setTimeout(() => document.querySelector<HTMLElement>(`main section[data-panel-id="${lastPanel.id}"] input[aria-label="Adresse"]`)?.focus(), 60);
+    window.setTimeout(() => document.querySelector<HTMLElement>(`main section[data-panel-id="${id}"] input[aria-label="Adresse"]`)?.focus(), 60);
+  };
+  /** F-193: Portal aus „Zuletzt benutzt“ – hier, im offenen Fenster seines Desks oder Desk hierher holen. */
+  const openRecentPortal = (target: string, id: string) => {
+    setGreetOn(false);
+    if (target === win) return focusPortal(id);
+    if (windows.open.has(target)) return showPanel(id);
+    props.onSwitch(target, switchSaid(target), id);
+  };
+  /** F-193: Lesezeichen aus „Zuletzt benutzt“ wie einen Treffer der Suche öffnen. */
+  const openRecentSource = (b: Bookmark) => {
+    setGreetOn(false);
+    openHit({ bookmark: b, panel: null, category: '' });
   };
 
   /** F-141: Panel aus der Suche nach vorn holen und aktiv machen. */
@@ -1832,6 +1866,7 @@ function DeskApp(props: DeskProps) {
           if (openBookmark(ws, meta.id, url).result === 'full')
             return notify(`Schon ${TAB_MAX} Tabs offen. Schließe einen Tab oder öffne die Source in einem anderen Portal.`);
           dispatch({ type: 'openBookmark', panel: meta.id, url });
+          rememberUrl(url);
         }}
         onClose={() => closePortal(meta.id)}
         onStartSwap={() => {
@@ -2771,6 +2806,17 @@ function DeskApp(props: DeskProps) {
           greeting={greetText}
           last={greetLast}
           onContinue={continueLast}
+          recent={() => {
+            const r = loadRecent(!PROBE);
+            const sources = recentSources(ws.bookmarks, r.urls, 5);
+            return {
+              desks: recentDesks(radarOf(ws, shownView.slots, setup, windows.open), r.panels, 3, 5, 3),
+              sources: sources.length ? sources : newestSources(ws.bookmarks, 5),
+              sourcesNew: sources.length === 0,
+            };
+          }}
+          onPortal={openRecentPortal}
+          onSource={openRecentSource}
           onProfile={() => {
             setGreetOn(false);
             setProfileOpen(true);
@@ -2969,15 +3015,15 @@ function DeskApp(props: DeskProps) {
  */
 export default function App(props: { sent?: string }) {
   const [ws, dispatch] = useWorkspace();
-  const [desk, setDesk] = useState(() => ({ win: winFromSearch(window.location.search), switched: false, said: '' }));
+  const [desk, setDesk] = useState<{ win: string; switched: boolean; said: string; focus?: string }>(() => ({ win: winFromSearch(window.location.search), switched: false, said: '' }));
   const [parked, setParked] = useState(false);
-  const onSwitch = useCallback((target: string, said = '') => {
+  const onSwitch = useCallback((target: string, said = '', focus?: string) => {
     window.history.replaceState(window.history.state, '', windowUrl(window.location.href, target));
-    setDesk({ win: target, switched: true, said });
+    setDesk({ win: target, switched: true, said, focus });
   }, []);
   const onPark = useCallback(() => setParked(true), []);
   if (parked) return <Parked name={windowName(ws, desk.win)} onBack={() => setParked(false)} />;
-  return <DeskApp key={desk.win} ws={ws} dispatch={dispatch} win={desk.win} switched={desk.switched} said={desk.said} onSwitch={onSwitch} onPark={onPark} sent={desk.switched ? undefined : props.sent} />;
+  return <DeskApp key={desk.win} ws={ws} dispatch={dispatch} win={desk.win} switched={desk.switched} said={desk.said} focus={desk.focus} onSwitch={onSwitch} onPark={onPark} sent={desk.switched ? undefined : props.sent} />;
 }
 
 /** F-160: Dieses Fenster hat seinen Desk an ein anderes Fenster abgegeben (Fenster ließ sich nicht selbst schließen). */

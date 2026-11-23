@@ -1,0 +1,144 @@
+import type { RadarWindow } from './focus';
+import { sameUrlKey } from './bookmarks';
+import type { Bookmark } from './types';
+
+/**
+ * F-193: „Zuletzt benutzt“ für die Begrüßung. Gemerkt werden nur Ids bzw. Adressen mit Zeitpunkt
+ * (neueste zuerst), lokal im Browser – Portale beim Aktivieren, Adressen beim Öffnen einer Source.
+ * Daraus entstehen links Desks → Slots → Portale und rechts Lesezeichen aus der Library.
+ */
+export interface RecentEntry {
+  id: string;
+  at: number;
+}
+export interface Recent {
+  panels: RecentEntry[];
+  urls: RecentEntry[];
+}
+export const RECENT_MAX = 40;
+const KEY = 'esource.recent';
+
+/** Eintrag nach vorn holen (ohne Doppel), höchstens `max` Einträge. */
+export function touch(list: RecentEntry[], id: string, at: number, max = RECENT_MAX): RecentEntry[] {
+  if (list[0]?.id === id) return [{ id, at }, ...list.slice(1)];
+  return [{ id, at }, ...list.filter((e) => e.id !== id)].slice(0, max);
+}
+
+const clean = (v: unknown): RecentEntry[] =>
+  Array.isArray(v) ? v.filter((e) => e && typeof e.id === 'string' && typeof e.at === 'number').slice(0, RECENT_MAX) : [];
+
+export function parseRecent(raw: string | null): Recent {
+  try {
+    const o = raw ? JSON.parse(raw) : null;
+    return { panels: clean(o?.panels), urls: clean(o?.urls) };
+  } catch {
+    return { panels: [], urls: [] };
+  }
+}
+
+/** Im Testmodus (`save` = false) bleibt alles nur im Speicher dieser Seite. */
+let memory: Recent | null = null;
+export function loadRecent(save: boolean): Recent {
+  if (!save) return (memory ??= { panels: [], urls: [] });
+  try {
+    return parseRecent(localStorage.getItem(KEY));
+  } catch {
+    return { panels: [], urls: [] };
+  }
+}
+export function saveRecent(r: Recent, save: boolean): void {
+  if (!save) {
+    memory = r;
+    return;
+  }
+  try {
+    localStorage.setItem(KEY, JSON.stringify(r));
+  } catch {
+    // ohne Speicher: nichts zu merken
+  }
+}
+
+export interface RecentPortal {
+  id: string;
+  name: string;
+  front: boolean;
+}
+export interface RecentSlot {
+  id: string;
+  title: string;
+  portals: RecentPortal[];
+  /** Weitere Portale im Slot, die nicht aufgeführt sind. */
+  more: number;
+}
+export interface RecentDesk {
+  win: string;
+  title: string;
+  here: boolean;
+  slots: RecentSlot[];
+}
+
+/**
+ * Links in der Begrüßung: bis `maxDesks` Desks und zusammen bis `maxSlots` Slots, zuletzt benutzte
+ * zuerst (ohne Verlauf in der Reihenfolge des Radars, dieser Desk zuerst). Jeder gezeigte Desk
+ * bekommt mindestens einen Slot; je Slot bis `maxPortals` Portale.
+ */
+export function recentDesks(radar: RadarWindow[], panels: RecentEntry[], maxDesks = 3, maxSlots = 5, maxPortals = 4): RecentDesk[] {
+  const rankOf = new Map(panels.map((e, i) => [e.id, i]));
+  const r = (id: string) => rankOf.get(id) ?? Infinity;
+  const desks = radar
+    .map((w, wi) => {
+      const slots = w.areas
+        .filter((a) => a.panels.length > 0)
+        .map((a, ai) => ({ a, ai, rank: Math.min(...a.panels.map((p) => r(p.meta.id))) }))
+        .sort((x, y) => x.rank - y.rank || x.ai - y.ai);
+      return { w, wi, slots, rank: slots.length ? slots[0].rank : Infinity };
+    })
+    .filter((d) => d.slots.length > 0)
+    .sort((x, y) => x.rank - y.rank || x.wi - y.wi)
+    .slice(0, maxDesks);
+  // erst je Desk den besten Slot, dann die übrigen nach Verlauf auffüllen
+  const pick = new Set(desks.map((d) => d.slots[0]));
+  const rest = desks.flatMap((d, di) => d.slots.slice(1).map((s) => ({ s, di }))).sort((x, y) => x.s.rank - y.s.rank || x.di - y.di);
+  for (const { s } of rest) {
+    if (pick.size >= maxSlots) break;
+    pick.add(s);
+  }
+  return desks.map((d) => ({
+    win: d.w.win,
+    title: d.w.title,
+    here: d.w.here,
+    slots: d.slots
+      .filter((s) => pick.has(s))
+      .map(({ a }) => {
+        const list = [...a.panels].sort((x, y) => r(x.meta.id) - r(y.meta.id) || Number(y.front) - Number(x.front));
+        return {
+          id: a.id,
+          title: a.title,
+          portals: list.slice(0, maxPortals).map((p) => ({ id: p.meta.id, name: p.meta.name, front: p.front })),
+          more: Math.max(0, list.length - maxPortals),
+        };
+      }),
+  }));
+}
+
+/** Rechts in der Begrüßung: zuletzt geöffnete Sources aus der Library (gleiche Adresse), bis `max`. */
+export function recentSources(bookmarks: Bookmark[], urls: RecentEntry[], max = 5): Bookmark[] {
+  const byKey = new Map<string, Bookmark>();
+  for (const b of bookmarks) if (!byKey.has(sameUrlKey(b.url))) byKey.set(sameUrlKey(b.url), b);
+  const out: Bookmark[] = [];
+  for (const e of urls) {
+    const b = byKey.get(sameUrlKey(e.id));
+    if (b && !out.includes(b)) out.push(b);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** Ohne Verlauf: zuletzt in die Library gekommene Sources (ohne Herkunft: die zuletzt angelegten). */
+export function newestSources(bookmarks: Bookmark[], max = 5): Bookmark[] {
+  return bookmarks
+    .map((b, i) => ({ b, i, at: b.origin?.at ?? '' }))
+    .sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : y.i - x.i))
+    .slice(0, max)
+    .map((x) => x.b);
+}

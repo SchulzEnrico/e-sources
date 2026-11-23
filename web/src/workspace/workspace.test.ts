@@ -4032,3 +4032,61 @@ describe('F-206 Schritt 1: Notizen und Ansichten (Datenmodell)', () => {
     expect(No.idsIn(nv).map((id) => No.noteById(out, id)!.title)).toEqual(['im Board']);
   });
 });
+
+describe('F-206 Schritt 2: Notiz im Tab', () => {
+  const setup = () => {
+    const ws = W.defaultWorkspace();
+    const p = ws.panels[0];
+    return { ws, pid: p.id, tid: p.tabs[0].id };
+  };
+  it('legt im leeren Tab eine Notiz an; der Tab zeigt nur darauf und trägt ihren Titel', () => {
+    const { ws: w0, pid, tid } = setup();
+    let ws = reducer(w0, { type: 'tabNote', id: pid, tab: tid, kind: 'note', by: 'Enrico' });
+    const tab = ws.panels[0].tabs[0];
+    expect(tab.note).toBeDefined();
+    expect(ws.notes).toHaveLength(1);
+    expect(W.tabLabel(tab, ws)).toBe('Neue Notiz');
+    ws = reducer(ws, { type: 'noteEdit', id: tab.note!, patch: { text: '# Einkauf\n- Milch' } });
+    expect(W.tabLabel(ws.panels[0].tabs[0], ws)).toBe('Einkauf');
+    expect(W.tabLabel(ws.panels[0].tabs[0])).toBe('Notiz');
+    // zweimal anlegen geht nicht (Tab ist schon belegt)
+    expect(reducer(ws, { type: 'tabNote', id: pid, tab: tid, kind: 'todo' })).toBe(ws);
+  });
+  it('legt im leeren Tab eine Ansicht an (Beschriftung = Name)', () => {
+    const { ws: w0, pid, tid } = setup();
+    const ws = reducer(w0, { type: 'tabNote', id: pid, tab: tid, kind: 'kanban' });
+    const tab = ws.panels[0].tabs[0];
+    expect(ws.noteViews!.map((v) => v.kind)).toEqual(['kanban']);
+    expect(W.tabLabel(tab, ws)).toBe('Kanban-Board');
+  });
+  it('Tab schließen: leere Notiz wird still verworfen, beschriebene bleibt in der Library', () => {
+    const { ws: w0, pid, tid } = setup();
+    let ws = reducer(w0, { type: 'tabNote', id: pid, tab: tid, kind: 'note' });
+    ws = reducer(ws, { type: 'closeTab', id: pid, tab: tid });
+    expect(ws.notes).toEqual([]);
+    expect(ws.closed ?? []).toHaveLength(0);
+    const tid2 = ws.panels[0].tabs[0].id;
+    ws = reducer(ws, { type: 'tabNote', id: pid, tab: tid2, kind: 'note' });
+    const nid = ws.panels[0].tabs[0].note!;
+    ws = reducer(ws, { type: 'noteEdit', id: nid, patch: { text: 'bleibt' } });
+    ws = reducer(ws, { type: 'closeTab', id: pid, tab: tid2 });
+    expect(ws.notes!.map((n) => n.id)).toEqual([nid]);
+  });
+  it('Zustand über den Reducer; eine Adresse ersetzt die Notiz im Tab, die Notiz bleibt', () => {
+    const { ws: w0, pid, tid } = setup();
+    let ws = reducer(w0, { type: 'tabNote', id: pid, tab: tid, kind: 'note' });
+    const nid = ws.panels[0].tabs[0].note!;
+    ws = reducer(ws, { type: 'noteState', id: nid, state: 'doing' });
+    expect(ws.notes![0].state).toBe('doing');
+    ws = W.navigatePanel(ws, pid, 'example.org');
+    expect(ws.panels[0].tabs[0].note).toBeUndefined();
+    expect(ws.panels[0].tabs[0].url).toBe('https://example.org');
+    expect(ws.notes).toHaveLength(1);
+  });
+  it('Hilfe: Einträge zu Notizen haben Symbole', () => {
+    for (const id of ['note', 'noteState', 'todo', 'kanban', 'eisenhower', 'newNote']) {
+      expect(H.HELP.some((h) => h.id === id)).toBe(true);
+      expect(Ic.HELP_ICON[id]).toBeDefined();
+    }
+  });
+});

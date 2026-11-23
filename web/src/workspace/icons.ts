@@ -28,6 +28,11 @@ export const ICONS = {
   source: { d: [ring(8, 8, 6), 'M2 8h12', 'M8 2c2.2 2.2 2.2 9.8 0 12', 'M8 2c-2.2 2.2-2.2 9.8 0 12'] },
   library: { d: ['M2.5 2.5h3v11h-3z', 'M6.5 2.5h3v11h-3z', 'M10.3 3.4l2.4-.7 2 9.9-2.4.7z'] },
   category: { d: ['M2 2.5h5.5l6.5 6.5-5 5L2.5 7.5z', 'M5 5.2h.01'] },
+  // F-206: Notiz und Ansichten
+  note: { d: ['M3 1.5h7l3 3v10H3z', 'M10 1.5v3h3', 'M5.5 8h5', 'M5.5 10.5h5'] },
+  todo: { d: ['M2 2.5h3v3H2z', 'M7 4h7', 'M2 10.5h3v3H2z', 'M7 12h7', 'M2.6 12l.8.8 1.5-1.7'] },
+  kanban: { d: ['M2 2.5h3.5v11H2z', 'M6.25 2.5h3.5v7h-3.5z', 'M10.5 2.5H14v4.5h-3.5z'] },
+  matrix: { d: ['M2 2h12v12H2z', 'M8 2v12', 'M2 8h12'] },
   // F-170: Slotmaschine – Gehäuse mit drei Walzen und Hebel
   jackpot: { d: ['M1.5 5h9v9h-9z', 'M4 8v3', 'M6 8v3', 'M8 8v3', 'M10.5 10.5h2.5V4', ring(13, 2.8, 1.2)] },
   launcher: { d: ['M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9', 'M9.5 2.5h4v4', 'M13.3 2.7 7.8 8.2'], w: 1.3 },
@@ -158,6 +163,7 @@ export type IconName = keyof typeof ICONS;
 
 /** Symbol je Hilfe-Eintrag (HELP, F-156) – gleiche Ids. Fehlt ein Eintrag, meldet das der Test. */
 export const HELP_ICON: Record<string, IconName> = {
+  note: 'note', newNote: 'note', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note',
   devMode: 'dev',
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',

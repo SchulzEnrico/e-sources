@@ -4,6 +4,12 @@
  * Aufbau: Desk → Slot → Stack → Portal → Tab; ein Portal zeigt eine Source.
  */
 export const TERMS = {
+  // F-206: Notizen und Ansichten
+  note: 'Notiz = ein Gedanke, eine Aufgabe oder eine Erinnerung; sie gehört zur Library, ein Tab zeigt sie nur an – Tab schließen löscht nichts',
+  noteState: 'Zustand = wie weit eine Notiz ist: offen, wartet, in Arbeit, in Prüfung, erledigt oder archiviert; „wartet“ kommt auch von selbst, solange ein Vorgänger offen ist oder der früheste Beginn noch nicht erreicht ist',
+  todo: 'To-do-Liste = Notizen als abhakbare Liste in eigener Reihenfolge',
+  kanban: 'Kanban-Board = Notizen als Karten in Spalten (z. B. Offen, In Arbeit, Erledigt); eine Karte wandert von links nach rechts',
+  eisenhower: 'Eisenhower-Matrix = vier Felder nach wichtig und dringend: sofort tun, planen, abgeben, weglassen',
   desk: 'Desk = eine eigene Arbeitsfläche mit Slots, in eigenem Fenster (z. B. auf einem zweiten Monitor) oder gesammelt im Main Desk',
   switchDesk: 'zeigt einen anderen Desk in diesem Browserfenster; ist er schon in einem eigenen Fenster offen, springt E-Sources dorthin. Alt/⌥+K wechselt zum nächsten gesammelten Desk, mit Umschalt zum vorigen',
   collected: 'gesammelt = Desk ohne eigenes Browserfenster; er wartet im Main Desk und ist über ⇄ oder Alt/⌥+K erreichbar, nichts geht verloren',
@@ -958,4 +964,34 @@ export const SYNC_TEXT = {
     devices: 'Richte jedes Gerät einmal ein – mit demselben GitHub-Konto. Achtung: Eine E-Sources-App auf dem Startbildschirm von iPhone oder iPad hat eigenen Speicher und braucht den Schlüssel noch einmal. Das Zeichen mit den zwei Pfeilen oben in der Kopfleiste zeigt den Abgleich: ruhig = alles gut, es dreht sich = gleicht ab, „!“ = gestört (ein Klick öffnet diesen Dialog).',
     again: 'Diese Tour startest du jederzeit wieder über den Knopf „Tour“ in diesem Dialog, die Hilfe (?) oder die Suche („Tour Abgleich“).',
   },
+};
+
+/** F-206: Texte rund um Notizen (Notiz im Tab). */
+export const NOTE_TEXT = {
+  states: { open: 'offen', waiting: 'wartet', doing: 'in Arbeit', review: 'in Prüfung', done: 'erledigt', archived: 'archiviert' } as Record<string, string>,
+  newNote: 'Neue Notiz',
+  untitled: 'Notiz ohne Titel',
+  missing: 'Diese Notiz gibt es hier nicht (mehr) – evtl. auf einem anderen Gerät gelöscht oder noch nicht abgeglichen.',
+  missingView: 'Diese Ansicht gibt es hier nicht (mehr).',
+  create: 'Neu in diesem Tab:',
+  createHint: 'Notizen bleiben in der Library, auch wenn du den Tab schließt.',
+  title: 'Titel',
+  titleHint: 'Leer = erste Zeile des Textes',
+  text: 'Text',
+  textHint: 'Markdown-Zeichen gehen: # Überschrift, - Liste, - [ ] Aufgabe, **fett**, *kursiv*, `Code`',
+  edit: 'Bearbeiten',
+  read: 'Lesen',
+  state: 'Zustand',
+  reason: 'Grund',
+  important: 'wichtig',
+  urgent: 'dringend',
+  notBefore: 'nicht beginnen vor',
+  due: 'fällig am',
+  autoAfter: (n: number) => `wartet von selbst: ${n === 1 ? 'ein Vorgänger ist' : `${n} Vorgänger sind`} noch offen`,
+  autoFrom: (d: string) => `wartet von selbst bis ${d}`,
+  empty: 'Noch leer – zum Schreiben „Bearbeiten“ wählen.',
+  discarded: 'Leere Notiz verworfen.',
+  viewSoon: (kind: string, n: number) => `${kind} mit ${n === 1 ? 'einer Notiz' : `${n} Notizen`}. Die Ansicht selbst kommt im nächsten Bauschritt.`,
+  created: (d: string) => `angelegt ${d}`,
+  changed: (d: string) => `geändert ${d}`,
 };

@@ -378,7 +378,9 @@ function go(t: Tab, url: string): Tab {
   if (url === t.url) return t;
   const past = (t.history ?? []).slice(0, (t.pos ?? -1) + 1);
   const history = [...past, url].slice(-HISTORY_MAX);
-  return { ...t, url, history, pos: history.length - 1 };
+  // F-206: Eine Adresse ersetzt Notiz bzw. Ansicht im Tab (die Notiz selbst bleibt in der Library)
+  const { note: _n, view: _v, ...rest } = t;
+  return { ...rest, url, history, pos: history.length - 1 };
 }
 
 /**
@@ -472,8 +474,13 @@ export function moveTab(ws: Workspace, id: string, tabId: string, to: number): W
   });
 }
 
-/** Beschriftung eines Tabs: Domain ohne „www.“, sonst „Neuer Tab“. */
-export function tabLabel(t: Tab): string {
+/** Beschriftung eines Tabs: Domain ohne „www.“; Notiz: Titel; Ansicht: Name; sonst „Neuer Tab“. */
+export function tabLabel(t: Tab, ws?: Workspace): string {
+  if (!t.url && t.note) {
+    const n = ws?.notes?.find((x) => x.id === t.note);
+    return n ? noteTitle(n) || 'Neue Notiz' : 'Notiz';
+  }
+  if (!t.url && t.view) return ws?.noteViews?.find((x) => x.id === t.view)?.name ?? 'Ansicht';
   if (!t.url) return 'Neuer Tab';
   try {
     return new URL(t.url).hostname.replace(/^www\./, '') || t.url;
@@ -949,4 +956,11 @@ export function tryPlace(ws: Workspace, setup: ScreenSetup, ids: string[], targe
 
 export function placePanels(ws: Workspace, setup: ScreenSetup, ids: string[], target: PlaceTarget): Workspace {
   return tryPlace(ws, setup, ids, target) ?? ws;
+}
+
+/** F-206: Titel einer Notiz (Vorschlag aus der ersten Zeile) – hier statt aus notes.ts, um einen Ring-Import zu vermeiden. */
+function noteTitle(n: { title: string; text: string }): string {
+  if (n.title.trim()) return n.title.trim();
+  const line = n.text.split('\n').map((l) => l.replace(/^\s*(#{1,6}\s+|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+|>\s*)/, '').replace(/[*_`~]/g, '').trim()).find(Boolean) ?? '';
+  return line.length > 40 ? `${line.slice(0, 39).trimEnd()}…` : line;
 }

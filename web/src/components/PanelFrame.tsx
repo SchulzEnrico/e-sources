@@ -21,6 +21,7 @@ import { looksLikeAddress } from '../workspace/websearch';
 import type { ShownTint } from '../workspace/tint';
 import { rgbOf } from '../workspace/look';
 import { Icon } from './Icon';
+import { NewInTab, NoteTab, ViewTab } from './NoteTab';
 import type { IconName } from '../workspace/icons';
 
 /** Voreingestellte Größen (F-12) als Anteil von Breite und Höhe der Arbeitsfläche. */
@@ -541,7 +542,7 @@ export function PanelFrame(p: Props) {
     setDrawer(
       saved
         ? { kind: 'edit', bookmark: saved, isNew: false, back }
-        : { kind: 'edit', bookmark: draftFor(url, tabLabel(tab), p.panel.id), isNew: true, back },
+        : { kind: 'edit', bookmark: draftFor(url, tabLabel(tab, p.ws), p.panel.id), isNew: true, back },
     );
   };
   /** Tab, der gerade gezogen wird (F-22). */
@@ -549,7 +550,7 @@ export function PanelFrame(p: Props) {
   /** F-150: Ein Link wird gerade über das leere Panel gezogen. */
   const [linkOver, setLinkOver] = useState(false);
   const linkDrag = (e: DragEvent<HTMLDivElement>) =>
-    !url && !dragTab.current && [...e.dataTransfer.types].some((t) => t === 'text/uri-list' || t === 'text/plain');
+    !url && !tab.note && !tab.view && !dragTab.current && [...e.dataTransfer.types].some((t) => t === 'text/uri-list' || t === 'text/plain');
   const linkDrop = (e: DragEvent<HTMLDivElement>) => {
     if (!linkDrag(e)) return;
     e.preventDefault();
@@ -1199,7 +1200,7 @@ export function PanelFrame(p: Props) {
               onClick={() => p.onSelectTab(t.id)}
               title={`${t.url ?? 'Neuer Tab'}${isPaused(t) ? ` · ${PAUSE_TEXT.paused}` : (t.keep || p.keptBySource?.(t.url)) && !p.panel.keep ? ` · ${PAUSE_TEXT.tabKept}` : ''}`}
             >
-              <span className="tab__label">{tabLabel(t)}</span>
+              <span className="tab__label">{tabLabel(t, p.ws)}</span>
               {/* F-201/F-202: Pause-Zeichen vor dem × – Zustand auf einen Blick, Klick öffnet das Pause-Menü */}
               {t.url && !p.isBlocked(t.url) && (() => {
                 const src = p.sourceOf?.(t.url);
@@ -1211,7 +1212,7 @@ export function PanelFrame(p: Props) {
                     <Menu
                       className={`tab__keep${kept ? ' is-on' : sleeping ? ' is-asleep' : ''}`}
                       icon={<Icon name={kept ? 'keep' : 'pause'} size={13} />}
-                      label={PAUSE_TEXT.tabMenu(tabLabel(t), state)}
+                      label={PAUSE_TEXT.tabMenu(tabLabel(t, p.ws), state)}
                     >
                       {(close) => {
                         const run = (f: () => void) => () => {
@@ -1220,7 +1221,7 @@ export function PanelFrame(p: Props) {
                         };
                         return (
                           <>
-                            <MenuHead>{PAUSE_TEXT.tabMenu(tabLabel(t), state)}</MenuHead>
+                            <MenuHead>{PAUSE_TEXT.tabMenu(tabLabel(t, p.ws), state)}</MenuHead>
                             {p.onKeepTab && (
                               <Item icon="keep" checked={!!t.keep || !!p.panel.keep} disabled={!!p.panel.keep} title={PAUSE_TEXT.keepTabTitle} hint={p.panel.keep ? PAUSE_TEXT.hintTabByPortal : PAUSE_TEXT.hintTab} onClick={run(() => p.onKeepTab?.(t.id))}>
                                 {PAUSE_TEXT.keepTabMenu}
@@ -1256,7 +1257,7 @@ export function PanelFrame(p: Props) {
               <button
                 type="button"
                 className="tab__close"
-                aria-label={`${tabLabel(t)} schließen`}
+                aria-label={`${tabLabel(t, p.ws)} schließen`}
                 title="Tab schließen"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1327,7 +1328,7 @@ export function PanelFrame(p: Props) {
                 hidden={t.id !== tab.id}
                 style={frameStyle}
                 src={t.url}
-                title={`${p.panel.name} – ${tabLabel(t)}`}
+                title={`${p.panel.name} – ${tabLabel(t, p.ws)}`}
                 // F-133: Nur die Domain von E-Source geht mit (Standard der Browser). Ohne sie
                 // verweigern eingebettete Player wie YouTube den Dienst (Fehler 153).
                 referrerPolicy="strict-origin-when-cross-origin"
@@ -1376,11 +1377,18 @@ export function PanelFrame(p: Props) {
               <span className="win__paused-title">{PAUSE_TEXT.asleep}</span>
               <span className="win__paused-host">{hostOf(url)}</span>
             </button>
+          ) : !url && tab.note ? (
+            // F-206: Notiz im Tab (nur Verweis; Inhalt liegt in der Library)
+            <NoteTab key={tab.note} ws={p.ws} noteId={tab.note} dispatch={p.dispatch} />
+          ) : !url && tab.view ? (
+            <ViewTab ws={p.ws} viewId={tab.view} />
           ) : !url ? (
             <>
               <p className="win__placeholder">{p.panel.name}</p>
               {/* F-150: was man hier tun kann; Tastatur: über die Adresszeile */}
               <p className="win__hint">{linkOver ? 'Loslassen zum Öffnen' : 'Link in die Adresszeile eingeben oder hier hineinziehen'}</p>
+              {/* F-206: Notiz oder Ansicht in diesem Tab anlegen */}
+              <NewInTab onPick={(kind) => p.dispatch({ type: 'tabNote', id: p.panel.id, tab: tab.id, kind, by: p.ws.profile?.name || undefined })} />
               {p.share && (
                 <p className="win__meta">
                   {pct(p.share.w)} breit × {pct(p.share.h)} hoch{p.stack ? ` · ${p.stack.members.length} Portale im Stack` : ''}

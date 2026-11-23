@@ -5544,3 +5544,193 @@ h3.cases__name { font-size: 1.05em; }
 .picker__list button { padding: 2px 8px; font-size: 12px; }
 .picker__clear { justify-self: start; font-size: 12px; }
 .picker__hexlabel { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+
+/* ---------- F-206: Notiz im Tab, Auswahl im leeren Tab */
+.newin {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 0 12px;
+}
+.newin__head,
+.newin__hint {
+  margin: 0;
+  font-size: 0.85em;
+  text-align: center;
+}
+.newin__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.newin__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+}
+.newin__btn .icon,
+.note .icon {
+  display: inline-block;
+  vertical-align: -3px;
+}
+.note {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  text-align: left;
+}
+.note--view {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+}
+.note__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-size: 0.85em;
+}
+.note__mode {
+  display: inline-flex;
+  gap: 2px;
+}
+.note__mode button[aria-pressed='true'] {
+  background: rgba(var(--accent-rgb), 0.25);
+  color: var(--strong);
+}
+.note__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+}
+.note input[type='text'],
+.note input[type='date'],
+.note select,
+.note textarea {
+  font: inherit;
+  color: var(--text);
+  background: linear-gradient(145deg, var(--well-a), var(--well-b));
+  border: 1px solid rgba(var(--tint), 0.06);
+  border-radius: 8px;
+  padding: 4px 8px;
+  box-shadow: inset 2px 2px 5px rgba(var(--lo), 0.7);
+  min-width: 0;
+}
+.note :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.note__auto {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+.note__edit {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.note__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.8em;
+  color: var(--muted);
+}
+.note__field input,
+.note__field textarea {
+  font-size: 1.15em;
+}
+.note__field--grow {
+  flex: 1;
+  min-height: 120px;
+}
+.note__field textarea {
+  flex: 1;
+  resize: none;
+  line-height: 1.45;
+}
+.note__hint,
+.note__meta {
+  margin: 0;
+  font-size: 0.78em;
+  color: var(--muted);
+}
+.note__read {
+  flex: 1;
+}
+.note__title {
+  margin: 0 0 6px;
+  font-size: 1.25em;
+  color: var(--strong);
+}
+.md {
+  line-height: 1.5;
+}
+.md p,
+.md ul,
+.md ol,
+.md blockquote,
+.md pre {
+  margin: 0 0 8px;
+}
+.md h3,
+.md h4,
+.md h5 {
+  margin: 10px 0 6px;
+  color: var(--strong);
+}
+.md ul,
+.md ol {
+  padding-left: 22px;
+}
+.md .md__task {
+  list-style: none;
+  margin-left: -20px;
+}
+.md .md__task label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.md blockquote {
+  border-left: 3px solid rgba(var(--accent-rgb), 0.5);
+  padding-left: 10px;
+  color: var(--muted);
+}
+.md code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.9em;
+  background: rgba(var(--tint), 0.08);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.md pre {
+  overflow: auto;
+  background: rgba(var(--tint), 0.06);
+  border-radius: 6px;
+  padding: 8px;
+}
+.md pre code {
+  background: none;
+  padding: 0;
+}
+.md a {
+  color: var(--accent);
+}

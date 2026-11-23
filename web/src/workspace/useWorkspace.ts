@@ -25,6 +25,8 @@ import { type ImportPlan, applyImport } from './browserBookmarks';
 import { sortAll, sortInto } from './sortHelp';
 import { setCategoryIcon, setCategoryTint, setPanelCategory, setPanelNewCategory } from './category';
 import * as Cs from './cases';
+import * as No from './notes';
+import type { NoteState, NoteViewKind } from './types';
 import { type RuleUndo, deleteRule, restoreRule, setRuleOn, setSiteCategory } from './rules';
 
 type S = { setup: ScreenSetup };
@@ -167,7 +169,11 @@ export type Action =
   | { type: 'caseDelete'; id: string }
   | { type: 'casesRestore'; snap: Cs.CasesSnap }
   | { type: 'layoutCase'; win: string; layout: string; caseId: string; on: boolean }
-  | { type: 'casePick'; win: string; caseId: string | null };
+  | { type: 'casePick'; win: string; caseId: string | null }
+  /** F-206: im Tab eine neue Notiz bzw. Ansicht anlegen (Tab zeigt nur darauf). */
+  | { type: 'tabNote'; id: string; tab: string; kind: 'note' | NoteViewKind; by?: string; noteId?: string }
+  | { type: 'noteEdit'; id: string; patch: No.NotePatch; by?: string }
+  | { type: 'noteState'; id: string; state: NoteState; reason?: string; by?: string };
 
 export function reducer(ws: Workspace, a: Action): Workspace {
   const next = step(ws, a);
@@ -209,8 +215,33 @@ function step(ws: Workspace, a: Action): Workspace {
       return W.setEmbed(ws, a.url, a.ok);
     case 'addTab':
       return W.addTab(ws, a.id, a.url);
-    case 'closeTab':
+    case 'closeTab': {
+      // F-206: leere Notiz still verwerfen; alles andere bleibt in der Library
+      const t = ws.panels.find((p) => p.id === a.id)?.tabs.find((x) => x.id === a.tab);
+      const n = t?.note ? No.noteById(ws, t.note) : undefined;
+      if (n && No.isEmptyNote(ws, n) && No.viewsWith(ws, n.id).length === 0) {
+        const cleared = No.deleteNote(ws, n.id)!.ws;
+        return W.closeTab(cleared, a.id, a.tab);
+      }
       return C.closeTabRemember(ws, a.id, a.tab, (w) => W.closeTab(w, a.id, a.tab));
+    }
+    case 'tabNote': {
+      const tab = ws.panels.find((p) => p.id === a.id)?.tabs.find((x) => x.id === a.tab);
+      if (!tab || tab.url || tab.note || tab.view) return ws;
+      const made =
+        a.kind === 'note'
+          ? No.createNote(ws, {}, { by: a.by, ...(a.noteId ? { id: a.noteId } : {}) })
+          : No.createView(ws, a.kind, '', a.noteId ? { id: a.noteId } : {});
+      const key = a.kind === 'note' ? 'note' : 'view';
+      return {
+        ...made.ws,
+        panels: made.ws.panels.map((p) => (p.id === a.id ? { ...p, tabs: p.tabs.map((x) => (x.id === a.tab ? { ...x, [key]: made.id } : x)) } : p)),
+      };
+    }
+    case 'noteEdit':
+      return No.updateNote(ws, a.id, a.patch, { by: a.by });
+    case 'noteState':
+      return No.setState(ws, a.id, a.state, { by: a.by }, a.reason);
     case 'selectTab':
       return W.selectTab(ws, a.id, a.tab);
     case 'moveTab':

@@ -30,7 +30,7 @@ import { FocusMeter, Overview } from './components/Overview';
 import { arrangeText, deskFocusOf, effectOf, focusOf, placeText, ruleOf } from './workspace/focus';
 import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
 import { contrastWarning, hasOwnLook, lookOf, pickLook, shownAccent, THEMES, resolveTheme, rgbOf } from './workspace/look';
-import { MAIN_NAME, collectedDesks, deskRing, deskSaid, nextWindowName, stepDesk, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
+import { MAIN_NAME, collectedDesks, deskGone, deskRing, deskSaid, nextWindowName, stepDesk, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
 import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
 import { PROBE, PROBE_KIND } from './workspace/probe';
@@ -43,7 +43,7 @@ import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DISPLAY_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT } from './workspace/terms';
+import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DISPLAY_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { useSendReceiver } from './workspace/useSend';
@@ -1359,6 +1359,25 @@ function DeskApp(props: DeskProps) {
     }
     props.onSwitch(target, switchSaid(target));
   };
+  /**
+   * F-190: Diesen Desk verlassen, ohne neue Fenster: Zeigt ein anderes Fenster den Main Desk,
+   * schließt sich dieses (geht nur bei selbst geöffneten); bleibt es offen oder gibt es keinen
+   * Main Desk, zeigt dieses Fenster den Main Desk.
+   */
+  const leaveDesk = (said: string) => {
+    if (!openRef.current.has('')) return props.onSwitch('', said);
+    window.close();
+    window.setTimeout(() => props.onSwitch('', said), 300);
+  };
+  // F-190: Gibt es den Desk dieses Fensters nicht mehr, wird es zum Main Desk (bzw. schließt sich,
+  // wenn der Main Desk schon in einem anderen Fenster offen ist). Kurz warten, bis sich die offenen
+  // Fenster gemeldet haben.
+  const gone = deskGone(ws, win);
+  useEffect(() => {
+    if (!gone) return;
+    const t = window.setTimeout(() => leaveDesk(DESK_GONE_TEXT.here), 1500);
+    return () => window.clearTimeout(t);
+  }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
   /** F-160: Ansage für den Desk, der gleich hier erscheint (Stelle im Ring nach dem Wechsel). */
   const switchSaid = (target: string) => {
     const ring = deskRing(ws, target, new Set([...windows.open].filter((w) => w !== win)));
@@ -1976,7 +1995,12 @@ function DeskApp(props: DeskProps) {
   if (mine.length === 0) {
     content = (
       <div className="empty">
-        <p>{win ? 'Dieser Desk ist leer – seine Portale sind wieder auf dem Main Desk oder geschlossen.' : 'Keine Portale geöffnet.'}</p>
+        <p>{win ? DESK_GONE_TEXT.empty : 'Keine Portale geöffnet.'}</p>
+        {win && (
+          <button type="button" title={DESK_GONE_TEXT.toMainTitle} onClick={() => props.onSwitch('', DESK_GONE_TEXT.here)}>
+            {DESK_GONE_TEXT.toMain}
+          </button>
+        )}
         <button
           type="button"
           className="fx"
@@ -2209,9 +2233,8 @@ function DeskApp(props: DeskProps) {
               onClick={() => {
                 const go = (dissolve: boolean) => {
                   dispatch({ type: 'returnAll', win, dissolve });
-                  if (!openAppWindow('')) return notify(POPUP_BLOCKED);
-                  // Selbst geöffnete Zusatzfenster schließen sich danach; sonst bleibt der Hinweis „leer“.
-                  window.setTimeout(() => window.close(), 150);
+                  // F-190: keine neuen Fenster – schließen oder hier zum Main Desk werden
+                  leaveDesk(DESK_GONE_TEXT.returned);
                 };
                 // F-51: gespeicherte Layouts gingen verloren – erst nachfragen
                 const others = layoutsOf(ws, win).list.length - 1;

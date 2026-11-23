@@ -65,9 +65,9 @@ export function initialsOf(name: string): string {
   return (first + last).toUpperCase();
 }
 
-/** Gruß je Tageszeit (Stunde 0–23); mit Namen „Guten Abend, Enrico“. */
+/** Gruß je Tageszeit (Stunde 0–23): Morgen 5–9, Tag 9–17, Abend 17–23 Uhr, nachts „Hallo“ (Wunsch Enrico V43); mit Namen „Guten Abend, Enrico“. */
 export function greetingFor(hour: number, name = ''): string {
-  const g = hour >= 5 && hour < 11 ? 'Guten Morgen' : hour >= 11 && hour < 18 ? 'Guten Tag' : hour >= 18 && hour < 23 ? 'Guten Abend' : 'Hallo';
+  const g = hour >= 5 && hour < 9 ? 'Guten Morgen' : hour >= 9 && hour < 17 ? 'Guten Tag' : hour >= 17 && hour < 23 ? 'Guten Abend' : 'Hallo';
   const n = cleanName(name);
   return n ? `${g}, ${n}` : g;
 }

@@ -1179,6 +1179,14 @@ describe('F-27 Panels herauslösen (Fenster)', () => {
     return Win.moveToWindow(ws, [ws.panels[0].id], win);
   };
 
+  it('F-190: Desk gilt als weg, sobald alles zurück ist – der Main Desk nie', () => {
+    const ws = firstIn('w2');
+    expect(Win.deskGone(ws, 'w2')).toBe(false);
+    expect(Win.deskGone(Win.returnAll(ws, 'w2'), 'w2')).toBe(true);
+    expect(Win.deskGone(ws, 'unbekannt')).toBe(true);
+    expect(Win.deskGone(Win.returnAll(ws, 'w2'), '')).toBe(false);
+  });
+
   it('Fenster-Id aus der Adresse und Adresse eines Fensters', () => {
     expect(Win.winFromSearch('?win=w2')).toBe('w2');
     expect(Win.winFromSearch('')).toBe('');
@@ -1940,6 +1948,10 @@ describe('F-179 Profil', () => {
     expect(Pr.initialsOf('')).toBe('');
     expect(Pr.greetingFor(7, 'Enrico')).toBe('Guten Morgen, Enrico');
     expect(Pr.greetingFor(13)).toBe('Guten Tag');
+    expect(Pr.greetingFor(8)).toBe('Guten Morgen');
+    expect(Pr.greetingFor(9)).toBe('Guten Tag');
+    expect(Pr.greetingFor(16)).toBe('Guten Tag');
+    expect(Pr.greetingFor(17)).toBe('Guten Abend');
     expect(Pr.greetingFor(20, ' Enrico ')).toBe('Guten Abend, Enrico');
     expect(Pr.greetingFor(2, 'Enrico')).toBe('Hallo, Enrico');
   });

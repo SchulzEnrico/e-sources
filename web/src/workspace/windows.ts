@@ -35,6 +35,14 @@ export function windowName(ws: Workspace, win: string): string {
   return ws.windows.find((w) => w.id === win)?.name ?? 'Leerer Desk';
 }
 
+/**
+ * F-190: Zeigt dieses Fenster einen Desk, den es nicht mehr gibt (alle Portale zurück, geschlossen
+ * oder aufgelöst)? Der Main Desk ('') ist nie weg.
+ */
+export function deskGone(ws: Workspace, win: string): boolean {
+  return !!win && !ws.windows.some((w) => w.id === win);
+}
+
 /** Kleinste freie Nummer ab 2: „Fenster 2“, „Fenster 3“ … */
 export function nextWindowName(windows: Named[]): string {
   const used = new Set(windows.map((w) => w.name));

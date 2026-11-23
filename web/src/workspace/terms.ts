@@ -345,6 +345,15 @@ export const WEB_TEXT = {
 } as const;
 
 /** F-189 Stufe 2: „An E-Sources senden“ (Lesezeichen in der Lesezeichenleiste des Browsers). */
+/** F-190: Ein Desk ist leer bzw. aufgelöst – was zuletzt übrig bleibt, ist immer der Main Desk. */
+export const DESK_GONE_TEXT = {
+  empty: 'Dieser Desk ist leer – seine Portale sind wieder auf dem Main Desk oder geschlossen.',
+  toMain: 'Zum Main Desk',
+  toMainTitle: 'Zeigt den Main Desk hier in diesem Fenster',
+  here: 'Der Desk ist aufgelöst. Hier ist jetzt der Main Desk mit allen Portalen.',
+  returned: 'Alle Portale sind zurück. Hier ist jetzt der Main Desk.',
+};
+
 export const SEND_TEXT = {
   bookmark: 'An E-Sources senden',
   bookmarkLabel: 'An E-Sources senden – in die Lesezeichenleiste ziehen',

@@ -30,11 +30,11 @@ Stand: 23.11.2026 · Chat V60 abgeschlossen · Nächster Chat: **V61 E-Sources**
 ## Nächste Schritte
 
 1. **Commits** (Enrico, GitHub Desktop): Repo `e-sources` und Repo `SchulzEnrico.github.io` (Texte unten), dann PO.
-2. **Prüfen durch Enrico** (Demo, Chrome am Mac): Zahnrad › „Farbpipette …“ › „Farbe aufnehmen“ und in eine Seite in einem Portal klicken – stimmt die Farbe (Dialog darf nicht abdunkeln)? Liegt HEX in der Zwischenablage? In Safari: „Farbwahl des Systems …“ mit der Lupe. Dann ⋮ › „Slot als Datei speichern“, auf dem iPhone bzw. einem anderen Desk „Slot aus Datei laden …“.
+2. **Geprüft (Enrico, V60):** Farbpipette geht. Repo e-sources ist gepusht; Portfolio-Commit „Aktuelles: Farbpipette und Slot-Export“ war noch offen (Text unten).
 3. **Nächstes Paket** mit Enrico wählen. Offen aus der Liste: F-157 bebilderte Erklärungen, Entwicklerwerkzeuge (F-16 Screenshot je Portal, F-18 Rest, F-115), Fokus-Timer (F-90, F-91), weitere Portaltypen (F-17, F-105, F-148). Vorher fragen, was im Alltag am meisten fehlt.
 4. Kleine offene Punkte mit Barrierefreiheit (bei Restplatz): Import-Rückfrage von `window.confirm` auf `ask` umstellen (V57); Kopfzeile schmaler Portale läuft über (V47/V54); Fokus nach Hinweis-Knopf fällt auf `body` (V37); neu: Meldung „Slot … geladen“ wird von der Kategorie-Frage verdeckt (siehe unten).
 5. Später (Wunsch Enrico): Stand auf allen Geräten **zurücksetzen**, „sobald wir so weit sind“.
-6. **Spaces und Cases** prüft Enrico ganz am Ende (nicht vorher fragen).
+6. **Spaces und Cases sowie Slot als Datei (F-158)** prüft Enrico ganz am Ende (nicht vorher fragen).
 
 ## Commit-Texte V60
 

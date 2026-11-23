@@ -3427,3 +3427,19 @@ describe('F-205 Begrüßung wählbar', () => {
     expect(p?.form).toBe('de');
   });
 });
+
+describe('V54: Untersuchen erklären (F-200 e) und Tour „Entwickler-Modus“', () => {
+  it('Hilfe-Eintrag Entwickler-Modus erklärt Untersuchen und hat die Frage dazu', () => {
+    const e = H.helpById('devMode');
+    expect(e?.text).toContain('Untersuchen');
+    expect(e?.text).toContain('eigenes Fenster');
+    expect(e?.questions).toContain('Wie sehe ich den Code einer Seite?');
+  });
+  it('Tour „Entwickler-Modus“: Leiste von Gerät bis Beenden, Untersuchen als vorletzter Schritt, eigener Merker', () => {
+    const ids = Tour.TOURS.dev.map((s) => s.id);
+    expect(ids).toEqual(['intro', 'device', 'turn', 'scale', 'size', 'end', 'inspect', 'again']);
+    expect(Tour.TOURS.dev[6].text).toContain('Untersuchen');
+    expect(Tour.TOUR_KEY.dev).toBe('esource.tour.dev.v1');
+    expect(H.helpById('tourDev')?.run).toBe('tourDev');
+  });
+});

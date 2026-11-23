@@ -735,4 +735,10 @@ export const DEV_TEXT = {
   end: 'Beenden',
   endTitle: 'Entwickler-Modus beenden – Zoom und Design wie vorher',
   noZoom: (name: string) => `Im Entwickler-Modus zoomt „${name}“ nicht frei – nimm den Zoom-Test in der Leiste.`,
+  // V54: Untersuchen mit den Werkzeugen des Browsers (F-200 e) und Tour
+  inspect: 'Code einer Seite ansehen: Rechtsklick in die Seite im Portal › „Untersuchen“. Die Entwicklerwerkzeuge des Browsers zeigen dann Code und Elemente genau dieser Seite. Wichtig: Werkzeuge vorher in ein eigenes Fenster legen (in den Werkzeugen ⋮ › „Dock side“ › „Undock into separate window“, auf Deutsch „Andockposition“ › „In separates Fenster auslagern“). Angedockt wird E-Sources schmaler, ordnet die Slots neu, und das Portal rutscht womöglich nach hinten in einen Stack.',
+  tourOffer: 'Neu im Entwickler-Modus? Die kurze Tour zeigt die Leiste und wie du den Code einer Seite untersuchst.',
+  tourStart: 'Tour starten',
+  btnTitle: 'Entwickler-Modus einschalten.',
+  btnLabel: (name: string) => `Entwickler-Modus für „${name}“ einschalten`,
 };

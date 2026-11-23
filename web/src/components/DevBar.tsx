@@ -2,6 +2,8 @@ import { useEffect, useId, useState } from 'react';
 import { DEV_DEVICES, DEV_SCALES, breakpointOf, devSizeOf } from '../workspace/dev';
 import type { DevView } from '../workspace/types';
 import { DEV_TEXT } from '../workspace/terms';
+import { offerTourOnce, requestTour } from '../workspace/tour';
+import { flash } from '../workspace/flash';
 
 /**
  * F-200 Stufe 2: Leiste des Entwickler-Modus unter der Kopfzeile des Portals – Gerät, Drehen,
@@ -23,6 +25,14 @@ export function DevBar(props: {
   const size = devSizeOf(v);
   const wide = !!size && size.w > size.h;
   const [said, setSaid] = useState('');
+  // V54: Tour „Entwickler-Modus“ einmal anbieten, wenn die Leiste zum ersten Mal erscheint
+  useEffect(() => {
+    // Merker erst im Zeitgeber setzen – im StrictMode läuft der Effekt doppelt, der erste Zeitgeber wird gelöscht.
+    const t = window.setTimeout(() => {
+      if (offerTourOnce('dev')) flash({ text: DEV_TEXT.tourOffer, ms: 12000, action: { label: DEV_TEXT.tourStart, run: () => requestTour('dev') } });
+    }, 700);
+    return () => window.clearTimeout(t);
+  }, []);
   useEffect(() => {
     if (!props.page.w) return;
     const t = window.setTimeout(() => setSaid(DEV_TEXT.said(props.page.w, props.page.h, cls, scale)), 900);

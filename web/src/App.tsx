@@ -618,6 +618,11 @@ function DeskApp(props: DeskProps) {
   useEffect(() => {
     const on = (e: Event) => {
       const id = (e as CustomEvent<TourId>).detail;
+      // V54: Tour „Entwickler-Modus“ (Angebot aus der Leiste beim ersten Einschalten)
+      if (id === 'dev') {
+        window.setTimeout(() => setTour('dev'), 0);
+        return;
+      }
       if (id !== 'sources') return;
       setOverview(false);
       window.setTimeout(() => setTour('sources'), 0);
@@ -2174,6 +2179,15 @@ function DeskApp(props: DeskProps) {
         return setProfileOpen(true);
       case 'reload':
         return window.location.reload();
+      case 'tourDev': {
+        // V54: Tour am aktiven Portal; ist dort der Entwickler-Modus aus, wird er eingeschaltet
+        setOverview(false);
+        const id = currentPanel();
+        const pm = id ? ws.panels.find((x) => x.id === id) : undefined;
+        if (!pm) return notify('Erst ein Portal anklicken, dann die Tour „Entwickler-Modus“ starten.');
+        if (!pm.dev) dispatch({ type: 'devPanel', id: pm.id });
+        return window.setTimeout(() => setTour('dev'), pm.dev ? 0 : 250);
+      }
       case 'devMode': {
         const id = currentPanel();
         const pm = id ? ws.panels.find((x) => x.id === id) : undefined;

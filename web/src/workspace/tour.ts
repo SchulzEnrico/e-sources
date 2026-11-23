@@ -6,7 +6,7 @@
  */
 import { BROWSER_EXPORT, browserSend, helpById } from './help';
 import { type BrowserName, browserOf, currentUa, modKey } from './browser';
-import { CATEGORY_TEXT, PAUSE_TEXT, TINT_TEXT } from './terms';
+import { CATEGORY_TEXT, DEV_TEXT, PAUSE_TEXT, TINT_TEXT } from './terms';
 
 export interface TourStep {
   id: string;
@@ -30,7 +30,7 @@ export interface TourStep {
   keep?: boolean;
 }
 
-export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources';
+export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev';
 
 const t = (id: string) => helpById(id)?.text ?? '';
 
@@ -43,6 +43,8 @@ const I = 'dialog.import';
 const K = 'dialog.colors';
 /** F-202 Stufe 4: vorderes Portal auf dem Desk */
 const P = 'main section[data-panel-id]';
+/** V54: sichtbares Portal im Entwickler-Modus (F-200) */
+const V = 'main .tile:not(.is-back) section.win--dev';
 
 export const TOURS: Record<TourId, TourStep[]> = {
   start: [
@@ -317,6 +319,26 @@ export const TOURS: Record<TourId, TourStep[]> = {
       text: 'Diese Tour findest du jederzeit in der Hilfe (?) und in der Suche („Tour Sources“).',
     },
   ],
+  // V54: Werkbank des Entwickler-Modus (F-200 Stufe 2) mit „Untersuchen“ (F-200 e)
+  dev: [
+    {
+      id: 'intro',
+      title: 'Entwickler-Modus',
+      target: V,
+      text: 'Dieses Portal ist jetzt eine Werkbank für Entwickler und Designer: Terminal-Look und eine eigene Leiste unter der Kopfzeile. Mit → weiter, mit Esc beenden.',
+    },
+    { id: 'device', title: 'Gerät', target: `${V} .devbar__field`, text: DEV_TEXT.deviceTitle + ' Der Slot wächst dabei auf das Seitenverhältnis des Geräts.' },
+    { id: 'turn', title: 'Drehen', target: `${V} .devbar__turn`, text: 'Wechselt zwischen Hoch- und Querformat des gewählten Geräts. Die Beschriftung zeigt die aktuelle Lage.' },
+    { id: 'scale', title: 'Zoom-Test', target: `${V} .devbar__scales`, text: DEV_TEXT.scaleTitle },
+    { id: 'size', title: 'Maße', target: `${V} .devbar__size`, text: 'So groß ist die Seite in CSS-Pixeln – danach richten sich ihre Media Queries. Dahinter die Geräteklasse (Smartphone, Tablet, Laptop …). Der Tooltip nennt auf Retina-Bildschirmen auch die Bildschirmpunkte, so groß wird ein Screenshot.' },
+    { id: 'end', title: 'Lineal und Beenden', target: `${V} .devbar__end`, text: '„Lineal“ legt Maßstäbe an den Rand der Seite. „Beenden“ schaltet den Entwickler-Modus aus – Zoom und Design kommen zurück.' },
+    { id: 'inspect', title: 'Code untersuchen', target: `${V} .win__body`, text: DEV_TEXT.inspect },
+    {
+      id: 'again',
+      title: 'Tour wieder starten',
+      text: 'Diese Tour findest du jederzeit in der Hilfe (?) und in der Suche („Tour Entwickler“).',
+    },
+  ],
 };
 
 /** Starttour (F-95) – bleibt für bestehende Stellen erhalten. */
@@ -328,7 +350,7 @@ export function tourSteps(has: (selector: string) => boolean, steps: TourStep[] 
 }
 
 /** Speicherschlüssel je Tour; die Starttour behält ihren bisherigen Schlüssel. */
-export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1' };
+export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1' };
 
 /** Wurde die Tour schon gezeigt (beendet oder übersprungen)? */
 export function tourSeen(id: TourId = 'start'): boolean {

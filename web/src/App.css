@@ -4541,6 +4541,7 @@ button.is-off:hover,
 .bm-cat__name { display: inline-flex; align-items: center; gap: 6px; }
 .rules__icon { margin-right: 4px; opacity: 0.85; }
 .win__max .icon,
+.win__devbtn .icon,
 .win__star .icon,
 .bm-pin .icon,
 .menu > button > .icon { display: inline-block; vertical-align: -2px; }
@@ -5376,7 +5377,8 @@ button.is-off:hover,
 }
 .devbar button { padding: 2px 8px; font-size: 12px; }
 .devbar__field { display: inline-flex; align-items: center; gap: 6px; }
-.devbar__field select { font-size: 12px; padding: 2px 6px; max-width: 22ch; }
+.devbar__field select { font-size: 12px; padding: 2px 6px; max-width: min(34ch, 100%); }
+.devbar__field { min-width: 0; max-width: 100%; }
 .devbar__scales { display: inline-flex; align-items: center; gap: 0; margin: 0; padding: 0; border: 0; }
 .devbar__scales legend { float: left; margin-right: 6px; padding: 0; }
 .devbar__scale { position: relative; cursor: pointer; }

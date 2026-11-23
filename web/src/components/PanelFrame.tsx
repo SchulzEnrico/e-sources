@@ -878,6 +878,18 @@ export function PanelFrame(p: Props) {
             </button>
           )}
           {/* F-15: Lineal – in der Kopfzeile nur im Entwickler-Modus (Leiste); sonst über ⋮ und die Suche (F-200 Stufe 2) */}
+          {/* V54 (Wunsch Enrico): Entwickler-Modus direkt einschalten; aus geht es mit „Beenden“ in der Leiste */}
+          {!p.panel.dev && (
+            <button
+              type="button"
+              className="win__devbtn"
+              onClick={() => p.dispatch({ type: 'devPanel', id: p.panel.id })}
+              title={`${DEV_TEXT.btnTitle} ${DEV_TEXT.menuHint}`}
+              aria-label={DEV_TEXT.btnLabel(p.panel.name)}
+            >
+              <Icon name="dev" size={14} />
+            </button>
+          )}
           <button
             type="button"
             className="win__max"

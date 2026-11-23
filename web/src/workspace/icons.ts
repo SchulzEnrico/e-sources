@@ -33,6 +33,12 @@ export const ICONS = {
   todo: { d: ['M2 2.5h3v3H2z', 'M7 4h7', 'M2 10.5h3v3H2z', 'M7 12h7', 'M2.6 12l.8.8 1.5-1.7'] },
   kanban: { d: ['M2 2.5h3.5v11H2z', 'M6.25 2.5h3.5v7h-3.5z', 'M10.5 2.5H14v4.5h-3.5z'] },
   matrix: { d: ['M2 2h12v12H2z', 'M8 2v12', 'M2 8h12'] },
+  // F-206 Notiz-Leiste
+  task: { d: ['M2.5 3.5h4v4h-4z', 'M3.4 5.5l.9.9 1.4-1.6', 'M9 5.5h5', 'M2.5 10h4v4h-4z', 'M9 12h5'] },
+  list: { d: ['M6 4h8', 'M6 8h8', 'M6 12h8', 'M2.5 4h.01', 'M2.5 8h.01', 'M2.5 12h.01'], w: 1.6 },
+  heading: { d: ['M4 3v10', 'M12 3v10', 'M4 8h8'], w: 1.6 },
+  bold: { d: ['M4.5 2.5h4a2.75 2.75 0 0 1 0 5.5h-4z', 'M4.5 8h4.8a2.75 2.75 0 0 1 0 5.5H4.5z'], w: 1.7 },
+  trash: { d: ['M2.5 4.5h11', 'M6 4.5V2.5h4v2', 'M4 4.5l.8 9.5h6.4l.8-9.5', 'M6.6 7v4.5', 'M9.4 7v4.5'] },
   // F-170: Slotmaschine – Gehäuse mit drei Walzen und Hebel
   jackpot: { d: ['M1.5 5h9v9h-9z', 'M4 8v3', 'M6 8v3', 'M8 8v3', 'M10.5 10.5h2.5V4', ring(13, 2.8, 1.2)] },
   launcher: { d: ['M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9', 'M9.5 2.5h4v4', 'M13.3 2.7 7.8 8.2'], w: 1.3 },
@@ -163,7 +169,7 @@ export type IconName = keyof typeof ICONS;
 
 /** Symbol je Hilfe-Eintrag (HELP, F-156) – gleiche Ids. Fehlt ein Eintrag, meldet das der Test. */
 export const HELP_ICON: Record<string, IconName> = {
-  note: 'note', newNote: 'note', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note',
+  note: 'note', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note',
   devMode: 'dev',
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',

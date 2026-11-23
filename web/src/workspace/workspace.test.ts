@@ -49,6 +49,7 @@ import * as Web from './websearch';
 import * as Snd from './send';
 import * as Rc from './recent';
 import * as No from './notes';
+import * as ND from './noteDoc';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -3942,6 +3943,29 @@ describe('F-206 Schritt 1: Notizen und Ansichten (Datenmodell)', () => {
     expect(No.deleteNote(ws, 'fehlt')).toBeNull();
   });
 
+  it('löscht eine Notiz und lässt Unter-Notizen hochrutschen', () => {
+    let ws = base();
+    let g: string, p: string, k1: string, k2: string, e: string;
+    ({ ws, id: g } = mk(ws, { title: 'G' }));
+    ({ ws, id: p } = mk(ws, { title: 'P', parent: g }));
+    ({ ws, id: k1 } = mk(ws, { title: 'K1', parent: p }));
+    ({ ws, id: k2 } = mk(ws, { title: 'K2', parent: p, state: 'done' }));
+    ({ ws, id: e } = mk(ws, { title: 'E', parent: k1 }));
+    expect(No.openDescendants(ws, p).map((n) => n.title)).toEqual(['K1', 'E']);
+    expect(No.openDescendants(ws, k2)).toHaveLength(0);
+    const r = No.deleteNote(ws, p, { keepChildren: true })!;
+    expect(r.ws.notes!.map((n) => n.title)).toEqual(['G', 'K1', 'K2', 'E']);
+    expect(No.noteById(r.ws, k1)!.parent).toBe(g);
+    expect(No.noteById(r.ws, k2)!.parent).toBe(g);
+    expect(No.noteById(r.ws, e)!.parent).toBe(k1);
+    const back = No.restoreNotes(r.ws, r.undo, act);
+    expect(No.noteById(back, k1)!.parent).toBe(p);
+    expect(No.noteById(back, k2)!.parent).toBe(p);
+    // oberste Ebene: Kinder haben danach keine Eltern
+    const top = No.deleteNote(ws, g, { keepChildren: true })!;
+    expect(No.noteById(top.ws, p)!.parent).toBeUndefined();
+  });
+
   it('löscht eine Ansicht (Notizen bleiben) und holt sie zurück', () => {
     let ws = base();
     let v: string, n: string;
@@ -4088,5 +4112,48 @@ describe('F-206 Schritt 2: Notiz im Tab', () => {
       expect(H.HELP.some((h) => h.id === id)).toBe(true);
       expect(Ic.HELP_ICON[id]).toBeDefined();
     }
+  });
+});
+
+describe('F-206 Notiz-Eingabe: Markdown ↔ Blöcke', () => {
+  const md = ['# Einkauf', 'Erste Zeile mit **fett** und *kursiv*', '- [ ] Milch', '- [x] Brot', '', '- Punkt', '1. eins', '2. zwei', '> Zitat', '```', 'a *b*', '```', '\\- kein Punkt'].join('\n');
+  it('liest jede Zeile als Block und schreibt sie unverändert zurück', () => {
+    const b = ND.parseDoc(md);
+    expect(b.map((x) => x.k)).toEqual(['h', 'p', 'task', 'task', 'p', 'li', 'ol', 'ol', 'quote', 'code', 'p']);
+    expect(b[2]).toEqual({ k: 'task', text: 'Milch', done: false });
+    expect(b[3].done).toBe(true);
+    expect(b[9].text).toBe('a *b*');
+    expect(b[10]).toEqual({ k: 'p', text: '- kein Punkt' });
+    expect(ND.serializeDoc(b)).toBe(md);
+  });
+  it('zählt Nummern neu, lässt leere Absätze am Ende weg', () => {
+    expect(ND.serializeDoc([{ k: 'ol', text: 'a' }, { k: 'ol', text: 'b' }, { k: 'p', text: 'x' }, { k: 'ol', text: 'c' }, { k: 'p', text: '' }])).toBe('1. a\n2. b\nx\n1. c');
+    expect(ND.serializeDoc([{ k: 'p', text: '' }])).toBe('');
+    expect(ND.parseDoc('')).toEqual([{ k: 'p', text: '' }]);
+  });
+  it('erkennt Tipp-Kürzel', () => {
+    expect(ND.shortcut('- ')).toEqual({ k: 'li', text: '' });
+    expect(ND.shortcut('[] ')).toEqual({ k: 'task', text: '', done: false });
+    expect(ND.shortcut('[ ] a')).toEqual({ k: 'task', text: 'a', done: false });
+    expect(ND.shortcut('- [ ] ')!.k).toBe('task');
+    expect(ND.shortcut('## x')).toEqual({ k: 'h', text: 'x', level: 2 });
+    expect(ND.shortcut('1. ')!.k).toBe('ol');
+    expect(ND.shortcut('-x')).toBeNull();
+  });
+  it('wandelt Inline-Teile hin und zurück, getippte Zeichen werden geschützt', () => {
+    const s = ND.parseInline('a **fett *mit* kursiv** `co*de` [Seite](https://x.de) https://y.de/ \\*kein\\*');
+    expect(s.map((x) => x.t)).toEqual(['text', 'b', 'text', 'code', 'text', 'link', 'text', 'link', 'text']);
+    expect(ND.plainOf(s)).toBe('a fett mit kursiv co*de Seite https://y.de/ *kein*');
+    expect(ND.inlineMd(s)).toBe('a **fett *mit* kursiv** `co*de` [Seite](https://x.de) https://y.de/ \\*kein\\*');
+    expect(ND.parseInline('[x](javascript:alert(1))')[0].t).toBe('text');
+    expect(ND.inlineMd([{ t: 'b', kids: [{ t: 'text', text: ' fett ' }] }])).toBe(' **fett** ');
+    expect(ND.mergeSpans([{ t: 'text', text: 'a' }, { t: 'text', text: 'b' }, { t: 'b', kids: [{ t: 'text', text: 'c' }] }, { t: 'b', kids: [{ t: 'text', text: 'd' }] }])).toEqual([
+      { t: 'text', text: 'ab' },
+      { t: 'b', kids: [{ t: 'text', text: 'cd' }] },
+    ]);
+    expect(ND.taskCount(md)).toEqual({ done: 1, all: 2 });
+  });
+  it('Titel ohne Schutzzeichen', () => {
+    expect(No.titleOf({ title: '', text: '\\- a \\*b\\*' })).toBe('- a b');
   });
 });

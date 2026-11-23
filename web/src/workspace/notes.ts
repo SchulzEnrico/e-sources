@@ -66,7 +66,7 @@ export function titleOf(n: Pick<Note, 'title' | 'text'>): string {
   if (own) return own;
   const line = n.text
     .split('\n')
-    .map((l) => l.replace(/^\s*(#{1,6}\s+|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+|>\s*)/, '').replace(/[*_`~]/g, '').trim())
+    .map((l) => l.replace(/^\s*(#{1,6}\s+|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+|>\s*)/, '').replace(/\\(.)/g, '$1').replace(/[*_`~]/g, '').trim())
     .find((l) => l.length > 0);
   if (!line) return '';
   return line.length > TITLE_MAX ? `${line.slice(0, TITLE_MAX - 1).trimEnd()}…` : line;
@@ -544,6 +544,8 @@ export interface NoteUndo {
   views: NoteView[];
   /** Vorgänger-Listen anderer Notizen vor dem Löschen. */
   links: { id: string; after: NoteLink[] }[];
+  /** Eltern der Unter-Notizen vor dem Hochziehen (nur bei keepChildren). */
+  parents?: { id: string; parent?: string }[];
   /** Tabs, die auf eine gelöschte Notiz zeigten. */
   tabs: { panel: string; tab: string; note: string }[];
 }
@@ -563,14 +565,21 @@ function clearTabRefs(panels: PanelMeta[], ids: Set<string>, key: 'note' | 'view
   });
 }
 
+/** Unter-Notizen (alle Ebenen), die noch nicht erledigt oder archiviert sind. */
+export function openDescendants(ws: Workspace, id: string): Note[] {
+  return descendantsOf(ws, id).filter((d) => d.state !== 'done' && d.state !== 'archived');
+}
+
 /**
- * Notiz löschen – samt Unter-Notizen. Bezüge (Ansichten, Vorgänger, Anhänge, Tabs) werden
- * gelöst; `undo` holt alles mit restoreNotes zurück.
+ * Notiz löschen – samt Unter-Notizen, oder mit `keepChildren` ohne sie: Die direkten
+ * Unter-Notizen rutschen dann eine Ebene hoch (Eltern = Eltern der gelöschten Notiz).
+ * Bezüge (Ansichten, Vorgänger, Anhänge, Tabs) werden gelöst; `undo` holt alles mit
+ * restoreNotes zurück.
  */
-export function deleteNote(ws: Workspace, id: string): { ws: Workspace; undo: NoteUndo } | null {
+export function deleteNote(ws: Workspace, id: string, opts: { keepChildren?: boolean } = {}): { ws: Workspace; undo: NoteUndo } | null {
   const n = noteById(ws, id);
   if (!n) return null;
-  const gone = new Set([id, ...descendantsOf(ws, id).map((d) => d.id)]);
+  const gone = new Set([id, ...(opts.keepChildren ? [] : descendantsOf(ws, id).map((d) => d.id))]);
   const all = notesOf(ws);
   const undo: NoteUndo = { notes: [], views: [], links: [], tabs: [] };
   all.forEach((x, index) => gone.has(x.id) && undo.notes.push({ note: x, index }));
@@ -578,6 +587,12 @@ export function deleteNote(ws: Workspace, id: string): { ws: Workspace; undo: No
     .filter((x) => !gone.has(x.id))
     .map((x) => {
       let out = x;
+      if (x.parent === id) {
+        (undo.parents ??= []).push({ id: x.id, parent: x.parent });
+        out = { ...out };
+        if (n.parent) out.parent = n.parent;
+        else delete out.parent;
+      }
       if (x.after?.some((l) => gone.has(l.id))) {
         undo.links.push({ id: x.id, after: x.after });
         const after = x.after.filter((l) => !gone.has(l.id));
@@ -610,8 +625,10 @@ export function restoreNotes(ws: Workspace, undo: NoteUndo, act: Act = {}): Work
     notes.splice(Math.min(index, notes.length), 0, { ...n, trail: addEvent(n.trail, 'restored', act) });
   }
   const links = new Map(undo.links.map((l) => [l.id, l.after]));
+  const parents = new Map((undo.parents ?? []).map((p) => [p.id, p.parent]));
   const fixed = notes.map((x) => {
     let out = x;
+    if (parents.has(x.id) && back.has(parents.get(x.id)!)) out = { ...out, parent: parents.get(x.id) };
     const after = links.get(x.id);
     if (after) out = { ...out, after: after.filter((l) => l.id === x.id || notes.some((y) => y.id === l.id)) };
     return out;

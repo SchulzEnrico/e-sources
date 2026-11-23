@@ -173,7 +173,9 @@ export type Action =
   /** F-206: im Tab eine neue Notiz bzw. Ansicht anlegen (Tab zeigt nur darauf). */
   | { type: 'tabNote'; id: string; tab: string; kind: 'note' | NoteViewKind; by?: string; noteId?: string }
   | { type: 'noteEdit'; id: string; patch: No.NotePatch; by?: string }
-  | { type: 'noteState'; id: string; state: NoteState; reason?: string; by?: string };
+  | { type: 'noteState'; id: string; state: NoteState; reason?: string; by?: string }
+  | { type: 'noteDelete'; id: string; keepChildren?: boolean }
+  | { type: 'noteRestore'; undo: No.NoteUndo; by?: string };
 
 export function reducer(ws: Workspace, a: Action): Workspace {
   const next = step(ws, a);
@@ -242,6 +244,10 @@ function step(ws: Workspace, a: Action): Workspace {
       return No.updateNote(ws, a.id, a.patch, { by: a.by });
     case 'noteState':
       return No.setState(ws, a.id, a.state, { by: a.by }, a.reason);
+    case 'noteDelete':
+      return No.deleteNote(ws, a.id, { keepChildren: a.keepChildren })?.ws ?? ws;
+    case 'noteRestore':
+      return No.restoreNotes(ws, a.undo, { by: a.by });
     case 'selectTab':
       return W.selectTab(ws, a.id, a.tab);
     case 'moveTab':

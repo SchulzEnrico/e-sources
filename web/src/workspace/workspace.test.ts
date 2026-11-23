@@ -28,6 +28,7 @@ import * as BB from './browserBookmarks';
 import * as SH from './sortHelp';
 import * as Pr from './profile';
 import * as Up from './update';
+import * as Br from './browser';
 import * as Ti from './tint';
 import * as Ca from './category';
 import * as Ru from './rules';
@@ -1665,7 +1666,7 @@ describe('F-172 Tour „Cockpit“', () => {
     const imp = Tour.TOURS.import;
     expect(Tour.tourSteps(() => false, imp).map((s) => s.id)).toEqual(['intro', 'export', 'choose']);
     const inDialog = Tour.tourSteps((sel) => sel.startsWith('dialog.import'), imp).map((s) => s.id);
-    expect(inDialog).toEqual(['intro', 'export', 'summary', 'how', 'go', 'sort']);
+    expect(inDialog).toEqual(['intro', 'export', 'summary', 'how', 'go', 'sort', 'sendToo']);
     expect(imp.find((s) => s.id === 'export')?.list?.length).toBe(4);
     expect(H.BROWSER_EXPORT.map((b) => b.browser)).toEqual(['Chrome', 'Edge', 'Firefox', 'Safari']);
     expect(H.browserExportLine()).toContain('Safari: ');
@@ -3057,5 +3058,67 @@ describe('F-194 Zoom je Portal', () => {
     expect(Zm.setZoom(z, 'p', 100).panels[0]).toEqual({ id: 'p', name: 'P' });
     expect(Zm.parseZoom(33)).toBeUndefined();
     expect(Zm.zoomStyle(80)).toEqual({ width: '125%', height: '125%', transform: 'scale(0.8)', transformOrigin: '0 0' });
+  });
+});
+
+describe('F-197: „Öffnen in“ einrichten', () => {
+  it('erkennt den Browser und die Taste für Kürzel', () => {
+    const mac = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)';
+    expect(Br.browserOf(`${mac} Chrome/131.0.0.0 Safari/537.36`)).toBe('Chrome');
+    expect(Br.browserOf(`${mac} Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0`)).toBe('Edge');
+    expect(Br.browserOf('Mozilla/5.0 (Windows NT 10.0; rv:132.0) Gecko/20100101 Firefox/132.0')).toBe('Firefox');
+    expect(Br.browserOf(`${mac} Version/18.1 Safari/605.1.15`)).toBe('Safari');
+    expect(Br.browserOf(`${mac} Chrome/131.0.0.0 Safari/537.36 OPR/114.0.0.0`)).toBeNull();
+    expect(Br.browserOf('')).toBeNull();
+    expect(Br.modKey(mac)).toBe('⌘');
+    expect(Br.modKey('Mozilla/5.0 (Windows NT 10.0)')).toBe('Strg');
+  });
+  it('Tour: Schritte je Browser, unbekannt = alle Wege', () => {
+    const chrome = Tour.sendTour('Chrome', '⌘');
+    expect(chrome.map((s) => s.id)).toEqual(['intro', 'file', 'manager', 'import', 'bar', 'try']);
+    expect(chrome[1].keep).toBe(true);
+    expect(chrome[2].action).toBe('Adresse kopieren');
+    expect(chrome[2].text).toContain('chrome://bookmarks');
+    expect(chrome[4].text).toContain('⌘+Umschalt+B');
+    expect(Tour.sendTour('Firefox', 'Strg')[2].action).toBeUndefined();
+    const any = Tour.sendTour(null, 'Strg');
+    expect(any[3].list).toHaveLength(4);
+    expect(Tour.TOURS.import.map((s) => s.id)).toContain('sendToo');
+  });
+  it('Export bringt „Öffnen in“ mit Symbol ganz oben mit', () => {
+    const ws = W.defaultWorkspace();
+    const html = BB.bookmarkFileOf(ws, new Date(0), { href: 'javascript:void(0)', title: 'Öffnen in', icon: 'data:image/png;base64,AA' });
+    expect(html).toContain('<A HREF="javascript:void(0)" ADD_DATE="0" ICON="data:image/png;base64,AA">Öffnen in</A>');
+    expect(BB.bookmarkFileOf(ws, new Date(0))).not.toContain('Öffnen in');
+  });
+});
+
+describe('F-194 Stufe 2: Breite halten', () => {
+  it('rechnet Seitenbreite und Zoom ineinander um', () => {
+    expect(Zm.fitFor(960, 80)).toBe(1200);
+    expect(Zm.fitZoom(600, 1200)).toBe(50);
+    expect(Zm.fitZoom(300, 1200)).toBe(50); // nicht unter 50 %
+    expect(Zm.fitZoom(3000, 1200)).toBe(200);
+    expect(Zm.shownZoom({ zoom: 80, fit: 1200 }, 900)).toBe(75);
+    expect(Zm.shownZoom({ zoom: 80 }, 900)).toBe(80);
+    expect(Zm.shownZoom({ fit: 1200 }, 0)).toBe(100); // noch nicht gemessen
+    expect(Zm.fitStart(600, 100)).toBe(1280);
+    expect(Zm.fitStart(1600, 100)).toBe(1600);
+    expect(Zm.fitStart(600, 50)).toBe(1200);
+    expect(Zm.nearestStep(73)).toBe(75);
+    expect(Zm.nearestStep(71)).toBe(67);
+    expect(Zm.parseFit(1200)).toBe(1200);
+    expect(Zm.parseFit(100)).toBeUndefined();
+    expect(Zm.parseFit(1200.5)).toBeUndefined();
+  });
+  it('schaltet ein und aus; aus behält den Zoom als nächste Stufe', () => {
+    const z = { ...W.defaultWorkspace(), panels: [{ id: 'p', name: 'P', zoom: 80 }] } as unknown as Workspace;
+    const on = Zm.setFit(z, 'p', 1200);
+    expect(on.panels[0]).toEqual({ id: 'p', name: 'P', zoom: 80, fit: 1200 });
+    expect(Zm.setFit(on, 'p', 1200)).toBe(on);
+    expect(Zm.setFit(on, 'p', undefined, 73).panels[0]).toEqual({ id: 'p', name: 'P', zoom: 75 });
+    expect(Zm.setFit(on, 'p', undefined, 99).panels[0]).toEqual({ id: 'p', name: 'P' });
+    const ws = reducer(on, { type: 'fitPanel', id: 'p', fit: 1000 });
+    expect(ws.panels[0].fit).toBe(1000);
   });
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { ZOOM_DEFAULT, zoomOf, zoomStep } from './workspace/zoom';
+import { ZOOM_DEFAULT, fitFor, fitStart, frameWidth, nearestStep, shownZoom, zoomOf, zoomStep } from './workspace/zoom';
 import './App.css';
 import { usePause } from './workspace/usePause';
 import { PAUSE_CHOICES, pauseMinutes, tabKey } from './workspace/pause';
@@ -49,6 +49,7 @@ import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, 
 import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
+import { browserOf, currentUa, modKey } from './workspace/browser';
 import { useSendReceiver } from './workspace/useSend';
 import { setCompact, setFavicons } from './workspace/display';
 import { useDisplay } from './components/SiteIcon';
@@ -679,9 +680,11 @@ function DeskApp(props: DeskProps) {
   };
 
   // F-36: Lesezeichen aus Chrome, Safari, Firefox, Edge (HTML-Datei) übernehmen und die Library so ausgeben.
-  const exportBookmarks = () => {
+  const exportBookmarks = async () => {
     if (!ws.bookmarks.length) return notify('Die Library ist noch leer – es gibt nichts zu exportieren.');
-    const blob = new Blob([bookmarkFileOf(ws)], { type: 'text/html' });
+    // F-197: „Öffnen in“ mit Symbol gleich mit in die Datei – wer die Library im Browser importiert, hat es dabei
+    const icon = await sendIconPng();
+    const blob = new Blob([bookmarkFileOf(ws, new Date(), { href: sendCode, title: BOOKMARK_NAME, icon })], { type: 'text/html' });
     const href = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = href;
@@ -690,7 +693,7 @@ function DeskApp(props: DeskProps) {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(href), 1000);
-    const text = `${ws.bookmarks.length} Sources als ${BOOKMARKS_FILE_NAME} gespeichert. Im Browser über „Lesezeichen importieren“ einlesen.`;
+    const text = SEND_TEXT.exported(ws.bookmarks.length, BOOKMARKS_FILE_NAME);
     notify(text);
     sayLive(text);
   };
@@ -1180,21 +1183,23 @@ function DeskApp(props: DeskProps) {
   takeRef.current = takeSent;
   /** Code des Lesezeichens für diese Anwendung (im Testmodus mit test=…). */
   const sendCode = bookmarklet(sendBase(window.location.href, PROBE_KIND));
-  /** Lesezeichen mit eigenem Symbol (Logo mit Pfeil) als Datei zum Importieren. */
-  const downloadSendBookmark = async () => {
-    let icon = '';
+  /** Symbol wie das Favicon, mit grünem Pfeil (public/send-icon.svg), als PNG 32 × 32 (data:-Adresse); leer, wenn es nicht geht. */
+  const sendIconPng = async (): Promise<string> => {
     try {
       const img = new Image();
-      // Symbol wie das Favicon, mit grünem Pfeil (public/send-icon.svg), als PNG 32 × 32
       img.src = '/send-icon.svg';
       await img.decode();
       const c = document.createElement('canvas');
       c.width = c.height = 32;
       c.getContext('2d')!.drawImage(img, 0, 0, 32, 32);
-      icon = c.toDataURL('image/png');
+      return c.toDataURL('image/png');
     } catch {
-      /* ohne Symbol */
+      return '';
     }
+  };
+  /** Lesezeichen mit eigenem Symbol (Logo mit Pfeil) als Datei zum Importieren. */
+  const downloadSendBookmark = async (inTour = false) => {
+    const icon = await sendIconPng();
     const blob = new Blob([bookmarkFile(sendCode, icon)], { type: 'text/html' });
     const href = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1204,8 +1209,10 @@ function DeskApp(props: DeskProps) {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(href), 1000);
-    notify(SEND_TEXT.fileDone, 15000);
-    sayLive(SEND_TEXT.fileDone);
+    // F-197: in der Tour nur kurz (die nächsten Schritte stehen dort)
+    const done = inTour ? SEND_TEXT.fileSaved : SEND_TEXT.fileDone;
+    notify(done, inTour ? 6000 : 15000);
+    sayLive(done);
   };
   const copySendCode = () => {
     const ok = () => {
@@ -1216,6 +1223,24 @@ function DeskApp(props: DeskProps) {
     if (!navigator.clipboard) return fail();
     navigator.clipboard.writeText(sendCode).then(ok, fail);
   };
+  /** F-197: Aktionen der Tour „Öffnen in einrichten“ (Tour bleibt offen) bzw. Wechsel aus der Tour „Import“. */
+  const sendTourAction = (id: string) => {
+    if (id === 'file') return void downloadSendBookmark(true);
+    if (id === 'manager') {
+      const address = browserOf(currentUa()) === 'Edge' ? 'edge://favorites' : 'chrome://bookmarks';
+      const fail = () => {
+        notify(SEND_TEXT.addressFailed(address), 12000);
+        sayLive(SEND_TEXT.addressFailed(address));
+      };
+      if (!navigator.clipboard) return fail();
+      navigator.clipboard.writeText(address).then(() => {
+        const text = SEND_TEXT.addressCopied(address, modKey(currentUa()));
+        notify(text, 12000);
+        sayLive(text);
+      }, fail);
+    }
+  };
+  const startSendTour = () => window.setTimeout(() => setTour('send'), 0);
 
   const webSearch = (query: string) => {
     const engine = engineOf(ws);
@@ -1656,8 +1681,27 @@ function DeskApp(props: DeskProps) {
   const zoomPanel = (id: string, z: number) => {
     const meta = ws.panels.find((x) => x.id === id);
     if (!meta) return;
-    dispatch({ type: 'zoomPanel', id, zoom: z });
-    sayLive(z === zoomOf(meta) ? ZOOM_TEXT.edge(meta.name, z) : ZOOM_TEXT.said(meta.name, z));
+    const w = frameWidth(id);
+    const cur = Math.round(shownZoom(meta, w));
+    // F-194 Stufe 2: mit „Breite halten“ ändert Zoomen die gemerkte Seitenbreite, der Modus bleibt an
+    if (meta.fit && w > 0) dispatch({ type: 'fitPanel', id, fit: fitFor(w, z) });
+    else dispatch({ type: 'zoomPanel', id, zoom: z });
+    sayLive(z === cur ? ZOOM_TEXT.edge(meta.name, z) : ZOOM_TEXT.said(meta.name, z));
+  };
+  /** F-194 Stufe 2: „Breite halten“ ein (Seite behält die Breite, die sie gerade hat) oder aus (Zoom bleibt, wie er gerade ist). */
+  const fitPanel = (id: string, on: boolean) => {
+    const meta = ws.panels.find((x) => x.id === id);
+    const w = frameWidth(id);
+    if (!meta || w <= 0) return;
+    if (on) {
+      const px = fitStart(w, zoomOf(meta));
+      dispatch({ type: 'fitPanel', id, fit: px });
+      sayLive(ZOOM_TEXT.fitOn(meta.name, px));
+    } else {
+      const z = shownZoom(meta, w);
+      dispatch({ type: 'fitPanel', id, zoom: z });
+      sayLive(ZOOM_TEXT.fitOff(meta.name, nearestStep(z)));
+    }
   };
   const ZOOM_KEYS: Record<string, 1 | -1 | 0> = { Equal: 1, NumpadAdd: 1, BracketRight: 1, Minus: -1, NumpadSubtract: -1, Slash: -1, Digit0: 0, Numpad0: 0 };
 
@@ -1670,7 +1714,7 @@ function DeskApp(props: DeskProps) {
       e.preventDefault();
       e.stopImmediatePropagation();
       const dir = ZOOM_KEYS[e.code];
-      return zoomPanel(meta.id, dir === 0 ? ZOOM_DEFAULT : zoomStep(zoomOf(meta), dir));
+      return zoomPanel(meta.id, dir === 0 ? ZOOM_DEFAULT : zoomStep(Math.round(shownZoom(meta, frameWidth(meta.id))), dir));
     }
     if (!e.altKey || e.ctrlKey || e.metaKey || (e.code !== 'KeyT' && e.code !== 'KeyP' && e.code !== 'KeyZ' && e.code !== 'KeyL' && e.code !== 'KeyK' && e.code !== 'KeyJ')) return;
     // nicht hinter offenen Dialogen (Hilfe, Design, Hinweis, Tour)
@@ -1855,6 +1899,7 @@ function DeskApp(props: DeskProps) {
           sayLive(WEB_TEXT.openedNewTab(hostOf(url)));
         }}
         onZoom={(z) => zoomPanel(meta.id, z)}
+        onFit={(on) => fitPanel(meta.id, on)}
         onKeep={() => {
           dispatch({ type: 'keepPanel', id: meta.id });
           const text = meta.keep ? PAUSE_TEXT.keepOff(meta.name) : PAUSE_TEXT.keepOn(meta.name);
@@ -2023,6 +2068,8 @@ function DeskApp(props: DeskProps) {
         return startColorsTour();
       case 'tourImport':
         return startImportTour();
+      case 'tourSend':
+        return startSendTour();
       case 'toursAuto':
         return switchAutoTours();
       case 'compact':
@@ -2535,6 +2582,15 @@ function DeskApp(props: DeskProps) {
                   <button type="button" title={SEND_TEXT.copyHint} aria-description={SEND_TEXT.copyHint} onClick={copySendCode}>
                     {SEND_TEXT.copy}
                   </button>
+                  {/* F-197: geführte Anleitung je Browser */}
+                  <button type="button" title={SEND_TEXT.guideHint} aria-description={SEND_TEXT.guideHint} onClick={() => {
+                      close();
+                      // Fokus nach der Tour zurück aufs Zahnrad (NF-03)
+                      document.querySelector<HTMLElement>('button[aria-label="Einstellungen"]')?.focus();
+                      startSendTour();
+                    }}>
+                    {SEND_TEXT.guide}
+                  </button>
                 </span>
                 <span id="send-hint" className="menu__hint">
                   {SEND_TEXT.dragHint}
@@ -2719,7 +2775,7 @@ function DeskApp(props: DeskProps) {
           onClose={() => setTour(null)}
           onAutoOff={() => setAutoTours(false)}
           // F-181: Teil 1 der Import-Tour – „Datei wählen …“ öffnet die Dateiauswahl; gesehen erst nach dem Dialog-Teil
-          onAction={tour === 'import' ? () => bookmarkFileRef.current?.click() : undefined}
+          onAction={tour === 'import' ? (id) => (id === 'sendToo' ? startSendTour() : bookmarkFileRef.current?.click()) : tour === 'send' ? sendTourAction : undefined}
           markSeen={tour !== 'import'}
         />
       )}
@@ -2829,7 +2885,7 @@ function DeskApp(props: DeskProps) {
           }}
         >
           {tour === 'import' && (
-            <Tour key="import-dialog" tour="import" auto={tourAuto} skip={importPre && tourAuto ? ['intro', 'export'] : undefined} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} />
+            <Tour key="import-dialog" tour="import" auto={tourAuto} skip={importPre && tourAuto ? ['intro', 'export'] : undefined} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} onAction={(id) => id === 'sendToo' && startSendTour()} />
           )}
         </ImportBookmarks>
       )}

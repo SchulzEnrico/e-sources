@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { ZOOM_DEFAULT, ZOOM_STEPS, zoomOf, zoomStep, zoomStyle } from '../workspace/zoom';
+import { ZOOM_DEFAULT, ZOOM_STEPS, nearestStep, setFrameWidth, shownZoom, zoomStep, zoomStyle } from '../workspace/zoom';
 import { LauncherIcon } from './Launcher';
 import { openOutside } from '../workspace/launcher';
 import { createPortal } from 'react-dom';
@@ -111,6 +111,8 @@ interface Props {
   onKeep?: () => void;
   /** F-194: Zoom dieses Portals setzen (Prozent). */
   onZoom?: (zoom: number) => void;
+  /** F-194 Stufe 2: „Breite halten“ ein- oder ausschalten. */
+  onFit?: (on: boolean) => void;
   /** F-189: Text ohne Adresse – im Web suchen (neuer Browser-Tab). */
   onSearch?: (query: string) => void;
   /** F-189: Ein Link wird gerade von außen über E-Sources gezogen – Ablagefläche zeigen. */
@@ -415,13 +417,33 @@ export function PanelFrame(p: Props) {
   const [zoomOpen, setZoomOpen] = useState<null | 'hover' | 'pin'>(null);
   const zoomBtn = useRef<HTMLButtonElement>(null);
   const zoomTimer = useRef(0);
+  // F-194 Stufe 2: Breite des Seitenbereichs messen – mit „Breite halten“ folgt der Zoom ihr
+  const body = useRef<HTMLDivElement>(null);
+  const [bodyW, setBodyW] = useState(0);
+  useLayoutEffect(() => {
+    const el = body.current;
+    if (!el) return;
+    const measure = () => {
+      const w = Math.round(el.getBoundingClientRect().width);
+      setFrameWidth(p.panel.id, w);
+      setBodyW(w);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [p.panel.id]);
+  const zoomExact = shownZoom(p.panel, bodyW);
+  const zoomNow = Math.round(zoomExact);
+  // so breit ist die Seite wirklich (bei 50 % ist Schluss – ein sehr schmaler Slot erreicht die gemerkte Breite nicht)
+  const pagePx = p.panel.fit && bodyW > 0 ? Math.round((bodyW * 100) / zoomExact) : p.panel.fit;
   const zoomHover = (on: boolean) => {
     window.clearTimeout(zoomTimer.current);
     zoomTimer.current = window.setTimeout(() => setZoomOpen((o) => (on ? (o ?? 'hover') : o === 'hover' ? null : o)), on ? 120 : 450);
   };
   useEffect(() => () => window.clearTimeout(zoomTimer.current), []);
   // Mausrad über der Lupe zoomt direkt (nicht passiv, damit nichts anderes mitscrollt)
-  useWheelZoom(zoomBtn, p.onZoom ? (dir) => p.onZoom?.(zoomStep(zoomOf(p.panel), dir)) : null);
+  useWheelZoom(zoomBtn, p.onZoom ? (dir) => p.onZoom?.(zoomStep(zoomNow, dir)) : null);
   const areaName = p.stack?.areaName ?? '';
   const [draft, setDraft] = useState(p.panel.name);
   const tab = activeTab(p.panel);
@@ -785,17 +807,17 @@ export function PanelFrame(p: Props) {
             <button
               type="button"
               ref={zoomBtn}
-              className={zoomOf(p.panel) !== ZOOM_DEFAULT ? 'win__zoombtn win__zoombtn--on' : 'win__zoombtn'}
+              className={zoomNow !== ZOOM_DEFAULT || p.panel.fit ? 'win__zoombtn win__zoombtn--on' : 'win__zoombtn'}
               onClick={() => setZoomOpen((o) => (o === 'pin' ? null : 'pin'))}
               onPointerEnter={(e) => e.pointerType === 'mouse' && zoomHover(true)}
               onPointerLeave={(e) => e.pointerType === 'mouse' && zoomHover(false)}
-              title={ZOOM_TEXT.btnTitle(zoomOf(p.panel))}
-              aria-label={ZOOM_TEXT.btnLabel(zoomOf(p.panel))}
+              title={p.panel.fit ? ZOOM_TEXT.btnFitTitle(zoomNow, pagePx ?? p.panel.fit) : ZOOM_TEXT.btnTitle(zoomNow)}
+              aria-label={ZOOM_TEXT.btnLabel(zoomNow, pagePx)}
               aria-expanded={!!zoomOpen}
               aria-haspopup="true"
             >
               <Icon name="zoom" size={14} />
-              {zoomOf(p.panel) !== ZOOM_DEFAULT && <span className="win__zoomval">{zoomOf(p.panel)} %</span>}
+              {(zoomNow !== ZOOM_DEFAULT || p.panel.fit) && <span className="win__zoomval">{p.panel.fit ? '↔ ' : ''}{zoomNow} %</span>}
             </button>
           )}
           {/* F-15: Lineal nur für dieses Panel */}
@@ -960,13 +982,13 @@ export function PanelFrame(p: Props) {
                     <li className="menu__zoom" role="group" aria-label={ZOOM_TEXT.label}>
                       <Icon name="zoom" className="icon menu__icon" />
                       <span className="menu__zoom-label" aria-hidden="true">{ZOOM_TEXT.label}</span>
-                      <button type="button" role="menuitem" aria-label={ZOOM_TEXT.out} title={ZOOM_TEXT.outTitle} disabled={zoomOf(p.panel) <= ZOOM_STEPS[0]} onClick={() => p.onZoom?.(zoomStep(zoomOf(p.panel), -1))}>
+                      <button type="button" role="menuitem" aria-label={ZOOM_TEXT.out} title={ZOOM_TEXT.outTitle} disabled={zoomNow <= ZOOM_STEPS[0]} onClick={() => p.onZoom?.(zoomStep(zoomNow, -1))}>
                         −
                       </button>
-                      <button type="button" role="menuitem" className="menu__zoom-value" title={ZOOM_TEXT.resetTitle(zoomOf(p.panel))} aria-label={ZOOM_TEXT.resetTitle(zoomOf(p.panel))} onClick={() => p.onZoom?.(ZOOM_DEFAULT)}>
-                        {ZOOM_TEXT.menuValue(zoomOf(p.panel))}
+                      <button type="button" role="menuitem" className="menu__zoom-value" title={ZOOM_TEXT.resetTitle(zoomNow)} aria-label={ZOOM_TEXT.resetTitle(zoomNow)} onClick={() => p.onZoom?.(ZOOM_DEFAULT)}>
+                        {ZOOM_TEXT.menuValue(zoomNow)}
                       </button>
-                      <button type="button" role="menuitem" aria-label={ZOOM_TEXT.in} title={ZOOM_TEXT.inTitle} disabled={zoomOf(p.panel) >= ZOOM_STEPS[ZOOM_STEPS.length - 1]} onClick={() => p.onZoom?.(zoomStep(zoomOf(p.panel), 1))}>
+                      <button type="button" role="menuitem" aria-label={ZOOM_TEXT.in} title={ZOOM_TEXT.inTitle} disabled={zoomNow >= ZOOM_STEPS[ZOOM_STEPS.length - 1]} onClick={() => p.onZoom?.(zoomStep(zoomNow, 1))}>
                         +
                       </button>
                     </li>
@@ -1104,6 +1126,7 @@ export function PanelFrame(p: Props) {
         <div className="win__main">
         {/* F-124: roter Schatten nach innen, wenn die Seite sich nicht einbetten lässt */}
         <div
+          ref={body}
           className={['win__body', url && p.isBlocked(url) && 'win__body--blocked', linkOver && 'win__body--drop'].filter(Boolean).join(' ')}
           {...swipe}
           onDragOver={(e) => {
@@ -1119,10 +1142,12 @@ export function PanelFrame(p: Props) {
         >
           {zoomOpen && p.onZoom && (
             <ZoomPanel
-              zoom={zoomOf(p.panel)}
+              zoom={zoomNow}
               name={p.panel.name}
               pinned={zoomOpen === 'pin'}
               onZoom={p.onZoom}
+              fit={pagePx}
+              onFit={p.onFit}
               onHover={zoomHover}
               onClose={(back) => {
                 window.clearTimeout(zoomTimer.current);
@@ -1140,7 +1165,7 @@ export function PanelFrame(p: Props) {
                 onLoad={() => FH.loaded(frameKey(t))}
                 className="win__frame"
                 hidden={t.id !== tab.id}
-                style={zoomStyle(zoomOf(p.panel))}
+                style={zoomStyle(zoomExact)}
                 src={t.url}
                 title={`${p.panel.name} – ${tabLabel(t)}`}
                 // F-133: Nur die Domain von E-Source geht mit (Standard der Browser). Ohne sie
@@ -1289,13 +1314,15 @@ function useWheelZoom(ref: { current: HTMLElement | null }, step: ((dir: 1 | -1)
  * oder Esc drückt (Fokus zurück auf die Lupe, NF-03). Senkrechter Regler (oben = größer): ziehen,
  * tippen, Mausrad oder Pfeiltasten; „+“ oben, „−“ unten, „100 %“ setzt zurück.
  */
-function ZoomPanel({ zoom, name, pinned, onZoom, onHover, onClose, anchor }: { zoom: number; name: string; pinned: boolean; onZoom: (z: number) => void; onHover: (on: boolean) => void; onClose: (back: boolean) => void; anchor: { current: HTMLElement | null } }) {
+function ZoomPanel({ zoom, name, pinned, onZoom, fit, onFit, onHover, onClose, anchor }: { zoom: number; name: string; pinned: boolean; onZoom: (z: number) => void; fit?: number; onFit?: (on: boolean) => void; onHover: (on: boolean) => void; onClose: (back: boolean) => void; anchor: { current: HTMLElement | null } }) {
   const box = useRef<HTMLDivElement>(null);
+  const fitId = useId();
   const track = useRef<HTMLDivElement>(null);
   const slider = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ right: number; top: number }>({ right: 8, top: 6 });
   const n = ZOOM_STEPS.length;
-  const idx = Math.max(0, ZOOM_STEPS.indexOf(zoom as (typeof ZOOM_STEPS)[number]));
+  // mit „Breite halten“ ist der Zoom krumm (z. B. 73 %) – der Regler steht dann auf der nächsten Stufe
+  const idx = Math.max(0, ZOOM_STEPS.indexOf(nearestStep(zoom) as (typeof ZOOM_STEPS)[number]));
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
   useWheelZoom(box, (dir) => onZoom(zoomStep(zoomRef.current, dir)));
@@ -1404,6 +1431,17 @@ function ZoomPanel({ zoom, name, pinned, onZoom, onHover, onClose, anchor }: { z
       <button type="button" className="zoompanel__reset" onClick={() => onZoom(ZOOM_DEFAULT)} disabled={zoom === ZOOM_DEFAULT} title={ZOOM_TEXT.resetTitle(zoom)}>
         100 %
       </button>
+      {onFit && (
+        <label className="zoompanel__fit" title={ZOOM_TEXT.fitTitle}>
+          <input type="checkbox" checked={!!fit} onChange={(e) => onFit(e.target.checked)} aria-describedby={fitId} />
+          {ZOOM_TEXT.fit}
+        </label>
+      )}
+      {onFit && (
+        <p id={fitId} className="zoompanel__hint">
+          {fit ? ZOOM_TEXT.fitShows(fit) : ZOOM_TEXT.fitTitle.split(':')[0]}
+        </p>
+      )}
       <p className="zoompanel__hint">{ZOOM_TEXT.hint}</p>
     </div>
   );

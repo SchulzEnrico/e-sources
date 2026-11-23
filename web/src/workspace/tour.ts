@@ -4,7 +4,8 @@
  * Texte kommen aus help.ts/terms.ts (F-156), damit nichts doppelt geschrieben wird.
  * Schritte, deren Ziel gerade fehlt (z. B. kein Stack offen), werden übersprungen.
  */
-import { BROWSER_EXPORT, helpById } from './help';
+import { BROWSER_EXPORT, browserSend, helpById } from './help';
+import { type BrowserName, browserOf, currentUa, modKey } from './browser';
 import { CATEGORY_TEXT, TINT_TEXT } from './terms';
 
 export interface TourStep {
@@ -25,9 +26,11 @@ export interface TourStep {
   list?: string[];
   /** Beschriftung eines Knopfs, der die Tour beendet und den nächsten Schritt selbst ausführt. */
   action?: string;
+  /** F-197: Aktion lässt die Tour offen (z. B. „Datei laden“, „Adresse kopieren“), statt sie zu beenden. */
+  keep?: boolean;
 }
 
-export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors';
+export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send';
 
 const t = (id: string) => helpById(id)?.text ?? '';
 
@@ -148,7 +151,15 @@ export const TOURS: Record<TourId, TourStep[]> = {
       when: I,
       text: `${t('sortHelp')} Wieder starten: Knopf „Tour“ im Import-Dialog, Hilfe (?) oder Suche („Tour Import“).`,
     },
+    {
+      id: 'sendToo',
+      title: 'Noch ein Tipp: „Öffnen in“',
+      when: I,
+      text: 'Du kennst jetzt den Lesezeichen-Manager deines Browsers. Dort lässt sich in einer Minute auch „Öffnen in“ einrichten: ein Lesezeichen in der Leiste, das jede offene Seite mit einem Klick an E-Sources schickt.',
+      action: 'Anleitung zeigen',
+    },
   ],
+  send: sendTour(browserOf(currentUa()), modKey(currentUa())),
   // F-171 Stufe 1 (V20) und Stufe 2 (V36): Darstellung, Akzent, Farben des Desks; weiter in der Tour „Farben“
   design: [
     {
@@ -259,7 +270,7 @@ export function tourSteps(has: (selector: string) => boolean, steps: TourStep[] 
 }
 
 /** Speicherschlüssel je Tour; die Starttour behält ihren bisherigen Schlüssel. */
-export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1' };
+export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1' };
 
 /** Wurde die Tour schon gezeigt (beendet oder übersprungen)? */
 export function tourSeen(id: TourId = 'start'): boolean {
@@ -301,3 +312,52 @@ export function setToursAuto(on: boolean): void {
 
 /** F-173: Startet diese Tour jetzt von selbst? */
 export const tourAutoStart = (id: TourId): boolean => toursAuto() && !tourSeen(id);
+
+/**
+ * F-197: Tour „Öffnen in einrichten“ – die Schritte für den erkannten Browser; unbekannter Browser:
+ * alle Wege als Liste. Ohne Ziele (mittig), weil man dabei zwischen E-Sources und Browser wechselt.
+ */
+export function sendTour(browser: BrowserName | null, mod: string): TourStep[] {
+  const all = browserSend(mod);
+  const b = browser ? all[browser] : null;
+  const each = (k: 'manager' | 'import' | 'bar') => (Object.keys(all) as BrowserName[]).map((n) => `${n}: ${all[n][k]}`);
+  return [
+    {
+      id: 'intro',
+      title: '„Öffnen in“ einrichten',
+      text: `Ein Lesezeichen in der Leiste deines Browsers schickt jede offene Seite mit einem Klick an E-Sources – mit unserem Symbol. Das richtest du einmal ein, in etwa einer Minute.${browser ? ` Die Schritte passen zu ${browser}.` : ''} Mit → weiter, mit Esc beenden.`,
+    },
+    {
+      id: 'file',
+      title: '1. Datei laden',
+      text: 'Lade die Datei „E-Sources-senden.html“. Sie enthält das Lesezeichen mit Symbol und landet im Ordner „Downloads“. Danach mit „Weiter“ zum nächsten Schritt.',
+      action: 'Datei laden',
+      keep: true,
+    },
+    {
+      id: 'manager',
+      title: '2. Lesezeichen-Manager öffnen',
+      text: b ? b.manager : 'Öffne die Lesezeichen-Verwaltung deines Browsers:',
+      list: b ? undefined : each('manager'),
+      action: b?.address ? 'Adresse kopieren' : undefined,
+      keep: true,
+    },
+    {
+      id: 'import',
+      title: '3. Datei importieren',
+      text: b ? b.import : 'Dort die Datei importieren:',
+      list: b ? undefined : each('import'),
+    },
+    {
+      id: 'bar',
+      title: '4. In die Leiste ziehen',
+      text: b ? b.bar : 'Danach das Lesezeichen in die Leiste ziehen:',
+      list: b ? undefined : each('bar'),
+    },
+    {
+      id: 'try',
+      title: 'Ausprobieren',
+      text: 'Öffne irgendeine Webseite im Browser und klick in der Leiste auf „Öffnen in“. Ein kleines Fenster zeigt, in welches Portal die Seite kommt, und sendet nach 10 Sekunden von selbst. Wieder starten: Einstellungen (Zahnrad) › „Anleitung“, Hilfe oder Suche („Öffnen in einrichten“).',
+    },
+  ];
+}

@@ -1,4 +1,4 @@
-import { setZoom } from './zoom';
+import { setFit, setZoom } from './zoom';
 import { type ColorsSnap, type DesignSnap, restoreColors, restoreDesign } from './reset';
 import { setPause, toggleKeep } from './pause';
 import { setEngine } from './websearch';
@@ -92,6 +92,7 @@ export type Action =
   | { type: 'pause'; minutes: number }
   | { type: 'keepPanel'; id: string }
   | { type: 'zoomPanel'; id: string; zoom: number }
+  | { type: 'fitPanel'; id: string; fit?: number; zoom?: number }
   /** F-189: Suchmaschine. */
   | { type: 'engine'; id: string }
   | { type: 'rulerStyle'; labels?: boolean; color?: number }
@@ -261,6 +262,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return toggleKeep(ws, a.id);
     case 'zoomPanel':
       return setZoom(ws, a.id, a.zoom);
+    case 'fitPanel':
+      return setFit(ws, a.id, a.fit, a.zoom);
     case 'engine':
       return setEngine(ws, a.id);
     case 'rulerStyle':

@@ -20,8 +20,11 @@ interface Props {
   auto?: boolean;
   onClose: () => void;
   onAutoOff?: () => void;
-  /** F-181: Knopf eines Schritts mit `action` – beendet die Tour und führt den Schritt aus (z. B. Datei wählen). */
-  onAction?: () => void;
+  /**
+   * F-181: Knopf eines Schritts mit `action` – beendet die Tour und führt den Schritt aus (z. B. Datei wählen).
+   * F-197: mit `keep` bleibt die Tour offen (z. B. „Datei laden“); `id` sagt, welcher Schritt.
+   */
+  onAction?: (id: string) => void;
   /** F-181: Schritte, die schon gezeigt wurden (Teil 1 der Import-Tour vor dem Dialog). */
   skip?: string[];
   /** Beim Beenden als gesehen merken (Grundeinstellung); nein für einen Vorlauf, auf den noch ein Teil folgt. */
@@ -104,8 +107,8 @@ export function Tour({ tour = 'start', auto = false, onClose, onAutoOff, onActio
   // Fokus auf den Aktionsknopf, sonst auf „Weiter“
   useEffect(() => (action.current ?? next.current)?.focus(), [step]);
   const act = () => {
-    end();
-    onAction?.();
+    if (!step.keep) end();
+    onAction?.(step.id);
   };
 
   // → / ← blättern, Esc beendet (Erfassungsphase, damit andere Kürzel nicht mitlaufen)

@@ -1,5 +1,5 @@
 import { CATEGORY_ICONS } from './icons';
-import { parseZoom } from './zoom';
+import { parseFit, parseZoom } from './zoom';
 import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
 import { parseDeskLooks, parseLook } from './look';
 import { parseTint } from './tint';
@@ -79,6 +79,8 @@ function parsePanel(v: unknown): PanelMeta | null {
   if (v.keep === true) panel.keep = true;
   const zoom = parseZoom(v.zoom);
   if (zoom) panel.zoom = zoom;
+  const fit = parseFit(v.fit);
+  if (fit) panel.fit = fit;
   return panel;
 }
 

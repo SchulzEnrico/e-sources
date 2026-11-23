@@ -53,6 +53,8 @@ export interface PanelMeta {
   keep?: boolean;
   /** F-194: Zoom der Seiten in diesem Portal in Prozent (Stufe aus ZOOM_STEPS); fehlt = 100. */
   zoom?: number;
+  /** F-194 Stufe 2: „Breite halten“ – so breit (px) sieht die Seite, der Zoom folgt der Slot-Breite; fehlt = aus. */
+  fit?: number;
 }
 
 /** F-162: Rahmen- und Akzentfarbe (#rrggbb); was fehlt, erbt. */

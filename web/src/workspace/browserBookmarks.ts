@@ -160,7 +160,15 @@ export function applyImport(ws: Workspace, plan: ImportPlan, makeId: () => strin
  * Library als Lesezeichen-Datei, die jeder Browser importieren kann. Kategorien werden Ordner
  * („Oben › Unten“ wieder verschachtelt), Tags stehen in TAGS (Firefox liest sie), die Notiz als <DD>.
  */
-export function bookmarkFileOf(ws: Workspace, now = new Date()): string {
+export interface ExtraBookmark {
+  href: string;
+  title: string;
+  /** Symbol als data:-Adresse (PNG); leer = ohne */
+  icon?: string;
+}
+
+/** F-197: `first` steht ganz oben (z. B. „Öffnen in“ mit Symbol), damit es beim Import gleich dabei ist. */
+export function bookmarkFileOf(ws: Workspace, now = new Date(), first?: ExtraBookmark): string {
   const stamp = Math.floor(now.getTime() / 1000);
   type Node = { name: string; kids: Node[]; items: Bookmark[] };
   const root: Node = { name: '', kids: [], items: [] };
@@ -191,6 +199,10 @@ export function bookmarkFileOf(ws: Workspace, now = new Date()): string {
       lines.push(`${ind}</DL><p>`);
     }
   };
+  if (first) {
+    const icon = first.icon ? ` ICON="${escapeHtml(first.icon)}"` : '';
+    lines.push(`    <DT><A HREF="${escapeHtml(first.href)}" ADD_DATE="${stamp}"${icon}>${escapeHtml(first.title)}</A>`);
+  }
   write(root, '    ');
   return [
     '<!DOCTYPE NETSCAPE-Bookmark-file-1>',

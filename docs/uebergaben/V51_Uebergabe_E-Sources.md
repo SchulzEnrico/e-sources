@@ -4,19 +4,20 @@ Stand: 23.11.2026 · Chat V51 abgeschlossen · Nächster Chat: **V52 E-Sources**
 
 ## Startanweisung für den neuen Chat
 
-> Das ist Chat **V52 E-Sources**. Lies diese Übergabedatei und das Lastenheft unter `docs/Lastenheft/Lastenheft_E-Sources.md`. Frag Enrico kurz nach seiner Prüfung von V51 (siehe „Nächste Schritte“ 1). Dann **F-116 mit F-53 Stufe 1** (Space/Case) – Umfang ist freigegeben, siehe unten. Halte dich an die Arbeitsregeln am Ende dieser Datei.
+> Das ist Chat **V52 E-Sources**. Lies diese Übergabedatei und das Lastenheft unter `docs/Lastenheft/Lastenheft_E-Sources.md`. Frag Enrico kurz nach seiner Prüfung von V51 (siehe „Nächste Schritte“ 1). Dann **F-205 Begrüßung wählbar** umsetzen – freigegeben, so wie das Claude Doc es beschreibt (Link unten; mit Docs-Werkzeugen lesen). Danach **F-116 mit F-53 Stufe 1** (Space/Case). Halte dich an die Arbeitsregeln am Ende dieser Datei.
 
 ## Links
 
 - **Lastenheft:** `docs/Lastenheft/Lastenheft_E-Sources.md` (V51: F-203 ✓, F-204 ✓, F-188 Rest ✓, F-200 Stufe 1 ✓; Vermerke F-202/F-180 im Haupttext nachgetragen). Offen aus V27: Claude Doc https://claude.ai/artifact/5LcrJ6JwXyEvUMcJjZQRY8 – klären, ob es noch gilt.
 - **Dashboard (neu):** `docs/E-Sources_Dashboard_V51.pdf` – Stand und nächste Schritte, 2 Seiten. Quelle: `/home/claude/dash/dashboard.html` gibt es im neuen Chat nicht mehr; bei Bedarf neu bauen (HTML → Chrome headless „print-to-pdf“, A4 quer).
+- **Begrüßungen zur Auswahl (F-205, neu):** https://claude.ai/artifact/LEeeD9UkVH4VTt2zVTufew – **von Enrico freigegeben: so umsetzen, wie das Doc jetzt steht** (Kommentare dort sind eingearbeitet; Doc mit Docs-Werkzeugen `read` lesen).
 - **Benennung – Ergebnis:** https://claude.ai/artifact/5Di2hzfovkm1NcmV3bocdp
 - **Geschichte der Anwendung:** https://claude.ai/artifact/QjpbDizWw2VzQzWNmZgirP – Ausblick noch nicht nachgezogen (F-151 bis F-204)
 - **Repository:** https://github.com/SchulzEnrico/e-sources · lokal `~/Projects/e-sources`
 
 ## Was in V51 passiert ist
 
-- **Git:** V50 war schon committet. V51 noch nicht committet – Commit-Text unten.
+- **Git:** V51 (Code) ist committet und gepusht. Danach nur noch Lastenheft F-205 und diese Übergabe geändert – Commit-Text „Nachtrag“ unten.
 - **Prüfung V50 (Enrico):** Tour „Verhalten von Sources“ gut, aber „keiner wird sie über die Suche suchen“ → F-203. Fehler: In der gestrafften Kopfleiste verdeckte „+ NewDesk“ die Anzeige „Main Desk“.
 - **Desk-Name (F-188 Rest):** `.tb-win` ohne Bearbeiten jetzt `inline-block` (Flex verhinderte „…“), `min-width: calc(9ch + 22px)` = „Main Desk“ immer ganz lesbar, längere Namen kürzen bis 12–22ch je Breite. Geprüft bei 375/480/600/700/760/900/1100 px: nichts überlappt, kein Querscrollen.
 - **F-203 Tour sichtbar:** In `PickBar` (Library und Cockpit „Sources“) Knopf „Tour“ oben rechts; einmaliges Angebot unten („Tour starten“) beim ersten Anzeigen der Leiste (`offerTourOnce`, Key `esource.tour.offered.sources`, nur wenn Touren von selbst starten dürfen). Neu in `tour.ts`: `TOUR_EVENT`/`requestTour(id)` – App startet die Tour (schließt Cockpit), PanelFrame schließt die Library.
@@ -24,39 +25,33 @@ Stand: 23.11.2026 · Chat V51 abgeschlossen · Nächster Chat: **V52 E-Sources**
 - **Fehler behoben:** „Rückgängig“ im Hinweis unten schloss das Cockpit (Fokus wanderte hinaus) – `Overview` ignoriert jetzt Fokus auf `.toast`.
 - **F-200 Stufe 1 Entwickler-Modus:** Feld `dev` am Portal (types/storage), Aktion `devPanel`, `toggleDevPanel` (workspace.ts), Menü ⋮ „Entwickler-Modus“ (Häkchen, Erklärzeile), Hilfe-Eintrag `devMode` mit Fragen (schaltet aktives Portal), Symbol `dev` (</>). Bauteil `DevSize.tsx`: unten links im Seitenbereich Größe der Seite in CSS-Pixeln (= Anzeigefläche ÷ Zoom) + Geräteklasse (`workspace/dev.ts`, `DEV_BREAKPOINTS`), bei Zoom „80 % · im Slot w × h px“; Ansage nach 0,9 s Stillstand. Unten rechts bleibt die Lineal-Größe.
 - **Dashboard-PDF** V51 erstellt (Wunsch Enrico).
+- **F-205 neu (Nachtrag nach Commit):** Begrüßung wählbar – recherchiert und als Claude Doc zum Kommentieren angelegt: 17 Regional-/Dialektgrüße (Moin, Servus, Grüezi, Gude, Glück auf, Mahlzeit …), 20 bekannte Sprüche (Welcome back, Commander; Rise and shine, Mr. Freeman; Hello there …), 10 internationale; Vorschlag für die Einstellung (Standard, Regional, Spruch, Zufall, eigener Text mit {Name}) und 4 offene Fragen. Noch kein Code.
 - **F-116 Stufe 1 noch nicht begonnen** – Umfang im Lastenheft festgehalten (Enrico: „mach wie aufgeführt“).
 - Tests: **263 grün** (neu: F-204 ×2, F-200); `tsc --noEmit` sauber. Im Browser geprüft: Kopfleiste, Mehrfachauswahl im Cockpit (Tags, Kategorie, Löschen + Rückgängig), Tour-Knopf, Entwickler-Modus.
 
 ## Nächste Schritte
 
 1. **Enrico prüfen lassen:** Kopfleiste schmal (Desk-Name), „Tour“-Knopf und Angebot, Mehrfachauswahl („Mehr …“), Entwickler-Modus (⋮ → „Entwickler-Modus“). **Frage:** Soll das Einschalten des Entwickler-Modus den Zoom auf 100 % stellen und „Breite halten“ ausschalten? (Bisher: beides bleibt, beide Größen werden gezeigt.)
-2. **F-116 mit F-53 Stufe 1** (freigegeben): Spaces und Cases anlegen/umbenennen/löschen (Name, Farbe; ein Case gehört zu genau einem Space). Layouts einem oder mehreren Cases zuordnen – im Layout-Modus des Cockpits sichtbar und änderbar. Case wählen → zugeordnete Layouts angeboten, bei genau einem gesetzt. Cases bündeln in Stufe 1 **nur Layouts**. Meine Annahme (Enrico hat nicht ausdrücklich gewählt): Case-Wahl **im Cockpit (Layouts)** und über die Suche, nicht in der Kopfleiste – mit Enrico kurz bestätigen. Vorhanden: `PanelMeta.sphere/scenario`, `ws.spheres`/`ws.scenarios` (Suche zeigt sie); Layouts in `deskLayouts.ts` (`DeskLayout {id,name,saved}`) noch ohne Zuordnung. Dialoge mit sichtbarem Abschluss (F-191), Barrierefreiheit, Begriffe in terms.ts erklären, Hilfe-Einträge mit Fragen, Tour-Schritt im Cockpit ergänzen.
-3. F-201 Rest: (4) Video in View „2“ zu groß/abgeschnitten (vermutlich `frameWidth`/„Breite halten“), (5) Neuladen mit E-Sources-Kopie.
-4. Entwickler-Modus Stufe 2 nach Enricos Zoom-Entscheidung; mit F-18/F-115 (Gerätevorschau) zusammen denken.
+2. **F-205 Begrüßung wählbar (freigegeben, zuerst):** Doc lesen und genau so umsetzen. Entscheidungen Enricos: 18 Regionalgrüße („Tach“ und „Gunn Tach“ einzeln), 20 Sprüche wählbar als Original / Original mit Name / Deutsch (Voreinstellung Original mit Name), 10 internationale; Zufall – Anwender wählt „je Tag“ oder „bei jedem Öffnen“; Demo lädt Besucher ein, ein Profil anzulegen (Start mit Name + Begrüßung) mit deutlichem Hinweis „nur lokal im Browser gespeichert“. Umsetzung – Liste als Daten in `profile.ts`/`terms.ts` (Id, Text, Region/Herkunft, optional Zeitfenster), Wahl im Profil-Dialog mit Vorschau und „Übernehmen“, Greeting.tsx nutzt sie; Tests für Zeitfenster und Platzhalter. Klein bis mittel.
+3. **F-116 mit F-53 Stufe 1** (freigegeben): Spaces und Cases anlegen/umbenennen/löschen (Name, Farbe; ein Case gehört zu genau einem Space). Layouts einem oder mehreren Cases zuordnen – im Layout-Modus des Cockpits sichtbar und änderbar. Case wählen → zugeordnete Layouts angeboten, bei genau einem gesetzt. Cases bündeln in Stufe 1 **nur Layouts**. Meine Annahme (Enrico hat nicht ausdrücklich gewählt): Case-Wahl **im Cockpit (Layouts)** und über die Suche, nicht in der Kopfleiste – mit Enrico kurz bestätigen. Vorhanden: `PanelMeta.sphere/scenario`, `ws.spheres`/`ws.scenarios` (Suche zeigt sie); Layouts in `deskLayouts.ts` (`DeskLayout {id,name,saved}`) noch ohne Zuordnung. Dialoge mit sichtbarem Abschluss (F-191), Barrierefreiheit, Begriffe in terms.ts erklären, Hilfe-Einträge mit Fragen, Tour-Schritt im Cockpit ergänzen.
+4. F-201 Rest: (4) Video in View „2“ zu groß/abgeschnitten (vermutlich `frameWidth`/„Breite halten“), (5) Neuladen mit E-Sources-Kopie.
+5. Entwickler-Modus Stufe 2 nach Enricos Zoom-Entscheidung; mit F-18/F-115 (Gerätevorschau) zusammen denken.
 
-## Commit-Text V51
+## Commit-Text Nachtrag V51
 
-**Summary:** `V51: Mehrfachauswahl kann alles, Touren sichtbar, Entwickler-Modus, Desk-Name nicht verdeckt`
+**Summary:** `V51 Nachtrag: F-205 Begrüßung wählbar ins Lastenheft, Übergabe ergänzt`
 
 **Description:**
 ```
-F-204: Mehrfachauswahl in Library und Cockpit „Sources“ kann alles,
-was an einer Source einstellbar ist – Kategorie, Tags, Library eines
-Portals, nie/normal pausieren, löschen; jeweils mit „Rückgängig“
-(„Mehr …“ klappt die Einstellungen auf, Leiste bleibt kompakt)
+Lastenheft: F-205 neu und freigegeben – Begrüßung wählbar (Standard,
+Regionalgruß, Spruch als Original/mit Name/deutsch, Zufall je Tag oder
+je Öffnen, eigener Text mit {Name}); Demo lädt zum lokalen Profil ein;
+Liste als Claude Doc verlinkt
 
-F-203: Tour „Verhalten von Sources“ sichtbar – Knopf „Tour“ in der Leiste,
-einmaliges Angebot beim ersten Öffnen; Touren per Ereignis startbar
-
-F-200 Stufe 1: Entwickler-Modus je Portal (Menü ⋮ und Hilfe) zeigt die
-echte Seitengröße in CSS-Pixeln mit Geräteklasse, live beim Ziehen
-
-F-188: Desk-Name in schmaler Kopfleiste nicht mehr von „+ NewDesk“ verdeckt
-Fix: „Rückgängig“ im Hinweis schließt das Cockpit nicht mehr
-
-Tests: 263 grün. Lastenheft: F-203/F-204 neu und erledigt, F-116 Stufe 1
-festgelegt; Dashboard V51 (PDF); Übergabe V51
+Übergabe V51: F-205 freigegeben (wie im Doc) und als nächster Schritt vor F-116
 ```
+
+(Der Commit-Text für den Code von V51 ist schon verwendet.)
 
 ## Kleine Punkte
 

@@ -129,6 +129,7 @@ function bookmarkList(v: unknown, panelIds: Set<string>, categoryIds: Set<string
     if (typeof b.note === 'string' && b.note) item.note = b.note;
     const origin = originFrom(b.origin);
     if (origin) item.origin = origin;
+    if (b.keep === true) item.keep = true;
     out.push(item);
   }
   return out;

@@ -5,6 +5,7 @@ import { parseWorkspace } from './storage';
 import type { Workspace } from './types';
 import * as X from './transfer';
 import * as B from './bookmarks';
+import * as Pz from './pause';
 import * as W from './workspace';
 import * as L from './look';
 import * as D from './demo';
@@ -678,6 +679,10 @@ describe('F-43 gesperrte Seiten', () => {
     expect(W.isBlocked(ws, 'https://gist.github.com/x')).toBe(true);
     expect(W.isBlocked(ws, 'https://schulzenrico.github.io/')).toBe(false);
     expect(W.isBlocked(ws, 'https://www.wikipedia.org')).toBe(false);
+    // F-201: YouTube-Player zum Einbetten ist erlaubt, die normale Seite nicht
+    expect(W.isBlocked(ws, 'https://www.youtube.com/embed/q5PG_ThiWf4')).toBe(false);
+    expect(W.isBlocked(ws, 'https://www.youtube-nocookie.com/embed/abc')).toBe(false);
+    expect(W.isBlocked(ws, 'https://www.youtube.com/watch?v=q5PG_ThiWf4')).toBe(true);
     ws = W.setEmbed(ws, 'https://www.stepstone.de/jobs', false);
     expect(W.isBlocked(ws, 'https://stepstone.de/x')).toBe(true);
     ws = W.setEmbed(ws, 'https://claude.ai/new', true);
@@ -3160,3 +3165,27 @@ describe('F-194 Stufe 2: Breite halten', () => {
     expect(ws.panels[0].fit).toBe(1000);
   });
 });
+
+describe('F-202 Sources nie pausieren', () => {
+  it('setzt und hebt auf, Tabs mit der Source pausieren nie', () => {
+    let ws = W.defaultWorkspace();
+    ws = B.saveBookmark(ws, { id: 'b1', title: 'Musik', url: 'https://radio.example/live', category: '', tags: [], panels: [] });
+    ws = B.saveBookmark(ws, { id: 'b2', title: 'Doku', url: 'https://doku.example', category: '', tags: [], panels: [] });
+    ws = Pz.setSourcesKeep(ws, ['b1', 'b2'], true);
+    expect(ws.bookmarks.every((b) => b.keep)).toBe(true);
+    // Bearbeiten ohne Angabe lässt es stehen, ausdrücklich false hebt auf
+    ws = B.saveBookmark(ws, { ...ws.bookmarks[0], keep: undefined, title: 'Radio' });
+    expect(ws.bookmarks.find((b) => b.id === 'b1')?.keep).toBe(true);
+    ws = B.saveBookmark(ws, { ...ws.bookmarks.find((b) => b.id === 'b2')!, keep: false });
+    expect(ws.bookmarks.find((b) => b.id === 'b2')?.keep).toBeUndefined();
+    const src = Pz.keptSources(ws);
+    expect(Pz.keptBySource(src, 'https://radio.example/live/')).toBe(true);
+    expect(Pz.keptBySource(src, 'https://doku.example')).toBe(false);
+    const panel = { tabs: [{ id: 't1', url: 'https://radio.example/live' }, { id: 't2', url: 'https://x.example' }] };
+    expect(Pz.keepTabOf(panel, 't1', src)).toBe(true);
+    expect(Pz.keepTabOf(panel, 't2', src)).toBe(false);
+    ws = Pz.setSourcesKeep(ws, ['b1'], false);
+    expect(Pz.keptSources(ws).size).toBe(0);
+  });
+});
+

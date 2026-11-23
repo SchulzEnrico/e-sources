@@ -1,3 +1,4 @@
+import { sameUrlKey } from './bookmarks';
 import type { PanelMeta, Workspace } from './types';
 
 /**
@@ -116,7 +117,34 @@ export function toggleKeepTab(ws: Workspace, id: string, tab: string): Workspace
 }
 
 /** Bleibt dieser Tab immer geladen? (Portal oder Tab mit „Nicht pausieren“) */
-export const keepTabOf = (p: Pick<PanelMeta, 'keep' | 'tabs'>, tab: string): boolean => !!p.keep || !!p.tabs.find((t) => t.id === tab)?.keep;
+/** F-202: Adressen der Sources mit „Nie pausieren“ (Vergleich wie sameUrl). */
+export function keptSources(ws: Pick<Workspace, 'bookmarks'>): ReadonlySet<string> {
+  return new Set(ws.bookmarks.filter((b) => b.keep).map((b) => sameUrlKey(b.url)));
+}
+
+/** F-202: Zeigt dieser Tab eine Source mit „Nie pausieren“? */
+export const keptBySource = (src: ReadonlySet<string> | undefined, url: string | undefined): boolean => !!src && !!url && src.size > 0 && src.has(sameUrlKey(url));
+
+/** Pausiert dieser Tab nie? Portal, Tab selbst oder (F-202) seine Source. */
+export const keepTabOf = (p: Pick<PanelMeta, 'keep' | 'tabs'>, tab: string, src?: ReadonlySet<string>): boolean => {
+  if (p.keep) return true;
+  const t = p.tabs.find((x) => x.id === tab);
+  return !!t?.keep || keptBySource(src, t?.url);
+};
+
+/** F-202: Sources „Nie pausieren“ setzen oder aufheben (eine oder viele auf einmal). */
+export function setSourcesKeep(ws: Workspace, ids: readonly string[], keep: boolean): Workspace {
+  const set = new Set(ids);
+  return {
+    ...ws,
+    bookmarks: ws.bookmarks.map((b) => {
+      if (!set.has(b.id) || !!b.keep === keep) return b;
+      if (keep) return { ...b, keep: true };
+      const { keep: _drop, ...rest } = b;
+      return rest;
+    }),
+  };
+}
 
 /**
  * Schläft ein sichtbares Portal? Von Hand pausiert oder länger als die eingestellte Zeit nicht

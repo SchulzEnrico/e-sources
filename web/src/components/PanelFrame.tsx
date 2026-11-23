@@ -116,7 +116,15 @@ interface Props {
   /** F-06 Stufe 2: dieses Portal jetzt pausieren. */
   onPauseNow?: () => void;
   /** F-06 Stufe 2: „Nicht pausieren“ für den sichtbaren Tab umschalten. */
-  onKeepTab?: () => void;
+  /** F-201: ohne Angabe der vordere Tab */
+  onKeepTab?: (tab?: string) => void;
+  /** F-202: Pausiert eine Source mit dieser Adresse nie (Library)? */
+  keptBySource?: (url: string | undefined) => boolean;
+  /** F-202: gespeicherte Source zu dieser Adresse (für das Pause-Menü am Tab) */
+  sourceOf?: (url: string | undefined) => { id: string; keep: boolean } | undefined;
+  onKeepSource?: (id: string, keep: boolean) => void;
+  /** F-202: Einstellungen an der Stelle „Pausieren“ öffnen */
+  onPauseSettings?: () => void;
   /** F-194: Zoom dieses Portals setzen (Prozent). */
   onZoom?: (zoom: number) => void;
   /** F-194 Stufe 2: „Breite halten“ ein- oder ausschalten. */
@@ -209,7 +217,7 @@ export function linkFromDrop(dt: Pick<DataTransfer, 'getData'>): string {
   return /^\S+\.\S+$/.test(text) || /^https?:\/\//.test(text) ? text : '';
 }
 
-export function Menu(props: { icon: ReactNode; label: string; children: (close: () => void) => ReactNode }) {
+export function Menu(props: { icon: ReactNode; label: string; children: (close: () => void) => ReactNode; className?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const btn = useRef<HTMLButtonElement>(null);
@@ -277,8 +285,9 @@ export function Menu(props: { icon: ReactNode; label: string; children: (close: 
     }
     // Pfeiltasten nur auf Menüeinträgen – in Auswahllisten und Feldern behalten sie ihre Wirkung.
     const target = e.target as HTMLElement;
-    if (target.getAttribute('role') !== 'menuitem') return;
-    const items = all.filter((el) => el.getAttribute('role') === 'menuitem');
+    const isItem = (el: Element) => ['menuitem', 'menuitemcheckbox'].includes(el.getAttribute('role') ?? '');
+    if (!isItem(target)) return;
+    const items = all.filter(isItem);
     const i = items.indexOf(target);
     const go = (k: number) => items[(k + items.length) % items.length]?.focus();
     const keys: Record<string, () => void> = {
@@ -297,6 +306,7 @@ export function Menu(props: { icon: ReactNode; label: string; children: (close: 
     <div className="menu" ref={ref}>
       <button
         ref={btn}
+        className={props.className}
         type="button"
         onClick={() => setOpen((v) => !v)}
         onKeyDown={(e) => {
@@ -1017,7 +1027,7 @@ export function PanelFrame(p: Props) {
                     </Item>
                   )}
                   {p.onKeepTab && p.panel.tabs.length > 1 && (
-                    <Item icon="pause" checked={!!tab.keep || !!p.panel.keep} disabled={!!p.panel.keep} title={PAUSE_TEXT.keepTabTitle} onClick={run(p.onKeepTab)}>
+                    <Item icon="pause" checked={!!tab.keep || !!p.panel.keep} disabled={!!p.panel.keep} title={PAUSE_TEXT.keepTabTitle} onClick={run(() => p.onKeepTab?.())}>
                       {PAUSE_TEXT.keepTabMenu}
                     </Item>
                   )}
@@ -1108,7 +1118,7 @@ export function PanelFrame(p: Props) {
                 window.setTimeout(() => el?.querySelectorAll<HTMLElement>('[role="tab"]')[to]?.focus());
               }}
               className={['tab', t.id === tab.id && 'tab--on', isPaused(t) && 'tab--paused'].filter(Boolean).join(' ')}
-              aria-description={isPaused(t) ? PAUSE_TEXT.paused : t.keep && !p.panel.keep ? PAUSE_TEXT.tabKept : undefined}
+              aria-description={isPaused(t) ? PAUSE_TEXT.paused : (t.keep || p.keptBySource?.(t.url)) && !p.panel.keep ? PAUSE_TEXT.tabKept : undefined}
               draggable
               onDragStart={(e) => {
                 dragTab.current = t.id;
@@ -1118,9 +1128,62 @@ export function PanelFrame(p: Props) {
               onDragOver={(e) => dragTab.current && e.preventDefault()}
               onDrop={(e) => dropTab(e, i)}
               onClick={() => p.onSelectTab(t.id)}
-              title={`${t.url ?? 'Neuer Tab'}${isPaused(t) ? ` · ${PAUSE_TEXT.paused}` : t.keep && !p.panel.keep ? ` · ${PAUSE_TEXT.tabKept}` : ''}`}
+              title={`${t.url ?? 'Neuer Tab'}${isPaused(t) ? ` · ${PAUSE_TEXT.paused}` : (t.keep || p.keptBySource?.(t.url)) && !p.panel.keep ? ` · ${PAUSE_TEXT.tabKept}` : ''}`}
             >
               <span className="tab__label">{tabLabel(t)}</span>
+              {/* F-201/F-202: Pause-Zeichen vor dem × – Zustand auf einen Blick, Klick öffnet das Pause-Menü */}
+              {t.url && !p.isBlocked(t.url) && (() => {
+                const src = p.sourceOf?.(t.url);
+                const kept = !!p.panel.keep || !!t.keep || !!src?.keep;
+                const sleeping = !kept && isPaused(t);
+                const state = kept ? PAUSE_TEXT.tabKept : sleeping ? PAUSE_TEXT.paused : PAUSE_TEXT.stateNormal;
+                return (
+                  <span className="tab__pause" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                    <Menu
+                      className={`tab__keep${kept ? ' is-on' : sleeping ? ' is-asleep' : ''}`}
+                      icon={<Icon name={kept ? 'keep' : 'pause'} size={13} />}
+                      label={PAUSE_TEXT.tabMenu(tabLabel(t), state)}
+                    >
+                      {(close) => {
+                        const run = (f: () => void) => () => {
+                          f();
+                          close();
+                        };
+                        return (
+                          <>
+                            <MenuHead>{PAUSE_TEXT.tabMenu(tabLabel(t), state)}</MenuHead>
+                            {p.onKeepTab && (
+                              <Item icon="keep" checked={!!t.keep || !!p.panel.keep} disabled={!!p.panel.keep} title={PAUSE_TEXT.keepTabTitle} onClick={run(() => p.onKeepTab?.(t.id))}>
+                                {PAUSE_TEXT.keepTabMenu}
+                              </Item>
+                            )}
+                            {p.onKeepSource && (
+                              <Item icon="source" checked={!!src?.keep} disabled={!src} title={src ? PAUSE_TEXT.sourceKeepHint : PAUSE_TEXT.sourceNone} onClick={run(() => src && p.onKeepSource?.(src.id, !src.keep))}>
+                                {src ? PAUSE_TEXT.sourceKeepMenu : PAUSE_TEXT.sourceKeepMenuNone}
+                              </Item>
+                            )}
+                            {p.onKeep && (
+                              <Item icon="portal" checked={!!p.panel.keep} title={PAUSE_TEXT.keepTitle} onClick={run(p.onKeep)}>
+                                {PAUSE_TEXT.keepPanelMenu}
+                              </Item>
+                            )}
+                            {t.id === tab.id && p.onPauseNow && (
+                              <Item icon="pause" disabled={kept} title={kept ? PAUSE_TEXT.pauseNowKept : PAUSE_TEXT.pauseNowTitle} onClick={run(p.onPauseNow)}>
+                                {PAUSE_TEXT.pauseNow}
+                              </Item>
+                            )}
+                            {p.onPauseSettings && (
+                              <Item icon="settings" onClick={run(p.onPauseSettings)}>
+                                {PAUSE_TEXT.settingsMenu}
+                              </Item>
+                            )}
+                          </>
+                        );
+                      }}
+                    </Menu>
+                  </span>
+                );
+              })()}
               <button
                 type="button"
                 className="tab__close"

@@ -132,6 +132,8 @@ export interface Bookmark {
   panels: string[];
   /** F-185: wer, woher, wann; fehlt bei Sources von vor V29 („Herkunft unbekannt“). */
   origin?: BookmarkOrigin;
+  /** F-202: Tabs mit dieser Source pausieren nie. */
+  keep?: boolean;
 }
 
 /** F-185: Wie eine Source in die Library kam. */

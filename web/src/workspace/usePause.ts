@@ -8,7 +8,7 @@ import { PAUSE_TICK, awake, dozing, keepTabOf, keysOf, track, trackUse, visibleK
  * Stufe 2: sichtbare Portale, die lange nicht benutzt werden (oder von Hand), schlafen –
  * `asleep(id)`; `touch(id)` meldet Benutzung, `touch(id, true)` weckt auch von Hand Pausiertes.
  */
-export function usePause(all: readonly PanelMeta[], shown: readonly PanelMeta[], minutes: number, shownMin: number, active: string | null) {
+export function usePause(all: readonly PanelMeta[], shown: readonly PanelMeta[], minutes: number, shownMin: number, active: string | null, src?: ReadonlySet<string>) {
   const visible = useMemo(() => visibleKeys(shown), [shown.map((p) => `${p.id}/${p.activeTab}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
   const keys = all.flatMap(keysOf);
   const keyStr = keys.join('|');
@@ -49,7 +49,7 @@ export function usePause(all: readonly PanelMeta[], shown: readonly PanelMeta[],
   const asleep = (id: string): boolean => {
     const p = shown.find((x) => x.id === id);
     if (!p) return false;
-    return dozing({ used: used[id], now, minutes: shownMin, keep: keepTabOf(p, p.activeTab), active: id === active, manual: manual.has(id) });
+    return dozing({ used: used[id], now, minutes: shownMin, keep: keepTabOf(p, p.activeTab, src), active: id === active, manual: manual.has(id) });
   };
   const isAwake = (key: string, keep?: boolean) => awake(seen, key, visible, now, minutes, keep);
   return { isAwake, asleep, touch, pauseNow };

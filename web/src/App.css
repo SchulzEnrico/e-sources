@@ -5010,3 +5010,66 @@ button.is-off:hover,
 }
 /* F-191 (a): Hauptknopf in Anlegen-/Umbenennen-Formularen des Cockpits */
 .help__run.lc__primary { font-weight: 600; box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.6); }
+
+/* F-201/F-202: Pause-Zeichen vor dem × – immer sichtbar. Schlicht = pausiert nach der Zeit,
+   hervorgehoben = gerade pausiert, rot durchgestrichen = pausiert nie. Klick öffnet das Pause-Menü. */
+.tab__pause {
+  flex: 0 0 auto;
+  display: inline-flex;
+}
+.tab__pause .menu {
+  display: inline-flex;
+}
+.tab .tab__keep {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  border-radius: 6px;
+  line-height: 1;
+  opacity: 0.7;
+}
+.tab__keep .icon {
+  display: inline-block;
+}
+.tab:hover .tab__keep,
+.tab__keep:focus-visible,
+.tab__keep[aria-expanded='true'] {
+  opacity: 1;
+}
+.tab .tab__keep.is-on {
+  opacity: 1;
+  color: var(--strong);
+}
+.tab .tab__keep.is-asleep {
+  opacity: 1;
+  color: var(--warn);
+}
+/* Kreis und Querstrich rot (Wunsch Enrico), die Pause-Balken in Textfarbe */
+.tab__keep.is-on .icon path:first-child,
+.tab__keep.is-on .icon path:last-child {
+  stroke: var(--keep-red, #ff4d4d);
+  stroke-width: 1.9;
+}
+:root[data-theme='light'] .tab__keep.is-on .icon path:first-child,
+:root[data-theme='light'] .tab__keep.is-on .icon path:last-child {
+  stroke: #c8201a;
+}
+.tab .tab__keep:hover {
+  color: var(--strong);
+  background: rgba(var(--accent-rgb), 0.28);
+  filter: none;
+}
+@media (forced-colors: active) {
+  .tab__keep.is-on,
+  .tab__keep.is-on .icon path {
+    color: Highlight;
+    stroke: Highlight;
+  }
+}

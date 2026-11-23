@@ -106,6 +106,8 @@ export function saveBookmark(ws: Workspace, d: Bookmark): Workspace {
   // F-185: Herkunft bleibt beim Ändern erhalten
   const origin = d.origin ?? (i >= 0 ? ws.bookmarks[i].origin : undefined);
   if (origin) b.origin = origin;
+  // F-202: „Nie pausieren“ bleibt, wenn der Aufrufer es nicht ausdrücklich setzt (true/false)
+  if (d.keep ?? (i >= 0 ? ws.bookmarks[i].keep : false)) b.keep = true;
   if (i < 0) return { ...ws, bookmarks: [...ws.bookmarks, b] };
   const bookmarks = [...ws.bookmarks];
   if (bookmarks[i].category === category) bookmarks[i] = b;

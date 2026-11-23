@@ -6,7 +6,7 @@ import type { Action } from '../workspace/useWorkspace';
 import type { Bookmark, Workspace } from '../workspace/types';
 import { NO_CATEGORY, categoryByName, collectionSize, groups, originOf, originText } from '../workspace/bookmarks';
 import { hostOf, newId } from '../workspace/workspace';
-import { DIALOG_TEXT, TERMS } from '../workspace/terms';
+import { DIALOG_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
 
 /** Zuletzt gewählte Kategorie, damit mehrere Lesezeichen hintereinander schnell in dieselbe gehen. */
 let lastCategory = NO_CATEGORY;
@@ -64,6 +64,7 @@ export function BookmarkEditor(props: {
   const [tags, setTags] = useState(b.tags.join(', '));
   const [note, setNote] = useState(b.note ?? '');
   const [panels, setPanels] = useState<string[]>(b.panels);
+  const [keep, setKeep] = useState(!!b.keep);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   useEffect(() => titleRef.current?.select(), []);
@@ -79,7 +80,7 @@ export function BookmarkEditor(props: {
     lastCategory = cat;
     // F-185: neue Sources von Hand (☆ oder Library); beim Ändern bleibt die Herkunft
     const origin = b.origin ?? (props.isNew ? originOf(ws, 'hand') : undefined);
-    props.dispatch({ type: 'saveBookmark', bookmark: { ...b, title, url, category: cat, tags: tags.split(','), note, panels, origin } });
+    props.dispatch({ type: 'saveBookmark', bookmark: { ...b, title, url, category: cat, tags: tags.split(','), note, panels, origin, keep } });
     props.onDone(props.isNew ? 'Source in der Library gespeichert.' : 'Source geändert.');
   };
 
@@ -164,6 +165,12 @@ export function BookmarkEditor(props: {
           Notiz <small>(optional)</small>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
         </label>
+        {/* F-202: Tabs mit dieser Source pausieren nie */}
+        <label className="bm-check" title={PAUSE_TEXT.sourceKeepHint}>
+          <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} aria-describedby="bm-keep-hint" />
+          <Icon name="keep" size={14} /> {PAUSE_TEXT.sourceKeep}
+        </label>
+        <p className="bm-hint" id="bm-keep-hint">{PAUSE_TEXT.sourceKeepHint}</p>
         {/* F-14, F-32: in der Sammlung eines oder mehrerer Panels ablegen */}
         <fieldset>
           <legend>In der Library von</legend>

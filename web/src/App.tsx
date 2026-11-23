@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { ZOOM_DEFAULT, fitFor, fitStart, frameWidth, nearestStep, shownZoom, zoomOf, zoomStep } from './workspace/zoom';
 import './App.css';
 import { usePause } from './workspace/usePause';
-import { PAUSE_CHOICES, SHOWN_CHOICES, keepTabOf, pauseMinutes, shownMinutes, tabKey } from './workspace/pause';
+import { PAUSE_CHOICES, SHOWN_CHOICES, keepTabOf, keptBySource, keptSources, pauseMinutes, shownMinutes, tabKey } from './workspace/pause';
 import logoUrl from './assets/e-sources-logo.svg';
 import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, MenuHead, PanelFrame } from './components/PanelFrame';
@@ -1835,9 +1835,18 @@ function DeskApp(props: DeskProps) {
         : mode.kind === 'split'
           ? splitSelection(view, active && areaOf(view, active), mode.count).map(shown).filter((m): m is PanelMeta => !!m)
           : shownView.slots.map((s) => s.front);
-  const { isAwake, asleep, touch: usedNow, pauseNow } = usePause(shownView.slots.flatMap((s) => s.panels), pauseShown, pauseMinutes(ws), shownMinutes(ws), active);
+  // F-202: Sources mit „Nie pausieren“
+  /** F-202: Einstellungen öffnen und auf „Verdecktes pausieren“ springen */
+  const openPauseSettings = () => {
+    const gear = document.querySelector<HTMLButtonElement>('button[aria-label="Einstellungen"]');
+    if (!gear) return;
+    if (gear.getAttribute('aria-expanded') !== 'true') gear.click();
+    window.setTimeout(() => document.getElementById('set-pause')?.focus(), 80);
+  };
+  const keptSrc = useMemo(() => keptSources(ws), [ws.bookmarks]);
+  const { isAwake, asleep, touch: usedNow, pauseNow } = usePause(shownView.slots.flatMap((s) => s.panels), pauseShown, pauseMinutes(ws), shownMinutes(ws), active, keptSrc);
   /** F-06 Stufe 2: Tab geladen? „Nicht pausieren“ (Portal oder Tab) immer; im pausierten Portal sonst nichts. */
-  const tabAwake = (meta: PanelMeta, tab: string) => keepTabOf(meta, tab) || (!asleep(meta.id) && isAwake(tabKey(meta.id, tab)));
+  const tabAwake = (meta: PanelMeta, tab: string) => keepTabOf(meta, tab, keptSrc) || (!asleep(meta.id) && isAwake(tabKey(meta.id, tab)));
 
   const frame = (meta: PanelMeta, onArea?: { slotId: string; rect: T.FRect }) => {
     const slotOfMeta = shownView.slots.find((s) => s.panels.some((m) => m.id === meta.id));
@@ -1872,7 +1881,7 @@ function DeskApp(props: DeskProps) {
                 addFx: fx.panel,
                 onRename: (id, name) => dispatch({ type: 'rename', id, name }),
                 onDragStart: onArea ? (e, id) => startStackDrag(e, id, slotOfMeta.id) : undefined,
-                paused: (m) => m.id !== slotOfMeta.front.id && !isAwake(m.id, m.keep),
+                paused: (m) => m.id !== slotOfMeta.front.id && !isAwake(m.id, keepTabOf(m, m.activeTab, keptSrc)),
               }
             : undefined
         }
@@ -1895,6 +1904,19 @@ function DeskApp(props: DeskProps) {
         }}
         awake={(tab) => tabAwake(meta, tab)}
         asleep={asleep(meta.id)}
+        keptBySource={(u) => keptBySource(keptSrc, u)}
+        sourceOf={(u) => {
+          const b = bookmarkOf(ws, u, meta.id);
+          return b ? { id: b.id, keep: !!b.keep } : undefined;
+        }}
+        onKeepSource={(id, keep) => {
+          dispatch({ type: 'keepSources', ids: [id], keep });
+          const b = ws.bookmarks.find((x) => x.id === id);
+          const text = PAUSE_TEXT.sourceKept(b?.title || hostOf(b?.url ?? ''), keep);
+          notify(text);
+          sayLive(text);
+        }}
+        onPauseSettings={openPauseSettings}
         onUse={(wake) => {
           if (wake && asleep(meta.id)) sayLive(PAUSE_TEXT.woke(meta.name));
           usedNow(meta.id, wake);
@@ -1905,8 +1927,8 @@ function DeskApp(props: DeskProps) {
           notify(text);
           sayLive(text);
         }}
-        onKeepTab={() => {
-          const t = meta.tabs.find((x) => x.id === meta.activeTab);
+        onKeepTab={(id) => {
+          const t = meta.tabs.find((x) => x.id === (id ?? meta.activeTab));
           if (!t) return;
           dispatch({ type: 'keepTab', id: meta.id, tab: t.id });
           const label = t.url ? hostOf(t.url) : 'Neuer Tab';
@@ -2184,7 +2206,7 @@ function DeskApp(props: DeskProps) {
           const front = !!s && meta?.id === m.id;
           const at = chosen.findIndex((x) => x.id === m.id);
           const visible = mode.kind === 'max' ? m.id === mode.id : mode.kind === 'split' ? at >= 0 : front;
-          if (!visible && !isAwake(m.id, m.keep)) return null;
+          if (!visible && !isAwake(m.id, keepTabOf(m, m.activeTab, keptSrc))) return null;
           const style = mode.kind === 'max' ? MAX_STYLE : mode.kind === 'split' ? (at >= 0 ? cellStyle(at) : undefined) : s ? px(s.rect) : undefined;
           const onSlot = mode.kind === 'area' && front && s;
           const over = onSlot && drag?.target === s.id ? drag.zone : null;
@@ -2640,6 +2662,7 @@ function DeskApp(props: DeskProps) {
                 <label title={PAUSE_TEXT.settingHint}>
                   {PAUSE_TEXT.setting}
                   <select
+                    id="set-pause"
                     value={pauseMinutes(ws)}
                     aria-description={PAUSE_TEXT.settingHint}
                     onChange={(e) => {

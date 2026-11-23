@@ -546,7 +546,20 @@ export function isBlocked(ws: Workspace, url: string): boolean {
     .filter((d) => covers(host, d))
     .sort((a, b) => b.length - a.length)[0];
   if (own) return !ws.embed[own];
+  // F-201: Eingebettete Player (z. B. youtube.com/embed/…) sind gerade fürs Einbetten da.
+  if (isEmbedPlayer(url)) return false;
   return KNOWN_BLOCKED.some((d) => covers(host, d));
+}
+
+/** F-201: Adressen, die ausdrücklich zum Einbetten gedacht sind, obwohl die Domain sonst sperrt. */
+export function isEmbedPlayer(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, '').toLowerCase();
+    return (covers(host, 'youtube.com') || covers(host, 'youtube-nocookie.com')) && u.pathname.startsWith('/embed/');
+  } catch {
+    return false;
+  }
 }
 
 /** Merkt sich für die Domain einer Adresse, ob sie sich einbetten lässt. */

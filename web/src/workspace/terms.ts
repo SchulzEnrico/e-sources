@@ -896,4 +896,20 @@ export const SYNC_TEXT = {
     error: 'Abgleich gestört',
   } as Record<string, string>,
   unavailable: 'Im Testmodus und in eingebetteten E-Sources gibt es keinen Abgleich.',
+  // F-169 (f), V59: Tour „Abgleich einrichten“
+  tourBtn: 'Tour',
+  tourTitle: 'Kurze Einführung: Abgleich Schritt für Schritt einrichten',
+  tourLabel: 'Tour „Abgleich einrichten“ starten',
+  tour: {
+    intro: 'Mit dem Abgleich haben alle deine Geräte denselben Stand – ohne Dateien hin- und herzuschicken. Du brauchst dafür ein kostenloses GitHub-Konto und richtest jedes Gerät einmal ein, das dauert etwa zwei Minuten. Mit → weiter, mit Esc beenden.',
+    account: 'GitHub ist ein bekannter Dienst für Entwickler; E-Sources nutzt dort nur eine kleine, geheime Ablage (ein Gist). Hast du schon ein Konto, melde dich einfach an. Sonst registrierst du dich hier kostenlos.',
+    token: 'Der Schlüssel (Token) erlaubt E-Sources, dein Gist zu lesen und zu schreiben – sonst nichts. Der Link öffnet die fertig ausgefüllte Seite. Dort die Laufzeit wählen (am bequemsten „No expiration“), unten auf „Generate token“ klicken und den Schlüssel kopieren. GitHub zeigt ihn nur einmal.',
+    paste: 'Schlüssel hier einfügen und auf „Verbinden“ klicken. E-Sources prüft ihn und legt beim ersten Gerät das Gist an; jedes weitere Gerät findet es von selbst und übernimmt den Stand.',
+    privacy: 'Der Schlüssel bleibt nur auf diesem Gerät. Das Gist ist geheim, aber nicht verschlüsselt – wer den Link kennt, kann es lesen. Gib den Link darum nicht weiter.',
+    manual: 'Kein GitHub? Dann gleichst du von Hand ab: „An anderes Gerät senden …“ schickt alles als Datei (z. B. per AirDrop), auf dem anderen Gerät lädst du sie mit Zahnrad › „Desks aus Datei laden …“.',
+    state: 'Hier steht, wann zuletzt abgeglichen wurde oder was gestört ist. Meist musst du nichts tun: E-Sources holt den Stand beim Start und beim Zurückkehren und sendet Änderungen nach 30 Sekunden Ruhe.',
+    buttons: '„Jetzt abgleichen“ tut es sofort. „Gist auf GitHub ansehen“ zeigt die Ablage mit dem Verlauf aller Fassungen. „Trennen“ löscht den Schlüssel auf diesem Gerät; der Stand auf GitHub bleibt.',
+    devices: 'Richte jedes Gerät einmal ein – mit demselben GitHub-Konto. Achtung: Eine E-Sources-App auf dem Startbildschirm von iPhone oder iPad hat eigenen Speicher und braucht den Schlüssel noch einmal. Das Zeichen mit den zwei Pfeilen oben in der Kopfleiste zeigt den Abgleich: ruhig = alles gut, es dreht sich = gleicht ab, „!“ = gestört (ein Klick öffnet diesen Dialog).',
+    again: 'Diese Tour startest du jederzeit wieder über den Knopf „Tour“ in diesem Dialog, die Hilfe (?) oder die Suche („Tour Abgleich“).',
+  },
 };

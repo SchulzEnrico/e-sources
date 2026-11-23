@@ -3,7 +3,7 @@
  * Schlüssel mit Recht „gist“, Verbinden), danach Zustand, „Jetzt abgleichen“ und „Trennen“.
  * Native <dialog> wie Profil und Hilfe (NF-03): Fokus aufs erste Feld, Esc schließt, Zustand als role=status.
  */
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { SYNC_TEXT as S } from '../workspace/terms';
 import { GistError, SIGNUP_URL, TOKEN_URL, cleanToken, clearGist, connectGist, gistAvailable, loadGist, saveGist } from '../workspace/gist';
@@ -11,7 +11,7 @@ import { gistOff, gistState, syncNow, useGistState } from '../workspace/useGistS
 
 const fmt = (ms: number) => new Date(ms).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
 
-export function SyncDialog({ onClose, onSend, say }: { onClose: () => void; onSend: () => void; say: (text: string) => void }) {
+export function SyncDialog({ onClose, onSend, say, onTour, children }: { onClose: () => void; onSend: () => void; say: (text: string) => void; onTour?: () => void; children?: ReactNode }) {
   const dlg = useRef<HTMLDialogElement>(null);
   const st = useGistState();
   const [cfg, setCfg] = useState(loadGist);
@@ -76,6 +76,11 @@ export function SyncDialog({ onClose, onSend, say }: { onClose: () => void; onSe
     >
       <header className="help__head">
         <h2 id="sync-title">{S.title}</h2>
+        {onTour && (
+          <button type="button" className="design__tour" onClick={onTour} title={S.tourTitle} aria-label={S.tourLabel}>
+            {S.tourBtn}
+          </button>
+        )}
         <button type="button" className="help__x" onClick={onClose} title="Schließen (Esc)" aria-label="Abgleich schließen">
           <Icon name="close" size={14} />
         </button>
@@ -90,7 +95,7 @@ export function SyncDialog({ onClose, onSend, say }: { onClose: () => void; onSe
             <p className="sync__ok">
               <Icon name="check" size={14} /> {S.connected(cfg.login)}
             </p>
-            <p role="status" aria-live="polite" className={st.status === 'error' ? 'sync__err' : undefined}>
+            <p role="status" aria-live="polite" className={st.status === 'error' ? 'sync__state sync__err' : 'sync__state'}>
               {state}
             </p>
             <p className="sync__note">{S.how}</p>
@@ -146,10 +151,10 @@ export function SyncDialog({ onClose, onSend, say }: { onClose: () => void; onSe
                 </p>
               </li>
             </ol>
-            <p className="sync__note">
+            <p className="sync__note sync__privacy">
               <Icon name="catLock" size={14} /> {S.privacy}
             </p>
-            <p className="sync__note">
+            <p className="sync__note sync__manual">
               {S.noGithub}{' '}
               <button type="button" onClick={onSend}>
                 {S.sendInstead}
@@ -158,6 +163,7 @@ export function SyncDialog({ onClose, onSend, say }: { onClose: () => void; onSe
           </>
         )}
       </div>
+      {children}
     </dialog>
   );
 }

@@ -442,6 +442,16 @@ function DeskApp(props: DeskProps) {
   const [casesOpen, setCasesOpen] = useState(false);
   /** F-169 Stufe 2: Dialog „Abgleich zwischen Geräten“ */
   const [syncOpen, setSyncOpen] = useState(false);
+  /** V59: Tour „Abgleich einrichten“ (F-169 f) läuft im Dialog; beim ersten Öffnen von selbst, Dialog zu → Tour endet mit. */
+  useEffect(() => {
+    if (!syncOpen) {
+      setTour((t) => (t === 'sync' ? null : t));
+      return;
+    }
+    if (PROBE || !tourAutoStart('sync')) return;
+    const t = window.setTimeout(() => setTour((x) => x ?? 'sync', true), 300);
+    return () => window.clearTimeout(t);
+  }, [syncOpen]);
   const gist = useGistState();
   const gistSeen = useRef(gist.at);
   useEffect(() => {
@@ -2224,6 +2234,10 @@ function DeskApp(props: DeskProps) {
         return importRef.current?.click();
       case 'syncDesks':
         return setSyncOpen(true);
+      case 'tourSync':
+        setOverview(false);
+        setSyncOpen(true);
+        return window.setTimeout(() => setTour('sync'), syncOpen ? 0 : 150);
       case 'sortHelp':
         return setSortOpen(true);
       case 'profile':
@@ -3002,7 +3016,7 @@ function DeskApp(props: DeskProps) {
           Test: {PROBE_KIND} · nichts wird gespeichert
         </a>
       )}
-      {tour && tour !== 'design' && tour !== 'colors' && !(tour === 'import' && bmImport) && (
+      {tour && tour !== 'design' && tour !== 'colors' && tour !== 'sync' && !(tour === 'import' && bmImport) && (
         <Tour
           key={tour}
           tour={tour}
@@ -3158,7 +3172,10 @@ function DeskApp(props: DeskProps) {
             void sendWorkspace();
           }}
           say={(text) => notify(text)}
-        />
+          onTour={() => setTour('sync')}
+        >
+          {tour === 'sync' && <Tour key="sync" tour="sync" auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} />}
+        </SyncDialog>
       )}
       {profileOpen && <ProfileDialog profile={profileOf(ws)} onChange={(change) => dispatch({ type: 'profile', change })} onRestored={() => sayLive(DIALOG_TEXT.resetDone)} onClose={() => setProfileOpen(false)} />}
       {sortOpen && (

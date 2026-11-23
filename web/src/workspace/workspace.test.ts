@@ -1622,6 +1622,24 @@ describe('F-95 Tour', () => {
   });
 });
 
+describe('F-169 (f) Tour „Abgleich einrichten“ (V59)', () => {
+  it('läuft im Dialog dialog.sync, eigener Merker, in der Suche', () => {
+    const y = Tour.TOURS.sync;
+    expect(y.filter((s) => s.target).every((s) => (s.target ?? '').startsWith('dialog.sync'))).toBe(true);
+    expect(new Set(y.map((s) => s.id)).size).toBe(y.length);
+    expect(y.every((s) => s.text.trim().length > 20)).toBe(true);
+    expect(Tour.TOUR_KEY.sync).toBe('esource.tour.sync.v1');
+    expect(H.searchHelp('Tour Abgleich')[0].id).toBe('tourSync');
+  });
+  it('vor dem Verbinden die drei Schritte, verbunden Zustand und Knöpfe', () => {
+    const y = Tour.TOURS.sync;
+    const before = Tour.tourSteps((sel) => !sel.includes('sync__state') && !sel.includes('sync__btns'), y).map((s) => s.id);
+    expect(before).toEqual(['intro', 'account', 'token', 'paste', 'privacy', 'manual', 'devices', 'again']);
+    const after = Tour.tourSteps((sel) => sel.includes('sync__state') || sel.includes('sync__btns'), y).map((s) => s.id);
+    expect(after).toEqual(['intro', 'state', 'buttons', 'devices', 'again']);
+  });
+});
+
 describe('F-172 Tour „Cockpit“', () => {
   it('eigene Schritte im Cockpit, Begrüßung ohne Ziel bleibt', () => {
     const c = Tour.TOURS.cockpit;

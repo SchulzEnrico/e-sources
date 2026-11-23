@@ -6,7 +6,7 @@
  */
 import { BROWSER_EXPORT, browserSend, helpById } from './help';
 import { type BrowserName, browserOf, currentUa, modKey } from './browser';
-import { CASE_TEXT, CATEGORY_TEXT, DESK_LAYOUT_TEXT, DEV_TEXT, PAUSE_TEXT, TINT_TEXT } from './terms';
+import { CASE_TEXT, CATEGORY_TEXT, DESK_LAYOUT_TEXT, DEV_TEXT, PAUSE_TEXT, SYNC_TEXT, TINT_TEXT } from './terms';
 
 export interface TourStep {
   id: string;
@@ -30,7 +30,7 @@ export interface TourStep {
   keep?: boolean;
 }
 
-export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev';
+export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev' | 'sync';
 
 const t = (id: string) => helpById(id)?.text ?? '';
 
@@ -45,6 +45,9 @@ const K = 'dialog.colors';
 const P = 'main section[data-panel-id]';
 /** V54: sichtbares Portal im Entwickler-Modus (F-200) */
 const V = 'main .tile:not(.is-back) section.win--dev';
+/** V59: Dialog „Abgleich zwischen Geräten“ (F-169 Stufe 2) */
+const Y = 'dialog.sync';
+const ST = SYNC_TEXT.tour;
 
 export const TOURS: Record<TourId, TourStep[]> = {
   start: [
@@ -376,6 +379,19 @@ export const TOURS: Record<TourId, TourStep[]> = {
       text: 'Diese Tour findest du jederzeit in der Hilfe (?) und in der Suche („Tour Entwickler“).',
     },
   ],
+  // V59: Abgleich einrichten (F-169 f) – läuft im Dialog; vor dem Verbinden die drei Schritte, danach Zustand und Knöpfe
+  sync: [
+    { id: 'intro', title: 'Abgleich einrichten', text: ST.intro },
+    { id: 'account', title: '1. GitHub-Konto', target: `${Y} .sync__steps > li:nth-child(1)`, text: ST.account },
+    { id: 'token', title: '2. Schlüssel anlegen', target: `${Y} .sync__steps > li:nth-child(2)`, text: ST.token },
+    { id: 'paste', title: '3. Einfügen und verbinden', target: `${Y} .sync__form`, text: ST.paste },
+    { id: 'privacy', title: 'Datenschutz', target: `${Y} .sync__privacy`, text: ST.privacy },
+    { id: 'manual', title: 'Ohne GitHub', target: `${Y} .sync__manual`, text: ST.manual },
+    { id: 'state', title: 'Zustand', target: `${Y} .sync__state`, text: ST.state },
+    { id: 'buttons', title: 'Abgleichen, ansehen, trennen', target: `${Y} .sync__btns`, text: ST.buttons },
+    { id: 'devices', title: 'Weitere Geräte', text: ST.devices },
+    { id: 'again', title: 'Tour wieder starten', text: ST.again },
+  ],
 };
 
 /** Starttour (F-95) – bleibt für bestehende Stellen erhalten. */
@@ -387,7 +403,7 @@ export function tourSteps(has: (selector: string) => boolean, steps: TourStep[] 
 }
 
 /** Speicherschlüssel je Tour; die Starttour behält ihren bisherigen Schlüssel. */
-export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1' };
+export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1', sync: 'esource.tour.sync.v1' };
 
 /** Wurde die Tour schon gezeigt (beendet oder übersprungen)? */
 export function tourSeen(id: TourId = 'start'): boolean {

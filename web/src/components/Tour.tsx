@@ -77,9 +77,19 @@ export function Tour({ tour = 'start', auto = false, onClose, onAutoOff, onActio
     // Aufklappen läuft mit Übergang: nach dessen Ende noch einmal messen
     const again = step.expand ? window.setTimeout(measure, 320) : 0;
     window.addEventListener('resize', measure);
+    // V59: auch beim Scrollen nachmessen – in inneren Bereichen (Dialog mit Laufleiste) kommt scrollIntoView
+    // bei sanftem Scrollen erst nach dem Messen an, und der Nutzer kann selbst scrollen (capture fängt jedes Element)
+    let frame = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    };
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       window.clearTimeout(again);
+      cancelAnimationFrame(frame);
       window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', onScroll, true);
       if (el && step.expand) el.classList.remove('is-open');
     };
   }, [step]);

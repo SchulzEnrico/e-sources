@@ -5489,7 +5489,18 @@ h3.cases__name { font-size: 1.05em; }
 .sync__steps a, .sync__btns a { color: rgb(var(--tint)); }
 .sync__form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-top: 8px; }
 .sync__form label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px; }
-.sync__form input { font: inherit; padding: 6px 8px; }
+.sync__form input {
+  /* V59: wie die übrigen Felder (Mulde), sonst im dunklen Design hellgrau; helle Designs setzen input selbst */
+  font: inherit;
+  padding: 6px 8px;
+  color: var(--text);
+  background: linear-gradient(145deg, var(--well-a), var(--well-b));
+  border: 1px solid rgba(var(--tint), 0.12);
+  border-radius: 8px;
+  box-shadow: inset 2px 2px 5px rgba(var(--lo), 0.7);
+  min-width: 0;
+}
+.sync__form input::placeholder { color: var(--text); opacity: 0.55; }
 .sync__btns { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; }
 .tb-sync { position: relative; }
 .tb-sync .icon { display: inline-block; }

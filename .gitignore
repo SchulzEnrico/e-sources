@@ -20,5 +20,7 @@ server/.mvn/wrapper/maven-wrapper.jar
 .env
 .env.*
 !.env.example
-docs/E-Sources_Dashboard_V36.pdf
-docs/E-Sources_Dashboard_V51.pdf
+
+# Eigene Ablage (nur lokal): Dashboards und Entscheidungs-Docs als PDF
+docs/Dashboards/
+docs/Arbeitspakete/

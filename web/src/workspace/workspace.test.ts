@@ -3523,6 +3523,11 @@ describe('F-169 Stufe 2: Abgleich über GitHub Gist', () => {
   it('fragt beim ersten Verbinden, wenn hier schon etwas steht', () => {
     expect(Gi.planSync(500, { seen: '', syncedAt: 0 }, '2026-11-23T11:00:00.000Z')).toBe('conflict');
   });
+  it('lässt bei Änderungen auf beiden Seiten den neueren Stand gewinnen', () => {
+    const t = Date.parse('2026-11-23T11:00:00.000Z');
+    expect(Gi.newerWins(t - 5000, '2026-11-23T11:00:00.000Z')).toBe('pull');
+    expect(Gi.newerWins(t + 5000, '2026-11-23T11:00:00.000Z')).toBe('push');
+  });
   it('bereinigt eingefügte Schlüssel', () => {
     expect(Gi.cleanToken('  token ghp_abc\n123 ')).toBe('ghp_abc123');
   });

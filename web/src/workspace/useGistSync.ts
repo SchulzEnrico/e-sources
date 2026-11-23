@@ -4,19 +4,19 @@
  * Fenster stimmen sich über eine Web-Lock ab, damit nur eines zugleich abgleicht.
  */
 import { useEffect, useRef, useSyncExternalStore, type Dispatch } from 'react';
-import { GistError, fetchRemote, loadGist, planSync, pushRemote, saveGist } from './gist';
-import { loadSyncMeta, storeImported } from './storage';
-import { deviceLabel, type TransferFile } from './transfer';
+import { GistError, fetchRemote, loadGist, newerWins, planSync, pushRemote, saveGist } from './gist';
+import { WORKSPACE_KEY, loadSyncMeta, parseWorkspace, storeImported } from './storage';
+import { deviceLabel } from './transfer';
 import type { Workspace } from './types';
 import type { Action } from './useWorkspace';
 
 export interface GistState {
-  status: 'off' | 'idle' | 'busy' | 'error' | 'conflict';
+  status: 'off' | 'idle' | 'busy' | 'error';
   /** Letzter erfolgreicher Abgleich (ms). */
   at?: number;
   error?: string;
-  /** Bei Konflikt: der Stand auf GitHub. */
-  remote?: TransferFile;
+  /** Beim Holen wurden Änderungen dieses Geräts ersetzt – „Rückgängig“ möglich. */
+  undo?: boolean;
   /** Kurze Meldung zum letzten Schritt (geholt/gesendet), für Ansage und Anzeige. */
   last?: 'pulled' | 'pushed' | 'same';
 }
@@ -47,6 +47,24 @@ export const syncNow = (force?: Force) => (runner ? runner(force) : Promise.reso
 export const gistOff = () => set({ status: 'off' });
 
 const QUIET = 30_000;
+const BACKUP = 'esource.gist.backup';
+
+/** „Rückgängig“ nach dem Holen: Stand dieses Geräts von vorher zurück; er wird danach gesendet. */
+export function restoreBackup(dispatch: Dispatch<Action>): boolean {
+  try {
+    const ws = parseWorkspace(JSON.parse(localStorage.getItem(BACKUP) ?? 'null'));
+    if (!ws) return false;
+    storeImported(ws);
+    const c = loadGist();
+    if (c) saveGist({ ...c, syncedAt: 0 }); // als lokale Änderung zählen, damit er gesendet wird
+    dispatch({ type: 'replace', ws });
+    localStorage.removeItem(BACKUP);
+    void syncNow();
+    return true;
+  } catch {
+    return false;
+  }
+}
 const device = () => deviceLabel(navigator.userAgent, navigator.maxTouchPoints > 1);
 
 export function useGistSync(ws: Workspace, dispatch: Dispatch<Action>) {
@@ -58,18 +76,28 @@ export function useGistSync(ws: Workspace, dispatch: Dispatch<Action>) {
     const run = async (force?: Force) => {
       const c = loadGist();
       if (!c) return set({ status: 'off' });
-      if (busy.current || (state.status === 'conflict' && !force)) return;
+      if (busy.current) return;
       busy.current = true;
       set({ ...state, status: 'busy', error: undefined });
       try {
         const remote = await fetchRemote(c);
-        const plan = force === 'local' ? 'push' : force === 'remote' && remote ? 'pull' : planSync(loadSyncMeta().changedAt, c, remote?.savedAt ?? null);
-        if (plan === 'conflict') return set({ status: 'conflict', at: state.at, remote: remote! });
+        const changedAt = loadSyncMeta().changedAt;
+        let plan = force === 'local' ? 'push' : force === 'remote' && remote ? 'pull' : planSync(changedAt, c, remote?.savedAt ?? null);
+        const both = plan === 'conflict';
+        if (both) plan = newerWins(changedAt, remote!.savedAt);
         if (plan === 'pull') {
+          // Änderungen dieses Geräts werden ersetzt: vorher für „Rückgängig“ sichern
+          if (both) {
+            try {
+              localStorage.setItem(BACKUP, localStorage.getItem(WORKSPACE_KEY) ?? '');
+            } catch {
+              // ohne Platz kein Rückgängig
+            }
+          }
           storeImported(remote!.workspace);
           dispatch({ type: 'replace', ws: remote!.workspace });
           saveGist({ ...c, seen: remote!.savedAt, syncedAt: Date.now() });
-          return set({ status: 'idle', at: Date.now(), last: 'pulled' });
+          return set({ status: 'idle', at: Date.now(), last: 'pulled', undo: both });
         }
         if (plan === 'push') {
           const t0 = Date.now(); // Änderungen während des Sendens zählen danach als neu

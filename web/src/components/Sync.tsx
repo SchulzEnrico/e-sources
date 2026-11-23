@@ -54,8 +54,13 @@ export function SyncDialog({ onClose, onSend, say }: { onClose: () => void; onSe
     say(S.disconnected);
   };
 
+  // nach dem ersten Senden kennt erst der Speicher die Gist-Id (für „Gist auf GitHub ansehen“)
+  useEffect(() => {
+    if (st.at) setCfg(loadGist());
+  }, [st.at]);
+
   const state =
-    st.status === 'busy' ? S.busy : st.status === 'error' ? st.error ?? '' : st.status === 'conflict' ? S.badge.conflict : st.at ? S.at(fmt(st.at)) : S.never;
+    st.status === 'busy' ? S.busy : st.status === 'error' ? st.error ?? '' : st.at ? S.at(fmt(st.at)) : S.never;
 
   return (
     <dialog
@@ -117,6 +122,7 @@ export function SyncDialog({ onClose, onSend, say }: { onClose: () => void; onSe
                 <a href={TOKEN_URL} target="_blank" rel="noopener noreferrer">
                   {S.step2Link}
                 </a>
+                <p className="sync__note">{S.expiry}</p>
               </li>
               <li>
                 {S.step3}

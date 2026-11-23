@@ -80,7 +80,7 @@ import { closedOf, restoreClosed, restoredSaid } from './workspace/closed';
 import { PORTAL_ALONE, nextTabOf, portalSaid, stepIn, tabAlone, tabSaid } from './workspace/cycle';
 import { Icon } from './components/Icon';
 import { SyncDialog } from './components/Sync';
-import { syncNow, useGistState, useGistSync } from './workspace/useGistSync';
+import { restoreBackup, useGistState, useGistSync } from './workspace/useGistSync';
 import { FLASH_EVENT, type FlashRequest } from './workspace/flash';
 
 /** Knopf im Hinweis unten (F-162, F-163). */
@@ -440,21 +440,20 @@ function DeskApp(props: DeskProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   /** F-116: Dialog „Spaces und Cases“ (aus Hilfe und Suche; im Cockpit öffnet ihn der Layout-Modus selbst) */
   const [casesOpen, setCasesOpen] = useState(false);
-  /** F-169 Stufe 2: Dialog „Abgleich zwischen Geräten“; Konflikt „später entscheiden“ */
+  /** F-169 Stufe 2: Dialog „Abgleich zwischen Geräten“ */
   const [syncOpen, setSyncOpen] = useState(false);
-  const [conflictLater, setConflictLater] = useState('');
   const gist = useGistState();
   const gistSeen = useRef(gist.at);
   useEffect(() => {
     if (gist.at === gistSeen.current) return;
     gistSeen.current = gist.at;
-    if (gist.last === 'pulled') notify(SYNC_TEXT.pulled); // NF-03: Ansage über den Hinweis unten
+    if (gist.last !== 'pulled') return;
+    // NF-03: Ansage über den Hinweis unten; wurden Änderungen hier ersetzt, mit „Rückgängig“
+    if (gist.undo)
+      notify(SYNC_TEXT.pulledOver, 12000, false, { label: SYNC_TEXT.undo, run: () => notify(restoreBackup(dispatch) ? SYNC_TEXT.undone : SYNC_TEXT.undoGone) });
+    else notify(SYNC_TEXT.pulled);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gist.at, gist.last]);
-  // Konflikt während der Dialog offen ist: Dialog schließen, sonst liegt die Rückfrage darunter (modal)
-  useEffect(() => {
-    if (gist.status === 'conflict' && gist.remote && conflictLater !== gist.remote.savedAt) setSyncOpen(false);
-  }, [gist.status, gist.remote, conflictLater]);
   const [greetOn, setGreetOn] = useState(() => !win && !props.switched && !tourAutoStart('start') && profileOf(ws).greet);
   /** Zuletzt offenes Portal – beim Start gelesen, bevor das aktuelle es überschreibt. */
   const [lastAtStart] = useState(() => loadLast(win ?? ''));
@@ -2644,7 +2643,7 @@ function DeskApp(props: DeskProps) {
             aria-haspopup="dialog"
           >
             <Icon name="sync" size={15} />
-            {(gist.status === 'error' || gist.status === 'conflict') && <span className="tb-sync__dot" aria-hidden="true">!</span>}
+            {gist.status === 'error' && <span className="tb-sync__dot" aria-hidden="true">!</span>}
           </button>
         )}
         {/* F-156: Hilfe – alle Funktionen und Begriffe mit Kürzeln */}
@@ -3160,24 +3159,6 @@ function DeskApp(props: DeskProps) {
           }}
           say={(text) => notify(text)}
         />
-      )}
-      {gist.status === 'conflict' && gist.remote && conflictLater !== gist.remote.savedAt && (
-        <div className="notice" role="alertdialog" aria-modal="true" aria-labelledby="sync-conflict" onKeyDown={(e) => e.key === 'Escape' && setConflictLater(gist.remote?.savedAt ?? '')}>
-          <div className="notice__box">
-            <p id="sync-conflict">{SYNC_TEXT.conflict(gist.remote.device, new Date(gist.remote.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</p>
-            <div className="notice__btns">
-              <button type="button" autoFocus onClick={() => void syncNow('local')}>
-                {SYNC_TEXT.keepHere}
-              </button>
-              <button type="button" onClick={() => void syncNow('remote')}>
-                {SYNC_TEXT.takeRemote(gist.remote.device)}
-              </button>
-              <button type="button" title={SYNC_TEXT.laterNote} onClick={() => setConflictLater(gist.remote?.savedAt ?? '')}>
-                {SYNC_TEXT.later}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
       {profileOpen && <ProfileDialog profile={profileOf(ws)} onChange={(change) => dispatch({ type: 'profile', change })} onRestored={() => sayLive(DIALOG_TEXT.resetDone)} onClose={() => setProfileOpen(false)} />}
       {sortOpen && (

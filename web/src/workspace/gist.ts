@@ -5,8 +5,10 @@
  * nie in der Export-Datei, nie im Testmodus. Das Gist enthält dieselbe Datei wie „Desks als Datei
  * speichern“ (inklusive Profil und Begrüßung; Entscheidung Enrico V58). Geheim heißt nicht verschlüsselt.
  *
- * Regel wie F-121: Hat nur eine Seite seit dem letzten Abgleich geändert, gewinnt sie. Haben beide
- * geändert, fragt E-Sources, welcher Stand bleibt.
+ * Regel: Hat nur eine Seite seit dem letzten Abgleich geändert, gewinnt sie. Haben beide geändert,
+ * gewinnt ohne Rückfrage der neuere Stand (Entscheidung Enrico V58: „Das soll einfach passieren“);
+ * der ersetzte Stand dieses Geräts bleibt für „Rückgängig“ erhalten, auf GitHub hat das Gist ohnehin
+ * einen Verlauf aller Fassungen.
  */
 import { FILE_NAME, readTransferFile, toTransferFile, type TransferFile } from './transfer';
 import { PROBE } from './probe';
@@ -74,6 +76,11 @@ export function planSync(localChangedAt: number, c: Pick<GistConfig, 'seen' | 's
   if (remote) return 'pull';
   if (local) return 'push';
   return 'none';
+}
+
+/** Beide Seiten haben geändert: der neuere Stand gewinnt (bei Gleichstand dieses Gerät). */
+export function newerWins(localChangedAt: number, remoteSavedAt: string): 'push' | 'pull' {
+  return Date.parse(remoteSavedAt) > localChangedAt ? 'pull' : 'push';
 }
 
 /** Fehler mit verständlichem Text für Anwender. */

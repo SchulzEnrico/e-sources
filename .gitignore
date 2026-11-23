@@ -20,3 +20,4 @@ server/.mvn/wrapper/maven-wrapper.jar
 .env
 .env.*
 !.env.example
+docs/E-Sources_Dashboard_V36.pdf

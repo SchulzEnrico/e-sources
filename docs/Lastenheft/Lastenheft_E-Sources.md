@@ -245,8 +245,16 @@ Jede Anforderung hat eine Nummer, damit wir uns beim Bauen und in Übergaben dar
 ### Layouts
 
 - **F-50** \[✓ V02\] Die App speichert Panels, Namen, Größen, Positionen, Sammlungen und geöffnete Tabs automatisch.
-- **F-51** Mehrere benannte Layouts anlegen, wechseln, umbenennen, kopieren und löschen.
-- **F-52** Pro Gerät lässt sich ein Standard-Layout festlegen.
+- **F-51** Mehrere benannte Layouts anlegen, wechseln, umbenennen, kopieren und löschen. Präzisiert 23.11.2026 (Enrico, V37):
+  - **Layout = ganze Belegung eines Desks:** Slots, Anordnung und Größen, Portale mit Tabs, Namen (Slot, Portal) und Farben. Die Anordnung merkt sich ein Layout weiterhin je Bildschirmklasse und Ausrichtung (wie heute `layouts`), damit dasselbe Layout auf Laptop und Monitor passt.
+  - **Je Desk:** Ein Layout gehört zu dem Desk (Fenster), in dem es gespeichert wurde, und wird nur dort gewechselt; andere Desks bleiben unberührt.
+  - **Wechseln speichert automatisch:** Änderungen am aktiven Layout gehen nie verloren (wie F-50); beim Zurückwechseln ist alles wieder da. Keine Rückfrage beim Wechsel.
+  - Bedienung: anlegen (aus der aktuellen Belegung oder aus einer Vorlage), wechseln, umbenennen, kopieren, löschen (mit Rückfrage, Rückgängig wie bei Regeln); per Tastatur und mit Ansage (NF-03); auffindbar in Hilfe und Suche mit Fragen (F-186).
+  - **Vorlage ab Werk:** „Gleichmäßig“ – das Raster der Bildschirmklasse (F-03), z. B. Laptop 2×2, Monitor 3×2. Weitere Vorlagen später mit F-53.
+- **F-52** Pro Gerät lässt sich ein Standard-Layout festlegen. Präzisiert 23.11.2026 (Enrico, V37):
+  - **Gerät = dieser Browser auf diesem Rechner** (Merker lokal, nicht in der Belegung – Export/Import und späterer Abgleich F-169 nehmen ihn nicht mit). Die Bildschirmklasse erkennt E-Sources weiter selbst; von Hand umstellbar wie heute.
+  - **Wann das Standard-Layout gilt:** Beim Start bleibt der letzte Stand (F-50, Begrüßung „Weitermachen“). Das Standard-Layout gilt für **neue Desks** und für **„Auf Standard zurücksetzen“**. Ohne eigene Wahl ist „Gleichmäßig“ der Standard.
+  - **Grenzen aufheben (je Gerät):** Die sichtbaren Slots je Bildschirmklasse (F-03: 1/2/4/6/8/10/16) und die Mindestgröße eines Portals (heute 8 % Breite, 12 % Höhe) sind Empfehlungen. Ein Schalter „Grenzen aufheben“ in den Einstellungen erlaubt mehr Slots als vorgesehen und kleinere Portale. Feste Untergrenze bleibt **240 × 160 Pixel** je Portal, damit Kopfzeile und Knöpfe bedienbar bleiben. Beim Überschreiten ein freundlicher Hinweis, dass Seiten sehr klein werden; die Fokusanzeige (F-29) zählt wie gewohnt. Stack (9 Portale) und Tabs (9 je Portal) bleiben begrenzt.
 - **F-53** Szenarien gelten auch für ganze Arbeitsflächen: Voreingestellte und eigene Vorlagen (z. B. „Recherche“, „Programmieren“) stellen per Knopfdruck Panels, Gruppen, Sammlungen und Farben zusammen. Jedes eigene Layout lässt sich als Vorlage speichern. Szenarien lassen sich je Bildschirmklasse (F-03) anpassen.
 
 ### Darstellung

@@ -312,15 +312,22 @@ export function CasesDialog({ ws, dispatch, say, onClose }: { ws: Workspace; dis
 }
 
 /** Layout-Modus: Cases dieses Layouts als Chips, Zuordnen per Haken (nach Space gruppiert). */
-export function LayoutCases({ ws, win, layout, dispatch, say, onManage }: { ws: Workspace; win: string; layout: DeskLayout; dispatch: (a: Action) => void; say: (text: string) => void; onManage: () => void }) {
+export function LayoutCases({ ws, win, layout, dispatch, say, onManage, inline = false }: { ws: Workspace; win: string; layout: DeskLayout; dispatch: (a: Action) => void; say: (text: string) => void; onManage: () => void; inline?: boolean }) {
   const [open, setOpen] = useState(false);
   const mine = Cs.casesOfLayout(ws, win, layout.id);
   const spaces = Cs.spacesOf(ws);
   return (
-    <div className="lc__cases">
-      <h4 className="lc__sub" title={CT.caseTerm}>
-        {CT.layoutHead}
-      </h4>
+    <div className={inline ? 'lc__cases lc__cases--inline' : 'lc__cases'}>
+      {/* V56: im Layout-Modus in der Zeile der Layout-Aktionen – „Cases: (keine)“ */}
+      {inline ? (
+        <span className="lc__inline-label" title={CT.caseTerm}>
+          {CT.inlineHead}
+        </span>
+      ) : (
+        <h4 className="lc__sub" title={CT.caseTerm}>
+          {CT.layoutHead}
+        </h4>
+      )}
       {mine.length ? (
         <ul className="cases__chips" aria-label={CT.layoutHead}>
           {mine.map((c) => (
@@ -329,6 +336,10 @@ export function LayoutCases({ ws, win, layout, dispatch, say, onManage }: { ws: 
             </li>
           ))}
         </ul>
+      ) : inline ? (
+        <span className="lc__muted" title={CT.layoutNone}>
+          {CT.inlineNone}
+        </span>
       ) : (
         <p className="help__text">{CT.layoutNone}</p>
       )}
@@ -381,7 +392,11 @@ export function LayoutCases({ ws, win, layout, dispatch, say, onManage }: { ws: 
 export function CasePicker({ ws, win, onPick, onSwitch, say }: { ws: Workspace; win: string; onPick: (caseId: string | null) => ReturnType<typeof Cs.pickCase>; onSwitch: (layout: string) => void; say: (text: string) => void }) {
   const active = Cs.activeCaseOf(ws, win);
   const spaces = Cs.spacesOf(ws);
-  const [offer, setOffer] = useState<DeskLayout[]>([]);
+  // V56: Kommt der Case aus der Suche (mehrere Layouts), steht das Angebot beim Öffnen schon da.
+  const [offer, setOffer] = useState<DeskLayout[]>(() => {
+    const list = active ? Cs.layoutsForCase(ws, win, active.id) : [];
+    return list.length > 1 ? list : [];
+  });
   if (!Cs.casesOf(ws).length) return null;
   return (
     <div className="lc__case" role="group" aria-label={CT.pick}>

@@ -6,7 +6,7 @@
  */
 import { BROWSER_EXPORT, browserSend, helpById } from './help';
 import { type BrowserName, browserOf, currentUa, modKey } from './browser';
-import { CATEGORY_TEXT, DEV_TEXT, PAUSE_TEXT, TINT_TEXT } from './terms';
+import { CASE_TEXT, CATEGORY_TEXT, DESK_LAYOUT_TEXT, DEV_TEXT, PAUSE_TEXT, TINT_TEXT } from './terms';
 
 export interface TourStep {
   id: string;
@@ -78,6 +78,12 @@ export const TOURS: Record<TourId, TourStep[]> = {
       text: `${t('focus')} Grün heißt: gut überschaubar, Gelb: es wird voll, Rot: zu viel auf einmal.`,
     },
     {
+      id: 'modes',
+      title: 'Portale, Layouts, Sources',
+      target: `${C} .overview__mode`,
+      text: 'Hier schaltest du um, was das Cockpit zeigt: „Portale“ ist der Überblick mit Radar, „Layouts“ die gespeicherten Anordnungen dieses Desks mit ihren Cases, „Sources“ deine Library. Pfeiltasten wechseln. Die Tour zeigt, was gerade offen ist.',
+    },
+    {
       id: 'radar',
       title: 'Radar',
       target: `${C} .radar__maps`,
@@ -98,7 +104,7 @@ export const TOURS: Record<TourId, TourStep[]> = {
     {
       id: 'arrange',
       title: 'Slots anordnen',
-      target: `${C} .radar__map`,
+      target: `${C} .radar__map:not(.lc__map)`,
       text: 'Eine Slot-Kachel auf eine andere ziehen: in die Mitte = dort ablegen, an den Rand = an dieser Stelle einsetzen. Die Kante zwischen zwei Slots ändert die Größe. Per Tastatur: Alt+Pfeil versetzt, Alt+Umschalt+Pfeil ändert die Größe.',
     },
     {
@@ -106,6 +112,37 @@ export const TOURS: Record<TourId, TourStep[]> = {
       title: 'Filtern',
       target: `${C} .radar__filter`,
       text: 'Findet Portale, Slots, Desks und Sources auf allen Desks. Pfeil runter springt in die Treffer.',
+    },
+    // V56/F-116: nur im Modus „Layouts“ (sonst fehlen die Ziele und die Schritte entfallen)
+    {
+      id: 'layouts',
+      title: 'Layouts',
+      target: `${C} .lc__cards`,
+      text: `${DESK_LAYOUT_TEXT.term}. Ein Klick auf eine Karte zeigt das Layout nur an; erst „Wechseln“ baut den Desk um. „Neues Layout“ legt eins an – leer oder als Kopie.`,
+    },
+    {
+      id: 'layoutActions',
+      title: 'Aktionen des Layouts',
+      target: `${C} .lc__actions`,
+      text: 'Direkt unter den Karten steht, was du mit dem gewählten Layout tun kannst: wechseln, umbenennen, kopieren, löschen (mit Rückfrage und Rückgängig). Rechts daneben seine Cases.',
+    },
+    {
+      id: 'cases',
+      title: 'Spaces und Cases',
+      target: `${C} .lc__cases--inline`,
+      text: `${CASE_TEXT.spaceTerm} ${CASE_TEXT.caseTerm} Über „${CASE_TEXT.manage}“ legst du beides an; „${CASE_TEXT.assign}“ ordnet dieses Layout zu. Gibt es Cases, kannst du oben unter „${CASE_TEXT.pick}“ einen wählen – auch über die Suche.`,
+    },
+    {
+      id: 'preview',
+      title: 'Vorschau für ein Gerät',
+      target: `${C} .lc__prevhead`,
+      text: `${DESK_LAYOUT_TEXT.deviceTerm}. Steht dort nicht dieses Gerät, ist das Bild orange gepunktet umrandet; „${DESK_LAYOUT_TEXT.thisDevice}“ holt es zurück.`,
+    },
+    {
+      id: 'slots',
+      title: 'Slots ordnen',
+      target: `${C} .lc__side`,
+      text: 'Neben dem Bild legst du Slots an und verteilst sie gleichmäßig. Wähle einen Slot im Bild (Klick oder Pfeile), dann kannst du ihn mit einem anderen tauschen oder schließen – seine Portale kommen in den Nachbar-Slot.',
     },
     {
       id: 'rules',

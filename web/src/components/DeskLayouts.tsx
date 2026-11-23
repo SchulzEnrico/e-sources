@@ -1,10 +1,11 @@
 /**
  * F-51/F-187: Layouts eines Desks im Cockpit (Modus „Layouts“) und der Dialog „Standard-Layout“.
  *
- * Oben die Layouts als kleine Karten (Mini-Anordnung, Name, Zahlen). Ein Klick zeigt ein Layout nur
- * an – die Arbeitsfläche bleibt, erst „Wechseln“ baut sie um. Darunter die Anordnung groß: Slots
- * über der Empfehlung schraffiert und beschriftet. Werkzeuge gelten für Slots (Platz tauschen,
- * schließen) und Layouts (wechseln, umbenennen, kopieren, löschen, anlegen).
+ * Aufbau (V56, Skizze V55): oben „Layouts“ – Karten, darunter in einer Zeile die Aktionen des
+ * gewählten Layouts (wechseln, umbenennen, kopieren, löschen) und seine Cases. Ein Klick auf eine
+ * Karte zeigt das Layout nur an – erst „Wechseln“ baut die Arbeitsfläche um. Darunter „Vorschau für:
+ * Gerät · Ausrichtung · Reihen“ mit der Anordnung groß (Slots über der Empfehlung schraffiert) und
+ * gleich daneben die Werkzeuge für Slots und den gewählten Slot.
  * Tastatur (NF-03): Pfeile zwischen Karten bzw. Slots, Enter wählt, Esc bricht Tauschen ab.
  */
 import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
@@ -135,7 +136,6 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
   const taken = (n: string, except?: string) => d.list.some((l) => l.id !== except && l.name === n.trim());
   const std = ops.standard ? DL.layoutView(ws, ops.standard.win, ops.standard.id, setup) : null;
   const stdSlots = std ? std.slots.length : ops.evenCount;
-  const device = deviceText(setup);
   const liveRects = live ? T.rects(live.tree) : null;
   const rectOf = (s: DL.LayoutSlot) => liveRects?.get(s.id) ?? s.rect;
   const max = DL.slotsMax(setup);
@@ -328,231 +328,130 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
     focusLater(() => document.getElementById('lc-slot-undo')?.focus());
   };
 
+  /** Name des gezeigten Layouts mit Kennzeichen – steht vor den Layout-Aktionen. */
+  const nameLine = (
+    <span id="lc-name" className="lc__name">
+      {shown.name}
+      {isActive ? <span className="layouts__badge"> · {LT.active}</span> : <span className="lc__muted"> · {LT.notActive}</span>}
+      {isStd(shown.id) && <span className="layouts__badge"> · {LT.standardBadge}</span>}
+      <span aria-hidden="true">:</span>
+    </span>
+  );
+
   return (
     <div className="lc">
-      {/* Eindeutig erkennbar: Band oben, Radar anders gerahmt */}
-      <div className="lc__band" role="note">
-        <Icon name="layouts" size={15} className="icon icon--inline" />
-        <strong>{LT.modeTitle}</strong>
-        <span>
-          {foreign ? LT.previewFor(device) : `${LT.device}: ${device}`} · <span title={LT.moreTerm}>{LT.recommended(v.recommended)}</span>
-        </span>
-        {/* F-187 Stufe 2: Gerät wählbar – Anordnung festlegen, ohne das Gerät zu haben */}
-        <div className="lc__device" role="group" aria-label={LT.deviceTerm} title={LT.deviceTerm}>
-          <label>
-            {LT.deviceLabel}
-            <select value={setup.cls} onChange={(e) => pickDevice({ cls: e.target.value as ScreenClassId, orientation: setup.orientation })}>
-              {SCREEN_CLASSES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                  {c.id === real.cls ? ` · ${LT.device}` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {LT.orientLabel}
-            <select value={setup.orientation} onChange={(e) => pickDevice({ cls: setup.cls, orientation: e.target.value as Orientation })}>
-              <option value="landscape">{LT.landscape}</option>
-              <option value="portrait">{LT.portrait}</option>
-            </select>
-          </label>
-          {allowsTwoLines(setup.cls) && (
-            <label title={LT.linesTerm}>
-              {LT.linesLabel}
-              <select value={spec.lines} onChange={(e) => pickDevice({ cls: setup.cls, orientation: setup.orientation, lines: Number(e.target.value) as Lines })}>
-                <option value={1}>{LT.lines(1)}</option>
-                <option value={2}>{LT.lines(2)}</option>
-              </select>
-            </label>
-          )}
-          {foreign && (
-            <button type="button" className="help__run" onClick={() => pickDevice({ cls: real.cls, orientation: real.orientation, lines: specOf(real).lines })}>
-              {LT.thisDevice}
+      {/* V56: oben alles zum Layout – Karten, darunter Aktionen und Cases des gewählten Layouts */}
+      <section className="lc__group lc__layouts" aria-labelledby="lc-layouts-h">
+        <header className="lc__head lc__band">
+          <Icon name="layouts" size={15} className="icon icon--inline" />
+          <h3 id="lc-layouts-h" className="lc__head-title">
+            {LT.layoutsHead}
+          </h3>
+          <span className="lc__head-tools">
+            {/* F-116: Case wählen – ein Layout = gleich gewechselt, mehrere = Angebot */}
+            <CasePicker ws={ws} win={win} onPick={ops.onPickCase} onSwitch={ops.onSwitch} say={say} />
+            <button type="button" ref={stdBtn} className="help__run lc__std" onClick={() => setStdOpen(true)} title={`${LT.standardTerm} – ${LT.stdSlots(stdSlots)}`}>
+              <Icon name="star" size={13} className="icon icon--inline" /> {LT.standardMenu}
             </button>
-          )}
-        </div>
-      </div>
+          </span>
+        </header>
 
-      {/* F-116: Case wählen – ein Layout = gleich gewechselt, mehrere = Angebot */}
-      <CasePicker ws={ws} win={win} onPick={ops.onPickCase} onSwitch={ops.onSwitch} say={say} />
-
-      <ul className="lc__cards" aria-label={LT.title(desk)}>
-        {d.list.map((l, i) => {
-          const lv = views.get(l.id)!;
-          const on = l.id === shown.id;
-          const lcs = Cs.casesOfLayout(ws, win, l.id);
-          return (
-            <li key={l.id}>
-              <button
-                type="button"
-                ref={(el) => {
-                  if (el) cards.current.set(l.id, el);
-                  else cards.current.delete(l.id);
-                }}
-                className={`lc__card${on ? ' is-sel' : ''}${l.id === d.active ? ' is-active' : ''}`}
-                aria-pressed={on}
-                aria-label={`${l.name}${l.id === d.active ? `, ${LT.active}` : ''}${isStd(l.id) ? `, ${LT.standardBadge}` : ''}, ${LT.counts(lv.slots.length, lv.portals)}${lcs.length ? `, ${CT.cardCases(lcs.map((c) => c.name))}` : ''}`}
-                onClick={() => show(l.id)}
-                onKeyDown={(e) => onCardKey(e, i)}
-              >
-                <Mini slots={lv.slots} ar={ar} />
-                <span className="lc__card-name">{l.name}</span>
-                <span className="lc__card-meta">
-                  {l.id === d.active && <b>{LT.active}</b>}
-                  {isStd(l.id) && <b>{LT.standardBadge}</b>}
-                  {LT.counts(lv.slots.length, lv.portals)}
-                </span>
-                {lcs.length > 0 && (
-                  <span className="lc__card-cases" title={CT.cardCases(lcs.map((c) => c.name))} aria-hidden="true">
-                    {lcs.map((c) => (
-                      <Dot key={c.id} color={c.color} />
-                    ))}
-                  </span>
-                )}
-              </button>
-            </li>
-          );
-        })}
-        <li>
-          <button type="button" id="lc-add" className="lc__card lc__card--add" aria-expanded={adding} disabled={full} title={full ? LT.full(DL.LAYOUT_MAX) : undefined} onClick={() => setAdding(!adding)}>
-            <Icon name="plus" size={14} className="icon icon--inline" /> {LT.add}
-          </button>
-        </li>
-      </ul>
-
-      {adding && (
-        <form
-          className="layouts__new lc__new"
-          aria-label={LT.add}
-          title={DIALOG_TEXT.createHint}
-          onKeyDown={(e) => {
-            if (e.key !== 'Escape') return;
-            e.preventDefault();
-            e.stopPropagation();
-            setAdding(false);
-            focusLater(() => document.getElementById('lc-add')?.focus());
-          }}
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (full) return setError(LT.full(DL.LAYOUT_MAX));
-            if (name.trim() && taken(name)) return setError(LT.nameTaken);
-            ops.onAdd(from, name);
-            setAdding(false);
-            setName('');
-          }}
-        >
-          <label className="layouts__label">
-            {LT.name}
-            <input autoFocus value={name} maxLength={40} placeholder={`${LT.defaultName} ${d.list.length + 1}`} onChange={(e) => { setName(e.target.value); setError(''); }} />
-          </label>
-          <fieldset className="layouts__from">
-            <legend>{LT.addFrom}</legend>
-            <label>
-              <input type="radio" name="lc-from" checked={from === 'even'} onChange={() => setFrom('even')} /> {LT.even}
-              <span className="help__text"> – {LT.evenHint(ops.evenCount)}</span>
-            </label>
-            <label>
-              <input type="radio" name="lc-from" checked={from === 'current'} onChange={() => setFrom('current')} /> {LT.current}
-            </label>
-          </fieldset>
-          {/* F-191 (a): wie überall – links Abbrechen, rechts Anlegen; Enter legt an, Esc bricht ab */}
-          <div className="layouts__tools">
-            <button type="button" className="help__run" onClick={() => { setAdding(false); focusLater(() => document.getElementById('lc-add')?.focus()); }}>
-              {LT.cancel}
-            </button>
-            <button type="submit" className="help__run lc__primary">
-              <Icon name="plus" size={13} className="icon icon--inline" /> {LT.create}
-            </button>
-          </div>
-        </form>
-      )}
-
-      <div className="lc__body">
-        <section className="lc__view" aria-label={`${shown.name}: ${LT.arrangement}`}>
-          <div
-            className={`lc__map radar__map${ar < 1 ? ' is-tall' : ''}${foreign ? ' is-foreign' : ''}${drag?.map ? ` is-dock is-dock-${drag.zone}` : ''}`}
-            data-droplabel={AT.dockEdge}
-            style={{ ['--ar' as string]: ar }}
-          >
-            {v.slots.map((s, i) => {
-              const r = rectOf(s);
-              const docking = drag?.over === s.id && drag.zone !== 'center';
-              const cls = ['radar__tile', 'lc__tile', s.id === sel && 'is-sel', s.over && 'is-over', swapFrom === s.id && 'is-from', swapFrom && swapFrom !== s.id && 'is-target', drag?.from === s.id && 'is-from', drag?.over === s.id && !docking && 'is-drop', docking && `is-dock is-dock-${drag!.zone}`].filter(Boolean).join(' ');
-              return (
+        <ul className="lc__cards" aria-label={LT.title(desk)}>
+          {d.list.map((l, i) => {
+            const lv = views.get(l.id)!;
+            const on = l.id === shown.id;
+            const lcs = Cs.casesOfLayout(ws, win, l.id);
+            return (
+              <li key={l.id}>
                 <button
-                  key={s.id}
                   type="button"
                   ref={(el) => {
-                    if (el) tiles.current.set(s.id, el);
-                    else tiles.current.delete(s.id);
+                    if (el) cards.current.set(l.id, el);
+                    else cards.current.delete(l.id);
                   }}
-                  className={cls}
-                  style={{ left: `calc(${r.x * 100}% + 2px)`, top: `calc(${r.y * 100}% + 2px)`, width: `calc(${r.w * 100}% - 4px)`, height: `calc(${r.h * 100}% - 4px)` }}
-                  tabIndex={s.id === (sel ?? v.slots[0]?.id) ? 0 : -1}
-                  aria-pressed={s.id === sel}
-                  aria-label={`${s.title}, ${LT.portalsOf(s.count)}${s.over ? `, ${LT.overMark}` : ''}${swapFrom && swapFrom !== s.id ? `, ${LT.swapHere}` : ''}`}
-                  onFocus={() => !swapFrom && setSel(s.id)}
-                  data-id={s.id}
-                  title={LT.dragTitle}
-                  onPointerDown={(e) => startDrag(e, s.id)}
-                  onClick={() => pickTile(s.id)}
-                  onKeyDown={(e) => onTileKey(e, i)}
+                  className={`lc__card${on ? ' is-sel' : ''}${l.id === d.active ? ' is-active' : ''}`}
+                  aria-pressed={on}
+                  aria-label={`${l.name}${l.id === d.active ? `, ${LT.active}` : ''}${isStd(l.id) ? `, ${LT.standardBadge}` : ''}, ${LT.counts(lv.slots.length, lv.portals)}${lcs.length ? `, ${CT.cardCases(lcs.map((c) => c.name))}` : ''}`}
+                  onClick={() => show(l.id)}
+                  onKeyDown={(e) => onCardKey(e, i)}
                 >
-                  <span className="radar__title">{s.title}</span>
-                  <span className="lc__tile-meta">{LT.portalsOf(s.count)}</span>
-                  {s.over && <span className="lc__over">{LT.overMark}</span>}
-                  {drag?.over === s.id && (
-                    <span className="radar__droplabel" aria-hidden="true">
-                      {docking ? AT.dockHere : LT.dropHere}
+                  <Mini slots={lv.slots} ar={ar} />
+                  <span className="lc__card-name">{l.name}</span>
+                  <span className="lc__card-meta">
+                    {l.id === d.active && <b>{LT.active}</b>}
+                    {isStd(l.id) && <b>{LT.standardBadge}</b>}
+                    {LT.counts(lv.slots.length, lv.portals)}
+                  </span>
+                  {lcs.length > 0 && (
+                    <span className="lc__card-cases" title={CT.cardCases(lcs.map((c) => c.name))} aria-hidden="true">
+                      {lcs.map((c) => (
+                        <Dot key={c.id} color={c.color} />
+                      ))}
                     </span>
                   )}
                 </button>
-              );
-            })}
-            {/* F-187 Stufe 2: Griffe an den Kanten zwischen Slots (Tastatur: Alt+Umschalt+Pfeil) */}
-            {v.tree &&
-              !drag &&
-              !swapFrom &&
-              v.slots.flatMap((s) => {
-                const r = rectOf(s);
-                return (['right', 'bottom'] as const)
-                  .filter((side) => T.canResize(v.tree, s.id, side))
-                  .map((side) => {
-                    const key = `${s.id}/${side}`;
-                    if (live && live.key !== key) return null;
-                    const style =
-                      side === 'right'
-                        ? { left: `calc(${(r.x + r.w) * 100}% - 4px)`, top: `${r.y * 100}%`, height: `${r.h * 100}%` }
-                        : { top: `calc(${(r.y + r.h) * 100}% - 4px)`, left: `${r.x * 100}%`, width: `${r.w * 100}%` };
-                    return (
-                      <div
-                        key={key}
-                        className={`radar__edge radar__edge--${side === 'right' ? 'v' : 'h'}${live?.key === key ? ' is-on' : ''}`}
-                        style={style}
-                        aria-hidden="true"
-                        title={AT.edgeTitle}
-                        onPointerDown={(e) => startResize(e, s.id, s.title, side, key)}
-                      />
-                    );
-                  });
-              })}
-          </div>
-          <p className="lc__keys">{LT.keysHint}</p>
-          {swapFrom && (
-            <p className="lc__hint" role="status">
-              {LT.swapPick(v.slots.find((s) => s.id === swapFrom)?.title ?? '')}{' '}
-              <button type="button" className="help__run" onClick={() => { setSwapFrom(null); focusLater(() => tiles.current.get(swapFrom)?.focus()); }}>
+              </li>
+            );
+          })}
+          <li>
+            <button type="button" id="lc-add" className="lc__card lc__card--add" aria-expanded={adding} disabled={full} title={full ? LT.full(DL.LAYOUT_MAX) : undefined} onClick={() => setAdding(!adding)}>
+              <Icon name="plus" size={14} className="icon icon--inline" /> {LT.add}
+            </button>
+          </li>
+        </ul>
+
+        {adding && (
+          <form
+            className="layouts__new lc__new"
+            aria-label={LT.add}
+            title={DIALOG_TEXT.createHint}
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape') return;
+              e.preventDefault();
+              e.stopPropagation();
+              setAdding(false);
+              focusLater(() => document.getElementById('lc-add')?.focus());
+            }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (full) return setError(LT.full(DL.LAYOUT_MAX));
+              if (name.trim() && taken(name)) return setError(LT.nameTaken);
+              ops.onAdd(from, name);
+              setAdding(false);
+              setName('');
+            }}
+          >
+            <label className="layouts__label">
+              {LT.name}
+              <input autoFocus value={name} maxLength={40} placeholder={`${LT.defaultName} ${d.list.length + 1}`} onChange={(e) => { setName(e.target.value); setError(''); }} />
+            </label>
+            <fieldset className="layouts__from">
+              <legend>{LT.addFrom}</legend>
+              <label>
+                <input type="radio" name="lc-from" checked={from === 'even'} onChange={() => setFrom('even')} /> {LT.even}
+                <span className="help__text"> – {LT.evenHint(ops.evenCount)}</span>
+              </label>
+              <label>
+                <input type="radio" name="lc-from" checked={from === 'current'} onChange={() => setFrom('current')} /> {LT.current}
+              </label>
+            </fieldset>
+            {/* F-191 (a): wie überall – links Abbrechen, rechts Anlegen; Enter legt an, Esc bricht ab */}
+            <div className="layouts__tools">
+              <button type="button" className="help__run" onClick={() => { setAdding(false); focusLater(() => document.getElementById('lc-add')?.focus()); }}>
                 {LT.cancel}
               </button>
-            </p>
-          )}
-        </section>
+              <button type="submit" className="help__run lc__primary">
+                <Icon name="plus" size={13} className="icon icon--inline" /> {LT.create}
+              </button>
+            </div>
+          </form>
+        )}
 
-        <section className="lc__side" aria-labelledby="lc-name">
+        {/* Aktionen des gewählten Layouts direkt unter den Karten */}
+        <div className="lc__actions" role="group" aria-labelledby="lc-name">
           {editing ? (
             <form
-              className="help__row"
+              className="help__row lc__rename"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (taken(draft, shown.id)) return setError(LT.nameTaken);
@@ -563,82 +462,16 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
               }}
             >
               <label className="layouts__label">
-                {LT.name}
+                <span id="lc-name">{LT.name}</span>
                 <input autoFocus value={draft} maxLength={40} aria-invalid={!!error} title={DIALOG_TEXT.renameHint} onChange={(e) => { setDraft(e.target.value); setError(''); }} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); setEditing(false); } }} />
               </label>
               {/* F-191 (a): statt „OK“ klar beschriftet, dazu Abbrechen */}
               <button type="button" className="help__run" onClick={() => { setEditing(false); setError(''); focusLater(() => document.getElementById('lc-rename')?.focus()); }}>{DIALOG_TEXT.cancel}</button>
               <button type="submit" className="help__run lc__primary">{DIALOG_TEXT.apply}</button>
             </form>
-          ) : (
-            <h3 id="lc-name" className="lc__name">
-              {shown.name}
-              {isActive ? <span className="layouts__badge"> · {LT.active}</span> : <span className="lc__muted"> · {LT.notActive}</span>}
-              {isStd(shown.id) && <span className="layouts__badge"> · {LT.standardBadge}</span>}
-            </h3>
-          )}
-          <ul className="lc__facts">
-            <li>{LT.counts(v.slots.length, v.portals)}</li>
-            <li className={over ? 'is-over' : undefined}>{over ? LT.overCount(over) : LT.withinRec(v.recommended)}</li>
-            <li title={LT.standardTerm}>{LT.stdSlots(stdSlots)}</li>
-          </ul>
-          {!isActive && (
-            <button type="button" className="help__run lc__switch" onClick={() => ops.onSwitch(shown.id)}>
-              <Icon name="layouts" size={13} className="icon icon--inline" /> {LT.switchTo}
-            </button>
-          )}
-
-          <h4 className="lc__sub">{LT.arrangeHead}</h4>
-          <div className="layouts__tools">
-            <button type="button" id="lc-add-right" className="help__run" aria-disabled={v.slots.length >= max} title={v.slots.length >= max ? LT.maxSlots(max) : undefined} onClick={() => addSlot('right')}>
-              <Icon name="plus" size={13} className="icon icon--inline" /> {LT.addRight}
-            </button>
-            <button type="button" id="lc-add-bottom" className="help__run" aria-disabled={v.slots.length >= max} title={v.slots.length >= max ? LT.maxSlots(max) : undefined} onClick={() => addSlot('bottom')}>
-              <Icon name="plus" size={13} className="icon icon--inline" /> {LT.addBottom}
-            </button>
-            <button type="button" className="help__run" onClick={evenOut}>
-              <Icon name="distribute" size={13} className="icon icon--inline" /> {LT.evenOut}
-            </button>
-          </div>
-          {askAdd && (
-            <div className="layouts__ask" role="alertdialog" aria-labelledby="lc-ask-more">
-              <span id="lc-ask-more">{LT.askMore(v.slots.length, v.recommended, max)}</span>
-              <button type="button" id="lc-add-more" className="help__run" onClick={() => addSlot(askAdd, true)}>
-                {LT.more}
-              </button>
-              <button type="button" className="help__run" onClick={() => { const side = askAdd; setAskAdd(null); focusLater(() => document.getElementById(side === 'right' ? 'lc-add-right' : 'lc-add-bottom')?.focus()); }}>
-                {LT.cancel}
-              </button>
-            </div>
-          )}
-
-          <h4 className="lc__sub">{selSlot ? LT.slotHead(selSlot.title) : LT.slotNone}</h4>
-          <div className="layouts__tools">
-            <button type="button" className="help__run" aria-disabled={!selSlot || v.slots.length < 2} onClick={() => {
-              if (!selSlot || v.slots.length < 2) return say(LT.slotNone);
-              setSwapFrom(selSlot.id);
-              say(LT.swapPick(selSlot.title));
-              const other = v.slots.find((s) => s.id !== selSlot.id);
-              focusLater(() => other && tiles.current.get(other.id)?.focus());
-            }}>
-              <Icon name="swap" size={13} className="icon icon--inline" /> {LT.swap}
-            </button>
-            <button type="button" className="help__run" aria-disabled={!selSlot} onClick={() => (selSlot ? closeSel() : say(LT.slotNone))}>
-              <Icon name="close" size={13} className="icon icon--inline" /> {LT.slotClose}
-            </button>
-          </div>
-          {slotUndo && (
-            <p className="layouts__undo" role="status">
-              {slotUndo.text}{' '}
-              <button type="button" id="lc-slot-undo" className="help__run" onClick={() => { dispatch({ type: 'layoutContent', win, id: slotUndo.id, content: slotUndo.content }); say(LT.slotUndone); setSlotUndo(null); focusLater(() => (tiles.current.values().next().value as HTMLButtonElement | undefined)?.focus()); }}>
-                {LT.undo}
-              </button>
-            </p>
-          )}
-
-          <h4 className="lc__sub">{LT.layoutHead}</h4>
-          {asking ? (
+          ) : asking ? (
             <div className="layouts__ask" role="group" aria-labelledby="lc-ask">
+              {nameLine}
               <span id="lc-ask">{LT.askRemove(shown.name, v.portals)}</span>
               <button type="button" className="help__run" autoFocus onClick={() => { setAsking(false); ops.onDelete(shown.id); focusLater(() => document.getElementById('lc-undo')?.focus()); }}>
                 {LT.remove}
@@ -648,7 +481,13 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
               </button>
             </div>
           ) : (
-            <div className="layouts__tools">
+            <>
+              {nameLine}
+              {!isActive && (
+                <button type="button" className="help__run lc__switch lc__primary" onClick={() => ops.onSwitch(shown.id)}>
+                  <Icon name="layouts" size={13} className="icon icon--inline" /> {LT.switchTo}
+                </button>
+              )}
               <button type="button" id="lc-rename" className="help__run" onClick={() => { setEditing(true); setDraft(shown.name); setError(''); }}>
                 <Icon name="rename" size={13} className="icon icon--inline" /> {LT.rename}
               </button>
@@ -658,28 +497,206 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
               <button type="button" id="lc-del" className="help__run" aria-disabled={d.list.length < 2} title={d.list.length < 2 ? LT.last : undefined} onClick={() => (d.list.length < 2 ? setError(LT.last) : setAsking(true))}>
                 <Icon name="remove" size={13} className="icon icon--inline" /> {LT.remove}
               </button>
-            </div>
+            </>
           )}
-          {ops.undoName && (
-            <p className="layouts__undo" role="status">
-              {LT.removed(ops.undoName)}{' '}
-              <button type="button" id="lc-undo" className="help__run" onClick={ops.onUndo}>
-                {LT.undo}
+          <span className="lc__sep" aria-hidden="true" />
+          {/* F-116: Cases dieses Layouts, in derselben Zeile */}
+          <LayoutCases inline ws={ws} win={win} layout={shown} dispatch={dispatch} say={say} onManage={() => setCasesOpen(true)} />
+        </div>
+        {ops.undoName && (
+          <p className="layouts__undo" role="status">
+            {LT.removed(ops.undoName)}{' '}
+            <button type="button" id="lc-undo" className="help__run" onClick={ops.onUndo}>
+              {LT.undo}
+            </button>
+          </p>
+        )}
+        {error && (
+          <p className="layouts__error" role="alert">
+            {error}
+          </p>
+        )}
+      </section>
+
+      {/* V56: darunter die Vorschau – Gerät steht direkt darüber, Slot-Aktionen gleich daneben */}
+      <section className="lc__group lc__preview" aria-labelledby="lc-prev-h">
+        <header className="lc__head lc__prevhead" title={LT.deviceTerm}>
+          <h3 id="lc-prev-h" className="lc__head-title">
+            {LT.previewHead}
+          </h3>
+          {/* F-187 Stufe 2: Gerät wählbar – Anordnung festlegen, ohne das Gerät zu haben */}
+          <span className="lc__device" role="group" aria-label={LT.deviceTerm}>
+            <select aria-label={LT.deviceLabel} value={setup.cls} onChange={(e) => pickDevice({ cls: e.target.value as ScreenClassId, orientation: setup.orientation })}>
+              {SCREEN_CLASSES.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                  {c.id === real.cls ? ` · ${LT.device}` : ''}
+                </option>
+              ))}
+            </select>
+            <span aria-hidden="true">·</span>
+            <select aria-label={LT.orientLabel} value={setup.orientation} onChange={(e) => pickDevice({ cls: setup.cls, orientation: e.target.value as Orientation })}>
+              <option value="landscape">{LT.landscape}</option>
+              <option value="portrait">{LT.portrait}</option>
+            </select>
+            {allowsTwoLines(setup.cls) && (
+              <>
+                <span aria-hidden="true">·</span>
+                <select aria-label={LT.linesLabel} title={LT.linesTerm} value={spec.lines} onChange={(e) => pickDevice({ cls: setup.cls, orientation: setup.orientation, lines: Number(e.target.value) as Lines })}>
+                  <option value={1}>{LT.lines(1)}</option>
+                  <option value={2}>{LT.lines(2)}</option>
+                </select>
+              </>
+            )}
+            {foreign && (
+              <button type="button" className="help__run" onClick={() => pickDevice({ cls: real.cls, orientation: real.orientation, lines: specOf(real).lines })}>
+                {LT.thisDevice}
               </button>
-            </p>
-          )}
-          {error && (
-            <p className="layouts__error" role="alert">
-              {error}
-            </p>
-          )}
-          {/* F-116: Cases dieses Layouts */}
-          <LayoutCases ws={ws} win={win} layout={shown} dispatch={dispatch} say={say} onManage={() => setCasesOpen(true)} />
-          <button type="button" ref={stdBtn} className="help__run lc__std" onClick={() => setStdOpen(true)} title={LT.standardTerm}>
-            <Icon name="star" size={13} className="icon icon--inline" /> {LT.standardMenu}
-          </button>
-        </section>
-      </div>
+            )}
+          </span>
+          <span className="lc__facts">
+            {LT.counts(v.slots.length, v.portals)} ·{' '}
+            <span className={over ? 'is-over' : undefined} title={LT.moreTerm}>
+              {over ? LT.overCount(over) : LT.withinRec(v.recommended)}
+            </span>
+          </span>
+        </header>
+
+        <div className="lc__body">
+          <div className="lc__view" role="group" aria-label={`${shown.name}: ${LT.arrangement}`}>
+            <div
+              className={`lc__map radar__map${ar < 1 ? ' is-tall' : ''}${foreign ? ' is-foreign' : ''}${drag?.map ? ` is-dock is-dock-${drag.zone}` : ''}`}
+              data-droplabel={AT.dockEdge}
+              style={{ ['--ar' as string]: ar }}
+            >
+              {v.slots.map((s, i) => {
+                const r = rectOf(s);
+                const docking = drag?.over === s.id && drag.zone !== 'center';
+                const cls = ['radar__tile', 'lc__tile', s.id === sel && 'is-sel', s.over && 'is-over', swapFrom === s.id && 'is-from', swapFrom && swapFrom !== s.id && 'is-target', drag?.from === s.id && 'is-from', drag?.over === s.id && !docking && 'is-drop', docking && `is-dock is-dock-${drag!.zone}`].filter(Boolean).join(' ');
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    ref={(el) => {
+                      if (el) tiles.current.set(s.id, el);
+                      else tiles.current.delete(s.id);
+                    }}
+                    className={cls}
+                    style={{ left: `calc(${r.x * 100}% + 2px)`, top: `calc(${r.y * 100}% + 2px)`, width: `calc(${r.w * 100}% - 4px)`, height: `calc(${r.h * 100}% - 4px)` }}
+                    tabIndex={s.id === (sel ?? v.slots[0]?.id) ? 0 : -1}
+                    aria-pressed={s.id === sel}
+                    aria-label={`${s.title}, ${LT.portalsOf(s.count)}${s.over ? `, ${LT.overMark}` : ''}${swapFrom && swapFrom !== s.id ? `, ${LT.swapHere}` : ''}`}
+                    onFocus={() => !swapFrom && setSel(s.id)}
+                    data-id={s.id}
+                    title={LT.dragTitle}
+                    onPointerDown={(e) => startDrag(e, s.id)}
+                    onClick={() => pickTile(s.id)}
+                    onKeyDown={(e) => onTileKey(e, i)}
+                  >
+                    <span className="radar__title">{s.title}</span>
+                    <span className="lc__tile-meta">{LT.portalsOf(s.count)}</span>
+                    {s.over && <span className="lc__over">{LT.overMark}</span>}
+                    {drag?.over === s.id && (
+                      <span className="radar__droplabel" aria-hidden="true">
+                        {docking ? AT.dockHere : LT.dropHere}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              {/* F-187 Stufe 2: Griffe an den Kanten zwischen Slots (Tastatur: Alt+Umschalt+Pfeil) */}
+              {v.tree &&
+                !drag &&
+                !swapFrom &&
+                v.slots.flatMap((s) => {
+                  const r = rectOf(s);
+                  return (['right', 'bottom'] as const)
+                    .filter((side) => T.canResize(v.tree, s.id, side))
+                    .map((side) => {
+                      const key = `${s.id}/${side}`;
+                      if (live && live.key !== key) return null;
+                      const style =
+                        side === 'right'
+                          ? { left: `calc(${(r.x + r.w) * 100}% - 4px)`, top: `${r.y * 100}%`, height: `${r.h * 100}%` }
+                          : { top: `calc(${(r.y + r.h) * 100}% - 4px)`, left: `${r.x * 100}%`, width: `${r.w * 100}%` };
+                      return (
+                        <div
+                          key={key}
+                          className={`radar__edge radar__edge--${side === 'right' ? 'v' : 'h'}${live?.key === key ? ' is-on' : ''}`}
+                          style={style}
+                          aria-hidden="true"
+                          title={AT.edgeTitle}
+                          onPointerDown={(e) => startResize(e, s.id, s.title, side, key)}
+                        />
+                      );
+                    });
+                })}
+            </div>
+            <p className="lc__keys">{LT.keysHint}</p>
+            {swapFrom && (
+              <p className="lc__hint" role="status">
+                {LT.swapPick(v.slots.find((s) => s.id === swapFrom)?.title ?? '')}{' '}
+                <button type="button" className="help__run" onClick={() => { setSwapFrom(null); focusLater(() => tiles.current.get(swapFrom)?.focus()); }}>
+                  {LT.cancel}
+                </button>
+              </p>
+            )}
+          </div>
+
+          <div className="lc__side">
+            <h4 className="lc__sub" id="lc-slots-h">{LT.slotsHead}</h4>
+            <div className="layouts__tools" role="group" aria-labelledby="lc-slots-h">
+              <button type="button" id="lc-add-right" className="help__run" aria-disabled={v.slots.length >= max} title={v.slots.length >= max ? LT.maxSlots(max) : undefined} onClick={() => addSlot('right')}>
+                <Icon name="plus" size={13} className="icon icon--inline" /> {LT.addRight}
+              </button>
+              <button type="button" id="lc-add-bottom" className="help__run" aria-disabled={v.slots.length >= max} title={v.slots.length >= max ? LT.maxSlots(max) : undefined} onClick={() => addSlot('bottom')}>
+                <Icon name="plus" size={13} className="icon icon--inline" /> {LT.addBottom}
+              </button>
+              <button type="button" className="help__run" onClick={evenOut}>
+                <Icon name="distribute" size={13} className="icon icon--inline" /> {LT.evenOut}
+              </button>
+            </div>
+            {askAdd && (
+              <div className="layouts__ask" role="alertdialog" aria-labelledby="lc-ask-more">
+                <span id="lc-ask-more">{LT.askMore(v.slots.length, v.recommended, max)}</span>
+                <button type="button" id="lc-add-more" className="help__run" onClick={() => addSlot(askAdd, true)}>
+                  {LT.more}
+                </button>
+                <button type="button" className="help__run" onClick={() => { const side = askAdd; setAskAdd(null); focusLater(() => document.getElementById(side === 'right' ? 'lc-add-right' : 'lc-add-bottom')?.focus()); }}>
+                  {LT.cancel}
+                </button>
+              </div>
+            )}
+
+            <h4 className="lc__sub" id="lc-sel-h">
+              {LT.selHead}: <span className="lc__sel-name">{selSlot ? selSlot.title : LT.selNone}</span>
+            </h4>
+            <div className="layouts__tools" role="group" aria-labelledby="lc-sel-h">
+              <button type="button" className="help__run" aria-disabled={!selSlot || v.slots.length < 2} onClick={() => {
+                if (!selSlot || v.slots.length < 2) return say(LT.slotNone);
+                setSwapFrom(selSlot.id);
+                say(LT.swapPick(selSlot.title));
+                const other = v.slots.find((s) => s.id !== selSlot.id);
+                focusLater(() => other && tiles.current.get(other.id)?.focus());
+              }}>
+                <Icon name="swap" size={13} className="icon icon--inline" /> {LT.swap}
+              </button>
+              <button type="button" className="help__run" aria-disabled={!selSlot} onClick={() => (selSlot ? closeSel() : say(LT.slotNone))}>
+                <Icon name="close" size={13} className="icon icon--inline" /> {LT.slotClose}
+              </button>
+            </div>
+            {!selSlot && <p className="lc__keys">{LT.selLocked}</p>}
+            {slotUndo && (
+              <p className="layouts__undo" role="status">
+                {slotUndo.text}{' '}
+                <button type="button" id="lc-slot-undo" className="help__run" onClick={() => { dispatch({ type: 'layoutContent', win, id: slotUndo.id, content: slotUndo.content }); say(LT.slotUndone); setSlotUndo(null); focusLater(() => (tiles.current.values().next().value as HTMLButtonElement | undefined)?.focus()); }}>
+                  {LT.undo}
+                </button>
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
       {casesOpen && <CasesDialog ws={ws} dispatch={dispatch} say={say} onClose={() => setCasesOpen(false)} />}
       {stdOpen && (
         <StandardLayout

@@ -139,6 +139,13 @@ export const DESK_LAYOUT_TEXT = {
   slotLast: 'Der letzte Slot lässt sich nicht schließen.',
   slotNoRoom: 'Kein Nachbar-Slot hat Platz – ein Stack fasst höchstens 9 Portale.',
   layoutHead: 'Layout',
+  /** V56: Layout-Modus nach Skizze V55 */
+  layoutsHead: 'Layouts',
+  previewHead: 'Vorschau für:',
+  slotsHead: 'Slots',
+  selHead: 'Gewählter Slot',
+  selNone: 'noch keiner',
+  selLocked: 'Gesperrt, bis ein Slot im Bild gewählt ist.',
   standardMenu: 'Standard-Layout …',
   standardTitle: 'Standard-Layout',
   standardPick: (desk: string) => `Standard auf diesem Gerät (Layouts von ${desk})`,
@@ -796,6 +803,9 @@ export const CASE_TEXT = {
   // Layout-Modus im Cockpit
   layoutHead: 'Cases dieses Layouts',
   layoutNone: 'Keinem Case zugeordnet.',
+  /** V56: Cases in der Zeile der Layout-Aktionen */
+  inlineHead: 'Cases:',
+  inlineNone: '(keine)',
   assign: 'Cases zuordnen …',
   assignTitle: 'Dieses Layout einem oder mehreren Cases zuordnen',
   assignLegend: (layout: string) => `Cases für „${layout}“`,

@@ -834,3 +834,19 @@ export const COCKPIT_TEXT = {
   pickedSlotWhy: 'im Radar ausgewählt, nicht der aktive',
   pickedSlotTitle: 'Diesen Slot hast du im Radar gewählt. Der aktive Slot (mit dem Portal im Fokus) ist im Radar markiert.',
 };
+
+/** F-169 Stufe 1: Desks an ein anderes Gerät senden (Teilen-Menü des Systems), als Datei speichern, aus Datei laden. */
+export const TRANSFER_TEXT = {
+  send: 'An anderes Gerät senden …',
+  sendTitle:
+    'Öffnet das Teilen-Menü deines Geräts (z. B. AirDrop, Nachrichten, Mail) mit allen Desks als Datei. Auf dem anderen Gerät: Einstellungen (Zahnrad) › „Desks aus Datei laden …“.',
+  save: 'Desks als Datei speichern',
+  saveTitle: 'Speichert alle Desks, Portale, Layouts und die Library als Datei, z. B. als Sicherung oder für ein anderes Gerät.',
+  load: 'Desks aus Datei laden …',
+  loadTitle: 'Lädt eine gesendete oder gespeicherte Datei und ersetzt damit den Stand auf diesem Gerät.',
+  shareTitle: 'E-Sources: alle Desks',
+  sent: 'Gesendet. Auf dem anderen Gerät: Einstellungen (Zahnrad) › „Desks aus Datei laden …“ und die Datei wählen.',
+  saved: (name: string) => `Alle Desks als ${name} gespeichert. Auf dem anderen Gerät: Einstellungen (Zahnrad) › „Desks aus Datei laden …“.`,
+  noShare: (name: string) =>
+    `Dieser Browser kann nicht direkt an ein anderes Gerät senden – darum als ${name} gespeichert. Schick die Datei z. B. per AirDrop, Mail oder über einen gemeinsamen Ordner und wähle auf dem anderen Gerät Einstellungen (Zahnrad) › „Desks aus Datei laden …“.`,
+};

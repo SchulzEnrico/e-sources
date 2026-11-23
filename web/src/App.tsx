@@ -46,7 +46,7 @@ import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
+import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { browserOf, currentUa, modKey } from './workspace/browser';
@@ -2202,6 +2202,10 @@ function DeskApp(props: DeskProps) {
         return importBookmarks();
       case 'exportBookmarks':
         return exportBookmarks();
+      case 'sendDesks':
+        return void sendWorkspace();
+      case 'loadDesks':
+        return importRef.current?.click();
       case 'sortHelp':
         return setSortOpen(true);
       case 'profile':
@@ -2356,10 +2360,9 @@ function DeskApp(props: DeskProps) {
 
   // F-121: Arbeitsfläche als JSON-Datei zwischen Geräten weitergeben.
   const device = () => deviceLabel(navigator.userAgent, navigator.maxTouchPoints > 1);
-  const exportWorkspace = () => {
-    const file = toTransferFile(ws, device());
-    const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
-    const href = URL.createObjectURL(blob);
+  const transferFile = () => new File([JSON.stringify(toTransferFile(ws, device()), null, 2)], FILE_NAME, { type: 'application/json' });
+  const download = (file: File) => {
+    const href = URL.createObjectURL(file);
     const link = document.createElement('a');
     link.href = href;
     link.download = FILE_NAME;
@@ -2368,7 +2371,27 @@ function DeskApp(props: DeskProps) {
     link.remove();
     setTimeout(() => URL.revokeObjectURL(href), 1000);
     saveSyncMeta({ ...loadSyncMeta(), syncedAt: Date.now() });
-    notify(`Alle Desks als ${FILE_NAME} gespeichert. Auf dem anderen Gerät „Importieren“ wählen.`);
+  };
+  const exportWorkspace = () => {
+    download(transferFile());
+    notify(TRANSFER_TEXT.saved(FILE_NAME));
+  };
+  // F-169 Stufe 1: Teilen-Menü des Systems (AirDrop, Nachrichten, Mail); ohne Teilen-Funktion als Datei speichern
+  const sendWorkspace = async () => {
+    const file = transferFile();
+    if (!navigator.canShare?.({ files: [file] })) {
+      download(file);
+      return notify(TRANSFER_TEXT.noShare(FILE_NAME));
+    }
+    try {
+      await navigator.share({ files: [file], title: TRANSFER_TEXT.shareTitle });
+      saveSyncMeta({ ...loadSyncMeta(), syncedAt: Date.now() });
+      notify(TRANSFER_TEXT.sent);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return; // im Teilen-Menü abgebrochen
+      download(file);
+      notify(TRANSFER_TEXT.noShare(FILE_NAME));
+    }
   };
   const importWorkspace = async (input: HTMLInputElement) => {
     const chosen = input.files?.[0];
@@ -2816,21 +2839,30 @@ function DeskApp(props: DeskProps) {
                 Design anpassen …
               </Item>
               <li className="menu__sep" role="separator" />
-              <Item icon="transfer"
+              {/* F-169 Stufe 1: Desks auf ein anderes Gerät bringen */}
+              <Item icon="send" title={TRANSFER_TEXT.sendTitle}
+                onClick={() => {
+                  close();
+                  void sendWorkspace();
+                }}
+              >
+                {TRANSFER_TEXT.send}
+              </Item>
+              <Item icon="transfer" title={TRANSFER_TEXT.saveTitle}
                 onClick={() => {
                   exportWorkspace();
                   close();
                 }}
               >
-                Desks exportieren
+                {TRANSFER_TEXT.save}
               </Item>
-              <Item icon="transfer"
+              <Item icon="import" title={TRANSFER_TEXT.loadTitle}
                 onClick={() => {
                   importRef.current?.click();
                   close();
                 }}
               >
-                Desks importieren
+                {TRANSFER_TEXT.load}
               </Item>
               {/* F-36 */}
               <Item icon="import"

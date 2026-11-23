@@ -166,7 +166,7 @@ export const HELP_ICON: Record<string, IconName> = {
   design: 'design', colorRules: 'category', rules: 'rules', colors: 'colors',
   adjust: 'adjust', focusRule: 'sliders', restore: 'restore', closed: 'closed', layouts: 'layouts', cases: 'layouts', limits: 'maximize',
   nextTab: 'next', nextPortal: 'next', distribute: 'distribute', swap: 'swap', rename: 'rename', stackDelete: 'remove', ruler: 'ruler', pause: 'pause', zoom: 'zoom', webSearch: 'search', sendTo: 'send',
-  importBookmarks: 'import', sortHelp: 'sort', exportBookmarks: 'export', profile: 'profile', reload: 'reload', exportDesks: 'transfer',
+  importBookmarks: 'import', sortHelp: 'sort', exportBookmarks: 'export', profile: 'profile', reload: 'reload', exportDesks: 'send', loadDesks: 'import',
 };
 
 /** F-183 Stufe 2: Zeichen zur Wahl für Kategorien, in dieser Reihenfolge im Dialog „Farben“. */

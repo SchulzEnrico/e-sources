@@ -121,6 +121,84 @@ export function recentDesks(radar: RadarWindow[], panels: RecentEntry[], maxDesk
   }));
 }
 
+/** F-193 (V44): ein Eintrag in den Feldern Desks, Slots oder Portale; `portal` = was ein Klick nach vorn holt. */
+export interface RecentItem {
+  win: string;
+  id: string;
+  name: string;
+  /** Desk (bei Slots und Portalen) bzw. „n Slots · m Portale“ (bei Desks) */
+  where: string;
+  portal: string;
+  here: boolean;
+  front: boolean;
+}
+export interface RecentLists {
+  desks: RecentItem[];
+  slots: RecentItem[];
+  portals: RecentItem[];
+}
+
+/**
+ * Vier Felder der Begrüßung (Entscheidung Enrico V44): Desks, Slots und Portale je für sich, zuletzt
+ * benutzte zuerst; ohne Verlauf in der Reihenfolge des Radars (vorn liegende Portale zuerst).
+ * `where(slots, portals)` liefert den Untertitel eines Desks.
+ */
+export function recentLists(
+  radar: RadarWindow[],
+  panels: RecentEntry[],
+  where: (slots: number, portals: number) => string,
+  max = { desks: 3, slots: 5, portals: 5 },
+): RecentLists {
+  const rankOf = new Map(panels.map((e, i) => [e.id, i]));
+  const r = (id: string) => rankOf.get(id) ?? Infinity;
+  const all = radar.flatMap((w) =>
+    w.areas.flatMap((a) => a.panels.map((p) => ({ w, a, p, rank: r(p.meta.id) }))),
+  );
+  all.forEach((x, i) => Object.assign(x, { order: i }));
+  const order = (x: (typeof all)[number]) => (x as unknown as { order: number }).order;
+  const sorted = [...all].sort((x, y) => x.rank - y.rank || Number(y.p.front) - Number(x.p.front) || order(x) - order(y));
+  const first = <K>(key: (x: (typeof all)[number]) => K, n: number) => {
+    const seen = new Set<K>();
+    const out: (typeof all)[number][] = [];
+    for (const x of sorted) {
+      if (out.length >= n) break;
+      if (seen.has(key(x))) continue;
+      seen.add(key(x));
+      out.push(x);
+    }
+    return out;
+  };
+  return {
+    desks: first((x) => x.w.win, max.desks).map(({ w, p }) => ({
+      win: w.win,
+      id: w.win,
+      name: w.title,
+      where: where(w.areas.filter((a) => a.panels.length > 0).length, w.areas.reduce((n, a) => n + a.panels.length, 0)),
+      portal: p.meta.id,
+      here: w.here,
+      front: false,
+    })),
+    slots: first((x) => `${x.w.win}|${x.a.id}`, max.slots).map(({ w, a, p }) => ({
+      win: w.win,
+      id: a.id,
+      name: a.title,
+      where: w.title,
+      portal: p.meta.id,
+      here: w.here,
+      front: false,
+    })),
+    portals: first((x) => x.p.meta.id, max.portals).map(({ w, a, p }) => ({
+      win: w.win,
+      id: p.meta.id,
+      name: p.meta.name,
+      where: a.title === p.meta.name ? w.title : `${a.title} · ${w.title}`,
+      portal: p.meta.id,
+      here: w.here,
+      front: p.front,
+    })),
+  };
+}
+
 /** Rechts in der Begrüßung: zuletzt geöffnete Sources aus der Library (gleiche Adresse), bis `max`. */
 export function recentSources(bookmarks: Bookmark[], urls: RecentEntry[], max = 5): Bookmark[] {
   const byKey = new Map<string, Bookmark>();

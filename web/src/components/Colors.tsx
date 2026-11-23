@@ -13,6 +13,8 @@ import type { TintKind } from '../workspace/tint';
 import type { Category, Tint } from '../workspace/types';
 import { CATEGORY_ICONS, categoryIcon } from '../workspace/icons';
 import { Icon } from './Icon';
+import { DialogFoot } from './DialogFoot';
+import { type ColorsSnap, colorsChanged } from '../workspace/reset';
 
 type Change = Partial<Record<TintKind, string | null>>;
 
@@ -42,6 +44,9 @@ interface Props {
   focusCategory?: boolean;
   /** Portal und Slot auf die Farben des Desks zurücksetzen. */
   onReset: () => void;
+  /** F-191: aktueller Stand (beliebig, vergleichbar) und Wiederherstellen des Stands beim Öffnen. */
+  now: ColorsSnap;
+  onRestore: (start: ColorsSnap) => void;
   onClose: () => void;
   /** F-171 Stufe 2: Tour „Farben“ starten; die Tour selbst kommt als children (liegt so über dem Dialog). */
   onTour?: () => void;
@@ -100,6 +105,9 @@ export function Colors(props: Props) {
   const dlg = useRef<HTMLDialogElement>(null);
   // F-163: „Neue Kategorie …“ zeigt ein Namensfeld
   const [draft, setDraft] = useState<string | null>(null);
+  // F-191: Stand beim Öffnen – „Zurücksetzen“ nur, wenn sich seitdem etwas geändert hat
+  const [start] = useState(props.now);
+  const changed = colorsChanged(start, props.now);
   const cat = props.category ? props.categories.find((c) => c.id === props.category) : undefined;
   const ct = cat ? props.categoryTint : undefined;
   const commitNew = () => {
@@ -244,6 +252,14 @@ export function Colors(props: Props) {
           )}
         </section>
       </div>
+      <DialogFoot
+        changed={changed}
+        onReset={() => {
+          props.onRestore(start);
+          dlg.current?.querySelector<HTMLButtonElement>('.dialog-foot__done')?.focus();
+        }}
+        onDone={props.onClose}
+      />
       {props.children}
     </dialog>
   );
@@ -255,11 +271,14 @@ export function Colors(props: Props) {
  */
 function IconRow({ cat, onChange }: { cat: Category; onChange: (icon: string | null) => void }) {
   const auto = categoryIcon({ name: cat.name });
-  const options: (string | null)[] = [null, ...CATEGORY_ICONS];
+  const label = (o: string | null) => (o ? CATEGORY_ICON_LABEL[o] ?? o : CATEGORY_TEXT.iconAuto(CATEGORY_ICON_LABEL[auto] ?? auto));
+  // F-192: viele Zeichen – Suchfeld filtert nach Namen; „Vorschlag“ und das gewählte bleiben immer sichtbar
+  const [q, setQ] = useState('');
   const current = cat.icon ?? null;
+  const needle = q.trim().toLowerCase();
+  const options: (string | null)[] = [null, ...CATEGORY_ICONS.filter((o) => !needle || o === current || label(o).toLowerCase().includes(needle))];
   const at = Math.max(0, options.indexOf(current));
   const group = useRef<HTMLSpanElement>(null);
-  const label = (o: string | null) => (o ? CATEGORY_ICON_LABEL[o] ?? o : CATEGORY_TEXT.iconAuto(CATEGORY_ICON_LABEL[auto] ?? auto));
   const pick = (i: number) => {
     onChange(options[i]);
     window.setTimeout(() => group.current?.querySelectorAll<HTMLElement>('[role="radio"]')[i]?.focus(), 0);
@@ -268,6 +287,27 @@ function IconRow({ cat, onChange }: { cat: Category; onChange: (icon: string | n
     <div className="colors__row">
       <span id="colors-ci" className="colors__label">
         {CATEGORY_TEXT.icon}
+      </span>
+      <span className="colors__iconbox">
+      <input
+        type="search"
+        className="colors__iconsearch"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => {
+          // Esc leert erst das Feld, schließt nicht gleich den Dialog
+          if (e.key === 'Escape' && q) {
+            e.preventDefault();
+            e.stopPropagation();
+            setQ('');
+          }
+        }}
+        placeholder={CATEGORY_TEXT.iconSearch}
+        aria-label={CATEGORY_TEXT.iconSearch}
+        aria-describedby="colors-ci-count"
+      />
+      <span id="colors-ci-count" className="colors__count" role="status">
+        {needle ? CATEGORY_TEXT.iconFound(options.length - 1) : CATEGORY_TEXT.iconAll(CATEGORY_ICONS.length)}
       </span>
       <span
         ref={group}
@@ -299,6 +339,7 @@ function IconRow({ cat, onChange }: { cat: Category; onChange: (icon: string | n
             {o ? <Icon name={o as (typeof CATEGORY_ICONS)[number]} /> : <><Icon name={auto} /> {CATEGORY_TEXT.iconAuto('').replace(' ()', '')}</>}
           </button>
         ))}
+      </span>
       </span>
       <span id="colors-ci-note" hidden>
         {CATEGORY_TEXT.iconIntro}

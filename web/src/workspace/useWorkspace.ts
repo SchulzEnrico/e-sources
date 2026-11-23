@@ -1,3 +1,4 @@
+import { type ColorsSnap, restoreColors } from './reset';
 import { setPause, toggleKeep } from './pause';
 import { setEngine } from './websearch';
 import { openInNewSlot } from './send';
@@ -100,6 +101,7 @@ export type Action =
   | { type: 'tintCategory'; id: string; change: Partial<Record<TintKind, string | null>> }
   // F-183 Stufe 2: Zeichen je Kategorie
   | { type: 'iconCategory'; id: string; icon: string | null }
+  | { type: 'restoreColors'; snap: ColorsSnap }
   // F-164: Regeln ein/aus, Seite → Kategorie, löschen und wiederherstellen
   | { type: 'ruleOn'; id: string; on: boolean }
   | { type: 'siteCategory'; domain: string; category: string }
@@ -270,6 +272,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return setCategoryTint(ws, a.id, a.change);
     case 'iconCategory':
       return setCategoryIcon(ws, a.id, a.icon);
+    case 'restoreColors':
+      return restoreColors(ws, a.snap);
     case 'ruleOn':
       return setRuleOn(ws, a.id, a.on);
     case 'siteCategory':

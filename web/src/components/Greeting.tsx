@@ -6,7 +6,7 @@
 import { Icon } from './Icon';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Profile } from '../workspace/profile';
-import type { RecentDesk } from '../workspace/recent';
+import type { RecentItem, RecentLists } from '../workspace/recent';
 import type { Bookmark } from '../workspace/types';
 import { hostOf } from '../workspace/workspace';
 import { GREET_TEXT as G } from '../workspace/terms';
@@ -15,7 +15,7 @@ import { SiteIcon, useDisplay } from './SiteIcon';
 
 /** F-193: Inhalt von „Zuletzt benutzt“ – wird erst beim Aufklappen ermittelt. */
 export interface GreetRecent {
-  desks: RecentDesk[];
+  lists: RecentLists;
   sources: Bookmark[];
   /** true = kein Verlauf, rechts stehen die neuesten Sources der Library. */
   sourcesNew: boolean;
@@ -35,6 +35,17 @@ interface Props {
 }
 
 const STAY_MS = 15000;
+
+/** Pfad einer Adresse ohne Domain, z. B. „/docs/start“ – leer, wenn nur „/“. */
+function pathOf(url: string): string {
+  try {
+    const u = new URL(url);
+    const p = decodeURIComponent(u.pathname + u.search).replace(/\/$/, '');
+    return p;
+  } catch {
+    return '';
+  }
+}
 
 export function Greeting({ profile, greeting, last, onContinue, recent, onPortal, onSource, onProfile, onClose }: Props) {
   const box = useRef<HTMLElement>(null);
@@ -87,68 +98,88 @@ export function Greeting({ profile, greeting, last, onContinue, recent, onPortal
           <button type="button" aria-expanded={!!open} aria-controls={listId} title={G.moreTitle} onClick={() => setOpen(open ? null : recent())}>
             {open ? G.less : G.more}
           </button>
-          <button type="button" onClick={onProfile}>
-            {profile.name ? 'Profil …' : 'Profil anlegen …'}
-          </button>
         </div>
-        {open && (
-          <div id={listId} className="greeting__recent" role="group" aria-label={G.title}>
-            <section className="greeting__col" aria-labelledby={`${listId}-d`}>
-              <h3 id={`${listId}-d`} className="greeting__head">
-                <Icon name="desk" size={14} /> {G.desks}
-              </h3>
-              <p className="greeting__note">{G.desksNote}</p>
-              {open.desks.length === 0 && <p className="greeting__note">{G.noDesks}</p>}
-              {open.desks.map((d) => (
-                <div key={d.win} className="greeting__desk">
-                  <h4 className="greeting__deskname">
-                    {d.title}
-                    {d.here && <span className="greeting__tag"> · {G.here}</span>}
-                  </h4>
-                  <ul className="greeting__slots">
-                    {d.slots.map((sl) => (
-                      <li key={sl.id}>
-                        <span className="greeting__slot">
-                          <Icon name="slot" size={12} /> {sl.title}
-                        </span>
-                        <ul className="greeting__portals">
-                          {sl.portals.map((p) => (
-                            <li key={p.id}>
-                              <button type="button" className="greeting__item" onClick={() => onPortal(d.win, p.id)} aria-label={`${p.name} – ${sl.title}, ${d.title}${p.front ? `, ${G.front}` : ''}`}>
-                                <Icon name="portal" size={12} /> {p.name}
-                              </button>
-                            </li>
-                          ))}
-                          {sl.more > 0 && <li className="greeting__note">{G.moreIn(sl.more)}</li>}
-                        </ul>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </section>
-            <section className="greeting__col" aria-labelledby={`${listId}-s`}>
-              <h3 id={`${listId}-s`} className="greeting__head">
-                <Icon name="library" size={14} /> {open.sourcesNew ? G.sourcesNew : G.sources}
-              </h3>
-              <p className="greeting__note">{G.sourcesNote}</p>
-              {open.sources.length === 0 && <p className="greeting__note">{G.noSources}</p>}
-              <ul className="greeting__portals">
-                {open.sources.map((b) => (
-                  <li key={b.id}>
-                    <button type="button" className="greeting__item" onClick={() => onSource(b)} title={b.url}>
-                      <SiteIcon url={b.url} on={display.favicons} /> <span className="greeting__itemtext">{b.title || hostOf(b.url)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </div>
-        )}
       </div>
-      <button type="button" className="greeting__x" onClick={onClose} title="Begrüßung schließen (Esc)" aria-label="Begrüßung schließen">
-        <Icon name="close" size={14} />
-      </button>
+      <div className="greeting__corner">
+        <button type="button" className="greeting__profile" onClick={onProfile}>
+          {profile.name ? 'Profil …' : 'Profil anlegen …'}
+        </button>
+        <button type="button" className="greeting__x" onClick={onClose} title="Begrüßung schließen (Esc)" aria-label="Begrüßung schließen">
+          <Icon name="close" size={14} />
+        </button>
+      </div>
+      {open && (
+        <div id={listId} className="greeting__recent" role="group" aria-label={G.title}>
+          <Field id={`${listId}-d`} icon="desk" title={G.desks} note={G.desksNote} empty={G.noDesks} items={open.lists.desks} onPick={onPortal} />
+          <Field id={`${listId}-s`} icon="slot" title={G.slots} note={G.slotsNote} empty={G.noDesks} items={open.lists.slots} onPick={onPortal} />
+          <Field id={`${listId}-p`} icon="portal" title={G.portals} note={G.portalsNote} empty={G.noDesks} items={open.lists.portals} onPick={onPortal} front />
+          <section className="greeting__well" aria-labelledby={`${listId}-b`}>
+            <h3 id={`${listId}-b`} className="greeting__head">
+              <Icon name="library" size={14} /> {open.sourcesNew ? G.sourcesNew : G.sources}
+            </h3>
+            <p className="greeting__note">{G.sourcesNote}</p>
+            {open.sources.length === 0 ? (
+              <p className="greeting__note">{G.noSources}</p>
+            ) : (
+              <ul className="greeting__list">
+                {open.sources.map((b) => {
+                  // Zweite Zeile: Domain (bei Titel) bzw. Pfad (ohne Titel) – hilft unterscheiden
+                  const host = hostOf(b.url);
+                  const sub = b.title ? host : pathOf(b.url);
+                  return (
+                    <li key={b.id}>
+                      <button type="button" className="greeting__item" onClick={() => onSource(b)} title={b.url}>
+                        <SiteIcon url={b.url} on={display.favicons} />
+                        <span className="greeting__lines">
+                          <span className="greeting__itemtext">{b.title || host}</span>
+                          {sub && <span className="greeting__sub">{sub}</span>}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Ein versenktes Feld (Desks, Slots oder Portale): Überschrift, kurzer Hinweis, Einträge zweizeilig. */
+function Field({ id, icon, title, note, empty, items, onPick, front }: { id: string; icon: 'desk' | 'slot' | 'portal'; title: string; note: string; empty: string; items: RecentItem[]; onPick: (win: string, id: string) => void; front?: boolean }) {
+  return (
+    <section className="greeting__well" aria-labelledby={id}>
+      <h3 id={id} className="greeting__head">
+        <Icon name={icon} size={14} /> {title}
+      </h3>
+      <p className="greeting__note">{note}</p>
+      {items.length === 0 ? (
+        <p className="greeting__note">{empty}</p>
+      ) : (
+        <ul className="greeting__list">
+          {items.map((it) => (
+            <li key={`${it.win}|${it.id}`}>
+              <button
+                type="button"
+                className="greeting__item"
+                onClick={() => onPick(it.win, it.portal)}
+                aria-label={`${it.name} – ${it.where}${it.here && icon === 'desk' ? `, ${G.here}` : ''}${front && it.front ? `, ${G.front}` : ''}`}
+              >
+                {front && it.front ? <span className="greeting__front" aria-hidden="true" title={G.frontTitle} /> : <Icon name={icon} size={12} />}
+                <span className="greeting__lines">
+                  <span className="greeting__row">
+                    <span className="greeting__itemtext">{it.name}</span>
+                    {icon === 'desk' && it.here && <span className="greeting__tag">{G.here}</span>}
+                  </span>
+                  <span className="greeting__sub">{it.where}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

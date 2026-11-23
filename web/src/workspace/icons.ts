@@ -117,6 +117,31 @@ export const ICONS = {
   catMoney: { d: [ring(8, 8, 6.5), 'M10.2 5.6A2.8 2.8 0 0 0 5.8 6.8c0 2.4 4.4 1.2 4.4 3.4A2.8 2.8 0 0 1 5.8 11', 'M8 3.5v9'] },
   catGame: { d: ['M4.5 4.5h7a3 3 0 0 1 3 3v1.5a2.5 2.5 0 0 1-4.4 1.6L9 9.5H7l-1.1 1.1A2.5 2.5 0 0 1 1.5 9V7.5a3 3 0 0 1 3-3z', 'M4.5 6.5v2', 'M3.5 7.5h2', 'M11 7h.01', 'M12 8.5h.01'] },
   catHeart: { d: ['M8 13.5S1.5 9.8 1.5 5.6A3.1 3.1 0 0 1 8 4.2a3.1 3.1 0 0 1 6.5 1.4C14.5 9.8 8 13.5 8 13.5z'] },
+  // F-192: weitere Zeichen für Kategorien (gleicher Strichstil, Raster 16)
+  catTool: { d: ['M10.5 2.2a3.2 3.2 0 0 0-3.9 4.1L2.3 10.6a1.4 1.4 0 0 0 2 2l4.3-4.3a3.2 3.2 0 0 0 4.1-3.9l-1.9 1.9-1.8-.4-.4-1.8z'] },
+  catDesign: { d: ['M8 1.8a6.2 6.2 0 1 0 0 12.4c1 0 1.4-.8 1-1.6-.5-.9 0-1.9 1.1-1.9h1.7a2.4 2.4 0 0 0 2.4-2.4A6.3 6.3 0 0 0 8 1.8z', 'M5 6h.01', 'M8 4.5h.01', 'M11 6h.01', 'M4.8 9.2h.01'] },
+  catTerminal: { d: ['M2 2.5h12v11H2z', 'M4.5 6l2 2-2 2', 'M8 10.5h3.5'] },
+  catDatabase: { d: ['M3 3.5c0-1.1 2.2-2 5-2s5 .9 5 2-2.2 2-5 2-5-.9-5-2z', 'M3 3.5v9c0 1.1 2.2 2 5 2s5-.9 5-2v-9', 'M3 8c0 1.1 2.2 2 5 2s5-.9 5-2'] },
+  catCloud: { d: ['M4.5 12.5h7.2a2.8 2.8 0 0 0 .3-5.6 4 4 0 0 0-7.7-.3 3 3 0 0 0 .2 5.9z'] },
+  catFolder: { d: ['M1.8 4v8.5a1 1 0 0 0 1 1h10.4a1 1 0 0 0 1-1V5.8a1 1 0 0 0-1-1H8L6.5 3H2.8a1 1 0 0 0-1 1z'] },
+  catLock: { d: ['M3.5 7.5h9v6.5h-9z', 'M5.5 7.5V5a2.5 2.5 0 0 1 5 0v2.5'] },
+  catChart: { d: ['M2 14h12', 'M4 11V8', 'M7 11V5', 'M10 11V7', 'M13 11V3'] },
+  catTodo: { d: ['M2 4l1.2 1.2L5.5 3', 'M2 9.5l1.2 1.2L5.5 8.5', 'M7.5 4.2h6.5', 'M7.5 9.7h6.5', 'M7.5 13h6.5'] },
+  catClock: { d: [ring(8, 8, 6.2), 'M8 4.5V8l2.5 1.5'] },
+  catBuilding: { d: ['M3 14.5V2.5h7v12', 'M10 6.5h3v8', 'M1.5 14.5h13', 'M5 5h.01', 'M8 5h.01', 'M5 8h.01', 'M8 8h.01', 'M5 11h.01', 'M8 11h.01'] },
+  catLaw: { d: ['M8 2v12', 'M4.5 14h7', 'M3 4.5h10', 'M3 4.5 1 9a2 2 0 0 0 4 0z', 'M13 4.5 11 9a2 2 0 0 0 4 0z'] },
+  catLearn: { d: ['M1 6l7-3.5L15 6 8 9.5z', 'M4 7.6V11c1.3 1.3 2.6 1.8 4 1.8s2.7-.5 4-1.8V7.6', 'M14.5 6.3v4'] },
+  catSocial: { d: [ring(4, 8, 1.8), ring(12, 4, 1.8), ring(12, 12, 1.8), 'M5.6 7.2l4.8-2.4', 'M5.6 8.8l4.8 2.4'] },
+  catImage: { d: ['M2 2.5h12v11H2z', ring(5.5, 6, 1.2), 'M2 12l3.8-3.8 2.7 2.7 2-2 3.5 3.5'] },
+  catHeadphones: { d: ['M2.5 11V8.5a5.5 5.5 0 0 1 11 0V11', 'M2.5 10h2v4h-2z', 'M11.5 10h2v4h-2z'] },
+  catMap: { d: ['M8 14.5s-4.5-4.3-4.5-7.8a4.5 4.5 0 0 1 9 0c0 3.5-4.5 7.8-4.5 7.8z', ring(8, 6.7, 1.6)] },
+  catCar: { d: ['M2 10.5V8l1.6-3.8a1 1 0 0 1 .9-.7h7a1 1 0 0 1 .9.7L14 8v2.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z', 'M2 8h12', 'M4 11.5V13', 'M12 11.5V13'] },
+  catFood: { d: ['M4 1.8v4.5a1.5 1.5 0 0 0 3 0V1.8', 'M5.5 1.8v12.4', 'M11.5 14.2V1.8c-1.6.8-2.5 2.6-2.5 5v2.4h2.5'] },
+  catHealth: { d: ['M6 2.5h4V6h3.5v4H10v3.5H6V10H2.5V6H6z'] },
+  catSport: { d: ['M1.5 8h13', 'M3.5 5v6', 'M5.5 4v8', 'M10.5 4v8', 'M12.5 5v6'] },
+  catWeather: { d: ['M5 1.8v1', 'M1.8 5.2h1', 'M2.7 2.9l.7.7', 'M8.1 2.9l-.7.7', 'M3.4 7.4a2.5 2.5 0 1 1 4.2-2.6', 'M6 13.5h5.8a2.3 2.3 0 0 0 .2-4.6 3.2 3.2 0 0 0-6-.4 2.5 2.5 0 0 0 0 5z'] },
+  catPlant: { d: ['M8 14.5V7', 'M8 9c0-3 2-5 5.5-5 0 3.5-2 5-5.5 5z', 'M8 10.5C8 8 6.5 6.5 3 6.5c0 3 1.5 4 5 4z'] },
+  catGift: { d: ['M2 6h12v3H2z', 'M3 9v5h10V9', 'M8 6v8', 'M8 6C7 4 4 3 4 5c0 1 2 1 4 1z', 'M8 6c1-2 4-3 4-1 0 1-2 1-4 1z'] },
 } satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;
@@ -139,12 +164,45 @@ export const HELP_ICON: Record<string, IconName> = {
 export const CATEGORY_ICONS = [
   'category', 'catEditor', 'catMail', 'catChat', 'catCalendar', 'catVideo', 'catMusic', 'catCode', 'catJobs',
   'catPeople', 'catNews', 'catShop', 'catBook', 'catTravel', 'catAi', 'catPhoto', 'catMoney', 'catGame', 'catHeart', 'star',
+  // F-192
+  'catTool', 'catDesign', 'catTerminal', 'catDatabase', 'catCloud', 'catFolder', 'search', 'catLock', 'catChart', 'catTodo',
+  'catClock', 'catBuilding', 'catLaw', 'catLearn', 'catSocial', 'catImage', 'catHeadphones', 'catMap', 'catCar', 'home',
+  'catFood', 'catHealth', 'catSport', 'catWeather', 'catPlant', 'catGift',
 ] as const satisfies readonly IconName[];
 
 export type CategoryIcon = (typeof CATEGORY_ICONS)[number];
 
 /** Vorschlag je bekanntem Kategorie-Namen (Sortierhilfe F-180 und übliche Namen); Vergleich ohne Groß/klein. */
 const NAME_ICON: [RegExp, CategoryIcon][] = [
+  // KI zuerst („KI-Werkzeuge“ ist KI, kein Werkzeug)
+  [/\bki\b|ki-|ai\b|künstlich/, 'catAi'],
+  // F-192: neue Zeichen vor den älteren, wo sie genauer passen
+  [/werkzeug|tool|tools/, 'catTool'],
+  [/design|grafik|gestalt|ui\b|ux\b/, 'catDesign'],
+  [/terminal|konsole|shell|devops|server/, 'catTerminal'],
+  [/datenbank|database|\bsql\b|daten\b/, 'catDatabase'],
+  [/cloud|hosting|speicher/, 'catCloud'],
+  [/ordner|ablage|archiv|dateien/, 'catFolder'],
+  [/\bsuch|search/, 'search'],
+  [/passw|sicherheit|security|login/, 'catLock'],
+  [/börse|aktien|statistik|analyse|zahlen|chart/, 'catChart'],
+  [/aufgabe|todo|to-do|erledig/, 'catTodo'],
+  [/\bzeit\b|\buhr\b|\btime\b/, 'catClock'],
+  [/firma|unternehm|behörde|amt\b|büro/, 'catBuilding'],
+  [/recht|gesetz|anwalt|vertrag|jura/, 'catLaw'],
+  [/schule|\buni\b|universit|studium|kurs|weiterbild|lernen/, 'catLearn'],
+  [/social|soziale|teilen/, 'catSocial'],
+  [/grafiken|bilder|galerie|image/, 'catImage'],
+  [/hörbuch|podcast/, 'catHeadphones'],
+  [/karte|\bmaps?\b|\bort\b|navi/, 'catMap'],
+  [/\bauto|kfz|fahrzeug|mobilität/, 'catCar'],
+  [/haus|wohnung|zuhause|home|immobil/, 'home'],
+  [/essen|rezept|kochen|food|restaurant/, 'catFood'],
+  [/gesundheit|arzt|medizin|health|fitness/, 'catHealth'],
+  [/sport|training|workout/, 'catSport'],
+  [/wetter|weather/, 'catWeather'],
+  [/garten|pflanze|natur/, 'catPlant'],
+  [/geschenk|gift|geburtstag/, 'catGift'],
   [/video|film|serie|stream/, 'catVideo'],
   [/musik|music|podcast|radio/, 'catMusic'],
   [/mail|e-post/, 'catMail'],
@@ -157,7 +215,6 @@ const NAME_ICON: [RegExp, CategoryIcon][] = [
   [/einkauf|shop|kauf/, 'catShop'],
   [/wissen|lernen|lexikon|recherche|bildung/, 'catBook'],
   [/reise|travel|urlaub/, 'catTravel'],
-  [/\bki\b|ki-|ai\b|künstlich/, 'catAi'],
   [/foto|bild|photo/, 'catPhoto'],
   [/finanz|geld|bank|money/, 'catMoney'],
   [/spiel|game/, 'catGame'],

@@ -18,6 +18,8 @@ import * as Probe from './probe';
 import * as S from './sizing';
 import * as H from './help';
 import * as Tour from './tour';
+import * as Terms from './terms';
+import * as Rs from './reset';
 import * as C from './cycle';
 import * as Cl from './closed';
 import * as La from './launcher';
@@ -2342,6 +2344,12 @@ describe('F-183 Stufe 2', () => {
     expect(Ic.categoryIcon({ name: 'Mail & Kalender' })).toBe('catMail');
     expect(Ic.categoryIcon({ name: 'Kalender' })).toBe('catCalendar');
     expect(Ic.categoryIcon({ name: 'KI-Werkzeuge' })).toBe('catAi');
+    // F-192: neue Zeichen nach Name, ohne Fehlgriffe in längeren Wörtern
+    expect(Ic.categoryIcon({ name: 'Sport' })).toBe('catSport');
+    expect(Ic.categoryIcon({ name: 'Zeitung' })).toBe('catNews');
+    expect(Ic.categoryIcon({ name: 'Rezepte' })).toBe('catFood');
+    expect(Ic.categoryIcon({ name: 'Datenbank' })).toBe('catDatabase');
+    expect(Ic.CATEGORY_ICONS.every((o) => !!Terms.CATEGORY_ICON_LABEL[o])).toBe(true);
     expect(Ic.categoryIcon({ name: 'Irgendwas' })).toBe('category');
     let ws = W.defaultWorkspace();
     ws = B.addCategory(ws, 'c-ed', 'Editor');
@@ -2961,6 +2969,18 @@ describe('F-193 Zuletzt benutzt in der Begrüßung', () => {
     expect(d[1].slots[0].more).toBe(1);
     expect(d[2].slots[0].id).toBe('y');
   });
+  it('vier Felder: Desks, Slots, Portale je nach Verlauf, ohne Doppel', () => {
+    const w = (s: number, p: number) => `${s}/${p}`;
+    const l = Rc.recentLists(radar, [{ id: 'n1', at: 3 }, { id: 'a2', at: 2 }, { id: 'y1', at: 1 }], w);
+    expect(l.desks.map((x) => x.win)).toEqual(['d4', '', 'd2']);
+    expect(l.desks[0].portal).toBe('n1');
+    expect(l.slots.length).toBe(5);
+    expect(l.slots[1].portal).toBe('a2');
+    expect(l.portals.slice(0, 3).map((x) => x.id)).toEqual(['n1', 'a2', 'y1']);
+    expect(new Set(l.portals.map((x) => x.id)).size).toBe(l.portals.length);
+    const leer = Rc.recentLists(radar, [], w);
+    expect(leer.desks.map((x) => x.win)).toEqual(['', 'd2', 'd3']);
+  });
   it('Lesezeichen: nur aus der Library, gleiche Adresse, höchstens 5', () => {
     const bm = (id: string, url: string) => ({ id, title: id, url, category: '', tags: [], panels: [] });
     const lib = [bm('A', 'https://a.de/'), bm('B', 'https://b.de/x')];
@@ -2968,5 +2988,30 @@ describe('F-193 Zuletzt benutzt in der Begrüßung', () => {
     expect(Rc.recentSources(lib, urls).map((b) => b.id)).toEqual(['B', 'A']);
     expect(Rc.recentSources(lib, urls, 1).map((b) => b.id)).toEqual(['B']);
     expect(Rc.newestSources(lib, 1).map((b) => b.id)).toEqual(['B']);
+  });
+});
+
+describe('F-191 Zurücksetzen im Dialog Farben', () => {
+  const ws: any = {
+    panels: [{ id: 'p', name: 'P', category: 'a', tint: { frame: '#111111' } }],
+    categories: [{ id: 'a', name: 'A', tint: { accent: '#222222' } }],
+    siteCategory: { 'x.de': 'a' },
+    areaNames: [],
+  };
+  it('stellt Portal, Kategorie und Seite → Kategorie wieder her; neue Kategorien zählen nicht als Änderung', () => {
+    const start = Rs.snapColors(ws, 'p');
+    const changed: any = {
+      ...ws,
+      panels: [{ id: 'p', name: 'P', category: 'b' }],
+      categories: [{ id: 'a', name: 'A', icon: 'star' }, { id: 'b', name: 'B' }],
+      siteCategory: { 'x.de': 'b' },
+    };
+    expect(Rs.colorsChanged(start, Rs.snapColors(changed, 'p'))).toBe(true);
+    const back = Rs.restoreColors(changed, start);
+    expect(back.panels[0]).toEqual({ id: 'p', name: 'P', category: 'a', tint: { frame: '#111111' } });
+    expect(back.categories[0]).toEqual({ id: 'a', name: 'A', tint: { accent: '#222222' } });
+    expect(back.categories).toHaveLength(2);
+    expect(back.siteCategory).toEqual({ 'x.de': 'a' });
+    expect(Rs.colorsChanged(start, Rs.snapColors(back, 'p'))).toBe(false);
   });
 });

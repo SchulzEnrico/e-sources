@@ -164,6 +164,9 @@ export const DESK_LAYOUT_TEXT = {
 /** F-162: Texte zu Rahmen- und Akzentfarbe je Slot und Portal. */
 /** F-163: Farbregeln über Kategorien (Kategorien der Library). */
 export const CATEGORY_TEXT = {
+  iconSearch: 'Zeichen suchen, z. B. Auto, Code, Sport',
+  iconFound: (n: number) => (n === 0 ? 'Kein passendes Zeichen – „Vorschlag“ bleibt wählbar' : n === 1 ? '1 passendes Zeichen' : `${n} passende Zeichen`),
+  iconAll: (n: number) => `${n} Zeichen – Pfeiltasten wählen`,
   head: 'Kategorie',
   intro: 'Kategorie = Gruppe aus deiner Library (z. B. Video, Editor). Ihre Farben gelten für alle Portale dieser Kategorie, wenn Portal und Slot keine eigenen haben.',
   label: 'Kategorie dieses Portals',
@@ -213,6 +216,32 @@ export const CATEGORY_ICON_LABEL: Record<string, string> = {
   catGame: 'Spiel',
   catHeart: 'Herz',
   star: 'Stern',
+  catTool: 'Werkzeug',
+  catDesign: 'Farbpalette (Design)',
+  catTerminal: 'Konsole (Code-Editor)',
+  catDatabase: 'Datenbank',
+  catCloud: 'Wolke (Cloud)',
+  catFolder: 'Ordner',
+  search: 'Lupe (Suche)',
+  catLock: 'Schloss (Sicherheit)',
+  catChart: 'Diagramm (Statistik)',
+  catTodo: 'Checkliste (Aufgaben)',
+  catClock: 'Uhr (Zeit)',
+  catBuilding: 'Gebäude (Firma, Amt)',
+  catLaw: 'Waage (Recht)',
+  catLearn: 'Doktorhut (Lernen, Schule)',
+  catSocial: 'Teilen (Social Media)',
+  catImage: 'Bild',
+  catHeadphones: 'Kopfhörer',
+  catMap: 'Ortsmarke (Karte)',
+  catCar: 'Auto',
+  home: 'Haus',
+  catFood: 'Besteck (Essen)',
+  catHealth: 'Kreuz (Gesundheit)',
+  catSport: 'Hantel (Sport)',
+  catWeather: 'Sonne und Wolke (Wetter)',
+  catPlant: 'Pflanze (Garten, Natur)',
+  catGift: 'Geschenk',
 };
 
 /** F-164: Regelübersicht im Cockpit. */
@@ -355,21 +384,39 @@ export const DESK_GONE_TEXT = {
 };
 
 /** F-193: Begrüßung – „Zuletzt benutzt“ aufklappen. */
+/** F-191: Abschluss in Dialogen – (b) Vorschau sofort mit „Fertig“/„Zurücksetzen“, (a) „Anlegen“/„Abbrechen“. */
+export const DIALOG_TEXT = {
+  done: 'Fertig',
+  doneTitle: 'Dialog schließen – alle Änderungen gelten schon (Esc)',
+  reset: 'Zurücksetzen',
+  resetTitle: 'Alle Änderungen seit dem Öffnen dieses Dialogs zurücknehmen',
+  resetNone: 'Noch nichts geändert – Zurücksetzen nimmt Änderungen seit dem Öffnen zurück',
+  resetDone: 'Zurückgesetzt auf den Stand beim Öffnen.',
+  create: 'Anlegen',
+  cancel: 'Abbrechen',
+  hint: 'Änderungen gelten sofort als Vorschau.',
+};
+
 export const GREET_TEXT = {
   more: 'Mehr …',
   moreTitle: 'Zuletzt benutzte Desks, Slots, Portale und Lesezeichen zeigen und hier öffnen',
   less: 'Weniger',
   title: 'Zuletzt benutzt',
-  desks: 'Desks und Slots',
-  desksNote: 'Portal wählen = dorthin wechseln',
+  desks: 'Desks',
+  desksNote: 'Klick wechselt zu diesem Desk',
+  slots: 'Slots',
+  slotsNote: 'Klick zeigt diesen Slot',
+  portals: 'Portale',
+  portalsNote: 'Klick holt es nach vorn · Punkt = vorn im Slot',
   sources: 'Lesezeichen',
   sourcesNew: 'Neu in der Library',
-  sourcesNote: 'Öffnet im aktiven Portal',
+  sourcesNote: 'Klick öffnet im aktiven Portal',
   noDesks: 'Noch keine Portale.',
   noSources: 'Noch keine Lesezeichen in der Library.',
   here: 'dieser Desk',
   front: 'vorn',
-  moreIn: (n: number) => (n === 1 ? '+ 1 weiteres Portal' : `+ ${n} weitere Portale`),
+  frontTitle: 'Liegt in seinem Slot vorn',
+  deskWhere: (slots: number, portals: number) => `${slots === 1 ? '1 Slot' : `${slots} Slots`} · ${portals === 1 ? '1 Portal' : `${portals} Portale`}`,
 };
 
 export const SEND_TEXT = {

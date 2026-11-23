@@ -28,7 +28,8 @@ import { Search } from './components/Search';
 import { Tooltips } from './components/Tooltip';
 import { FocusMeter, Overview } from './components/Overview';
 import { arrangeText, deskFocusOf, effectOf, focusOf, placeText, radarOf, ruleOf } from './workspace/focus';
-import { loadRecent, newestSources, recentDesks, recentSources, saveRecent, touch } from './workspace/recent';
+import { snapColors } from './workspace/reset';
+import { loadRecent, newestSources, recentLists, recentSources, saveRecent, touch } from './workspace/recent';
 import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
 import { contrastWarning, hasOwnLook, lookOf, pickLook, shownAccent, THEMES, resolveTheme, rgbOf } from './workspace/look';
 import { MAIN_NAME, collectedDesks, deskGone, deskRing, deskSaid, nextWindowName, stepDesk, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
@@ -44,7 +45,7 @@ import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DISPLAY_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT } from './workspace/terms';
+import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { useSendReceiver } from './workspace/useSend';
@@ -2758,6 +2759,12 @@ function DeskApp(props: DeskProps) {
               }}
               onPortal={(change) => dispatch({ type: 'tintPanel', id: meta.id, change })}
               onSlot={(change) => dispatch({ type: 'tintSlot', setup, area: slot.id, change })}
+              now={snapColors(ws, meta.id, slotTint(ws, slot))}
+              onRestore={(st) => {
+                dispatch({ type: 'restoreColors', snap: st });
+                dispatch({ type: 'tintSlot', setup, area: slot.id, change: { frame: st.slotTint?.frame ?? null, accent: st.slotTint?.accent ?? null } });
+                sayLive(DIALOG_TEXT.resetDone);
+              }}
               onReset={() => {
                 dispatch({ type: 'tintPanel', id: meta.id, change: { frame: null, accent: null } });
                 dispatch({ type: 'tintSlot', setup, area: slot.id, change: { frame: null, accent: null } });
@@ -2810,7 +2817,7 @@ function DeskApp(props: DeskProps) {
             const r = loadRecent(!PROBE);
             const sources = recentSources(ws.bookmarks, r.urls, 5);
             return {
-              desks: recentDesks(radarOf(ws, shownView.slots, setup, windows.open), r.panels, 3, 5, 3),
+              lists: recentLists(radarOf(ws, shownView.slots, setup, windows.open), r.panels, GREET_TEXT.deskWhere),
               sources: sources.length ? sources : newestSources(ws.bookmarks, 5),
               sourcesNew: sources.length === 0,
             };

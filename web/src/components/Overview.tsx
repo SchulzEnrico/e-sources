@@ -7,7 +7,7 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { ARRANGE_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, TERMS } from '../workspace/terms';
+import { ARRANGE_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import type { Action } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
@@ -550,6 +550,7 @@ export function Overview(p: OverviewProps) {
         <li key={id} className="overview__row is-edit">
           <input
             className="overview__input"
+            title={DIALOG_TEXT.renameHint}
             value={draft}
             autoFocus
             aria-label="Neuer Portalname"

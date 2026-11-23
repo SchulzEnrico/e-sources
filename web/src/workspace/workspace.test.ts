@@ -20,6 +20,7 @@ import * as H from './help';
 import * as Tour from './tour';
 import * as Terms from './terms';
 import * as Rs from './reset';
+import * as Zm from './zoom';
 import * as C from './cycle';
 import * as Cl from './closed';
 import * as La from './launcher';
@@ -3013,5 +3014,48 @@ describe('F-191 Zurücksetzen im Dialog Farben', () => {
     expect(back.categories).toHaveLength(2);
     expect(back.siteCategory).toEqual({ 'x.de': 'a' });
     expect(Rs.colorsChanged(start, Rs.snapColors(back, 'p'))).toBe(false);
+  });
+});
+
+describe('F-191 Zurücksetzen im Dialog Design anpassen', () => {
+  const ws: any = {
+    look: { theme: 'dark', accent: '#111111' },
+    panels: [
+      { id: 'p', name: 'P', win: 'w2', areaName: 's', tint: { frame: '#222222' } },
+      { id: 'q', name: 'Q', tint: { frame: '#333333' } },
+    ],
+    areaNames: [{ id: 's', name: 'S', tint: { accent: '#444444' } }],
+  };
+  it('stellt Desk-Farben, Slot- und Portalfarben des Desks wieder her; andere Desks bleiben', () => {
+    const start = Rs.snapDesign(ws, 'w2');
+    let now: any = L.setDeskLook(ws, 'w2', { accent: '#555555' });
+    now = Ti.clearDeskTints(now, 'w2').ws;
+    expect(Rs.designChanged(start, Rs.snapDesign(now, 'w2'))).toBe(true);
+    const back = Rs.restoreDesign(now, start);
+    expect(back.deskLooks).toBeUndefined();
+    expect(back.panels[0].tint).toEqual({ frame: '#222222' });
+    expect(back.panels[1].tint).toEqual({ frame: '#333333' });
+    expect(back.areaNames[0].tint).toEqual({ accent: '#444444' });
+    expect(Rs.designChanged(start, Rs.snapDesign(back, 'w2'))).toBe(false);
+  });
+  it('Main Desk: Darstellung zurück', () => {
+    const start = Rs.snapDesign(ws, '');
+    const back = Rs.restoreDesign(L.setDeskLook(ws, '', { theme: 'light' }), start);
+    expect(back.look).toEqual({ theme: 'dark', accent: '#111111' });
+  });
+});
+
+describe('F-194 Zoom je Portal', () => {
+  it('Stufen, Grenzen, Speichern nur bei Abweichung', () => {
+    expect(Zm.zoomStep(100, 1)).toBe(110);
+    expect(Zm.zoomStep(100, -1)).toBe(90);
+    expect(Zm.zoomStep(200, 1)).toBe(200);
+    expect(Zm.zoomStep(50, -1)).toBe(50);
+    const ws: any = { panels: [{ id: 'p', name: 'P' }] };
+    const z = Zm.setZoom(ws, 'p', 80);
+    expect(z.panels[0].zoom).toBe(80);
+    expect(Zm.setZoom(z, 'p', 100).panels[0]).toEqual({ id: 'p', name: 'P' });
+    expect(Zm.parseZoom(33)).toBeUndefined();
+    expect(Zm.zoomStyle(80)).toEqual({ width: '125%', height: '125%', transform: 'scale(0.8)', transformOrigin: '0 0' });
   });
 });

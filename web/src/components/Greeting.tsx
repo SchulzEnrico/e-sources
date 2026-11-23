@@ -2,9 +2,12 @@
  * F-179: Begrüßung beim Start – „Guten Abend, Enrico“ mit „Zuletzt offen“ zum Weitermachen.
  * Nimmt den Fokus nicht weg (kein Dialog), wird von App höflich angesagt (NF-03). Verschwindet nach
  * einer Weile von selbst, aber nicht, solange Maus oder Fokus darauf liegen; × schließt sofort.
+ * F-195: Ein Ring um das Kennzeichen nimmt dabei ab; sein Ablauf (CSS-Animation) ist der Zeitgeber
+ * und hält mit an. So läuft die Zeit auch, wenn App oft neu zeichnet (vorher startete der Zeitgeber
+ * bei jedem Neuzeichnen neu und lief nie ab).
  */
 import { Icon } from './Icon';
-import { useEffect, useId, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useId, useRef, useState } from 'react';
 import type { Profile } from '../workspace/profile';
 import type { RecentItem, RecentLists } from '../workspace/recent';
 import type { Bookmark } from '../workspace/types';
@@ -34,7 +37,7 @@ interface Props {
   onClose: () => void;
 }
 
-const STAY_MS = 15000;
+const STAY_MS = 5000;
 
 /** Pfad einer Adresse ohne Domain, z. B. „/docs/start“ – leer, wenn nur „/“. */
 function pathOf(url: string): string {
@@ -54,11 +57,20 @@ export function Greeting({ profile, greeting, last, onContinue, recent, onPortal
   const [open, setOpen] = useState<GreetRecent | null>(null);
   const listId = useId();
   const display = useDisplay();
+  // F-195: Klick irgendwo außerhalb (auch in eine Seite im Portal) schließt die Begrüßung
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
-    if (hold || open) return;
-    const t = window.setTimeout(onClose, STAY_MS);
-    return () => window.clearTimeout(t);
-  }, [hold, open, onClose]);
+    const away = (e: PointerEvent) => !box.current?.contains(e.target as Node) && closeRef.current();
+    // Klicks in eingebettete Seiten kommen nicht an – das Fenster verliert dann den Fokus an das iframe
+    const blur = () => window.setTimeout(() => document.activeElement?.tagName === 'IFRAME' && closeRef.current(), 0);
+    document.addEventListener('pointerdown', away, true);
+    window.addEventListener('blur', blur);
+    return () => {
+      document.removeEventListener('pointerdown', away, true);
+      window.removeEventListener('blur', blur);
+    };
+  }, []);
 
   return (
     <section
@@ -76,7 +88,16 @@ export function Greeting({ profile, greeting, last, onContinue, recent, onPortal
         }
       }}
     >
-      <Avatar profile={profile} />
+      <span className={['greeting__avatar', hold && 'is-held', open && 'is-open'].filter(Boolean).join(' ')} title={open ? undefined : hold ? G.ringHeld : G.ringTitle(STAY_MS / 1000)}>
+        <Avatar profile={profile} />
+        {!open && (
+          <svg className="greeting__ring" viewBox="0 0 48 48" aria-hidden="true" style={{ '--stay': `${STAY_MS}ms` } as CSSProperties}>
+            <circle className="greeting__ring-track" cx="24" cy="24" r="22" />
+            <circle className="greeting__ring-left" cx="24" cy="24" r="22" pathLength={100} onAnimationEnd={onClose} />
+          </svg>
+        )}
+        {!open && <span className="sr-only">{G.ringSr(STAY_MS / 1000)}</span>}
+      </span>
       <div className="greeting__main">
         <h2 id="greeting-title" className="greeting__title">
           {greeting}

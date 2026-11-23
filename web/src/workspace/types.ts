@@ -51,6 +51,8 @@ export interface PanelMeta {
   category?: string;
   /** F-06: Portal nie pausieren (z. B. Musik, Chat, laufender Upload); bleibt mit allen Tabs geladen. */
   keep?: boolean;
+  /** F-194: Zoom der Seiten in diesem Portal in Prozent (Stufe aus ZOOM_STEPS); fehlt = 100. */
+  zoom?: number;
 }
 
 /** F-162: Rahmen- und Akzentfarbe (#rrggbb); was fehlt, erbt. */

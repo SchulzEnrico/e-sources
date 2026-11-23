@@ -6,7 +6,9 @@
 import { Icon } from './Icon';
 import { useEffect, useRef, useState } from 'react';
 import { FOCUS_MAX, FOCUS_RULE, TAB_WEIGHTS, type FocusRule as Rule, fixRule, focusLevel, colorOfLevel, pointsText, ruleText } from '../workspace/focus';
-import { TERMS } from '../workspace/terms';
+import { DIALOG_TEXT, TERMS } from '../workspace/terms';
+import { DialogFoot } from './DialogFoot';
+import { sameSnap } from '../workspace/reset';
 import { loadColor } from '../workspace/workspace';
 
 interface Props {
@@ -28,6 +30,9 @@ export function FocusRule({ rule, points, onChange, onClose }: Props) {
   const dlg = useRef<HTMLDialogElement>(null);
   const [draft, setDraft] = useState<Record<Edge, string>>({ greenMax: String(rule.greenMax), yellowMax: String(rule.yellowMax), orangeMax: String(rule.orangeMax) });
   const [said, setSaid] = useState('');
+  // F-191: Stand beim Öffnen – „Zurücksetzen“ nur, wenn sich seitdem etwas geändert hat
+  const [start] = useState(rule);
+  const changed = !sameSnap(start, rule);
   useEffect(() => {
     const d = dlg.current;
     if (!d) return;
@@ -116,7 +121,7 @@ export function FocusRule({ rule, points, onChange, onClose }: Props) {
         <p className="focusrule__now" style={{ borderColor: loadColor(level) }}>
           {now}
         </p>
-        <div className="focusrule__foot">
+        <p className="focusrule__default">
           <button
             type="button"
             onClick={() => {
@@ -126,11 +131,17 @@ export function FocusRule({ rule, points, onChange, onClose }: Props) {
           >
             Voreinstellung
           </button>
-          <button type="button" onClick={onClose}>
-            Fertig
-          </button>
-        </div>
+        </p>
       </div>
+      <DialogFoot
+        changed={changed}
+        onReset={() => {
+          onChange(sameSnap(start, FOCUS_RULE) ? null : start);
+          setSaid(DIALOG_TEXT.resetDone);
+          dlg.current?.querySelector<HTMLButtonElement>('.dialog-foot__done')?.focus();
+        }}
+        onDone={onClose}
+      />
       <span className="sr-only" role="status" aria-live="polite">
         {said}
       </span>

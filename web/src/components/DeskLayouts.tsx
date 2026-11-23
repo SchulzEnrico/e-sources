@@ -15,7 +15,8 @@ import { setupFor, DEFAULT_MIN } from '../workspace/workspace';
 import { arrangeText } from '../workspace/focus';
 import { DOCK_BAND, MAP_BAND_PX, arrangeStep, nearestSide, sameTree } from '../workspace/arrange';
 import * as T from '../workspace/tree';
-import { ARRANGE_TEXT as AT, DESK_LAYOUT_TEXT as LT } from '../workspace/terms';
+import { ARRANGE_TEXT as AT, DESK_LAYOUT_TEXT as LT, DIALOG_TEXT } from '../workspace/terms';
+import { DialogFoot } from './DialogFoot';
 import type { Workspace } from '../workspace/types';
 import type { Action } from '../workspace/useWorkspace';
 
@@ -34,6 +35,8 @@ export interface LayoutOps {
   /** F-52: Standard-Layout dieses Geräts (nur gültige Verweise); null = „Gleichmäßig“. */
   standard: { win: string; id: string } | null;
   onStandard: (id: string | null) => void;
+  /** F-191: Verweis direkt setzen (Zurücksetzen auf den Stand beim Öffnen, auch Standard eines anderen Desks). */
+  onStandardRef: (ref: { win: string; id: string } | null) => void;
   onReset: () => void;
   resetUndoName: string | null;
   onResetUndo: () => void;
@@ -404,6 +407,14 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
         <form
           className="layouts__new lc__new"
           aria-label={LT.add}
+          title={DIALOG_TEXT.createHint}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') return;
+            e.preventDefault();
+            e.stopPropagation();
+            setAdding(false);
+            focusLater(() => document.getElementById('lc-add')?.focus());
+          }}
           onSubmit={(e) => {
             e.preventDefault();
             if (full) return setError(LT.full(DL.LAYOUT_MAX));
@@ -427,12 +438,13 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
               <input type="radio" name="lc-from" checked={from === 'current'} onChange={() => setFrom('current')} /> {LT.current}
             </label>
           </fieldset>
+          {/* F-191 (a): wie überall – links Abbrechen, rechts Anlegen; Enter legt an, Esc bricht ab */}
           <div className="layouts__tools">
-            <button type="submit" className="help__run">
-              <Icon name="plus" size={13} className="icon icon--inline" /> {LT.create}
-            </button>
             <button type="button" className="help__run" onClick={() => { setAdding(false); focusLater(() => document.getElementById('lc-add')?.focus()); }}>
               {LT.cancel}
+            </button>
+            <button type="submit" className="help__run lc__primary">
+              <Icon name="plus" size={13} className="icon icon--inline" /> {LT.create}
             </button>
           </div>
         </form>
@@ -534,9 +546,11 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
             >
               <label className="layouts__label">
                 {LT.name}
-                <input autoFocus value={draft} maxLength={40} aria-invalid={!!error} onChange={(e) => { setDraft(e.target.value); setError(''); }} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); setEditing(false); } }} />
+                <input autoFocus value={draft} maxLength={40} aria-invalid={!!error} title={DIALOG_TEXT.renameHint} onChange={(e) => { setDraft(e.target.value); setError(''); }} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); setEditing(false); } }} />
               </label>
-              <button type="submit" className="help__run">OK</button>
+              {/* F-191 (a): statt „OK“ klar beschriftet, dazu Abbrechen */}
+              <button type="button" className="help__run" onClick={() => { setEditing(false); setError(''); focusLater(() => document.getElementById('lc-rename')?.focus()); }}>{DIALOG_TEXT.cancel}</button>
+              <button type="submit" className="help__run lc__primary">{DIALOG_TEXT.apply}</button>
             </form>
           ) : (
             <h3 id="lc-name" className="lc__name">
@@ -653,6 +667,7 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
           desk={desk}
           setup={real}
           ops={ops}
+          say={say}
           onClose={() => {
             setStdOpen(false);
           }}
@@ -666,11 +681,16 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
  * F-187: Dialog „Standard-Layout“ – getrennt vom Wechseln. Wählt, womit auf diesem Gerät neue Desks
  * starten, und setzt das aktive Layout auf den Standard zurück (mit Rückfrage und Rückgängig).
  */
-export function StandardLayout({ ws, win, desk, setup, ops, onClose }: { ws: Workspace; win: string; desk: string; setup: ScreenSetup; ops: LayoutOps; onClose: () => void }) {
+export function StandardLayout({ ws, win, desk, setup, ops, say, onClose }: { ws: Workspace; win: string; desk: string; setup: ScreenSetup; ops: LayoutOps; say: (text: string) => void; onClose: () => void }) {
   const dlg = useRef<HTMLDialogElement>(null);
   const d = DL.layoutsOf(ws, win);
   const [askReset, setAskReset] = useState(false);
   const std = ops.standard;
+  // F-191: Stand beim Öffnen; „Auf Standard zurücksetzen“ hier im Dialog zählt mit, solange Rückgängig geht
+  const [start] = useState(std);
+  const [didReset, setDidReset] = useState(false);
+  const resetHere = didReset && !!ops.resetUndoName;
+  const changed = JSON.stringify(start) !== JSON.stringify(std) || resetHere;
   const stdName = std ? (DL.layoutsOf(ws, std.win).list.find((l) => l.id === std.id)?.name ?? LT.even) : LT.even;
   const stdDesk = std && std.win !== win ? (std.win ? (ws.windows.find((w) => w.id === std.win)?.name ?? '') : 'Main Desk') : '';
   const activeName = DL.activeLayout(ws, win).name;
@@ -743,7 +763,7 @@ export function StandardLayout({ ws, win, desk, setup, ops, onClose }: { ws: Wor
           {askReset ? (
             <div className="layouts__ask" role="group" aria-labelledby="std-ask">
               <span id="std-ask">{LT.askReset(activeName, stdName)}</span>
-              <button type="button" className="help__run" onClick={() => { setAskReset(false); ops.onReset(); window.setTimeout(() => document.getElementById('std-reset-undo')?.focus(), 0); }}>
+              <button type="button" className="help__run" onClick={() => { setAskReset(false); ops.onReset(); setDidReset(true); window.setTimeout(() => document.getElementById('std-reset-undo')?.focus(), 0); }}>
                 {LT.reset}
               </button>
               <button type="button" className="help__run" autoFocus onClick={() => { setAskReset(false); window.setTimeout(() => document.getElementById('std-reset')?.focus(), 0); }}>
@@ -758,13 +778,25 @@ export function StandardLayout({ ws, win, desk, setup, ops, onClose }: { ws: Wor
           {ops.resetUndoName && (
             <p className="layouts__undo" role="status">
               {LT.resetDone(ops.resetUndoName, stdName)}{' '}
-              <button type="button" id="std-reset-undo" className="help__run" onClick={() => { ops.onResetUndo(); window.setTimeout(() => document.getElementById('std-reset')?.focus(), 0); }}>
+              <button type="button" id="std-reset-undo" className="help__run" onClick={() => { ops.onResetUndo(); setDidReset(false); window.setTimeout(() => document.getElementById('std-reset')?.focus(), 0); }}>
                 {LT.undo}
               </button>
             </p>
           )}
         </div>
       </div>
+      <DialogFoot
+        changed={changed}
+        onReset={() => {
+          if (resetHere) ops.onResetUndo();
+          setDidReset(false);
+          setAskReset(false);
+          ops.onStandardRef(start);
+          say(DIALOG_TEXT.resetDone);
+          dlg.current?.querySelector<HTMLButtonElement>('.dialog-foot__done')?.focus();
+        }}
+        onDone={onClose}
+      />
     </dialog>
   );
 }

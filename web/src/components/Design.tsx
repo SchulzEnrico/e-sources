@@ -5,7 +5,9 @@
  * der Fokus zurück zum Auslöser (NF-03). Die Tour „Design“ (F-171) läuft in diesem Dialog.
  */
 import { Icon } from './Icon';
-import { type CSSProperties, type ReactNode, useEffect, useRef } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
+import { DialogFoot } from './DialogFoot';
+import { type DesignSnap, designChanged } from '../workspace/reset';
 import { ACCENTS, type Look, THEMES } from '../workspace/look';
 import { helpById } from '../workspace/help';
 import { DESK_LOOK_TEXT, TINT_TEXT } from '../workspace/terms';
@@ -27,17 +29,22 @@ interface Props {
   tinted: number;
   /** F-162: alle auf Desk-Farben zurücksetzen. */
   onResetTints: () => void;
-  /** F-162: gesetzt direkt nach dem Zurücksetzen – holt die Farben zurück. */
-  onUndoTints?: () => void;
+  /** F-191: aktueller Stand (Desk-Farben, Slot- und Portalfarben) – der beim Öffnen wird gemerkt. */
+  now: DesignSnap;
+  /** F-191: „Zurücksetzen“ – Stand beim Öffnen wieder herstellen. */
+  onRestore: (snap: DesignSnap) => void;
   onClose: () => void;
   onTour: () => void;
   /** Tour, die im Dialog laufen soll (wird hineingereicht, damit sie über dem Dialog liegt). */
   children?: ReactNode;
 }
 
-export function Design({ look, warning, onLook, desk, main, own, onFollowMain, tinted, onResetTints, onUndoTints, onClose, onTour, children }: Props) {
+export function Design({ look, warning, onLook, desk, main, own, onFollowMain, tinted, onResetTints, now, onRestore, onClose, onTour, children }: Props) {
   const dlg = useRef<HTMLDialogElement>(null);
   const first = useRef<HTMLButtonElement>(null);
+  // F-191: Stand beim Öffnen – „Zurücksetzen“ nur, wenn sich seitdem etwas geändert hat
+  const [start] = useState(now);
+  const changed = designChanged(start, now);
 
   useEffect(() => {
     const d = dlg.current;
@@ -74,7 +81,7 @@ export function Design({ look, warning, onLook, desk, main, own, onFollowMain, t
         </button>
       </header>
       <p id="design-intro" className="help__intro">
-        {helpById('design')?.text} Änderungen gelten sofort.
+        {helpById('design')?.text}
       </p>
       {/* F-161: für welchen Desk die Wahl gilt und ob er dem Main Desk folgt */}
       <p className="design__scope">
@@ -155,18 +162,17 @@ export function Design({ look, warning, onLook, desk, main, own, onFollowMain, t
                 </button>
               </>
             )}
-            {/* Der Hinweis unten ist hinter dem Dialog nicht erreichbar – daher „Rückgängig“ auch hier */}
-            {onUndoTints && !tinted && (
-              <>
-                {' '}
-                <button type="button" className="design__follow" onClick={onUndoTints}>
-                  {TINT_TEXT.undo}
-                </button>
-              </>
-            )}
           </p>
         </section>
       </div>
+      <DialogFoot
+        changed={changed}
+        onReset={() => {
+          onRestore(start);
+          dlg.current?.querySelector<HTMLButtonElement>('.dialog-foot__done')?.focus();
+        }}
+        onDone={onClose}
+      />
       {children}
     </dialog>
   );

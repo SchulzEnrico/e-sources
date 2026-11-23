@@ -6,7 +6,7 @@ import type { Action } from '../workspace/useWorkspace';
 import type { Bookmark, Workspace } from '../workspace/types';
 import { NO_CATEGORY, categoryByName, collectionSize, groups, originOf, originText } from '../workspace/bookmarks';
 import { hostOf, newId } from '../workspace/workspace';
-import { TERMS } from '../workspace/terms';
+import { DIALOG_TEXT, TERMS } from '../workspace/terms';
 
 /** Zuletzt gewählte Kategorie, damit mehrere Lesezeichen hintereinander schnell in dieselbe gehen. */
 let lastCategory = NO_CATEGORY;
@@ -223,6 +223,7 @@ export function CollectionDrawer(props: {
   };
   const list = groups(ws, scope === 'panel' ? panelId : null, query);
   const display = useDisplay();
+  const [catSaid, setCatSaid] = useState('');
   const total = list.reduce((n, g) => n + g.items.length, 0);
 
   const endDrag = () => {
@@ -247,14 +248,36 @@ export function CollectionDrawer(props: {
             e.preventDefault();
             if (!newCat.trim()) return;
             props.dispatch({ type: 'addCategory', id: newId(), name: newCat });
+            setCatSaid(DIALOG_TEXT.created(`Kategorie „${newCat.trim()}“`));
             setNewCat('');
             setScope('all');
           }}
         >
-          <input value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="Neue Kategorie" aria-label="Neue Kategorie" />
-          <button type="submit" disabled={!newCat.trim()}>
-            ＋
+          <input
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+            onKeyDown={(e) => {
+              // F-191 (a): Esc leert erst das Feld, danach schließt die Library wie gewohnt
+              if (e.key === 'Escape' && newCat) {
+                e.preventDefault();
+                e.stopPropagation();
+                setNewCat('');
+              }
+            }}
+            placeholder="Neue Kategorie"
+            aria-label="Neue Kategorie"
+            title={DIALOG_TEXT.createHint}
+          />
+          {/* F-191 (a): sichtbarer Abschluss „Anlegen“ / „Abbrechen“ (Enter / Esc) */}
+          <button type="button" className="bm-newcat__cancel" disabled={!newCat} onClick={() => setNewCat('')}>
+            {DIALOG_TEXT.cancel}
           </button>
+          <button type="submit" className="drawer__primary" disabled={!newCat.trim()}>
+            {DIALOG_TEXT.create}
+          </button>
+          <span className="sr-only" role="status">
+            {catSaid}
+          </span>
         </form>
       }
     >
@@ -362,6 +385,7 @@ export function CollectionDrawer(props: {
               {editCat === catId && g.category ? (
                 <input
                   className="bm-cat__input"
+                  title={DIALOG_TEXT.renameHint}
                   value={catDraft}
                   autoFocus
                   onChange={(e) => setCatDraft(e.target.value)}

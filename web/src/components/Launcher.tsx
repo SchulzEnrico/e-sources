@@ -12,7 +12,7 @@
 import { type CSSProperties, type RefObject, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { type How, type LauncherState, type Sort, HOW_IN, HOW_NAME, clampPos, launcherCount, launcherGroups } from '../workspace/launcher';
 import { NO_CATEGORY } from '../workspace/bookmarks';
-import { TERMS } from '../workspace/terms';
+import { DIALOG_TEXT, TERMS } from '../workspace/terms';
 import type { Bookmark, Workspace } from '../workspace/types';
 import { hostOf } from '../workspace/workspace';
 import { Icon } from './Icon';
@@ -353,6 +353,15 @@ export function Launcher({ ws, state, onState, onOpen, onAdd, say, focusReq }: P
         {adding ? (
           <form
             className="launcher__form"
+            onKeyDown={(e) => {
+              // F-191 (a): Esc bricht das Anlegen ab (Fokus zurück auf „+ Source anlegen“)
+              if (e.key !== 'Escape') return;
+              e.preventDefault();
+              e.stopPropagation();
+              setAdding(false);
+              window.setTimeout(() => document.querySelector<HTMLElement>('.launcher__add')?.focus(), 0);
+            }}
+            title={DIALOG_TEXT.createHint}
             onSubmit={(e) => {
               e.preventDefault();
               submit();

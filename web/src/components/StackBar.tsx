@@ -2,7 +2,7 @@ import { useRef, useState, type PointerEvent, type TouchEvent, type WheelEvent }
 import type { PanelMeta } from '../workspace/types';
 import { type Fx, StackAddIcon } from './PanelFrame';
 import { Icon } from './Icon';
-import { PAUSE_TEXT, TERMS } from '../workspace/terms';
+import { PAUSE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
 
 /** F-08: Stapel-Leiste rechts am Panel – Klick wählt, Mausrad und Pfeile blättern. */
 export interface StackProps {
@@ -66,6 +66,7 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
                 <span className="stack__num">{i + 1}</span>
                 <input
                   className="stack__input"
+                  title={DIALOG_TEXT.renameHint}
                   value={draft}
                   autoFocus
                   onFocus={(e) => e.target.select()}

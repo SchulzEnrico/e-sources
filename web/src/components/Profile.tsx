@@ -1,16 +1,20 @@
 /**
  * F-179: Dialog „Profil“ – Name, Kennfarbe und Begrüßung, nur im Browser gespeichert (kein Konto).
- * Änderungen gelten sofort (wie „Design anpassen“). Native <dialog> wie die Hilfe (NF-03):
+ * Änderungen gelten sofort als Vorschau; „Zurücksetzen“ und „Fertig“ unten (F-191). Native <dialog> wie die Hilfe (NF-03):
  * Fokus im Namensfeld, Kennfarben als Radiogruppe (Pfeiltasten), Esc schließt.
  */
 import { Icon } from './Icon';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { NAME_MAX, PROFILE_COLORS, type Profile, initialsOf } from '../workspace/profile';
 import { TERMS } from '../workspace/terms';
+import { DialogFoot } from './DialogFoot';
+import { sameSnap } from '../workspace/reset';
 
 interface Props {
   profile: Profile;
   onChange: (change: Partial<Profile>) => void;
+  /** F-191: nach „Zurücksetzen“ (Ansage, NF-03) */
+  onRestored: () => void;
   onClose: () => void;
 }
 
@@ -30,9 +34,12 @@ export function Avatar({ profile, size = 36 }: { profile: Profile; size?: number
   );
 }
 
-export function ProfileDialog({ profile, onChange, onClose }: Props) {
+export function ProfileDialog({ profile, onChange, onRestored, onClose }: Props) {
   const dlg = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState(profile.name);
+  // F-191: Stand beim Öffnen – „Zurücksetzen“ nur, wenn sich seitdem etwas geändert hat
+  const [start] = useState(profile);
+  const changed = !sameSnap(start, profile);
   useEffect(() => {
     const d = dlg.current;
     if (!d) return;
@@ -63,7 +70,7 @@ export function ProfileDialog({ profile, onChange, onClose }: Props) {
       </header>
       <div className="help__body profile__body">
         <p id="profile-intro" className="profile__intro">
-          {TERMS.profile.replace(/^[^=]*=\s*/, '').replace(/^./, (c) => c.toUpperCase())}. Änderungen gelten sofort.
+          {TERMS.profile.replace(/^[^=]*=\s*/, '').replace(/^./, (c) => c.toUpperCase())}.
         </p>
         <div className="profile__who">
           <Avatar profile={{ ...profile, name }} size={48} />
@@ -95,12 +102,17 @@ export function ProfileDialog({ profile, onChange, onClose }: Props) {
           <input type="checkbox" checked={profile.greet} onChange={(e) => onChange({ greet: e.target.checked })} />
           Beim Start begrüßen und zeigen, was zuletzt offen war
         </label>
-        <div className="focusrule__foot">
-          <button type="button" onClick={onClose}>
-            Fertig
-          </button>
-        </div>
       </div>
+      <DialogFoot
+        changed={changed}
+        onReset={() => {
+          onChange(start);
+          setName(start.name);
+          onRestored();
+          dlg.current?.querySelector<HTMLButtonElement>('.dialog-foot__done')?.focus();
+        }}
+        onDone={onClose}
+      />
     </dialog>
   );
 }

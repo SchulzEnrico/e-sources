@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { ZOOM_DEFAULT, zoomOf, zoomStep } from './workspace/zoom';
 import './App.css';
 import { usePause } from './workspace/usePause';
 import { PAUSE_CHOICES, pauseMinutes, tabKey } from './workspace/pause';
@@ -28,7 +29,7 @@ import { Search } from './components/Search';
 import { Tooltips } from './components/Tooltip';
 import { FocusMeter, Overview } from './components/Overview';
 import { arrangeText, deskFocusOf, effectOf, focusOf, placeText, radarOf, ruleOf } from './workspace/focus';
-import { snapColors } from './workspace/reset';
+import { snapColors, snapDesign } from './workspace/reset';
 import { loadRecent, newestSources, recentLists, recentSources, saveRecent, touch } from './workspace/recent';
 import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
 import { contrastWarning, hasOwnLook, lookOf, pickLook, shownAccent, THEMES, resolveTheme, rgbOf } from './workspace/look';
@@ -45,14 +46,14 @@ import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT } from './workspace/terms';
+import { CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, SEND_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { useSendReceiver } from './workspace/useSend';
 import { setCompact, setFavicons } from './workspace/display';
 import { useDisplay } from './components/SiteIcon';
 import { categoryIcon } from './workspace/icons';
-import { clearDeskTints, deskTintCount, shownTint, slotTint, type TintSnapshot } from './workspace/tint';
+import { clearDeskTints, deskTintCount, shownTint, slotTint } from './workspace/tint';
 import { categoryOf, categoryPortals, categoryTint, suggestCategory } from './workspace/category';
 import { ruleOn, tintRuleId } from './workspace/rules';
 import { domainOf } from './workspace/sortHelp';
@@ -184,6 +185,7 @@ function WindowName(props: { name: string; fx?: { color?: string; text: string }
     return (
       <input
         className="tb-win tb-win--edit"
+        title={DIALOG_TEXT.renameHint}
         value={draft}
         maxLength={40}
         autoFocus
@@ -418,7 +420,6 @@ function DeskApp(props: DeskProps) {
   // F-163: Dialog „Farben“ aus der Frage nach der Kategorie – Fokus auf die Wahl der Kategorie
   const [colorsCat, setColorsCat] = useState(false);
   /** F-162: Stand vor „Alle auf Desk-Farben zurücksetzen“, solange der Design-Dialog offen ist. */
-  const [tintUndo, setTintUndo] = useState<TintSnapshot | null>(null);
   /** F-24: Dialog „Zuletzt geschlossen“. */
   const [closedOpen, setClosedOpen] = useState(false);
   /** F-51: Dialog „Layouts“ dieses Desks. */
@@ -588,13 +589,19 @@ function DeskApp(props: DeskProps) {
   const px = (r: T.FRect) => ({ left: GAP + r.x * iw, top: GAP + r.y * ih, width: Math.max(0, r.w * iw - GAP), height: Math.max(0, r.h * ih - GAP) });
 
   // Lange Hinweise bleiben länger stehen (etwa Lesetempo).
+  // F-196: Zeitgeber des Hinweises – hält an, solange Maus oder Fokus darauf liegen, und läuft danach neu
+  const flashTimer = useRef({ id: 0, text: '', ms: 0 });
+  const flashRun = useCallback((text: string, ms: number) => {
+    window.clearTimeout(flashTimer.current.id);
+    flashTimer.current = { id: window.setTimeout(() => setFlash((f) => (f === text ? null : f)), ms), text, ms };
+  }, []);
   const notify = useCallback((text: string, ms = Math.max(3000, text.length * 50), undo = false, action?: FlashAction | FlashAction[]) => {
     setFlash(text);
     setUndoFor(undo ? text : null);
     const actions = action ? (Array.isArray(action) ? action : [action]) : [];
     setFlashAction(actions.length ? { text, actions } : null);
-    window.setTimeout(() => setFlash((f) => (f === text ? null : f)), ms);
-  }, []);
+    flashRun(text, ms);
+  }, [flashRun]);
 
   // F-162: Nach dem Anlegen bietet der Hinweis die Farbwahl an; das neueste Portal steht hinten in der Liste.
   const wsNow = useRef(ws);
@@ -631,8 +638,8 @@ function DeskApp(props: DeskProps) {
       };
       const other = { label: sug ? CATEGORY_TEXT.other : CATEGORY_TEXT.choose, run: () => (setColorsCat(true), setColorsFor(p.id)) };
       const none = { label: CATEGORY_TEXT.keepNone, run: () => set('', null) };
-      if (!sug) notify(CATEGORY_TEXT.ask(p.name, site, null), 12000, false, [other, none]);
-      else if (sug.id === '') notify(CATEGORY_TEXT.askNone(p.name, site), 12000, false, [none, other]);
+      if (!sug) notify(CATEGORY_TEXT.ask(p.name, site, null), HINT_SHORT, false, [other, none]);
+      else if (sug.id === '') notify(CATEGORY_TEXT.askNone(p.name, site), HINT_SHORT, false, [none, other]);
       else {
         const take = {
           label: CATEGORY_TEXT.take(sug.name),
@@ -642,7 +649,7 @@ function DeskApp(props: DeskProps) {
             notify(CATEGORY_TEXT.done(p.name, sug.name));
           },
         };
-        notify(CATEGORY_TEXT.ask(p.name, site, sug.name), 12000, false, [take, other, none]);
+        notify(CATEGORY_TEXT.ask(p.name, site, sug.name), HINT_SHORT, false, [take, other, none]);
       }
       break;
     }
@@ -1038,6 +1045,8 @@ function DeskApp(props: DeskProps) {
       setStandardRef(id ? { win: here, id } : null);
       notify(id ? DESK_LAYOUT_TEXT.standardSet(layoutsOf(ws, here).list.find((l) => l.id === id)?.name ?? '') : DESK_LAYOUT_TEXT.standardEvenSet);
     },
+    // F-191: „Zurücksetzen“ im Dialog „Standard-Layout“ – Verweis beim Öffnen wieder setzen (ohne Hinweis)
+    onStandardRef: (ref) => setStandardRef(ref),
     onReset: () => {
       const std = standardContent(ws, display.standard, setup);
       const name = activeLayout(ws, here).name;
@@ -1065,13 +1074,13 @@ function DeskApp(props: DeskProps) {
     const here = (p.win ?? '') === (win ?? '');
     const target = here ? setup : (setupOfWindow(ws, p.win ?? '') ?? setup);
     dispatch({ type: 'remove', id, setup: target });
-    if (here && p.tabs.some((t) => t.url)) notify(`Portal „${p.name}“ geschlossen.`, 8000, true);
+    if (here && p.tabs.some((t) => t.url)) notify(`Portal „${p.name}“ geschlossen.`, HINT_SHORT, true);
   };
   /** Tab schließen; mit Seite wird er gemerkt. */
   const closeTabOf = (id: string, tabId: string) => {
     const t = ws.panels.find((x) => x.id === id)?.tabs.find((x) => x.id === tabId);
     dispatch({ type: 'closeTab', id, tab: tabId });
-    if (t?.url) notify(`Tab ${tabLabel(t)} geschlossen.`, 8000, true);
+    if (t?.url) notify(`Tab ${tabLabel(t)} geschlossen.`, HINT_SHORT, true);
   };
   /** F-170: Slotmaschine offen? */
   const [jackpot, setJackpot] = useState(false);
@@ -1643,7 +1652,26 @@ function DeskApp(props: DeskProps) {
    * Lesereihenfolge, im Solo- und 2er-View wird mitgeschaltet); mit Umschalt jeweils rückwärts.
    * Danach liegt der Tastaturfokus auf dem sichtbaren Tab, die Ansage geht an die Live-Region.
    */
+  /** F-194: Zoom eines Portals setzen, mit Ansage (NF-03). */
+  const zoomPanel = (id: string, z: number) => {
+    const meta = ws.panels.find((x) => x.id === id);
+    if (!meta) return;
+    dispatch({ type: 'zoomPanel', id, zoom: z });
+    sayLive(z === zoomOf(meta) ? ZOOM_TEXT.edge(meta.name, z) : ZOOM_TEXT.said(meta.name, z));
+  };
+  const ZOOM_KEYS: Record<string, 1 | -1 | 0> = { Equal: 1, NumpadAdd: 1, BracketRight: 1, Minus: -1, NumpadSubtract: -1, Slash: -1, Digit0: 0, Numpad0: 0 };
+
   cycleKeyRef.current = (e: KeyboardEvent) => {
+    // F-194: Alt/⌥+Plus/Minus zoomt das aktive Portal, Alt/⌥+0 setzt zurück (Plus/Minus auch auf deutscher Tastatur: + und -)
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.code in ZOOM_KEYS && !document.querySelector('[aria-modal="true"], dialog:modal')) {
+      const cur = currentPanel();
+      const meta = cur ? ws.panels.find((x) => x.id === cur) : undefined;
+      if (!meta) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const dir = ZOOM_KEYS[e.code];
+      return zoomPanel(meta.id, dir === 0 ? ZOOM_DEFAULT : zoomStep(zoomOf(meta), dir));
+    }
     if (!e.altKey || e.ctrlKey || e.metaKey || (e.code !== 'KeyT' && e.code !== 'KeyP' && e.code !== 'KeyZ' && e.code !== 'KeyL' && e.code !== 'KeyK' && e.code !== 'KeyJ')) return;
     // nicht hinter offenen Dialogen (Hilfe, Design, Hinweis, Tour)
     if (document.querySelector('[aria-modal="true"], dialog:modal')) return;
@@ -1826,6 +1854,7 @@ function DeskApp(props: DeskProps) {
           setActive(meta.id);
           sayLive(WEB_TEXT.openedNewTab(hostOf(url)));
         }}
+        onZoom={(z) => zoomPanel(meta.id, z)}
         onKeep={() => {
           dispatch({ type: 'keepPanel', id: meta.id });
           const text = meta.keep ? PAUSE_TEXT.keepOff(meta.name) : PAUSE_TEXT.keepOn(meta.name);
@@ -2707,21 +2736,18 @@ function DeskApp(props: DeskProps) {
             const { before } = clearDeskTints(ws, win);
             const n = Object.keys(before.panels).length + Object.keys(before.slots).length;
             dispatch({ type: 'clearTints', win });
-            setTintUndo(before);
             notify(TINT_TEXT.resetAllDone(n), 8000, false, { label: TINT_TEXT.undo, run: () => dispatch({ type: 'restoreTints', snap: before }) });
-            // der Knopf wird zu „Rückgängig“ – Fokus dorthin (NF-03)
-            window.setTimeout(() => document.querySelector<HTMLElement>('#design section[aria-labelledby="design-tints"] button')?.focus(), 0);
-          }} onUndoTints={tintUndo ? () => {
-            dispatch({ type: 'restoreTints', snap: tintUndo });
-            setTintUndo(null);
+            // F-191: der Knopf verschwindet – Fokus auf „Zurücksetzen“ unten, das alles zurückholt (NF-03)
+            window.setTimeout(() => document.querySelector<HTMLElement>('#design .dialog-foot__reset')?.focus(), 0);
+          }} now={snapDesign(ws, win ?? '')} onRestore={(st) => {
+            dispatch({ type: 'restoreDesign', snap: st });
             setFlash(null);
-            window.setTimeout(() => document.querySelector<HTMLElement>('#design section[aria-labelledby="design-tints"] button')?.focus(), 0);
-          } : undefined} onFollowMain={() => {
+            sayLive(DIALOG_TEXT.resetDone);
+          }} onFollowMain={() => {
             dispatch({ type: 'followMainLook', win });
             notify(DESK_LOOK_TEXT.nowFollows(winLabel));
           }} onClose={() => {
             setDesign(false);
-            setTintUndo(null);
           }} onTour={startDesignTour}>
           {tour === 'design' && <Tour key="design" tour="design" auto={tourAuto} onClose={() => setTour(null)} onAutoOff={() => setAutoTours(false)} onAction={() => window.setTimeout(startColorsTour, 0)} />}
         </Design>
@@ -2832,7 +2858,7 @@ function DeskApp(props: DeskProps) {
         />
       )}
       {update.found && <UpdateNotice onReload={() => window.location.reload()} onLater={update.later} />}
-      {profileOpen && <ProfileDialog profile={profileOf(ws)} onChange={(change) => dispatch({ type: 'profile', change })} onClose={() => setProfileOpen(false)} />}
+      {profileOpen && <ProfileDialog profile={profileOf(ws)} onChange={(change) => dispatch({ type: 'profile', change })} onRestored={() => sayLive(DIALOG_TEXT.resetDone)} onClose={() => setProfileOpen(false)} />}
       {sortOpen && (
         <SortHelp
           ws={ws}
@@ -2949,7 +2975,15 @@ function DeskApp(props: DeskProps) {
         {cycleSaid}
       </span>
       {flash && !swapFrom && (
-        <div className="toast" role="status">
+        <div
+          className="toast"
+          role="status"
+          // F-196: Maus oder Fokus darauf hält den Hinweis an; Verlassen startet die Zeit neu
+          onPointerEnter={() => window.clearTimeout(flashTimer.current.id)}
+          onPointerLeave={(e) => !e.currentTarget.contains(document.activeElement) && flashTimer.current.text === flash && flashRun(flash, flashTimer.current.ms)}
+          onFocus={() => window.clearTimeout(flashTimer.current.id)}
+          onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && !e.currentTarget.matches(':hover') && flashTimer.current.text === flash && flashRun(flash, flashTimer.current.ms)}
+        >
           <span>{flash}</span>
           {undoFor === flash && (
             <button
@@ -3020,6 +3054,9 @@ function DeskApp(props: DeskProps) {
  * Browserfenster zeigt. Ein Wechsel baut den Desk ohne Neuladen frisch auf (Adresse per
  * replaceState); gibt das Fenster seinen Desk beim Sammeln ab, zeigt es nur noch einen Hinweis.
  */
+/** F-196: kurze Hinweise (Kategorie-Frage, Portal/Tab geschlossen) – Wunsch Enrico: erst 3, dann 2 Sekunden. */
+const HINT_SHORT = 2000;
+
 export default function App(props: { sent?: string }) {
   const [ws, dispatch] = useWorkspace();
   const [desk, setDesk] = useState<{ win: string; switched: boolean; said: string; focus?: string }>(() => ({ win: winFromSearch(window.location.search), switched: false, said: '' }));

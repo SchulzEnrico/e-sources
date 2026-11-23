@@ -394,6 +394,10 @@ export const DIALOG_TEXT = {
   resetDone: 'Zurückgesetzt auf den Stand beim Öffnen.',
   create: 'Anlegen',
   cancel: 'Abbrechen',
+  apply: 'Übernehmen',
+  createHint: 'Enter = anlegen, Esc = abbrechen',
+  renameHint: 'Enter = übernehmen, Esc = abbrechen',
+  created: (what: string) => `${what} angelegt.`,
   hint: 'Änderungen gelten sofort als Vorschau.',
 };
 
@@ -401,6 +405,10 @@ export const GREET_TEXT = {
   more: 'Mehr …',
   moreTitle: 'Zuletzt benutzte Desks, Slots, Portale und Lesezeichen zeigen und hier öffnen',
   less: 'Weniger',
+  // F-195: Ring um das Kennzeichen zeigt, wann die Begrüßung von selbst verschwindet
+  ringTitle: (s: number) => `Verschwindet nach ${s} Sekunden oder bei einem Klick daneben – Maus oder Tastaturfokus darauf hält sie an`,
+  ringHeld: 'Angehalten, solange Maus oder Fokus auf der Begrüßung liegen',
+  ringSr: (s: number) => `Die Begrüßung schließt sich nach ${s} Sekunden oder bei einem Klick daneben von selbst; solange der Fokus darin ist, bleibt sie.`,
   title: 'Zuletzt benutzt',
   desks: 'Desks',
   desksNote: 'Klick wechselt zu diesem Desk',
@@ -516,4 +524,21 @@ export const DISPLAY_TEXT = {
   favicons: 'Symbole der Webseiten zeigen',
   faviconsOn: 'Sources zeigen das Symbol ihrer Webseite – es wird direkt von der Seite geladen.',
   faviconsOff: 'Sources zeigen den Anfangsbuchstaben ihrer Seite; es wird nichts mehr geladen.',
+};
+
+/** F-194: Zoom je Portal */
+export const ZOOM_TEXT = {
+  label: 'Zoom',
+  btnLabel: (z: number) => `Zoom dieses Portals: ${z} %`,
+  btnTitle: (z: number) => `Zoom: Seiten in diesem Portal größer oder kleiner zeigen – jetzt ${z} %`,
+  panelLabel: (name: string) => `Zoom für „${name}“`,
+  hint: 'Mausrad oder ziehen',
+  out: 'Verkleinern',
+  in: 'Vergrößern',
+  outTitle: 'Seiten in diesem Portal kleiner zeigen – die Seite bekommt mehr Platz (Alt/⌥+Minus)',
+  inTitle: 'Seiten in diesem Portal größer zeigen (Alt/⌥+Plus)',
+  resetTitle: (z: number) => `Zoom ${z} % – Klick setzt auf 100 % zurück (Alt/⌥+0)`,
+  menuValue: (z: number) => `${z} %`,
+  said: (name: string, z: number) => `Zoom in „${name}“: ${z} %.`,
+  edge: (name: string, z: number) => `Zoom in „${name}“ ist schon bei ${z} % – weiter geht es nicht.`,
 };

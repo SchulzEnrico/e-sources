@@ -1,4 +1,5 @@
-import { type ColorsSnap, restoreColors } from './reset';
+import { setZoom } from './zoom';
+import { type ColorsSnap, type DesignSnap, restoreColors, restoreDesign } from './reset';
 import { setPause, toggleKeep } from './pause';
 import { setEngine } from './websearch';
 import { openInNewSlot } from './send';
@@ -90,6 +91,7 @@ export type Action =
   /** F-06: Portale pausieren. */
   | { type: 'pause'; minutes: number }
   | { type: 'keepPanel'; id: string }
+  | { type: 'zoomPanel'; id: string; zoom: number }
   /** F-189: Suchmaschine. */
   | { type: 'engine'; id: string }
   | { type: 'rulerStyle'; labels?: boolean; color?: number }
@@ -102,6 +104,7 @@ export type Action =
   // F-183 Stufe 2: Zeichen je Kategorie
   | { type: 'iconCategory'; id: string; icon: string | null }
   | { type: 'restoreColors'; snap: ColorsSnap }
+  | { type: 'restoreDesign'; snap: DesignSnap }
   // F-164: Regeln ein/aus, Seite → Kategorie, löschen und wiederherstellen
   | { type: 'ruleOn'; id: string; on: boolean }
   | { type: 'siteCategory'; domain: string; category: string }
@@ -256,6 +259,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return setPause(ws, a.minutes);
     case 'keepPanel':
       return toggleKeep(ws, a.id);
+    case 'zoomPanel':
+      return setZoom(ws, a.id, a.zoom);
     case 'engine':
       return setEngine(ws, a.id);
     case 'rulerStyle':
@@ -274,6 +279,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return setCategoryIcon(ws, a.id, a.icon);
     case 'restoreColors':
       return restoreColors(ws, a.snap);
+    case 'restoreDesign':
+      return restoreDesign(ws, a.snap);
     case 'ruleOn':
       return setRuleOn(ws, a.id, a.on);
     case 'siteCategory':

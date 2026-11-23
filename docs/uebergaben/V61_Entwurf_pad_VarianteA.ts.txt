@@ -1,0 +1,244 @@
+/**
+ * F-17, F-104 Stufe 1: Blätter – Tabs, die keine Webseite zeigen, sondern eine Notiz, eine
+ * To-do-Liste oder ein Kanban-Board. Der Inhalt hängt am Tab (`Tab.pad`), reist also mit Stack,
+ * Layouts, „Zuletzt geschlossen“, Slot-Datei und Abgleich mit. Ein Blatt-Tab hat keine Adresse.
+ */
+import type { Pad, PadColumn, PadItem, PadKind, PanelMeta, Tab, Workspace } from './types';
+import { activeTab, newId, newTab, TAB_MAX } from './workspace';
+
+export const PAD_KINDS: PadKind[] = ['note', 'todo', 'kanban'];
+/** Grenzen, damit ein Blatt übersichtlich bleibt (Kern „Fokus“) und der Speicher klein. */
+export const PAD_TEXT_MAX = 20000;
+export const PAD_ITEM_MAX = 200;
+export const PAD_COL_MAX = 8;
+
+/** Neues, leeres Blatt; das Kanban beginnt mit drei Spalten. */
+export function newPad(kind: PadKind, cols: string[] = []): Pad {
+  if (kind === 'note') return { kind, text: '' };
+  if (kind === 'todo') return { kind, items: [] };
+  return { kind, cols: cols.map((name) => ({ id: newId(), name, cards: [] })) };
+}
+
+export const isPadKind = (v: unknown): v is PadKind => typeof v === 'string' && (PAD_KINDS as string[]).includes(v);
+
+/** Ist der Tab leer (keine Seite, kein Blatt)? */
+export const isEmptyTab = (t: Tab) => !t.url && !t.pad;
+
+function mapPanel(ws: Workspace, id: string, f: (p: PanelMeta) => PanelMeta): Workspace {
+  return { ...ws, panels: ws.panels.map((p) => (p.id === id ? f(p) : p)) };
+}
+
+/**
+ * Blatt im Portal anlegen: im sichtbaren Tab, wenn er leer ist, sonst als neuer Tab.
+ * Sind schon TAB_MAX Tabs offen, bleibt alles, wie es ist.
+ */
+export function addPad(ws: Workspace, panelId: string, pad: Pad): Workspace {
+  const p = ws.panels.find((x) => x.id === panelId);
+  if (!p) return ws;
+  const t = activeTab(p);
+  if (t && isEmptyTab(t)) return setPad(ws, panelId, t.id, pad);
+  if (p.tabs.length >= TAB_MAX) return ws;
+  const tab: Tab = { ...newTab(), pad };
+  return mapPanel(ws, panelId, (x) => ({ ...x, tabs: [...x.tabs, tab], activeTab: tab.id }));
+}
+
+/** Inhalt eines Blatts ersetzen. */
+export function setPad(ws: Workspace, panelId: string, tabId: string, pad: Pad): Workspace {
+  return mapPanel(ws, panelId, (p) => ({ ...p, tabs: p.tabs.map((t) => (t.id === tabId ? { ...t, pad } : t)) }));
+}
+
+/** Kurzer Name für Tab und Ansage: erste Zeile der Notiz bzw. Art des Blatts. */
+export function padTitle(pad: Pad, names: Record<PadKind, string>): string {
+  if (pad.kind === 'note') {
+    const first = (pad.text ?? '').split('\n').find((l) => l.trim())?.trim();
+    if (first) return first.length > 24 ? `${first.slice(0, 23)}…` : first;
+  }
+  return names[pad.kind];
+}
+
+/** Zählt offene und erledigte Einträge (To-do) bzw. Karten je Spalte (Kanban). */
+export function padCount(pad: Pad): { open: number; done: number } {
+  if (pad.kind === 'todo') {
+    const done = (pad.items ?? []).filter((i) => i.done).length;
+    return { open: (pad.items ?? []).length - done, done };
+  }
+  if (pad.kind === 'kanban') {
+    const cols = pad.cols ?? [];
+    const done = cols.length > 1 ? cols[cols.length - 1].cards.length : 0;
+    return { open: cols.reduce((n, c) => n + c.cards.length, 0) - done, done };
+  }
+  return { open: 0, done: 0 };
+}
+
+// ---------------------------------------------------------------- Notiz
+
+export const setText = (pad: Pad, text: string): Pad => ({ ...pad, text: text.slice(0, PAD_TEXT_MAX) });
+
+// ---------------------------------------------------------------- To-do
+
+const clean = (s: string) => s.replace(/\s+/g, ' ').trim().slice(0, 300);
+const items = (pad: Pad) => pad.items ?? [];
+
+/** Eintrag anhängen (oder nach `after` einfügen); leerer Text = nichts. */
+export function addItem(pad: Pad, text: string, after?: string): Pad {
+  const t = clean(text);
+  if (!t || items(pad).length >= PAD_ITEM_MAX) return pad;
+  const item: PadItem = { id: newId(), text: t };
+  const list = [...items(pad)];
+  const i = after ? list.findIndex((x) => x.id === after) : -1;
+  list.splice(i < 0 ? list.length : i + 1, 0, item);
+  return { ...pad, items: list };
+}
+
+export const toggleItem = (pad: Pad, id: string): Pad => ({
+  ...pad,
+  items: items(pad).map((x) => (x.id === id ? (x.done ? { id: x.id, text: x.text } : { ...x, done: true }) : x)),
+});
+
+/** Text ändern; leerer Text löscht den Eintrag. */
+export function editItem(pad: Pad, id: string, text: string): Pad {
+  const t = clean(text);
+  if (!t) return removeItem(pad, id);
+  return { ...pad, items: items(pad).map((x) => (x.id === id ? { ...x, text: t } : x)) };
+}
+
+export const removeItem = (pad: Pad, id: string): Pad => ({ ...pad, items: items(pad).filter((x) => x.id !== id) });
+
+/** Eintrag um `step` verschieben (−1 = nach oben). */
+export function moveItem(pad: Pad, id: string, step: number): Pad {
+  const list = [...items(pad)];
+  const i = list.findIndex((x) => x.id === id);
+  const j = i + step;
+  if (i < 0 || j < 0 || j >= list.length) return pad;
+  const [x] = list.splice(i, 1);
+  list.splice(j, 0, x);
+  return { ...pad, items: list };
+}
+
+export const clearDone = (pad: Pad): Pad => ({ ...pad, items: items(pad).filter((x) => !x.done) });
+
+// ---------------------------------------------------------------- Kanban
+
+const cols = (pad: Pad) => pad.cols ?? [];
+const mapCols = (pad: Pad, f: (c: PadColumn) => PadColumn): Pad => ({ ...pad, cols: cols(pad).map(f) });
+const cardCount = (pad: Pad) => cols(pad).reduce((n, c) => n + c.cards.length, 0);
+
+export function addColumn(pad: Pad, name: string): Pad {
+  const n = clean(name).slice(0, 40);
+  if (!n || cols(pad).length >= PAD_COL_MAX) return pad;
+  return { ...pad, cols: [...cols(pad), { id: newId(), name: n, cards: [] }] };
+}
+
+export function renameColumn(pad: Pad, id: string, name: string): Pad {
+  const n = clean(name).slice(0, 40);
+  return n ? mapCols(pad, (c) => (c.id === id ? { ...c, name: n } : c)) : pad;
+}
+
+/** Spalte löschen; ihre Karten wandern in die Nachbarspalte (links, sonst rechts). Die letzte Spalte bleibt. */
+export function removeColumn(pad: Pad, id: string): Pad {
+  const list = cols(pad);
+  const i = list.findIndex((c) => c.id === id);
+  if (i < 0 || list.length <= 1) return pad;
+  const target = list[i > 0 ? i - 1 : 1];
+  return {
+    ...pad,
+    cols: list.filter((c) => c.id !== id).map((c) => (c.id === target.id ? { ...c, cards: [...c.cards, ...list[i].cards] } : c)),
+  };
+}
+
+export function moveColumn(pad: Pad, id: string, step: number): Pad {
+  const list = [...cols(pad)];
+  const i = list.findIndex((c) => c.id === id);
+  const j = i + step;
+  if (i < 0 || j < 0 || j >= list.length) return pad;
+  const [c] = list.splice(i, 1);
+  list.splice(j, 0, c);
+  return { ...pad, cols: list };
+}
+
+export function addCard(pad: Pad, col: string, text: string): Pad {
+  const t = clean(text);
+  if (!t || cardCount(pad) >= PAD_ITEM_MAX) return pad;
+  return mapCols(pad, (c) => (c.id === col ? { ...c, cards: [...c.cards, { id: newId(), text: t }] } : c));
+}
+
+/** Karte ändern; leerer Text löscht sie. */
+export function editCard(pad: Pad, id: string, text: string): Pad {
+  const t = clean(text);
+  if (!t) return removeCard(pad, id);
+  return mapCols(pad, (c) => ({ ...c, cards: c.cards.map((k) => (k.id === id ? { ...k, text: t } : k)) }));
+}
+
+export const removeCard = (pad: Pad, id: string): Pad => mapCols(pad, (c) => ({ ...c, cards: c.cards.filter((k) => k.id !== id) }));
+
+/** Wo liegt die Karte? */
+export function findCard(pad: Pad, id: string): { col: number; index: number } | null {
+  for (const [ci, c] of cols(pad).entries()) {
+    const index = c.cards.findIndex((k) => k.id === id);
+    if (index >= 0) return { col: ci, index };
+  }
+  return null;
+}
+
+/** Karte in Spalte `col` an Stelle `index` setzen (Ziehen); index über das Ende = ans Ende. */
+export function placeCard(pad: Pad, id: string, col: string, index: number): Pad {
+  const at = findCard(pad, id);
+  if (!at || !cols(pad).some((c) => c.id === col)) return pad;
+  const card = cols(pad)[at.col].cards[at.index];
+  const without = removeCard(pad, id);
+  return mapCols(without, (c) => {
+    if (c.id !== col) return c;
+    const cards = [...c.cards];
+    const same = cols(pad)[at.col].id === col;
+    const i = Math.max(0, Math.min(cards.length, same && index > at.index ? index - 1 : index));
+    cards.splice(i, 0, card);
+    return { ...c, cards };
+  });
+}
+
+/** Tastatur: Karte eine Spalte nach links/rechts (ans Ende) oder eine Stelle hoch/runter. */
+export function stepCard(pad: Pad, id: string, dx: number, dy: number): Pad {
+  const at = findCard(pad, id);
+  if (!at) return pad;
+  const list = cols(pad);
+  if (dx) {
+    const to = list[at.col + dx];
+    return to ? placeCard(pad, id, to.id, to.cards.length) : pad;
+  }
+  const j = at.index + dy;
+  if (j < 0 || j >= list[at.col].cards.length) return pad;
+  return placeCard(pad, id, list[at.col].id, dy > 0 ? j + 1 : j);
+}
+
+// ---------------------------------------------------------------- Speichern
+
+const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : null);
+
+function parseItem(v: unknown): PadItem | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const text = str(o.text, 300);
+  if (typeof o.id !== 'string' || !text) return null;
+  return o.done === true ? { id: o.id, text, done: true } : { id: o.id, text };
+}
+
+const parseItems = (v: unknown): PadItem[] =>
+  Array.isArray(v) ? (v.map(parseItem).filter(Boolean) as PadItem[]).slice(0, PAD_ITEM_MAX) : [];
+
+/** Blatt aus gespeicherten Daten; Unbrauchbares fällt weg, eine falsche Art ergibt null. */
+export function parsePad(v: unknown): Pad | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  if (!isPadKind(o.kind)) return null;
+  if (o.kind === 'note') return { kind: 'note', text: str(o.text, PAD_TEXT_MAX) ?? '' };
+  if (o.kind === 'todo') return { kind: 'todo', items: parseItems(o.items) };
+  const list = Array.isArray(o.cols) ? o.cols : [];
+  const parsed: PadColumn[] = [];
+  for (const c of list.slice(0, PAD_COL_MAX)) {
+    if (!c || typeof c !== 'object') continue;
+    const r = c as Record<string, unknown>;
+    const name = str(r.name, 40);
+    if (typeof r.id === 'string' && name) parsed.push({ id: r.id, name, cards: parseItems(r.cards) });
+  }
+  return { kind: 'kanban', cols: parsed };
+}

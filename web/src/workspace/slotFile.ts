@@ -10,7 +10,8 @@ import { CATEGORY_ICONS } from './icons';
 import { parsePanel } from './storage';
 import { parseTint, setSlotTint } from './tint';
 import type { ScreenSetup } from './screen';
-import type { Category, PanelMeta, Tint, Workspace } from './types';
+import type { Category, Note, NoteView, PanelMeta, Tint, Workspace } from './types';
+import { importNotes, notesForPanels, parseNoteViews, parseNotes } from './notes';
 import { STACK_MAX, TAB_MAX, addArea, canAddArea, newId, renameArea, setArrangement, slotNameId, viewOf } from './workspace';
 
 export const SLOT_FORMAT = 'e-sources-slot';
@@ -38,6 +39,9 @@ export interface SlotFile {
   /** Index des vorderen Portals. */
   front: number;
   categories: SlotCategory[];
+  /** F-206: Notizen und Ansichten, auf die Tabs zeigen (samt Unter-Notizen); fehlt = keine. */
+  notes?: Note[];
+  noteViews?: NoteView[];
 }
 
 /** Felder, die nur auf diesem Gerät Sinn ergeben (Desk, Slot-Name, Space, Case, Merker des Entwickler-Modus). */
@@ -53,7 +57,10 @@ export function slotToFile(ws: Workspace, ids: string[], front: string, device: 
   if (panels.length === 0) return null;
   const nameId = slotNameId(ws, ids, front);
   const entry = ws.areaNames.find((a) => a.id === nameId);
-  const used = new Set(panels.map((p) => p.category).filter((c): c is string => !!c));
+  const { notes, views } = notesForPanels(ws, panels);
+  const used = new Set(
+    [...panels.map((p) => p.category), ...notes.map((n) => n.category), ...views.map((v) => v.category)].filter((c): c is string => !!c),
+  );
   const categories: SlotCategory[] = ws.categories
     .filter((c) => used.has(c.id))
     .map((c) => ({ id: c.id, name: c.name, ...(c.tint ? { tint: c.tint } : {}), ...(c.icon ? { icon: c.icon } : {}) }));
@@ -67,6 +74,8 @@ export function slotToFile(ws: Workspace, ids: string[], front: string, device: 
     panels: panels.map(portable),
     front: Math.max(0, panels.findIndex((p) => p.id === front)),
     categories,
+    ...(notes.length ? { notes } : {}),
+    ...(views.length ? { noteViews: views } : {}),
   };
 }
 
@@ -129,6 +138,9 @@ export function readSlotFile(text: string): SlotRead {
     : [];
   const front = typeof d.front === 'number' && d.front >= 0 && d.front < panels.length ? Math.floor(d.front) : 0;
   const tint = parseTint(d.tint);
+  const fileCats = new Set(categories.map((c) => c.id));
+  const notes = parseNotes(d.notes, fileCats);
+  const noteViews = parseNoteViews(d.noteViews, new Set(notes.map((n) => n.id)), fileCats);
   return {
     ok: true,
     file: {
@@ -141,6 +153,8 @@ export function readSlotFile(text: string): SlotRead {
       panels,
       front,
       categories,
+      ...(notes.length ? { notes } : {}),
+      ...(noteViews.length ? { noteViews } : {}),
     },
   };
 }
@@ -166,12 +180,27 @@ export function importSlot(ws: Workspace, setup: ScreenSetup, file: SlotFile, ma
       catMap.set(c.id, made.id);
     }
   }
+  // F-206: Notizen und Ansichten mit neuen Ids; Tabs zeigen danach auf die neuen
+  const moved = importNotes({ ...ws, categories }, file.notes ?? [], file.noteViews ?? [], catMap, makeId);
   const panels: PanelMeta[] = file.panels.map((p) => {
     const tabIds = new Map(p.tabs.map((t) => [t.id, makeId()]));
     const out: PanelMeta = {
       ...p,
       id: makeId(),
-      tabs: p.tabs.map((t) => ({ ...t, id: tabIds.get(t.id)! })),
+      tabs: p.tabs.map((t) => {
+        const out = { ...t, id: tabIds.get(t.id)! };
+        if (t.note) {
+          const n = moved.noteIds.get(t.note);
+          if (n) out.note = n;
+          else delete out.note;
+        }
+        if (t.view) {
+          const v = moved.viewIds.get(t.view);
+          if (v) out.view = v;
+          else delete out.view;
+        }
+        return out;
+      }),
       activeTab: tabIds.get(p.activeTab) ?? tabIds.get(p.tabs[0].id)!,
       ...(setup.win ? { win: setup.win } : {}),
     };
@@ -183,7 +212,7 @@ export function importSlot(ws: Workspace, setup: ScreenSetup, file: SlotFile, ma
     return out;
   });
   // Neuer Slot mit leerem Portal, das dann durch die Portale der Datei ersetzt wird
-  const added = addArea({ ...ws, categories }, setup, 'right');
+  const added = addArea(moved.ws, setup, 'right');
   const known = new Set(ws.panels.map((p) => p.id));
   const blank = added.panels.find((p) => !known.has(p.id));
   const arr = viewOf(added, setup).arrangement;

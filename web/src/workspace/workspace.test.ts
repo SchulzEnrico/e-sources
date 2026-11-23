@@ -48,6 +48,7 @@ import * as Pa from './pause';
 import * as Web from './websearch';
 import * as Snd from './send';
 import * as Rc from './recent';
+import * as No from './notes';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -3658,5 +3659,376 @@ describe('F-147: Farbpipette', () => {
     expect(Pk.colorName('#ff0000')).toBe('Rot');
     expect(Pk.colorName('#00008b')).toBe('dunkles Blau');
     expect(Pk.colorName('#ffd84d')).toBe('Gelb');
+  });
+});
+
+describe('F-206 Schritt 1: Notizen und Ansichten (Datenmodell)', () => {
+  const T0 = Date.UTC(2026, 10, 23, 12);
+  const act = { now: T0, by: 'Enrico' };
+  const mk = (ws: Workspace, init: No.NoteInit = {}, id?: string) => No.createNote(ws, init, { ...act, id });
+  const base = () => W.defaultWorkspace();
+  const seq = () => {
+    let i = 0;
+    return () => `n${++i}`;
+  };
+
+  it('legt eine Notiz an – mit Spur, Herkunft und Titel-Vorschlag aus der ersten Zeile', () => {
+    const { ws, id } = mk(base(), { text: '\n# Einkauf **morgen**\n- Milch' });
+    const n = No.noteById(ws, id)!;
+    expect(n.state).toBe('open');
+    expect(n.trail).toEqual([{ at: T0, what: 'created', by: 'Enrico' }]);
+    expect(n.origin).toEqual({ via: 'hand', at: new Date(T0).toISOString(), by: 'Enrico' });
+    expect(No.titleOf(n)).toBe('Einkauf morgen');
+    expect(No.titleOf({ title: ' Eigener ', text: 'x' })).toBe('Eigener');
+    expect(No.titleOf({ title: '', text: '- [ ] Anrufen' })).toBe('Anrufen');
+    expect(No.titleOf({ title: '', text: 'a'.repeat(100) })).toHaveLength(No.TITLE_MAX);
+    expect(No.isEmptyNote(ws, n)).toBe(false);
+    expect(No.isEmptyNote(ws, { ...n, text: '  ' })).toBe(true);
+  });
+
+  it('ändert Felder, fasst Textänderungen in der Spur zusammen und entfernt leere Felder', () => {
+    let { ws, id } = mk(base());
+    ws = No.updateNote(ws, id, { text: 'a' }, { now: T0 + 1000, by: 'Enrico' });
+    ws = No.updateNote(ws, id, { text: 'ab', important: true, due: '2026-12-01' }, { now: T0 + 2000, by: 'Enrico' });
+    let n = No.noteById(ws, id)!;
+    expect(n.trail.filter((e) => e.what === 'edited')).toHaveLength(1);
+    expect(n.trail[n.trail.length - 1].at).toBe(T0 + 2000);
+    expect(n.important).toBe(true);
+    ws = No.updateNote(ws, id, { due: undefined, important: undefined }, { now: T0 + No.EDIT_MERGE_MS + 5000 });
+    n = No.noteById(ws, id)!;
+    expect(n.due).toBeUndefined();
+    expect(n.important).toBeUndefined();
+    expect(n.trail.filter((e) => e.what === 'edited')).toHaveLength(2);
+    ws = No.updateNote(ws, id, { delegated: { to: 'Maike' } }, act);
+    expect(No.noteById(ws, id)!.trail.at(-1)).toEqual({ at: T0, what: 'delegated', by: 'Enrico', detail: 'Maike' });
+    ws = No.markForwarded(ws, id, 'iPhone', act);
+    expect(No.noteById(ws, id)!.forwarded).toEqual([{ at: T0, to: 'iPhone' }]);
+  });
+
+  it('Spur hat höchstens TRAIL_MAX Einträge', () => {
+    let t: ReturnType<typeof No.addEvent> = [];
+    for (let i = 0; i < No.TRAIL_MAX + 5; i++) t = No.addEvent(t, 'state', { now: i });
+    expect(t).toHaveLength(No.TRAIL_MAX);
+    expect(t[0].at).toBe(5);
+  });
+
+  it('Zustand: wartet von selbst bei offenem Vorgänger und vor „nicht beginnen vor“', () => {
+    let ws = base();
+    let a: string, b: string;
+    ({ ws, id: a } = mk(ws, { title: 'A' }));
+    ({ ws, id: b } = mk(ws, { title: 'B' }));
+    const r = No.addLink(ws, b, a, 'done', act);
+    expect(r.ok).toBe(true);
+    ws = (r as { ws: Workspace }).ws;
+    expect(No.stateOf(ws, No.noteById(ws, b)!, '2026-11-23')).toEqual({ state: 'waiting', cause: 'after', blockers: [a] });
+    expect(No.successorsOf(ws, a).map((s) => s.note.id)).toEqual([b]);
+    ws = No.setState(ws, a, 'done', act);
+    expect(No.stateOf(ws, No.noteById(ws, b)!, '2026-11-23')).toEqual({ state: 'open' });
+    ws = No.updateNote(ws, b, { notBefore: '2026-12-01' });
+    expect(No.stateOf(ws, No.noteById(ws, b)!, '2026-11-23')).toEqual({ state: 'waiting', cause: 'notBefore', from: '2026-12-01' });
+    expect(No.stateOf(ws, No.noteById(ws, b)!, '2026-12-01').state).toBe('open');
+    ws = No.setState(ws, b, 'waiting', act, ' Rückruf ');
+    expect(No.stateOf(ws, No.noteById(ws, b)!)).toEqual({ state: 'waiting', cause: 'hand', reason: 'Rückruf' });
+    ws = No.setState(ws, b, 'doing', act);
+    expect(No.noteById(ws, b)!.waitReason).toBeUndefined();
+  });
+
+  it('Vorgänger „bestimmt den Termin“ verschiebt den frühesten Beginn', () => {
+    let ws = base();
+    let a: string, b: string;
+    ({ ws, id: a } = mk(ws, { due: '2026-12-10' }));
+    ({ ws, id: b } = mk(ws, { notBefore: '2026-12-01' }));
+    ws = (No.addLink(ws, b, a, 'date') as { ws: Workspace }).ws;
+    expect(No.earliestStart(ws, No.noteById(ws, b)!)).toBe('2026-12-10');
+    expect(No.stateOf(ws, No.noteById(ws, b)!, '2026-12-05')).toEqual({ state: 'waiting', cause: 'date', from: '2026-12-10' });
+    // Art ändern statt doppelt eintragen
+    ws = (No.addLink(ws, b, a, 'done') as { ws: Workspace }).ws;
+    expect(No.noteById(ws, b)!.after).toEqual([{ id: a, kind: 'done' }]);
+    ws = No.removeLink(ws, b, a);
+    expect(No.noteById(ws, b)!.after).toBeUndefined();
+  });
+
+  it('verhindert Kreise bei Vorgängern und zeigt den Weg', () => {
+    let ws = base();
+    const ids: string[] = [];
+    for (const t of ['A', 'B', 'C']) {
+      let id: string;
+      ({ ws, id } = mk(ws, { title: t }));
+      ids.push(id);
+    }
+    const [a, b, c] = ids;
+    ws = (No.addLink(ws, b, a, 'done') as { ws: Workspace }).ws; // A vor B
+    ws = (No.addLink(ws, c, b, 'done') as { ws: Workspace }).ws; // B vor C
+    const r = No.addLink(ws, a, c, 'done'); // C vor A → Kreis
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.reason).toBe('circle');
+    expect(!r.ok && r.path).toEqual([a, b, c, a]);
+    expect(No.addLink(ws, a, a, 'done').ok).toBe(false);
+    expect(No.addLink(ws, a, 'fehlt', 'done').ok).toBe(false);
+  });
+
+  it('Unter-Notizen: genau eine Eltern-Notiz, Fortschritt, nächste drei offene, keine Kreise', () => {
+    let ws = base();
+    let p: string;
+    ({ ws, id: p } = mk(ws, { title: 'Umzug' }));
+    const kids: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      let id: string;
+      ({ ws, id } = mk(ws, { title: `K${i}`, parent: p }));
+      kids.push(id);
+    }
+    ws = No.setState(ws, kids[0], 'done', act);
+    expect(No.progress(ws, p)).toEqual({ done: 1, total: 5 });
+    expect(No.nextOpenChildren(ws, p).map((n) => n.title)).toEqual(['K1', 'K2', 'K3']);
+    let g: string;
+    ({ ws, id: g } = mk(ws, { title: 'Enkel', parent: kids[1] }));
+    expect(No.descendantsOf(ws, p).map((n) => n.title)).toEqual(['K0', 'K1', 'Enkel', 'K2', 'K3', 'K4']);
+    const r = No.setParent(ws, p, g);
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.reason).toBe('circle');
+    expect(!r.ok && r.path).toEqual([p, kids[1], g]);
+    const moved = No.setParent(ws, g, kids[2], act);
+    expect(moved.ok).toBe(true);
+    ws = (moved as { ws: Workspace }).ws;
+    expect(No.noteById(ws, g)!.parent).toBe(kids[2]);
+    ws = (No.setParent(ws, g, undefined) as { ws: Workspace }).ws;
+    expect(No.noteById(ws, g)!.parent).toBeUndefined();
+    expect(No.createNote(ws, { parent: 'fehlt' }).ws.notes!.at(-1)!.parent).toBeUndefined();
+  });
+
+  it('Ansichten: anlegen mit Standardnamen, Kanban mit drei Spalten', () => {
+    let ws = base();
+    let v1: string, v2: string, k: string;
+    ({ ws, id: v1 } = No.createView(ws, 'todo', ''));
+    ({ ws, id: v2 } = No.createView(ws, 'todo', ''));
+    ({ ws, id: k } = No.createView(ws, 'kanban', 'Projekt', { makeId: seq() }));
+    expect(No.viewById(ws, v1)!.name).toBe('To-do-Liste');
+    expect(No.viewById(ws, v2)!.name).toBe('To-do-Liste 2');
+    expect(No.viewById(ws, k)!.cols!.map((c) => c.name)).toEqual([...No.KANBAN_START]);
+    ws = No.updateView(ws, k, { review: true, name: '  Board  ' });
+    expect(No.viewById(ws, k)).toMatchObject({ name: 'Board', review: true });
+    ws = No.updateView(ws, k, { review: false });
+    expect(No.viewById(ws, k)!.review).toBeUndefined();
+  });
+
+  it('legt Notizen in Ansichten, verschiebt sie und zeigt sie zusätzlich (ohne Kopie)', () => {
+    let ws = base();
+    let n: string, todo: string, kb: string;
+    ({ ws, id: n } = mk(ws, { title: 'X' }));
+    ({ ws, id: todo } = No.createView(ws, 'todo', ''));
+    ({ ws, id: kb } = No.createView(ws, 'kanban', '', { makeId: seq() }));
+    ws = (No.placeNote(ws, n, { view: todo }, act) as { ws: Workspace }).ws;
+    ws = (No.placeNote(ws, n, { view: kb }, { ...act, from: todo, also: true }) as { ws: Workspace }).ws;
+    expect(No.viewsWith(ws, n).map((v) => v.id)).toEqual([todo, kb]);
+    expect(No.viewById(ws, kb)!.cols![0].ids).toEqual([n]);
+    // Im Board in andere Spalte
+    const done = No.viewById(ws, kb)!.cols![2].id;
+    ws = (No.placeNote(ws, n, { view: kb, col: done }) as { ws: Workspace }).ws;
+    expect(No.viewById(ws, kb)!.cols!.map((c) => c.ids.length)).toEqual([0, 0, 1]);
+    // Verschieben nimmt sie aus der Quelle
+    ws = (No.placeNote(ws, n, { view: kb }, { ...act, from: todo }) as { ws: Workspace }).ws;
+    expect(No.viewsWith(ws, n).map((v) => v.id)).toEqual([kb]);
+    expect(No.noteById(ws, n)!.trail.map((e) => e.what)).toEqual(['created', 'placed', 'placed', 'moved']);
+    ws = No.removeFromView(ws, n, kb, act);
+    expect(No.viewsWith(ws, n)).toHaveLength(0);
+    expect(No.noteById(ws, n)).toBeDefined();
+  });
+
+  it('Reihenfolge in Listen per Index (Tastatur „nach oben/unten“)', () => {
+    let ws = base();
+    let v: string;
+    ({ ws, id: v } = No.createView(ws, 'todo', ''));
+    const ids: string[] = [];
+    for (const t of ['a', 'b', 'c']) {
+      let id: string;
+      ({ ws, id } = mk(ws, { title: t }));
+      ids.push(id);
+      ws = (No.placeNote(ws, id, { view: v }) as { ws: Workspace }).ws;
+    }
+    ws = (No.placeNote(ws, ids[2], { view: v, index: 0 }) as { ws: Workspace }).ws;
+    expect(No.viewById(ws, v)!.ids).toEqual([ids[2], ids[0], ids[1]]);
+    ws = (No.placeNote(ws, ids[2], { view: v, index: 99 }) as { ws: Workspace }).ws;
+    expect(No.viewById(ws, v)!.ids).toEqual([ids[0], ids[1], ids[2]]);
+  });
+
+  it('Grenze 200 je Ansicht – Unter-Notizen zählen nicht', () => {
+    let ws = base();
+    let v: string;
+    ({ ws, id: v } = No.createView(ws, 'block', ''));
+    const notes: Workspace['notes'] = [];
+    for (let i = 0; i < No.VIEW_MAX; i++) notes.push({ id: `x${i}`, title: '', text: '', state: 'open', trail: [], created: 0, changed: 0 });
+    ws = { ...ws, notes, noteViews: ws.noteViews!.map((x) => ({ ...x, ids: notes.map((n) => n.id) })) };
+    let extra: string, sub: string;
+    ({ ws, id: extra } = mk(ws));
+    ({ ws, id: sub } = mk(ws, { parent: 'x0' }));
+    const r = No.placeNote(ws, extra, { view: v });
+    expect(!r.ok && r.reason).toBe('full');
+    expect(No.placeNote(ws, sub, { view: v }).ok).toBe(true);
+    expect(No.placeNote(ws, 'x5', { view: v, index: 0 }).ok).toBe(true);
+  });
+
+  it('Kanban-Spalten: höchstens 8, löschen gibt Karten an den Nachbarn, letzte bleibt', () => {
+    let ws = base();
+    let k: string, n: string;
+    ({ ws, id: k } = No.createView(ws, 'kanban', '', { makeId: seq() }));
+    ({ ws, id: n } = mk(ws));
+    const [c1, c2] = No.viewById(ws, k)!.cols!.map((c) => c.id);
+    ws = (No.placeNote(ws, n, { view: k, col: c1 }) as { ws: Workspace }).ws;
+    for (let i = 3; i < No.COLUMN_MAX; i++) ws = (No.addColumn(ws, k, '', { makeId: seq() }) as { ws: Workspace }).ws;
+    expect(No.viewById(ws, k)!.cols).toHaveLength(No.COLUMN_MAX);
+    expect(No.viewById(ws, k)!.cols!.at(-1)!.name).toBe(`Spalte ${No.COLUMN_MAX}`);
+    const full = No.addColumn(ws, k, 'zu viel');
+    expect(!full.ok && full.reason).toBe('full');
+    // Erste Spalte löschen → Karten gehen nach rechts
+    const r = No.removeColumn(ws, k, c1);
+    expect(r.ok && r.id).toBe(c2);
+    ws = (r as { ws: Workspace }).ws;
+    expect(No.viewById(ws, k)!.cols![0].ids).toEqual([n]);
+    ws = No.renameColumn(ws, k, c2, 'Neu');
+    ws = No.moveColumn(ws, k, c2, 99);
+    expect(No.viewById(ws, k)!.cols!.at(-1)).toMatchObject({ id: c2, name: 'Neu', ids: [n] });
+    let one: string;
+    ({ ws, id: one } = No.createView(ws, 'kanban', '', { makeId: seq() }));
+    for (const c of No.viewById(ws, one)!.cols!.slice(1)) ws = (No.removeColumn(ws, one, c.id) as { ws: Workspace }).ws;
+    const last = No.removeColumn(ws, one, No.viewById(ws, one)!.cols![0].id);
+    expect(!last.ok && last.reason).toBe('last');
+  });
+
+  it('Regel „Abnahme nötig“: erledigt → in Prüfung, bis bestätigt', () => {
+    let ws = base();
+    let k: string, n: string;
+    ({ ws, id: k } = No.createView(ws, 'kanban', ''));
+    ({ ws, id: n } = mk(ws));
+    ws = (No.placeNote(ws, n, { view: k }) as { ws: Workspace }).ws;
+    ws = No.updateView(ws, k, { review: true });
+    ws = No.setState(ws, n, 'done', act);
+    expect(No.noteById(ws, n)!.state).toBe('review');
+    ws = No.confirmReview(ws, n, act);
+    expect(No.noteById(ws, n)!.state).toBe('done');
+  });
+
+  it('Eisenhower: Feld aus wichtig/dringend', () => {
+    expect(No.quadrantOf({ important: true, urgent: true })).toBe(1);
+    expect(No.quadrantOf({ important: true })).toBe(2);
+    expect(No.quadrantOf({ urgent: true })).toBe(3);
+    expect(No.quadrantOf({})).toBe(4);
+  });
+
+  it('löscht eine Notiz samt Unter-Notizen und holt alles zurück', () => {
+    let ws = base();
+    let p: string, k: string, o: string, v: string;
+    ({ ws, id: p } = mk(ws, { title: 'P' }));
+    ({ ws, id: k } = mk(ws, { title: 'K', parent: p }));
+    ({ ws, id: o } = mk(ws, { title: 'O', attach: [{ kind: 'note', ref: p }] }));
+    ws = (No.addLink(ws, o, k, 'done') as { ws: Workspace }).ws;
+    ({ ws, id: v } = No.createView(ws, 'todo', ''));
+    ws = (No.placeNote(ws, p, { view: v }) as { ws: Workspace }).ws;
+    ws = (No.placeNote(ws, o, { view: v }) as { ws: Workspace }).ws;
+    const panel = ws.panels[0];
+    ws = { ...ws, panels: [{ ...panel, tabs: [{ ...panel.tabs[0], note: p }] }, ...ws.panels.slice(1)] };
+    const before = ws;
+    const r = No.deleteNote(ws, p)!;
+    expect(r.ws.notes!.map((n) => n.title)).toEqual(['O']);
+    expect(No.noteById(r.ws, o)!.after).toBeUndefined();
+    expect(No.noteById(r.ws, o)!.attach).toBeUndefined();
+    expect(No.viewById(r.ws, v)!.ids).toEqual([o]);
+    expect(r.ws.panels[0].tabs[0].note).toBeUndefined();
+    const back = No.restoreNotes(r.ws, r.undo, act);
+    expect(back.notes!.map((n) => n.title)).toEqual(['P', 'K', 'O']);
+    expect(No.noteById(back, o)!.after).toEqual(No.noteById(before, o)!.after);
+    expect(No.viewById(back, v)!.ids).toEqual([p, o]);
+    expect(back.panels[0].tabs[0].note).toBe(p);
+    expect(No.noteById(back, p)!.trail.at(-1)!.what).toBe('restored');
+    expect(No.deleteNote(ws, 'fehlt')).toBeNull();
+  });
+
+  it('löscht eine Ansicht (Notizen bleiben) und holt sie zurück', () => {
+    let ws = base();
+    let v: string, n: string;
+    ({ ws, id: v } = No.createView(ws, 'kanban', 'Team'));
+    ({ ws, id: n } = mk(ws, { delegated: { to: 'Team', view: v } }));
+    ws = (No.placeNote(ws, n, { view: v }) as { ws: Workspace }).ws;
+    const panel = ws.panels[0];
+    ws = { ...ws, panels: [{ ...panel, tabs: [{ ...panel.tabs[0], view: v }] }, ...ws.panels.slice(1)] };
+    const r = No.deleteView(ws, v)!;
+    expect(r.ws.noteViews).toEqual([]);
+    expect(No.noteById(r.ws, n)!.delegated).toEqual({ to: 'Team' });
+    expect(r.ws.panels[0].tabs[0].view).toBeUndefined();
+    const back = No.restoreView(r.ws, r.undo);
+    expect(idsOfBoard(back, v)).toEqual([n]);
+    expect(back.panels[0].tabs[0].view).toBe(v);
+  });
+  const idsOfBoard = (ws: Workspace, v: string) => No.idsIn(No.viewById(ws, v)!);
+
+  it('Speicher: Notizen, Ansichten und Tab-Verweise überstehen Speichern und Laden; Unbrauchbares fällt weg', () => {
+    let ws = base();
+    let a: string, b: string, v: string;
+    ({ ws, id: a } = mk(ws, { title: 'A', tags: ['x'], due: '2026-12-01' }));
+    ({ ws, id: b } = mk(ws, { title: 'B', parent: a }));
+    ws = (No.addLink(ws, b, a, 'date') as { ws: Workspace }).ws;
+    ({ ws, id: v } = No.createView(ws, 'kanban', 'Board'));
+    ws = (No.placeNote(ws, a, { view: v }) as { ws: Workspace }).ws;
+    const panel = ws.panels[0];
+    ws = { ...ws, panels: [{ ...panel, tabs: [{ id: panel.tabs[0].id, note: a }] }, ...ws.panels.slice(1)] };
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(back.notes).toEqual(ws.notes);
+    expect(back.noteViews).toEqual(ws.noteViews);
+    expect(back.panels[0].tabs[0].note).toBe(a);
+    // kaputte Daten
+    const raw = JSON.parse(JSON.stringify(ws));
+    raw.notes.push({ id: a, title: 'doppelt' }, { title: 'ohne id' }, { id: 'c', state: 'kaputt', parent: 'fehlt', after: [{ id: 'fehlt', kind: 'done' }], due: '1.12.' });
+    raw.notes[0].after = [{ id: b, kind: 'done' }]; // Kreis A↔B
+    raw.noteViews.push({ id: 'v2', kind: 'todo', ids: [a, a, 'fehlt'] }, { id: 'v3', kind: 'gibt-es-nicht' });
+    raw.panels[0].tabs[0].url = 'https://example.org/'; // Tab mit Adresse zeigt keine Notiz
+    const p = parseWorkspace(raw)!;
+    expect(p.notes!.map((n) => n.id)).toEqual([a, b, 'c']);
+    const c = No.noteById(p, 'c')!;
+    expect(c.state).toBe('open');
+    expect(c.parent).toBeUndefined();
+    expect(c.after).toBeUndefined();
+    expect(c.due).toBeUndefined();
+    expect(No.noteById(p, a)!.after?.length ?? 0).toBe(0);
+    expect(No.viewById(p, 'v2')!.ids).toEqual([a]);
+    expect(No.viewById(p, 'v3')).toBeUndefined();
+    expect(p.panels[0].tabs[0].note).toBeUndefined();
+    // ohne Notizen bleibt das Feld weg
+    expect(parseWorkspace(JSON.parse(JSON.stringify(base())))!.notes).toBeUndefined();
+  });
+
+  it('Slot-Datei nimmt Notizen der Tabs (samt Unter-Notizen) und Ansichten mit, mit neuen Ids', () => {
+    const setup: ScreenSetup = { cls: 'superwide', orientation: 'landscape', lines: 2 };
+    let ws: Workspace = { ...base(), categories: [{ id: 'c1', name: 'Projekt' }] };
+    let a: string, sub: string, other: string, v: string, inView: string;
+    ({ ws, id: a } = mk(ws, { title: 'A', category: 'c1' }));
+    ({ ws, id: sub } = mk(ws, { title: 'A1', parent: a }));
+    ({ ws, id: other } = mk(ws, { title: 'nicht dabei' }));
+    ({ ws, id: inView } = mk(ws, { title: 'im Board' }));
+    ws = (No.addLink(ws, a, other, 'done') as { ws: Workspace }).ws;
+    ({ ws, id: v } = No.createView(ws, 'kanban', 'Board'));
+    ws = (No.placeNote(ws, inView, { view: v }) as { ws: Workspace }).ws;
+    const panel = ws.panels[0];
+    ws = { ...ws, panels: [{ ...panel, tabs: [{ id: 't1', note: a }, { id: 't2', view: v }], activeTab: 't1' }, ...ws.panels.slice(1)] };
+    const f = SF.slotToFile(ws, [panel.id], panel.id, 'Mac')!;
+    expect(f.notes!.map((n) => n.title)).toEqual(['A', 'A1', 'im Board']);
+    expect(f.noteViews!.map((x) => x.name)).toEqual(['Board']);
+    expect(f.categories.map((c) => c.name)).toEqual(['Projekt']);
+    const r = SF.readSlotFile(JSON.stringify(f));
+    expect(r.ok).toBe(true);
+    const file = (r as { file: SF.SlotFile }).file;
+    const imp = SF.importSlot(ws, setup, file);
+    expect(imp.ok).toBe(true);
+    const out = (imp as { ws: Workspace }).ws;
+    expect(out.notes).toHaveLength(7);
+    const newTabs = out.panels.at(-1)!.tabs;
+    const na = No.noteById(out, newTabs[0].note!)!;
+    expect(na.id).not.toBe(a);
+    expect(na.title).toBe('A');
+    expect(na.after).toBeUndefined(); // Vorgänger kam nicht mit
+    expect(na.category).toBe('c1');
+    expect(No.childrenOf(out, na.id).map((n) => n.title)).toEqual(['A1']);
+    expect(No.childrenOf(out, na.id)[0].id).not.toBe(sub);
+    const nv = No.viewById(out, newTabs[1].view!)!;
+    expect(nv.id).not.toBe(v);
+    expect(No.idsIn(nv).map((id) => No.noteById(out, id)!.title)).toEqual(['im Board']);
   });
 });

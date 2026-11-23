@@ -13,6 +13,7 @@ import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } f
 import { demoWorkspace } from './demo';
 import { PROBE, probeWorkspace } from './probe';
 import { parseLayoutKey } from './screen';
+import { fixDelegated, parseNoteViews, parseNotes } from './notes';
 import type { DeskLayout, DeskLayouts } from './deskLayouts';
 
 /**
@@ -45,7 +46,12 @@ function pageOf(v: Record<string, unknown>): Omit<Tab, 'id'> | null {
 function parseTab(v: unknown): Tab | null {
   if (!isObj(v) || typeof v.id !== 'string') return null;
   const page = pageOf(v);
-  return page && { id: v.id, ...page, ...(v.keep === true ? { keep: true } : {}) };
+  if (!page) return null;
+  const tab: Tab = { id: v.id, ...page, ...(v.keep === true ? { keep: true } : {}) };
+  // F-206: Verweis auf Notiz bzw. Ansicht – nur ohne Adresse (ein Tab zeigt genau eines)
+  if (!tab.url && typeof v.note === 'string' && v.note) tab.note = v.note;
+  else if (!tab.url && typeof v.view === 'string' && v.view) tab.view = v.view;
+  return tab;
 }
 
 /** Panel im Format v5 oder v4 (ohne Tabs: die Seite wird zum ersten Tab). */
@@ -260,8 +266,14 @@ export function parseWorkspace(data: unknown): Workspace | null {
         if (tab) closed.push({ id: c.id, kind: 'tab', win, at: c.at as number, tab, index: isNum(c.index) ? (c.index as number) : 0, panelId: c.panelId, panelName: typeof c.panelName === 'string' ? c.panelName : '' });
       }
     }
+  // F-206: Notizen und Ansichten; Tabs auf Unbekanntes bleiben stehen (zeigen „Notiz fehlt“, kommt evtl. per Abgleich)
+  const parsedNotes = parseNotes(data.notes, catIds);
+  const noteViews = parseNoteViews(data.noteViews, new Set(parsedNotes.map((n) => n.id)), catIds);
+  const notes = fixDelegated(parsedNotes, new Set(noteViews.map((v) => v.id)));
   return {
     ...(closed.length ? { closed } : {}),
+    ...(notes.length ? { notes } : {}),
+    ...(noteViews.length ? { noteViews } : {}),
     ...(isObj(data.focus) ? { focus: fixRule(data.focus as Partial<FocusRule>) } : {}),
     ...(parseProfile(data.profile) ? { profile: parseProfile(data.profile) } : {}),
     panels: panels as PanelMeta[],

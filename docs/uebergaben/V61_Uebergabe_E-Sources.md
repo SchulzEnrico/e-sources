@@ -6,11 +6,14 @@ Stand: 23.11.2026 · Chat V61 abgeschlossen · Nächster Chat: **V62 E-Sources**
 
 > Das ist Chat **V62 E-Sources**. Lies diese Übergabedatei und das Lastenheft unter `docs/Lastenheft/Lastenheft_E-Sources.md` (vor allem **F-206**). Dann „Nächste Schritte“ ab 1. Halte dich an die Arbeitsregeln am Ende dieser Datei.
 
+**Nachtrag beachten:** `docs/uebergaben/V61_Nachtrag_E-Sources.md` (Ablage-Ordner, Commit-Abgrenzung zu V62).
+
 ## Links
 
 - **Lastenheft:** `docs/Lastenheft/Lastenheft_E-Sources.md` – neu **F-206 Notizen und Ansichten** (Abschnitt „Notizen und Ansichten“ vor den nicht-funktionalen Anforderungen), Reihenfolge Punkt 21; F-17 und F-104 verweisen darauf.
-- **Entscheidungs-Doc F-206:** https://claude.ai/artifact/NAbnAYie4DdKRkM5hKWXJa („E-Sources – Notizen und Ansichten: To-do, Kanban, Eisenhower“) – Fragen 0–18 von Enrico beantwortet, Abschnitt „Entscheidungen (Stand 23.11.2026)“. **PDF** (11 Seiten) liegt in den Dateien des Docs (Export-Menü bzw. Dateien).
-- **Dashboard:** `docs/E-Sources_Dashboard_V51.pdf` (Stand V51).
+- **Entscheidungs-Doc F-206:** https://claude.ai/artifact/NAbnAYie4DdKRkM5hKWXJa („E-Sources – Notizen und Ansichten: To-do, Kanban, Eisenhower“) – Fragen 0–18 von Enrico beantwortet, Abschnitt „Entscheidungen (Stand 23.11.2026)“. **PDF** (11 Seiten): `docs/Arbeitspakete/E-Sources – Notizen und Ansichten To-do, Kanban, Eisenhower (F-17, F-104).pdf`.
+- **Dashboard:** `docs/Dashboards/E-Sources_Dashboard_V51.pdf` (Stand V51; dort auch V36).
+- **Ablage (Enrico, V61):** `docs/Dashboards/` für Dashboards, `docs/Arbeitspakete/` für Entscheidungs-Docs von Arbeitspaketen als PDF (Export aus dem Claude Doc: Name des Docs › Export › PDF).
 - **Benennung – Ergebnis:** https://claude.ai/artifact/5Di2hzfovkm1NcmV3bocdp
 - **Geschichte der Anwendung:** https://claude.ai/artifact/QjpbDizWw2VzQzWNmZgirP – nachzuziehen: Gist-Abgleich (V58/V59), Slot als Datei (F-158), Farbpipette (F-147), Ausblick Notizen (F-206).
 - **Repository:** https://github.com/SchulzEnrico/e-sources · lokal `~/Projects/e-sources`
@@ -49,6 +52,7 @@ Entscheidungen zu Notizen, To-do, Kanban und Eisenhower (Claude Doc):
   Punkt 21; F-17 und F-104 verweisen darauf
 - Verworfener Code-Entwurf (Variante A) nur als Ansicht unter
   docs/uebergaben/V61_Entwurf_pad_VarianteA.ts.txt
+- Ablage: docs/Arbeitspakete (PDF zu F-206), docs/Dashboards
 - Übergabe V61 → V62 (kein Code geändert, Tests 304 grün)
 ```
 

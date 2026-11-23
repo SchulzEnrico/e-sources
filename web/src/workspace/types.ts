@@ -18,6 +18,10 @@ export interface Tab {
   pos?: number;
   /** F-06 Stufe 2: dieser Tab pausiert nie (z. B. Musik, Chat, laufender Upload). */
   keep?: boolean;
+  /** F-206: Tab zeigt diese Notiz (Id aus Workspace.notes) – nur Verweis, kein Inhalt. */
+  note?: string;
+  /** F-206: Tab zeigt diese Ansicht (Id aus Workspace.noteViews) – nur Verweis. */
+  view?: string;
 }
 
 /** Ein Panel – gilt für alle Bildschirmklassen. */
@@ -243,6 +247,127 @@ export interface Workspace {
   pauseShown?: number;
   /** F-189: Suchmaschine für „Im Web suchen“ (Id aus ENGINES); fehlt = Google. */
   engine?: string;
+  /** F-206: alle Notizen (eigene Objekte, unabhängig von Tabs); fehlt = keine. */
+  notes?: Note[];
+  /** F-206: Ansichten (Notizblock, To-do, Kanban, Eisenhower), die Notizen nur anordnen; fehlt = keine. */
+  noteViews?: NoteView[];
+}
+
+/**
+ * F-206: Zustand einer Notiz. „wartet“ kommt auch von selbst (offener Vorgänger, „nicht beginnen
+ * vor“) – das rechnet stateOf aus; gespeichert ist nur die eigene Wahl.
+ */
+export type NoteState = 'open' | 'waiting' | 'doing' | 'review' | 'done' | 'archived';
+
+/** F-206: Art eines Vorgängers – „muss erledigt sein“ oder „bestimmt den Termin“ (Netzplan). */
+export type NoteLinkKind = 'done' | 'date';
+
+export interface NoteLink {
+  /** Id der Vorgänger-Notiz. */
+  id: string;
+  kind: NoteLinkKind;
+}
+
+/** F-206: Eintrag der Spur (Zeitleiste einer Notiz). */
+export type NoteEventKind =
+  | 'created'
+  | 'edited'
+  | 'state'
+  | 'parent'
+  | 'link'
+  | 'unlink'
+  | 'placed'
+  | 'moved'
+  | 'removed'
+  | 'delegated'
+  | 'forwarded'
+  | 'attached'
+  | 'restored';
+
+export interface NoteEvent {
+  /** Zeitpunkt (ms seit 1970). */
+  at: number;
+  what: NoteEventKind;
+  /** Profilname (F-179), später das Konto; fehlt ohne Namen. */
+  by?: string;
+  /** Kurzer Zusatz, z. B. neuer Zustand oder Name der Ansicht. */
+  detail?: string;
+}
+
+/** F-206: Anhang – Datei (liegt nur auf dem Gerät), andere Notiz oder Source. */
+export interface NoteAttachment {
+  kind: 'file' | 'note' | 'source';
+  /** Id der Notiz bzw. Source; bei Dateien eine Id im Gerätespeicher. */
+  ref: string;
+  name?: string;
+}
+
+/** F-206: Wie eine Notiz entstand (wie BookmarkOrigin). */
+export interface NoteOrigin {
+  via: 'hand' | 'quick' | 'voice' | 'slot' | 'import';
+  /** Zeitpunkt (ISO 8601). */
+  at: string;
+  by?: string;
+  /** Slot-Datei oder Import: Gerät bzw. Dateiname. */
+  from?: string;
+}
+
+/** F-206: eine Notiz – Gedanke, Aufgabe oder Erinnerung. */
+export interface Note {
+  id: string;
+  /** Titel; leer = Vorschlag aus der ersten Zeile (titleOf). */
+  title: string;
+  /** Text mit Markdown-Zeichen. */
+  text: string;
+  /** Eigene Wahl; „wartet“ von selbst rechnet stateOf aus. */
+  state: NoteState;
+  /** Grund bei „wartet“ von Hand. */
+  waitReason?: string;
+  /** Eltern-Notiz (genau eine); Unter-Notizen stehen in der Reihenfolge von Workspace.notes. */
+  parent?: string;
+  /** Vorgänger (Netzplan); Nachfolger ergeben sich daraus. */
+  after?: NoteLink[];
+  /** Spur, älteste zuerst, höchstens TRAIL_MAX. */
+  trail: NoteEvent[];
+  category?: string;
+  tags?: string[];
+  origin?: NoteOrigin;
+  important?: boolean;
+  urgent?: boolean;
+  attach?: NoteAttachment[];
+  /** Delegiert an: freier Name oder Board (Id einer Ansicht). */
+  delegated?: { to: string; view?: string };
+  /** Weitergeleitet (neueste zuletzt). */
+  forwarded?: { at: number; to: string }[];
+  /** „nicht beginnen vor“ (Datum JJJJ-MM-TT). */
+  notBefore?: string;
+  /** „fällig am“ (Datum JJJJ-MM-TT). */
+  due?: string;
+  created: number;
+  changed: number;
+}
+
+/** F-206: Arten von Ansichten; Scrum kommt später. */
+export type NoteViewKind = 'block' | 'todo' | 'kanban' | 'eisenhower';
+
+export interface NoteColumn {
+  id: string;
+  name: string;
+  ids: string[];
+}
+
+/** F-206: Ansicht – ordnet Notizen nur an (eine Notiz kann in mehreren Ansichten liegen). */
+export interface NoteView {
+  id: string;
+  kind: NoteViewKind;
+  name: string;
+  category?: string;
+  /** Reihenfolge (Notizblock, To-do, Eisenhower – das Feld der Matrix ergibt sich aus wichtig/dringend). */
+  ids: string[];
+  /** Nur Kanban: Spalten (höchstens COLUMN_MAX). */
+  cols?: NoteColumn[];
+  /** Regel „Abnahme nötig“: erledigt → „in Prüfung“, bis bestätigt. */
+  review?: boolean;
 }
 
 /** F-24: ein geschlossenes Portal (mit Tabs und Verlauf) oder ein geschlossener Tab. */

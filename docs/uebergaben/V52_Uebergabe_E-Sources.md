@@ -4,7 +4,7 @@ Stand: 23.11.2026 · Chat V52 abgeschlossen · Nächster Chat: **V53 E-Sources**
 
 ## Startanweisung für den neuen Chat
 
-> Das ist Chat **V53 E-Sources**. Lies diese Übergabedatei und das Lastenheft unter `docs/Lastenheft/Lastenheft_E-Sources.md`. Frag Enrico kurz nach seiner Prüfung von V52 (F-205 Begrüßung, Entwickler-Modus mit Zoom 100 %). Dann **F-116 mit F-53 Stufe 1** (Space/Case) umsetzen – Umfang und Enricos Antwort zur Case-Wahl siehe „Nächste Schritte“ 2. Halte dich an die Arbeitsregeln am Ende dieser Datei.
+> Das ist Chat **V53 E-Sources**. Lies diese Übergabedatei und das Lastenheft unter `docs/Lastenheft/Lastenheft_E-Sources.md`. Frag Enrico kurz nach seiner Prüfung von V52 (F-205 Begrüßung, Entwickler-Modus mit Zoom 100 %). Dann **F-116 mit F-53 Stufe 1** (Space/Case) umsetzen – Umfang und Entscheidung zur Case-Wahl siehe „Nächste Schritte“ 2. Halte dich an die Arbeitsregeln am Ende dieser Datei.
 
 ## Links
 
@@ -26,7 +26,7 @@ Stand: 23.11.2026 · Chat V52 abgeschlossen · Nächster Chat: **V53 E-Sources**
 ## Nächste Schritte
 
 1. **Enrico prüfen lassen:** ⚙ → Profil → Begrüßung (alle fünf Arten, Vorschau, „Übernehmen“), Seite neu laden → Begrüßung; Entwickler-Modus ein/aus mit vorher gesetztem Zoom.
-2. **F-116 mit F-53 Stufe 1** (freigegeben): Spaces und Cases anlegen/umbenennen/löschen (Name, Farbe; ein Case gehört zu genau einem Space). Layouts einem oder mehreren Cases zuordnen – im Layout-Modus des Cockpits sichtbar und änderbar. Case wählen → zugeordnete Layouts angeboten, bei genau einem gesetzt. Cases bündeln in Stufe 1 **nur Layouts**. **Offene Frage an Enrico (in V52 gestellt, Antwort ggf. im Chat V52 nachlesen bzw. neu fragen):** Case-Wahl im Cockpit (Layouts) und über die Suche, nicht in der Kopfleiste? Vorhanden: `PanelMeta.sphere/scenario`, `ws.spheres`/`ws.scenarios` (Suche zeigt sie); Layouts in `deskLayouts.ts` (`DeskLayout {id,name,saved}`) noch ohne Zuordnung. Dialoge mit sichtbarem Abschluss (F-191), Barrierefreiheit, Begriffe in terms.ts erklären, Hilfe-Einträge mit Fragen, Tour-Schritt im Cockpit ergänzen.
+2. **F-116 mit F-53 Stufe 1** (freigegeben): Spaces und Cases anlegen/umbenennen/löschen (Name, Farbe; ein Case gehört zu genau einem Space). Layouts einem oder mehreren Cases zuordnen – im Layout-Modus des Cockpits sichtbar und änderbar. Case wählen → zugeordnete Layouts angeboten, bei genau einem gesetzt. Cases bündeln in Stufe 1 **nur Layouts**. **Entschieden (Enrico, V52):** Case-Wahl im Cockpit (Layouts) und über die Suche, nicht in der Kopfleiste („können wir erstmal so machen“). Vorhanden: `PanelMeta.sphere/scenario`, `ws.spheres`/`ws.scenarios` (Suche zeigt sie); Layouts in `deskLayouts.ts` (`DeskLayout {id,name,saved}`) noch ohne Zuordnung. Dialoge mit sichtbarem Abschluss (F-191), Barrierefreiheit, Begriffe in terms.ts erklären, Hilfe-Einträge mit Fragen, Tour-Schritt im Cockpit ergänzen.
 3. F-201 Rest: (4) Video in View „2“ zu groß/abgeschnitten (vermutlich `frameWidth`/„Breite halten“), (5) Neuladen mit E-Sources-Kopie.
 4. Entwickler-Modus Stufe 2 mit F-18/F-115 (Gerätevorschau) zusammen denken.
 5. Geschichte der Anwendung: Ausblick F-151 bis F-205 nachziehen (Begrüßung wählbar ist ein schönes Beispiel für Persönlichkeit).
@@ -51,6 +51,18 @@ F-200: Entwickler-Modus stellt Zoom auf 100 % und „Breite halten“ aus
 Texte: Anzeige steht unten links (nicht rechts).
 
 Tests: 271 grün (F-205 ×7, F-200 Zoom). Lastenheft und Übergabe V52.
+```
+
+- **Git:** V52 committet und gepusht. Danach nur noch diese Übergabe ergänzt (Case-Wahl entschieden) – Commit-Text „Nachtrag V52“ unten.
+
+## Commit-Text Nachtrag V52
+
+**Summary:** `V52 Nachtrag: Übergabe – Case-Wahl für F-116 entschieden`
+
+**Description:**
+```
+Übergabe V52: Case-Wahl im Cockpit (Layouts) und über die Suche,
+nicht in der Kopfleiste (Entscheidung Enrico)
 ```
 
 ## Kleine Punkte

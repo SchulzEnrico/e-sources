@@ -122,7 +122,6 @@ export const DESK_LAYOUT_TEXT = {
   swap: 'Platz tauschen …',
   swapPick: (name: string) => `„${name}“ tauschen mit … – Ziel-Slot anklicken oder mit Pfeiltasten wählen und Enter; Esc bricht ab.`,
   swapHere: 'hierhin tauschen',
-  dragTitle: 'Ziehen auf einen anderen Slot = Platz tauschen · Tastatur: „Platz tauschen …“',
   dropHere: 'Platz tauschen',
   swapCancel: 'Tauschen abgebrochen.',
   swapped: (a: string, b: string) => `„${a}“ und „${b}“ haben den Platz getauscht.`,
@@ -136,6 +135,29 @@ export const DESK_LAYOUT_TEXT = {
   standardTitle: 'Standard-Layout',
   standardPick: (desk: string) => `Standard auf diesem Gerät (Layouts von ${desk})`,
   resetHint: (name: string) => `Das aktive Layout „${name}“ bekommt die Belegung des Standards.`,
+  // F-187 Stufe 2: Anordnung im Layout-Modus, Gerät wählbar
+  deviceLabel: 'Gerät',
+  orientLabel: 'Ausrichtung',
+  linesLabel: 'Reihen',
+  linesTerm: 'Reihen = Zeilen im Querformat, Spalten im Hochformat',
+  landscape: 'quer',
+  portrait: 'hoch',
+  lines: (n: number) => (n === 1 ? '1 Reihe' : `${n} Reihen`),
+  previewFor: (device: string) => `Vorschau für ${device} – nicht dieses Gerät`,
+  thisDevice: 'Zurück zu diesem Gerät',
+  deviceSet: (device: string, rec: number) => `Anordnung für ${device}, empfohlen ${rec} Slots.`,
+  deviceTerm: 'Jede Kombination aus Gerät, Ausrichtung und Reihen hat ihre eigene Anordnung. Hier lässt sie sich festlegen, ohne das Gerät zu haben; sie gilt, sobald E-Sources dort läuft',
+  arrangeHead: 'Anordnung',
+  addRight: 'Slot rechts',
+  addBottom: 'Slot unten',
+  addedSlot: (side: 'right' | 'bottom') => `Neuer Slot ${side === 'right' ? 'rechts' : 'unten'} mit leerem Portal.`,
+  addedSlotMore: (side: 'right' | 'bottom') => `Neuer Slot ${side === 'right' ? 'rechts' : 'unten'} mit leerem Portal; alle Slots gleich verteilt.`,
+  evenOut: 'Gleich verteilen',
+  evened: 'Alle Slots gleich groß.',
+  evenAlready: 'Die Slots sind schon gleich groß.',
+  maxSlots: (max: number) => `Höchstens ${max} Slots für dieses Gerät.`,
+  dragTitle: 'Ziehen: Mitte = Platz tauschen, Rand = an dieser Position einsetzen · Alt+Pfeil einsetzen, Alt+Umschalt+Pfeil Größe',
+  keysHint: 'Pfeile wählen einen Slot. Alt+Pfeil setzt ihn in diese Richtung, Alt+Umschalt+Pfeil ändert die Größe; die Kante zwischen zwei Slots lässt sich ziehen.',
   small: (n: number, rec: number) => `${n} Slots – empfohlen sind hier ${rec}. Seiten werden jetzt sehr klein; die Fokusanzeige zählt wie gewohnt.`,
 } as const;
 
@@ -279,6 +301,18 @@ export const TINT_TEXT = {
 } as const;
 
 /** F-170: Texte der Slotmaschine. */
+/** F-153/F-187: Ansagen beim Anordnen von Slots (Radar und Layout-Modus). */
+export const ARRANGE_TEXT = {
+  noResize: (name: string, axis: 'w' | 'h', grow: boolean) => `„${name}“ lässt sich nicht ${axis === 'w' ? (grow ? 'breiter' : 'schmaler') : grow ? 'höher' : 'flacher'} machen.`,
+  atEdge: (name: string, side: 'left' | 'right' | 'top' | 'bottom') => `„${name}“ liegt schon ganz ${({ left: 'links', right: 'rechts', top: 'oben', bottom: 'unten' } as const)[side]}.`,
+  already: (name: string) => `„${name}“ liegt schon so.`,
+  sideAt: { left: 'links an', right: 'rechts an', top: 'oben an', bottom: 'unten an' } as const,
+  sideEdge: { left: 'linken', right: 'rechten', top: 'oberen', bottom: 'unteren' } as const,
+  dockHere: 'An dieser Position einsetzen',
+  dockEdge: 'Am Rand einsetzen',
+  edgeTitle: 'Ziehen: Größe ändern',
+} as const;
+
 export const JACKPOT_TEXT = {
   title: 'Slotmaschine',
   open: 'Slotmaschine',

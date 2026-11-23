@@ -129,7 +129,8 @@ export type Action =
   // F-187: Slots eines (auch nicht aktiven) Layouts
   | { type: 'layoutSlotSwap'; win: string; id: string; setup: ScreenSetup; a: string; b: string }
   | { type: 'layoutSlotClose'; win: string; id: string; setup: ScreenSetup; area: string }
-  | { type: 'layoutContent'; win: string; id: string; content: DL.LayoutContent };
+  | { type: 'layoutContent'; win: string; id: string; content: DL.LayoutContent }
+  | { type: 'layoutArrange'; win: string; id: string; setup: ScreenSetup; op: DL.ArrangeOp };
 
 export function reducer(ws: Workspace, a: Action): Workspace {
   const next = step(ws, a);
@@ -277,6 +278,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return DL.closeLayoutSlot(ws, a.win, a.id, a.setup, a.area) ?? ws;
     case 'layoutContent':
       return DL.setContent(ws, a.win, a.id, a.content);
+    case 'layoutArrange':
+      return DL.arrangeLayout(ws, a.win, a.id, a.setup, a.op);
     case 'layoutUnreset':
       return DL.undoReset(ws, a.win, a.old);
     case 'ruleRestore':

@@ -32,6 +32,7 @@ import * as DL from './deskLayouts';
 import * as Ic from './icons';
 import * as Dis from './display';
 import * as Jp from './jackpot';
+import * as Ar from './arrange';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -2721,5 +2722,69 @@ describe('F-187 Layouts im Cockpit', () => {
       for (const x of s.slice(1)) w = w && DL.closeLayoutSlot(w, '', id, setup, x.id);
       expect(DL.closeLayoutSlot(w!, '', id, setup, DL.layoutView(w!, '', id, setup).slots[0].id)).toBeNull();
     }
+  });
+});
+
+describe('F-187 Stufe 2 Anordnung im Layout-Modus', () => {
+  const setup: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
+  const phone: ScreenSetup = { cls: 'phone', orientation: 'portrait', lines: 1 };
+  const two = () => {
+    let ws = W.defaultWorkspace();
+    ws = W.addPanel(ws, setup);
+    ws = W.addPanel(ws, setup);
+    ws = W.addPanel(ws, setup);
+    const old = DL.activeLayout(ws).id;
+    ws = DL.addLayout(ws, '', setup, 'even');
+    return { ws, old };
+  };
+
+  it('Größe im nicht aktiven Layout ändern; nur diese Einstellung ändert sich', () => {
+    const { ws, old } = two();
+    const v = DL.layoutView(ws, '', old, setup);
+    const leaf = v.slots[0].id;
+    const tree = T.resizeEdges(v.tree!, leaf, { x: 'right', dx: 0.1 }, W.DEFAULT_MIN);
+    const next = reducer(ws, { type: 'layoutArrange', win: '', id: old, setup, op: { kind: 'tree', tree } });
+    const after = DL.layoutView(next, '', old, setup);
+    expect(after.slots.find((s) => s.id === leaf)!.rect.w).toBeGreaterThan(v.slots[0].rect.w + 0.05);
+    expect(JSON.stringify(DL.layoutView(next, '', old, { ...setup, orientation: 'portrait' }).tree)).toBe(JSON.stringify(DL.layoutView(ws, '', old, { ...setup, orientation: 'portrait' }).tree));
+    // Aktives Layout bleibt unberührt
+    expect(JSON.stringify(next.layouts)).toBe(JSON.stringify(ws.layouts));
+  });
+
+  it('gewähltes Gerät: Empfehlung folgt, Slot anlegen über der Empfehlung verteilt gleich', () => {
+    const { ws, old } = two();
+    expect(DL.layoutView(ws, '', old, phone).recommended).toBe(1);
+    expect(DL.slotsMax(phone)).toBe(2);
+    const next = reducer(ws, { type: 'layoutArrange', win: '', id: old, setup: phone, op: { kind: 'add', side: 'bottom', even: true } });
+    const v = DL.layoutView(next, '', old, phone);
+    expect(v.slots).toHaveLength(2);
+    expect(v.slots.filter((s) => s.over)).toHaveLength(1);
+    expect(Math.abs(v.slots[0].rect.h - 0.5)).toBe(0);
+    // Höchstzahl erreicht: nichts mehr
+    const again = reducer(next, { type: 'layoutArrange', win: '', id: old, setup: phone, op: { kind: 'add', side: 'bottom', even: true } });
+    expect(DL.layoutView(again, '', old, phone).slots).toHaveLength(2);
+  });
+
+  it('Gleich verteilen und Einsetzen am Rand (Ziehen und Alt+Pfeil)', () => {
+    const { ws, old } = two();
+    const v = DL.layoutView(ws, '', old, setup);
+    const [a, b] = v.slots;
+    const docked = T.drop(v.tree!, a.id, T.AREA, 'bottom');
+    let next = reducer(ws, { type: 'layoutArrange', win: '', id: old, setup, op: { kind: 'tree', tree: docked } });
+    const r = DL.layoutView(next, '', old, setup).slots.find((s) => s.id === a.id)!.rect;
+    expect(r.w).toBe(1);
+    next = reducer(next, { type: 'layoutArrange', win: '', id: old, setup, op: { kind: 'even' } });
+    expect(Ar.sameTree(T.equalize(DL.layoutView(next, '', old, setup).tree!), DL.layoutView(next, '', old, setup).tree)).toBe(true);
+    const step = Ar.arrangeStep(v.tree!, a.id, 'ArrowRight', false, W.DEFAULT_MIN, a.title);
+    expect(Ar.sameTree(step.next, v.tree)).toBe(false);
+    expect(T.rects(step.next).get(a.id)!.x).toBeGreaterThan(T.rects(step.next).get(b.id)!.x);
+  });
+
+  it('Hilfsrechnungen: nächster Rand und Nachbar', () => {
+    expect(Ar.nearestSide(5, 50, { left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 })).toEqual(['left', 5]);
+    expect(Ar.nearestSide(50, 90, { left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 }, true)[0]).toBe('bottom');
+    const rects = new Map([['a', { x: 0, y: 0, w: 0.5, h: 1 }], ['b', { x: 0.5, y: 0, w: 0.5, h: 1 }]]);
+    expect(Ar.neighbourLeaf(rects, 'a', 1, 0)).toBe('b');
+    expect(Ar.neighbourLeaf(rects, 'a', -1, 0)).toBeNull();
   });
 });

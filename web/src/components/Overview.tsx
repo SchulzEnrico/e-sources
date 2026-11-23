@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import type { Slot, Workspace } from '../workspace/types';
-import { type Focus, type RadarWindow, arrangeText, focusText, pointsText, radarMatches, radarOf, radarResize } from '../workspace/focus';
+import { type Focus, type RadarWindow, arrangeText, focusText, pointsText, radarMatches, radarOf } from '../workspace/focus';
+import { ARROWS, DOCK_BAND, MAP_BAND_PX, arrangeStep, nearestSide, sameTree } from '../workspace/arrange';
 import * as T from '../workspace/tree';
 import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, TERMS } from '../workspace/terms';
+import { ARRANGE_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, TERMS } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import type { Action } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
@@ -116,15 +117,8 @@ export interface OverviewProps {
   startLayouts?: boolean;
 }
 
-/** F-153: Schrittweite für Alt+Umschalt+Pfeil (Anteil der Fläche). */
-const ARRANGE_STEP = 0.05;
-/** F-153: Randzone einer Kachel fürs Andocken (Anteil ihrer Breite bzw. Höhe). */
-const DOCK_BAND = 0.28;
-/** F-153: Randzone der ganzen Karte in Pixeln (andocken an die ganze Fläche). */
-const MAP_BAND_PX = 7;
-const SIDE_AT: Record<T.Side, string> = { left: 'links an', right: 'rechts an', top: 'oben an', bottom: 'unten an' };
-const SIDE_EDGE: Record<T.Side, string> = { left: 'linken', right: 'rechten', top: 'oberen', bottom: 'unteren' };
-const SIDE_FAR: Record<T.Side, string> = { left: 'links', right: 'rechts', top: 'oben', bottom: 'unten' };
+const SIDE_AT = ARRANGE_TEXT.sideAt;
+const SIDE_EDGE = ARRANGE_TEXT.sideEdge;
 type Dock = { win: string; leaf: string; target: string; zone: T.Side; label: string };
 
 /** F-28: Text eines Ziels, z. B. „Auf „Recherche“ (3)“ oder „Eigene neue Area – kein Platz“. */
@@ -324,26 +318,10 @@ export function Overview(p: OverviewProps) {
       let dock: Dock | null = null;
       const mapEl = el?.closest<HTMLElement>('.radar__map');
       if (whole && fromLeaf && mapEl && (mapEl.dataset.win ?? '') === fromWin) {
-        const b = mapEl.getBoundingClientRect();
-        const edges: [T.Side, number][] = [
-          ['left', ev.clientX - b.left],
-          ['right', b.right - ev.clientX],
-          ['top', ev.clientY - b.top],
-          ['bottom', b.bottom - ev.clientY],
-        ];
-        edges.sort((m, n) => m[1] - n[1]);
-        if (edges[0][1] < MAP_BAND_PX) dock = { win: fromWin, leaf: fromLeaf, target: T.AREA, zone: edges[0][0], label: '' };
+        const edge = nearestSide(ev.clientX, ev.clientY, mapEl.getBoundingClientRect());
+        if (edge[1] < MAP_BAND_PX) dock = { win: fromWin, leaf: fromLeaf, target: T.AREA, zone: edge[0], label: '' };
         else if (tile && tile.dataset.key !== fromTile && tile.dataset.area) {
-          const tb = tile.getBoundingClientRect();
-          const u = (ev.clientX - tb.left) / tb.width;
-          const v = (ev.clientY - tb.top) / tb.height;
-          const d: [T.Side, number][] = [
-            ['left', u],
-            ['right', 1 - u],
-            ['top', v],
-            ['bottom', 1 - v],
-          ];
-          d.sort((m, n) => m[1] - n[1]);
+          const d = [nearestSide(ev.clientX, ev.clientY, tile.getBoundingClientRect(), true)];
           if (d[0][1] < DOCK_BAND) dock = { win: fromWin, leaf: fromLeaf, target: tile.dataset.area, zone: d[0][0], label: tile.dataset.title ?? '' };
         }
       }
@@ -374,7 +352,7 @@ export function Overview(p: OverviewProps) {
         const tree = wins.find((w) => w.win === k.win)?.tree;
         const next = tree ? T.drop(tree, k.leaf, k.target, k.zone) : null;
         if (!tree || !next || JSON.stringify(next) === JSON.stringify(tree)) {
-          setSaid(`„${name}“ liegt schon so.`);
+          setSaid(ARRANGE_TEXT.already(name));
           return;
         }
         p.onLayout(k.win, next);
@@ -439,25 +417,11 @@ export function Overview(p: OverviewProps) {
       setSaid(`Die Anordnung von ${t.w.title} ist noch unbekannt – der Desk war noch nicht offen.`);
       return;
     }
-    const dirs: Record<string, [number, number, T.Side]> = { ArrowRight: [1, 0, 'right'], ArrowLeft: [-1, 0, 'left'], ArrowDown: [0, 1, 'bottom'], ArrowUp: [0, -1, 'top'] };
-    const [dx, dy, side] = dirs[key];
     const min = t.w.here ? p.min : DEFAULT_MIN;
-    let next: T.Node;
-    let none: string;
-    if (resize) {
-      const axis = dx ? 'w' : 'h';
-      const grow = dx > 0 || dy > 0;
-      next = radarResize(tree, leaf, axis, grow, ARRANGE_STEP, min);
-      none = `„${t.a.title}“ lässt sich nicht ${axis === 'w' ? (grow ? 'breiter' : 'schmaler') : grow ? 'höher' : 'flacher'} machen.`;
-    } else {
-      const nb = neighbour(t, dx, dy, true);
-      const nbLeaf = nb ? leafOf(nb) : null;
-      const r = t.a.rect ?? T.FULL;
-      const spans = dx ? r.h > 0.999 && (dx > 0 ? r.x + r.w > 0.999 : r.x < 0.001) : r.w > 0.999 && (dy > 0 ? r.y + r.h > 0.999 : r.y < 0.001);
-      next = nbLeaf ? T.dock(tree, leaf, nbLeaf, side) : spans ? tree : T.dockArea(tree, leaf, side);
-      none = `„${t.a.title}“ liegt schon ganz ${SIDE_FAR[side]}.`;
-    }
-    if (JSON.stringify(next) === JSON.stringify(tree)) {
+    const [dx, dy] = ARROWS[key];
+    const nb = resize ? undefined : neighbour(t, dx, dy, true);
+    const { next, none } = arrangeStep(tree, leaf, key, resize, min, t.a.title, nb === undefined ? undefined : nb ? leafOf(nb) : null);
+    if (sameTree(next, tree)) {
       setSaid(none);
       return;
     }

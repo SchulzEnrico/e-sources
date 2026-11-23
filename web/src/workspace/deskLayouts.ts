@@ -10,9 +10,9 @@
  */
 import { DESK_LAYOUT_TEXT } from './terms';
 import type { ScreenSetup } from './screen';
-import { screenClass } from './screen';
+import { SLOTS_MAX, screenClass } from './screen';
 import type { Arrangement, PanelMeta, SlotName, Workspace } from './types';
-import { areaLabel, closeSlot, dropSlot, newId, newPanel, viewOf } from './workspace';
+import { addArea, areaLabel, closeSlot, distribute, dropSlot, newId, newPanel, setLayout, viewOf } from './workspace';
 import * as T from './tree';
 
 /** Gespeicherte Belegung eines nicht aktiven Layouts. Schlüssel der Anordnungen ohne Desk-Vorsilbe. */
@@ -342,11 +342,11 @@ export interface LayoutSlot {
 }
 
 /** F-187: Anordnung eines Layouts auf dieser Bildschirm-Einstellung (auch nicht aktive). */
-export function layoutView(ws: Workspace, win: string, id: string, setup: ScreenSetup): { slots: LayoutSlot[]; portals: number; recommended: number } {
+export function layoutView(ws: Workspace, win: string, id: string, setup: ScreenSetup): { slots: LayoutSlot[]; portals: number; recommended: number; tree: T.Node | null } {
   const recommended = screenClass(setup.cls).capacity;
   let shown: Workspace | null = null;
   inLayout(ws, win, id, (w) => ((shown = w), w));
-  if (!shown) return { slots: [], portals: 0, recommended };
+  if (!shown) return { slots: [], portals: 0, recommended, tree: null };
   const w: Workspace = shown;
   const v = viewOf(w, at(setup, win));
   const order = T.readingOrder(v.tree);
@@ -355,7 +355,7 @@ export function layoutView(ws: Workspace, win: string, id: string, setup: Screen
   const slots = v.slots
     .map((s) => ({ id: s.id, rect: s.rect, title: areaLabel(w, s) || s.front.name, count: s.panels.length, over: made.indexOf(s.id) >= recommended }))
     .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-  return { slots, portals: w.panels.filter((p) => (p.win ?? '') === win).length, recommended };
+  return { slots, portals: w.panels.filter((p) => (p.win ?? '') === win).length, recommended, tree: v.tree };
 }
 
 /** F-187: zwei Slots eines Layouts tauschen ihren Platz. */
@@ -372,4 +372,32 @@ export function closeLayoutSlot(ws: Workspace, win: string, id: string, setup: S
     return r ? r.ws : w;
   });
   return ok ? next : null;
+}
+
+// ---------------------------------------------------------------- F-187 Stufe 2 Anordnung bestimmen
+
+/** Änderungen an der Anordnung eines Layouts für eine (frei gewählte) Bildschirm-Einstellung. */
+export type ArrangeOp =
+  | { kind: 'tree'; tree: T.Node }
+  | { kind: 'add'; side: 'right' | 'bottom'; even: boolean }
+  | { kind: 'even' };
+
+/** Höchstzahl Slots, die der Layout-Modus für eine Einstellung anlegt (wie F-52: doppelte Empfehlung). */
+export function slotsMax(setup: ScreenSetup): number {
+  return Math.min(SLOTS_MAX, screenClass(setup.cls).capacity * 2);
+}
+
+/**
+ * F-187 Stufe 2: Anordnung eines beliebigen Layouts (auch nicht aktiv) auf einer beliebigen
+ * Einstellung ändern – Größe/Einsetzen als fertiger Baum, Slot anlegen (neues leeres Portal) oder
+ * gleich verteilen. Andere Einstellungen behalten ihre Anordnung.
+ */
+export function arrangeLayout(ws: Workspace, win: string, id: string, setup: ScreenSetup, op: ArrangeOp): Workspace {
+  const s = at(setup, win);
+  return inLayout(ws, win, id, (w) => {
+    if (op.kind === 'tree') return setLayout(w, s, op.tree);
+    if (op.kind === 'even') return distribute(w, s);
+    const added = addArea(w, { ...s, capacity: slotsMax(s) }, op.side);
+    return op.even && added !== w ? distribute(added, s) : added;
+  });
 }

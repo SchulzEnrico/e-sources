@@ -10,8 +10,12 @@
 import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import * as DL from '../workspace/deskLayouts';
-import { screenClass, specOf, type ScreenSetup } from '../workspace/screen';
-import { DESK_LAYOUT_TEXT as LT } from '../workspace/terms';
+import { SCREEN_CLASSES, allowsTwoLines, screenClass, specOf, type Lines, type Orientation, type ScreenClassId, type ScreenSetup } from '../workspace/screen';
+import { setupFor, DEFAULT_MIN } from '../workspace/workspace';
+import { arrangeText } from '../workspace/focus';
+import { DOCK_BAND, MAP_BAND_PX, arrangeStep, nearestSide, sameTree } from '../workspace/arrange';
+import * as T from '../workspace/tree';
+import { ARRANGE_TEXT as AT, DESK_LAYOUT_TEXT as LT } from '../workspace/terms';
 import type { Workspace } from '../workspace/types';
 import type { Action } from '../workspace/useWorkspace';
 
@@ -60,8 +64,21 @@ function Mini({ slots, ar }: { slots: DL.LayoutSlot[]; ar: number }) {
   );
 }
 
-export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Props) {
+/** Gerät in Worten, z. B. „Monitor, quer, 2 Reihen“. */
+const deviceText = (s: ScreenSetup) => {
+  const spec = specOf(s);
+  return `${screenClass(s.cls).label}, ${s.orientation === 'landscape' ? LT.landscape : LT.portrait}${allowsTwoLines(s.cls) ? `, ${LT.lines(spec.lines)}` : ''}`;
+};
+
+export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }: Props) {
   const d = DL.layoutsOf(ws, win);
+  /** F-187 Stufe 2: gewählte Einstellung; null = dieses Gerät. */
+  const [dev, setDev] = useState<{ cls: ScreenClassId; orientation: Orientation; lines: Lines } | null>(null);
+  const setup: ScreenSetup = useMemo(() => (dev ? { ...dev, ...(real.win ? { win: real.win } : {}) } : real), [dev, real]);
+  const foreign = !!dev;
+  /** Vorschau beim Ziehen einer Kante (erst beim Loslassen wird gespeichert). */
+  const [live, setLive] = useState<{ tree: T.Node; key: string } | null>(null);
+  const [askAdd, setAskAdd] = useState<'right' | 'bottom' | null>(null);
   const [viewed, setViewed] = useState(d.active);
   const [sel, setSel] = useState<string | null>(null);
   const [swapFrom, setSwapFrom] = useState<string | null>(null);
@@ -78,7 +95,7 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
   const tiles = useRef(new Map<string, HTMLButtonElement>());
   const stdBtn = useRef<HTMLButtonElement>(null);
   /** Ziehen einer Slot-Kachel auf eine andere = Platz tauschen (Maus; Tastatur: „Platz tauschen …“). */
-  const [drag, setDrag] = useState<{ from: string; over: string | null } | null>(null);
+  const [drag, setDrag] = useState<{ from: string; over: string | null; zone: T.Zone; map: boolean } | null>(null);
   const dragged = useRef(false);
   const focusLater = (f: () => void) => window.setTimeout(f, 0);
 
@@ -108,7 +125,77 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
   const taken = (n: string, except?: string) => d.list.some((l) => l.id !== except && l.name === n.trim());
   const std = ops.standard ? DL.layoutView(ws, ops.standard.win, ops.standard.id, setup) : null;
   const stdSlots = std ? std.slots.length : ops.evenCount;
-  const device = `${screenClass(setup.cls).label}, ${setup.orientation === 'landscape' ? 'quer' : 'hoch'}${spec.capacity >= 4 ? `, ${spec.lines === 2 ? '2 Zeilen' : '1 Zeile'}` : ''}`;
+  const device = deviceText(setup);
+  const liveRects = live ? T.rects(live.tree) : null;
+  const rectOf = (s: DL.LayoutSlot) => liveRects?.get(s.id) ?? s.rect;
+  const max = DL.slotsMax(setup);
+
+  /** Gerät wählen: Klasse, Ausrichtung, Reihen; gleich wie dieses Gerät = wieder „dieses Gerät“. */
+  const pickDevice = (next: { cls: ScreenClassId; orientation: Orientation; lines?: Lines }) => {
+    const lines: Lines = next.lines ?? setupFor(ws, next.cls, next.orientation).lines;
+    const fixed = { cls: next.cls, orientation: next.orientation, lines: allowsTwoLines(next.cls) ? lines : (1 as Lines) };
+    const same = fixed.cls === real.cls && fixed.orientation === real.orientation && fixed.lines === specOf(real).lines;
+    setDev(same ? null : fixed);
+    setSel(null);
+    setSwapFrom(null);
+    setAskAdd(null);
+    say(LT.deviceSet(deviceText({ ...fixed }), screenClass(fixed.cls).capacity));
+  };
+  /** Fertigen Baum übernehmen und die neue Lage ansagen. */
+  const applyTree = (next: T.Node, leaf: string, title: string, none: string) => {
+    if (!v.tree || sameTree(next, v.tree)) return say(none);
+    dispatch({ type: 'layoutArrange', win, id: shown.id, setup, op: { kind: 'tree', tree: next } });
+    const r = T.rects(next).get(leaf);
+    if (r) say(arrangeText(title, r));
+  };
+  const addSlot = (side: 'right' | 'bottom', confirmed = false) => {
+    const n = v.slots.length;
+    if (n >= max) return say(LT.maxSlots(max));
+    const more = n >= v.recommended;
+    if (more && !confirmed) {
+      setAskAdd(side);
+      focusLater(() => document.getElementById('lc-add-more')?.focus());
+      return;
+    }
+    setAskAdd(null);
+    dispatch({ type: 'layoutArrange', win, id: shown.id, setup, op: { kind: 'add', side, even: more } });
+    say(more ? LT.addedSlotMore(side) : LT.addedSlot(side));
+    focusLater(() => document.getElementById(side === 'right' ? 'lc-add-right' : 'lc-add-bottom')?.focus());
+  };
+  const evenOut = () => {
+    if (!v.tree || sameTree(T.equalize(v.tree), v.tree)) return say(LT.evenAlready);
+    dispatch({ type: 'layoutArrange', win, id: shown.id, setup, op: { kind: 'even' } });
+    say(LT.evened);
+  };
+  /** F-153 Maus im Layout-Modus: Kante zwischen zwei Slots ziehen = Größe. */
+  const startResize = (e: ReactPointerEvent, leaf: string, title: string, side: 'right' | 'bottom', key: string) => {
+    const base = v.tree;
+    const mapEl = (e.currentTarget as HTMLElement).parentElement;
+    if (!base || !mapEl || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const b = mapEl.getBoundingClientRect();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let last = base;
+    const move = (ev: PointerEvent) => {
+      last = T.resizeEdges(base, leaf, side === 'right' ? { x: 'right', dx: (ev.clientX - x0) / b.width } : { y: 'bottom', dy: (ev.clientY - y0) / b.height }, DEFAULT_MIN);
+      setLive({ tree: last, key });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.body.classList.remove('gesture');
+      document.body.style.cursor = '';
+      setLive(null);
+      if (last !== base) applyTree(last, leaf, title, '');
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    document.body.classList.add('gesture');
+    document.body.style.cursor = side === 'right' ? 'col-resize' : 'row-resize';
+    setLive({ tree: base, key });
+  };
 
   const show = (id: string) => {
     setViewed(id);
@@ -133,6 +220,17 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
       say(LT.swapCancel);
       return;
     }
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.startsWith('Arrow')) {
+      // F-187 Stufe 2: Alt+Pfeil einsetzen, Alt+Umschalt+Pfeil Größe – wie im Radar (F-153).
+      e.preventDefault();
+      e.stopPropagation();
+      const s = v.slots[i];
+      if (!s || !v.tree) return;
+      const { next, none } = arrangeStep(v.tree, s.id, e.key, e.shiftKey, DEFAULT_MIN, s.title);
+      applyTree(next, s.id, s.title, none);
+      focusLater(() => tiles.current.get(s.id)?.focus());
+      return;
+    }
     const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
     if (!step || v.slots.length === 0) return;
     e.preventDefault();
@@ -145,22 +243,43 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
     const y0 = e.clientY;
     let started = false;
     let over: string | null = null;
+    let zone: T.Zone = 'center';
+    let onMap = false;
     dragged.current = false;
     const move = (ev: PointerEvent) => {
       if (!started && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
       started = true;
       dragged.current = true;
       const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
-      const id = el?.closest<HTMLElement>('.lc__tile')?.dataset.id ?? null;
+      const tile = el?.closest<HTMLElement>('.lc__tile');
+      const mapEl = el?.closest<HTMLElement>('.lc__map');
+      const id = tile?.dataset.id ?? null;
       over = id && id !== from ? id : null;
-      setDrag({ from, over });
+      zone = 'center';
+      onMap = false;
+      // Rand der ganzen Karte = an den Rand der Fläche; Rand einer anderen Kachel = dort einsetzen.
+      const edge = mapEl ? nearestSide(ev.clientX, ev.clientY, mapEl.getBoundingClientRect()) : null;
+      if (edge && edge[1] < MAP_BAND_PX) {
+        onMap = true;
+        over = null;
+        zone = edge[0];
+      } else if (over && tile) {
+        const near = nearestSide(ev.clientX, ev.clientY, tile.getBoundingClientRect(), true);
+        if (near[1] < DOCK_BAND) zone = near[0];
+      }
+      setDrag({ from, over, zone, map: onMap });
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       setDrag(null);
-      if (!started || !over) return;
       const a = v.slots.find((s) => s.id === from);
+      if (started && (onMap || (over && zone !== 'center')) && v.tree && a) {
+        applyTree(T.drop(v.tree, from, onMap ? T.AREA : over!, zone), from, a.title, AT.already(a.title));
+        setSel(from);
+        return;
+      }
+      if (!started || !over) return;
       const b = v.slots.find((s) => s.id === over);
       dispatch({ type: 'layoutSlotSwap', win, id: shown.id, setup, a: from, b: over });
       setSel(from);
@@ -206,8 +325,43 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
         <Icon name="layouts" size={15} className="icon icon--inline" />
         <strong>{LT.modeTitle}</strong>
         <span>
-          {LT.device}: {device} · <span title={LT.moreTerm}>{LT.recommended(v.recommended)}</span>
+          {foreign ? LT.previewFor(device) : `${LT.device}: ${device}`} · <span title={LT.moreTerm}>{LT.recommended(v.recommended)}</span>
         </span>
+        {/* F-187 Stufe 2: Gerät wählbar – Anordnung festlegen, ohne das Gerät zu haben */}
+        <div className="lc__device" role="group" aria-label={LT.deviceTerm} title={LT.deviceTerm}>
+          <label>
+            {LT.deviceLabel}
+            <select value={setup.cls} onChange={(e) => pickDevice({ cls: e.target.value as ScreenClassId, orientation: setup.orientation })}>
+              {SCREEN_CLASSES.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                  {c.id === real.cls ? ` · ${LT.device}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {LT.orientLabel}
+            <select value={setup.orientation} onChange={(e) => pickDevice({ cls: setup.cls, orientation: e.target.value as Orientation })}>
+              <option value="landscape">{LT.landscape}</option>
+              <option value="portrait">{LT.portrait}</option>
+            </select>
+          </label>
+          {allowsTwoLines(setup.cls) && (
+            <label title={LT.linesTerm}>
+              {LT.linesLabel}
+              <select value={spec.lines} onChange={(e) => pickDevice({ cls: setup.cls, orientation: setup.orientation, lines: Number(e.target.value) as Lines })}>
+                <option value={1}>{LT.lines(1)}</option>
+                <option value={2}>{LT.lines(2)}</option>
+              </select>
+            </label>
+          )}
+          {foreign && (
+            <button type="button" className="help__run" onClick={() => pickDevice({ cls: real.cls, orientation: real.orientation, lines: specOf(real).lines })}>
+              {LT.thisDevice}
+            </button>
+          )}
+        </div>
       </div>
 
       <ul className="lc__cards" aria-label={LT.title(desk)}>
@@ -286,9 +440,15 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
 
       <div className="lc__body">
         <section className="lc__view" aria-label={`${shown.name}: ${LT.arrangement}`}>
-          <div className="lc__map radar__map" style={{ ['--ar' as string]: ar }}>
+          <div
+            className={`lc__map radar__map${ar < 1 ? ' is-tall' : ''}${foreign ? ' is-foreign' : ''}${drag?.map ? ` is-dock is-dock-${drag.zone}` : ''}`}
+            data-droplabel={AT.dockEdge}
+            style={{ ['--ar' as string]: ar }}
+          >
             {v.slots.map((s, i) => {
-              const cls = ['radar__tile', 'lc__tile', s.id === sel && 'is-sel', s.over && 'is-over', swapFrom === s.id && 'is-from', swapFrom && swapFrom !== s.id && 'is-target', drag?.from === s.id && 'is-from', drag?.over === s.id && 'is-drop'].filter(Boolean).join(' ');
+              const r = rectOf(s);
+              const docking = drag?.over === s.id && drag.zone !== 'center';
+              const cls = ['radar__tile', 'lc__tile', s.id === sel && 'is-sel', s.over && 'is-over', swapFrom === s.id && 'is-from', swapFrom && swapFrom !== s.id && 'is-target', drag?.from === s.id && 'is-from', drag?.over === s.id && !docking && 'is-drop', docking && `is-dock is-dock-${drag!.zone}`].filter(Boolean).join(' ');
               return (
                 <button
                   key={s.id}
@@ -298,7 +458,7 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
                     else tiles.current.delete(s.id);
                   }}
                   className={cls}
-                  style={{ left: `calc(${s.rect.x * 100}% + 2px)`, top: `calc(${s.rect.y * 100}% + 2px)`, width: `calc(${s.rect.w * 100}% - 4px)`, height: `calc(${s.rect.h * 100}% - 4px)` }}
+                  style={{ left: `calc(${r.x * 100}% + 2px)`, top: `calc(${r.y * 100}% + 2px)`, width: `calc(${r.w * 100}% - 4px)`, height: `calc(${r.h * 100}% - 4px)` }}
                   tabIndex={s.id === (sel ?? v.slots[0]?.id) ? 0 : -1}
                   aria-pressed={s.id === sel}
                   aria-label={`${s.title}, ${LT.portalsOf(s.count)}${s.over ? `, ${LT.overMark}` : ''}${swapFrom && swapFrom !== s.id ? `, ${LT.swapHere}` : ''}`}
@@ -314,13 +474,41 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
                   {s.over && <span className="lc__over">{LT.overMark}</span>}
                   {drag?.over === s.id && (
                     <span className="radar__droplabel" aria-hidden="true">
-                      {LT.dropHere}
+                      {docking ? AT.dockHere : LT.dropHere}
                     </span>
                   )}
                 </button>
               );
             })}
+            {/* F-187 Stufe 2: Griffe an den Kanten zwischen Slots (Tastatur: Alt+Umschalt+Pfeil) */}
+            {v.tree &&
+              !drag &&
+              !swapFrom &&
+              v.slots.flatMap((s) => {
+                const r = rectOf(s);
+                return (['right', 'bottom'] as const)
+                  .filter((side) => T.canResize(v.tree, s.id, side))
+                  .map((side) => {
+                    const key = `${s.id}/${side}`;
+                    if (live && live.key !== key) return null;
+                    const style =
+                      side === 'right'
+                        ? { left: `calc(${(r.x + r.w) * 100}% - 4px)`, top: `${r.y * 100}%`, height: `${r.h * 100}%` }
+                        : { top: `calc(${(r.y + r.h) * 100}% - 4px)`, left: `${r.x * 100}%`, width: `${r.w * 100}%` };
+                    return (
+                      <div
+                        key={key}
+                        className={`radar__edge radar__edge--${side === 'right' ? 'v' : 'h'}${live?.key === key ? ' is-on' : ''}`}
+                        style={style}
+                        aria-hidden="true"
+                        title={AT.edgeTitle}
+                        onPointerDown={(e) => startResize(e, s.id, s.title, side, key)}
+                      />
+                    );
+                  });
+              })}
           </div>
+          <p className="lc__keys">{LT.keysHint}</p>
           {swapFrom && (
             <p className="lc__hint" role="status">
               {LT.swapPick(v.slots.find((s) => s.id === swapFrom)?.title ?? '')}{' '}
@@ -366,6 +554,30 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
             <button type="button" className="help__run lc__switch" onClick={() => ops.onSwitch(shown.id)}>
               <Icon name="layouts" size={13} className="icon icon--inline" /> {LT.switchTo}
             </button>
+          )}
+
+          <h4 className="lc__sub">{LT.arrangeHead}</h4>
+          <div className="layouts__tools">
+            <button type="button" id="lc-add-right" className="help__run" aria-disabled={v.slots.length >= max} title={v.slots.length >= max ? LT.maxSlots(max) : undefined} onClick={() => addSlot('right')}>
+              <Icon name="plus" size={13} className="icon icon--inline" /> {LT.addRight}
+            </button>
+            <button type="button" id="lc-add-bottom" className="help__run" aria-disabled={v.slots.length >= max} title={v.slots.length >= max ? LT.maxSlots(max) : undefined} onClick={() => addSlot('bottom')}>
+              <Icon name="plus" size={13} className="icon icon--inline" /> {LT.addBottom}
+            </button>
+            <button type="button" className="help__run" onClick={evenOut}>
+              <Icon name="distribute" size={13} className="icon icon--inline" /> {LT.evenOut}
+            </button>
+          </div>
+          {askAdd && (
+            <div className="layouts__ask" role="alertdialog" aria-labelledby="lc-ask-more">
+              <span id="lc-ask-more">{LT.askMore(v.slots.length, v.recommended, max)}</span>
+              <button type="button" id="lc-add-more" className="help__run" onClick={() => addSlot(askAdd, true)}>
+                {LT.more}
+              </button>
+              <button type="button" className="help__run" onClick={() => { const side = askAdd; setAskAdd(null); focusLater(() => document.getElementById(side === 'right' ? 'lc-add-right' : 'lc-add-bottom')?.focus()); }}>
+                {LT.cancel}
+              </button>
+            </div>
           )}
 
           <h4 className="lc__sub">{selSlot ? LT.slotHead(selSlot.title) : LT.slotNone}</h4>
@@ -439,7 +651,7 @@ export function LayoutCockpit({ ws, win, desk, setup, ops, dispatch, say }: Prop
           ws={ws}
           win={win}
           desk={desk}
-          setup={setup}
+          setup={real}
           ops={ops}
           onClose={() => {
             setStdOpen(false);

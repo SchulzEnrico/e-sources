@@ -42,6 +42,7 @@ export function FocusMeter(props: { focus: Focus; open: boolean; onToggle: () =>
         aria-label={`${text}. Cockpit ${open ? 'schließen' : 'öffnen'}`}
         title={`${text} · Klick: Cockpit – alle Desks und Portale auf einen Blick (Strg/⌘+.)`}
       >
+        <Icon name="cockpit" className="focus-meter__icon" />
         <span className="focus-meter__bars" aria-hidden="true">
           {Array.from({ length: 9 }, (_, i) => (
             <span key={i} className={i < focus.level ? 'is-lit' : undefined} style={{ ['--c' as string]: loadColor(i + 1) }} />

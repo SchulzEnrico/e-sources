@@ -1,4 +1,5 @@
 import { SLOTS_MAX } from './screen';
+import { parseDevView } from './dev';
 /**
  * Aktionen auf der ganzen Arbeitsfläche. Panels und Tabs gelten überall, die Anordnung je
  * Bildschirm-Einstellung (F-03). Jede Area kann mehrere Panels tragen und ist dann ein Stapel
@@ -864,8 +865,24 @@ export function toggleDevPanel(ws: Workspace, id: string): Workspace {
       const keep = { ...(zoom !== undefined ? { zoom } : {}), ...(fit !== undefined ? { fit } : {}) };
       return { ...rest, dev: true, ...(zoom !== undefined || fit !== undefined ? { devKeep: keep } : {}) };
     }
-    const { dev: _drop, devKeep, ...rest } = p; // eslint-disable-line @typescript-eslint/no-unused-vars
+    const { dev: _drop, devKeep, devView: _view, ...rest } = p; // eslint-disable-line @typescript-eslint/no-unused-vars
     return { ...rest, ...(devKeep?.zoom !== undefined && rest.zoom === undefined ? { zoom: devKeep.zoom } : {}), ...(devKeep?.fit !== undefined && rest.fit === undefined ? { fit: devKeep.fit } : {}) };
+  });
+}
+
+/** F-200 Stufe 2: Gerät, Drehen oder Zoom-Test der Entwickler-Leiste ändern (nur im Entwickler-Modus). */
+export function setDevView(ws: Workspace, id: string, change: { device?: string | null; turned?: boolean; scale?: number }): Workspace {
+  return mapPanel(ws, id, (p) => {
+    if (!p.dev) return p;
+    const cur = p.devView ?? {};
+    const next = parseDevView({
+      device: change.device === null ? undefined : (change.device ?? cur.device),
+      // neues Gerät: in seiner üblichen Lage (Drehen nur, wenn ausdrücklich mitgegeben)
+      turned: change.device !== undefined ? (change.turned ?? false) : (change.turned ?? cur.turned),
+      scale: change.scale ?? cur.scale,
+    });
+    const { devView: _old, ...rest } = p; // eslint-disable-line @typescript-eslint/no-unused-vars
+    return next ? { ...rest, devView: next } : rest;
   });
 }
 

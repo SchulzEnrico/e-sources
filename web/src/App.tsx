@@ -1705,6 +1705,8 @@ function DeskApp(props: DeskProps) {
   const zoomPanel = (id: string, z: number) => {
     const meta = ws.panels.find((x) => x.id === id);
     if (!meta) return;
+    // F-200 Stufe 2: im Entwickler-Modus kein freier Zoom (Zoom-Test in der Leiste)
+    if (meta.dev) return sayLive(DEV_TEXT.noZoom(meta.name));
     const w = frameWidth(id);
     const cur = Math.round(shownZoom(meta, w));
     // F-194 Stufe 2: mit „Breite halten“ ändert Zoomen die gemerkte Seitenbreite, der Modus bleibt an
@@ -1969,7 +1971,7 @@ function DeskApp(props: DeskProps) {
           setActive(meta.id);
           sayLive(WEB_TEXT.openedNewTab(hostOf(url)));
         }}
-        onZoom={(z) => zoomPanel(meta.id, z)}
+        onZoom={meta.dev ? undefined : (z) => zoomPanel(meta.id, z)}
         onFit={(on) => fitPanel(meta.id, on)}
         onKeep={() => {
           dispatch({ type: 'keepPanel', id: meta.id });

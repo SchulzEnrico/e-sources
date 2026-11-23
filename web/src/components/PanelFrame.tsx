@@ -1,4 +1,6 @@
-import { DevSize } from './DevSize';
+import { DevBar } from './DevBar';
+import { devFrame, devSizeOf } from '../workspace/dev';
+import { flash } from '../workspace/flash';
 import { TOUR_EVENT } from '../workspace/tour';
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { ZOOM_DEFAULT, ZOOM_STEPS, nearestStep, setFrameWidth, shownZoom, zoomStep, zoomStyle } from '../workspace/zoom';
@@ -12,7 +14,7 @@ import { bookmarkOf, collectionSize, searchAll } from '../workspace/bookmarks';
 import { BookmarkEditor, CollectionDrawer, CollectionIcon, draftFor } from './Bookmarks';
 import { FOCUS_WARN, NEW_AREA, TAB_MAX, rulerShown, activeTab, canGoBack, canGoForward, hostOf, isSelfUrl, loadColor, tabLabel } from '../workspace/workspace';
 import { StackBar, type StackProps, useSwipe } from './StackBar';
-import { Ruler, RulerIcon } from './Ruler';
+import { Ruler } from './Ruler';
 import * as FH from '../workspace/frameHistory';
 import { CATEGORY_TEXT, DEV_TEXT, PAUSE_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT, DIALOG_TEXT } from '../workspace/terms';
 import { looksLikeAddress } from '../workspace/websearch';
@@ -447,13 +449,16 @@ export function PanelFrame(p: Props) {
   // F-194 Stufe 2: Breite des Seitenbereichs messen – mit „Breite halten“ folgt der Zoom ihr
   const body = useRef<HTMLDivElement>(null);
   const [bodyW, setBodyW] = useState(0);
+  const [bodyH, setBodyH] = useState(0);
   useLayoutEffect(() => {
     const el = body.current;
     if (!el) return;
     const measure = () => {
-      const w = Math.round(el.getBoundingClientRect().width);
+      const r = el.getBoundingClientRect();
+      const w = Math.round(r.width);
       setFrameWidth(p.panel.id, w);
       setBodyW(w);
+      setBodyH(Math.round(r.height));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -462,6 +467,14 @@ export function PanelFrame(p: Props) {
   }, [p.panel.id]);
   const zoomExact = shownZoom(p.panel, bodyW);
   const zoomNow = Math.round(zoomExact);
+  // F-200 Stufe 2: Entwickler-Modus – Gerät eingepasst, Zoom-Test statt freiem Zoom
+  const dv = p.panel.dev ? devFrame(p.panel.devView, bodyW, bodyH) : null;
+  const devBox = dv?.device ? { left: Math.round((bodyW - dv.shown.w) / 2), top: Math.round((bodyH - dv.shown.h) / 2), width: dv.shown.w, height: dv.shown.h } : null;
+  const frameStyle: CSSProperties | undefined = dv
+    ? devBox
+      ? { inset: 'auto', left: devBox.left, top: devBox.top, width: dv.page.w, height: dv.page.h, transform: `scale(${dv.scale})`, transformOrigin: '0 0' }
+      : zoomStyle(dv.scale * 100)
+    : zoomStyle(zoomExact);
   // so breit ist die Seite wirklich (bei 50 % ist Schluss – ein sehr schmaler Slot erreicht die gemerkte Breite nicht)
   const pagePx = p.panel.fit && bodyW > 0 ? Math.round((bodyW * 100) / zoomExact) : p.panel.fit;
   const zoomHover = (on: boolean) => {
@@ -668,8 +681,9 @@ export function PanelFrame(p: Props) {
     p.swapTarget && 'win--swap-target',
     p.dragging && 'win--dragging',
     p.hint && 'win--alert',
-    p.tint?.frame && 'win--framed',
-    p.tint?.accent && 'win--tinted',
+    !p.panel.dev && p.tint?.frame && 'win--framed',
+    !p.panel.dev && p.tint?.accent && 'win--tinted',
+    p.panel.dev && 'win--dev',
   ]
     .filter(Boolean)
     .join(' ');
@@ -694,8 +708,8 @@ export function PanelFrame(p: Props) {
         {
           '--load': loadColor(load),
           // F-162: eigene Farben gelten nur in diesem Portal
-          ...(p.tint?.frame ? { '--frame': p.tint.frame } : {}),
-          ...(p.tint?.accent ? { '--accent-rgb': rgbOf(p.tint.accent).join(', ') } : {}),
+          ...(!p.panel.dev && p.tint?.frame ? { '--frame': p.tint.frame } : {}),
+          ...(!p.panel.dev && p.tint?.accent ? { '--accent-rgb': rgbOf(p.tint.accent).join(', ') } : {}),
         } as CSSProperties
       }
     >
@@ -863,17 +877,7 @@ export function PanelFrame(p: Props) {
               {(zoomNow !== ZOOM_DEFAULT || p.panel.fit) && <span className="win__zoomval">{p.panel.fit ? '↔ ' : ''}{zoomNow} %</span>}
             </button>
           )}
-          {/* F-15: Lineal nur für dieses Panel */}
-          <button
-            type="button"
-            className={rulerShown(p.ws, p.panel) ? 'win__ruler win__ruler--on' : 'win__ruler'}
-            onClick={() => p.dispatch({ type: 'rulerPanel', id: p.panel.id })}
-            title={rulerShown(p.ws, p.panel) ? 'Lineal in diesem Portal ausblenden' : 'Lineal in diesem Portal zeigen'}
-            aria-label="Lineal in diesem Portal"
-            aria-pressed={rulerShown(p.ws, p.panel)}
-          >
-            {RulerIcon}
-          </button>
+          {/* F-15: Lineal – in der Kopfzeile nur im Entwickler-Modus (Leiste); sonst über ⋮ und die Suche (F-200 Stufe 2) */}
           <button
             type="button"
             className="win__max"
@@ -1093,6 +1097,36 @@ export function PanelFrame(p: Props) {
             <StackAddIcon color={p.fx?.panel.color} />
           </button>
         </header>
+        {p.panel.dev && dv && (
+          <DevBar
+            view={p.panel.devView}
+            page={dv.page}
+            ruler={rulerShown(p.ws, p.panel)}
+            onView={(change) => {
+              p.dispatch({ type: 'devView', id: p.panel.id, ...change });
+              // Wunsch Enrico (V53): Gerät gewählt oder gedreht → Slot wächst auf das Seitenverhältnis des Geräts
+              if (change.scale !== undefined || p.maximized) return;
+              const cur = p.panel.devView ?? {};
+              const next = change.device === null ? undefined : devSizeOf({ device: change.device ?? cur.device, turned: change.device !== undefined ? false : (change.turned ?? cur.turned) });
+              const sec = body.current?.closest('section');
+              const desk = sec?.closest('main');
+              if (!next || !sec || !desk || !body.current) return;
+              const d = desk.getBoundingClientRect();
+              const r = sec.getBoundingClientRect();
+              const b = body.current.getBoundingClientRect();
+              const dx = r.width - b.width;
+              const dy = r.height - b.height;
+              const fit = Math.min(1, (d.width - dx) / next.w, (d.height - dy) / next.h);
+              if (fit <= 0 || !d.width || !d.height) return;
+              p.onSetSize(Math.min(1, (next.w * fit + dx) / d.width), Math.min(1, (next.h * fit + dy) / d.height));
+            }}
+            onRuler={() => p.dispatch({ type: 'rulerPanel', id: p.panel.id })}
+            onEnd={() => {
+              p.dispatch({ type: 'devPanel', id: p.panel.id });
+              flash({ text: DEV_TEXT.switched(p.panel.name, false) });
+            }}
+          />
+        )}
         {/* F-21, F-22: Tabs unter der Kopfleiste (die Kopfleiste bleibt der Griff zum Verschieben), Ampel an der unteren Kante (F-26) */}
         <div
           className={['tabs', p.stack && 'tabs--stacked', tabsOver && 'tabs--drop'].filter(Boolean).join(' ')}
@@ -1275,7 +1309,7 @@ export function PanelFrame(p: Props) {
                 onLoad={() => FH.loaded(frameKey(t))}
                 className="win__frame"
                 hidden={t.id !== tab.id}
-                style={zoomStyle(zoomExact)}
+                style={frameStyle}
                 src={t.url}
                 title={`${p.panel.name} – ${tabLabel(t)}`}
                 // F-133: Nur die Domain von E-Source geht mit (Standard der Browser). Ohne sie
@@ -1338,7 +1372,7 @@ export function PanelFrame(p: Props) {
               )}
             </>
           ) : null}
-          {p.panel.dev && <DevSize zoom={zoomExact} />}
+          {devBox && <div className="devscreen" style={devBox} aria-hidden="true" />}
           {rulerShown(p.ws, p.panel) && (
             <Ruler
               settings={p.ws.ruler}

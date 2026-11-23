@@ -6,6 +6,8 @@ import { parseTint } from './tint';
 import { PAUSE_CHOICES, SHOWN_CHOICES } from './pause';
 import { ENGINE_DEFAULT, isEngine } from './websearch';
 import { parseProfile } from './profile';
+import { parseDevView } from './dev';
+import { parseActiveCase, parseCases, parseLayoutCases, parseSpaces } from './cases';
 import { type FocusRule, fixRule } from './focus';
 import { RULER_COLORS, RULER_DEFAULT, defaultWorkspace, isArrangement, newId } from './workspace';
 import { demoWorkspace } from './demo';
@@ -82,6 +84,10 @@ function parsePanel(v: unknown): PanelMeta | null {
   if (zoom) panel.zoom = zoom;
   const fit = parseFit(v.fit);
   if (fit) panel.fit = fit;
+  if (panel.dev) {
+    const dv = parseDevView(v.devView);
+    if (dv) panel.devView = dv;
+  }
   if (panel.dev && v.devKeep && typeof v.devKeep === 'object') {
     const k = v.devKeep as Record<string, unknown>;
     const kz = parseZoom(k.zoom);
@@ -209,6 +215,11 @@ export function parseWorkspace(data: unknown): Workspace | null {
   // F-51: Desks früh prüfen, damit Sammlungen von Portalen in gespeicherten Layouts erhalten bleiben
   const winIdsEarly = new Set(namedList(data.windows).map((w) => w.id));
   const deskLayouts = parseDeskLayouts(data.deskLayouts, winIdsEarly);
+  // F-116: Spaces (früher Spheres/areas) und Cases; Cases ohne gültigen Space fallen weg
+  const spheres = parseSpaces(data.spheres ?? data.areas);
+  const scenarios = parseCases(data.scenarios, spheres);
+  const layoutCases = parseLayoutCases(data.layoutCases, scenarios);
+  const activeCase = parseActiveCase(data.activeCase, scenarios);
   const storedIds = Object.values(deskLayouts ?? {}).flatMap((d) => d.list.flatMap((l) => l.saved?.panels.map((p) => p.id) ?? []));
   const bookmarks = bookmarkList(
     data.bookmarks,
@@ -258,8 +269,10 @@ export function parseWorkspace(data: unknown): Workspace | null {
     preferred: arrangements(data.preferred),
     lines,
     nextNumber: isNum(data.nextNumber) ? (data.nextNumber as number) : panels.length + 1,
-    spheres: namedList(data.spheres ?? data.areas),
-    scenarios: namedList(data.scenarios),
+    spheres,
+    scenarios,
+    ...(layoutCases ? { layoutCases } : {}),
+    ...(activeCase ? { activeCase } : {}),
     embed,
     bookmarks,
     categories,

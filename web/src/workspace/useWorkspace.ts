@@ -90,6 +90,7 @@ export type Action =
   | { type: 'rulerPanel'; id: string }
   /** F-200: Entwickler-Modus je Portal */
   | { type: 'devPanel'; id: string }
+  | { type: 'devView'; id: string; device?: string | null; turned?: boolean; scale?: number }
   /** F-06: Portale pausieren. */
   | { type: 'pause'; minutes: number }
   | { type: 'keepPanel'; id: string }
@@ -267,6 +268,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return W.toggleRulerPanel(ws, a.id);
     case 'devPanel':
       return W.toggleDevPanel(ws, a.id);
+    case 'devView':
+      return W.setDevView(ws, a.id, { device: a.device, turned: a.turned, scale: a.scale });
     case 'pause':
       return setPause(ws, a.minutes);
     case 'keepPanel':

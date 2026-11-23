@@ -2637,6 +2637,7 @@ button.is-off:hover,
   background: var(--c);
   box-shadow: 0 0 6px var(--c);
 }
+.focus-meter__icon { display: inline-block; flex: none; opacity: 0.8; }
 .focus-meter__num {
   min-width: 2ch;
   font-variant-numeric: tabular-nums;
@@ -2937,8 +2938,6 @@ button.is-off:hover,
 }
 @media (max-width: 480px) {
   .toolbar .brand-logo { height: 22px; margin-right: 0; }
-  .toolbar .focus-meter__bars,
-  .toolbar .focus-meter__caret { display: none; }
 }
 /* Sehr schmal: Suche nur als Lupe; mit Fokus legt sie sich über die ganze Kopfleiste */
 @media (max-width: 420px) {
@@ -2964,8 +2963,14 @@ button.is-off:hover,
 @media (max-width: 640px) {
   .tb-design { display: none; }
   .tb-center .tb-distribute { display: none; }
-  .toolbar .focus-meter__bars,
+  /* schmal: Equalizer bleibt, nur zierlicher; Pfeil entfällt */
+  .toolbar .focus-meter { gap: 5px; padding: 4px 7px; }
+  .toolbar .focus-meter__bars { gap: 1px; height: 14px; }
+  .toolbar .focus-meter__bars > span { width: 2px; border-radius: 1px; }
   .toolbar .focus-meter__caret { display: none; }
+}
+@media (max-width: 420px) {
+  .toolbar .focus-meter__icon { display: none; }
 }
 .tb-center {
   display: flex;
@@ -5252,6 +5257,7 @@ button.is-off:hover,
 .welcome__mode > span:not(.sr-only) { display: inline-block; padding: 5px 11px; border-radius: 999px; border: 1px solid rgba(var(--tint), 0.35); font-size: 14px; }
 .welcome__mode input:checked + span { background: rgba(var(--tint), 0.22); border-color: var(--strong); color: var(--strong); font-weight: 600; }
 .welcome__mode input:focus-visible + span { outline: 2px solid rgba(var(--tint), 0.9); outline-offset: 2px; }
+.welcome__go.is-pending { font-weight: 600; border-color: var(--strong); box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.6); }
 .welcome__hint { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.4; }
 .welcome__label { font-size: 13px; color: var(--muted); }
 .welcome__field { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
@@ -5274,3 +5280,121 @@ button.is-off:hover,
 .greeting:not(.is-open) { width: fit-content; min-width: min(420px, calc(100vw - 32px)); max-width: min(680px, calc(100vw - 32px)); box-sizing: border-box; }
 .greeting:not(.is-open) .greeting__last, .greeting:not(.is-open) .greeting__invite { width: 0; min-width: 100%; }
 .greeting__title { text-wrap: balance; }
+
+/* ---------- F-200 Stufe 2: Entwickler-Modus – Terminal-Look je Portal, unabhängig vom Design des Desks.
+   Akzent nur Grün oder Weiß: Grün als Standard; ist der Desk selbst „Terminal“, wird das Portal weiß (hell),
+   damit man es vom Rest unterscheidet. Regeln mit :root .win.win--dev, damit sie die Retro-Designs schlagen. */
+:root .win.win--dev {
+  /* sattes, aber nicht grelles Grün (Wunsch Enrico, V53) */
+  --devc: #3ee07a;
+  --devc-rgb: 62, 224, 122;
+  --devc-fill: color-mix(in srgb, var(--devc) 22%, #000000);
+  --term: var(--devc);
+  --text: var(--devc);
+  --strong: var(--devc);
+  --muted: color-mix(in srgb, var(--devc) 78%, #000000);
+  --accent-rgb: var(--devc-rgb);
+  --tint: var(--devc-rgb);
+  --name-accent: var(--devc);
+  --hi: 0, 0, 0;
+  --lo: 0, 0, 0;
+  --btn-a: #000;
+  --btn-b: #000;
+  --well-a: #000;
+  --well-b: #000;
+  --neu-top: #000;
+  --neu-bottom: #000;
+  --line: color-mix(in srgb, var(--devc) 50%, transparent);
+  --edge: none;
+  --raised-sm: none;
+  --pressed: none;
+  --frame: var(--devc);
+  --glow: none;
+  color-scheme: dark;
+  background: #000;
+  color: var(--devc);
+  border: 1px solid color-mix(in srgb, var(--devc) 55%, transparent);
+  border-radius: 0;
+  font-family: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  text-shadow: var(--glow);
+}
+:root[data-theme='terminal'] .win.win--dev {
+  --devc: #e6e6e6;
+  --devc-rgb: 230, 230, 230;
+}
+:root .win.win--dev.win--active { border-color: var(--devc); box-shadow: 0 0 0 1px var(--devc); }
+:root .win.win--dev::before { display: none; }
+:root .win.win--dev .win__bar,
+:root .win.win--dev .tabs,
+:root .win.win--dev .devbar {
+  background: #000;
+  color: var(--devc);
+  border-bottom: 1px solid color-mix(in srgb, var(--devc) 45%, transparent);
+  box-shadow: none;
+}
+:root .win.win--dev .win__bar button,
+:root .win.win--dev .tabs button,
+:root .win.win--dev .devbar button,
+:root .win.win--dev .win__bar input,
+:root .win.win--dev .devbar select,
+:root .win.win--dev .tab {
+  background: #000;
+  color: var(--devc);
+  border: 1px solid color-mix(in srgb, var(--devc) 45%, transparent);
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow: inherit;
+  filter: none;
+}
+:root .win.win--dev .win__bar button:hover:not(:disabled),
+:root .win.win--dev .devbar button:hover:not(:disabled),
+:root .win.win--dev .win__bar button:focus-visible,
+:root .win.win--dev .devbar button:focus-visible,
+:root .win.win--dev .devbar button[aria-pressed='true'] {
+  background: var(--devc-fill);
+  color: var(--devc);
+  border-color: var(--devc);
+}
+:root .win.win--dev .tab[aria-selected='true'] { background: var(--devc-fill); border-color: var(--devc); font-weight: 700; }
+:root .win.win--dev .tab[aria-selected='true'] button { background: transparent; border-color: transparent; }
+:root .win.win--dev :focus-visible { outline: 2px solid var(--devc); outline-offset: 1px; }
+:root .win.win--dev .win__name,
+:root .win.win--dev .win__area { color: var(--devc); }
+:root .win.win--dev .win__body {
+  background: #000 repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px);
+}
+/* Leiste des Entwickler-Modus */
+.devbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  min-width: 0;
+}
+.devbar button { padding: 2px 8px; font-size: 12px; }
+.devbar__field { display: inline-flex; align-items: center; gap: 6px; }
+.devbar__field select { font-size: 12px; padding: 2px 6px; max-width: 22ch; }
+.devbar__scales { display: inline-flex; align-items: center; gap: 0; margin: 0; padding: 0; border: 0; }
+.devbar__scales legend { float: left; margin-right: 6px; padding: 0; }
+.devbar__scale { position: relative; cursor: pointer; }
+.devbar__scale input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.devbar__scale span { display: inline-block; padding: 2px 7px; border: 1px solid color-mix(in srgb, var(--devc, currentColor) 45%, transparent); margin-left: -1px; }
+.devbar__scale input:checked + span { background: var(--devc-fill, transparent); border-color: var(--devc, currentColor); position: relative; font-weight: 700; }
+.devbar__scale input:focus-visible + span { outline: 2px solid var(--devc, currentColor); outline-offset: 1px; }
+.devbar__size { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.devbar__cls { opacity: 0.85; }
+.devbar__end { margin-left: auto; display: inline-flex; gap: 4px; }
+/* Umriss des Geräts im Slot */
+.devscreen {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow: 0 0 0 1px var(--devc, currentColor);
+}
+@media (forced-colors: active) {
+  .devbar__scale input:checked + span { background: Highlight; color: HighlightText; }
+  .devscreen { box-shadow: none; outline: 2px solid CanvasText; }
+}

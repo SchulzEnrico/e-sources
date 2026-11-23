@@ -40,6 +40,7 @@ import * as Dis from './display';
 import * as Jp from './jackpot';
 import * as Ar from './arrange';
 import * as Dv from './dev';
+import * as Cs from './cases';
 import * as Pa from './pause';
 import * as Web from './websearch';
 import * as Snd from './send';
@@ -653,7 +654,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const withAreas: Workspace = {
       ...ws,
       spheres: [{ id: 'privat', name: 'Privat' }],
-      scenarios: [{ id: 'recherche', name: 'Recherche' }],
+      scenarios: [{ id: 'recherche', name: 'Recherche', space: 'privat' }],
       panels: ws.panels.map((p, i) => (i === 0 ? { ...p, sphere: 'privat', scenario: 'recherche' } : p)),
     };
     const back = parseWorkspace(JSON.parse(JSON.stringify(withAreas)))!;
@@ -1085,7 +1086,8 @@ describe('F-141 Suche nach Panels', () => {
     const [p1, p2] = ws.panels;
     ws = {
       ...ws,
-      scenarios: [{ id: 's1', name: 'Bewerbung' }],
+      spheres: [{ id: 'job', name: 'Beruf' }],
+      scenarios: [{ id: 's1', name: 'Bewerbung', space: 'job' }],
       panels: ws.panels.map((p) =>
         p.id === p1.id ? { ...p, name: 'Wissen', scenario: 's1' } : p.id === p2.id ? { ...p, name: 'Video', tabs: [{ id: 't', url: 'https://wissen.de/' }], activeTab: 't' } : p,
       ),
@@ -3256,6 +3258,111 @@ describe('F-200 Entwickler-Modus', () => {
     expect(ws.panels[0].zoom).toBe(80);
     expect(ws.panels[0].fit).toBe(1280);
     expect(ws.panels[0].devKeep).toBeUndefined();
+  });
+});
+
+describe('F-200 Stufe 2 Werkbank', () => {
+  it('Gerät eingepasst, Drehen tauscht, Zoom-Test teilt die Seitengröße', () => {
+    // Smartphone 390 × 844 in einem Slot 600 × 600: ganz eingepasst (Höhe begrenzt)
+    const a = Dv.devFrame({ device: 'phone' }, 600, 600);
+    expect(a.page).toEqual({ w: 390, h: 844 });
+    expect(a.shown.h).toBe(600);
+    expect(a.device).toBe(true);
+    // gedreht: 844 × 390
+    expect(Dv.devFrame({ device: 'phone', turned: true }, 600, 600).page).toEqual({ w: 844, h: 390 });
+    // Laptop bei 400 %: Seite sieht 320 × 200 (Reflow-Test), gezeigt wird gleich groß wie bei 100 %
+    const r = Dv.devFrame({ device: 'laptop', scale: 400 }, 1280, 800);
+    expect(r.page).toEqual({ w: 320, h: 200 });
+    expect(r.shown).toEqual({ w: 1280, h: 800 });
+    expect(r.scale).toBe(4);
+    // ohne Gerät: Slot frei, Zoom-Test 200 % halbiert die Seite
+    expect(Dv.devFrame({ scale: 200 }, 1000, 600).page).toEqual({ w: 500, h: 300 });
+    expect(Dv.devFrame(undefined, 1000, 600).scale).toBe(1);
+  });
+  it('setDevView nur im Entwickler-Modus, gespeichert und beim Ausschalten weg', () => {
+    let ws = W.defaultWorkspace();
+    const id = ws.panels[0].id;
+    expect(W.setDevView(ws, id, { device: 'tablet' }).panels[0].devView).toBeUndefined();
+    ws = W.toggleDevPanel(ws, id);
+    ws = W.setDevView(ws, id, { device: 'tablet' });
+    ws = W.setDevView(ws, id, { turned: true, scale: 200 });
+    expect(ws.panels[0].devView).toEqual({ device: 'tablet', turned: true, scale: 200 });
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))?.panels[0].devView).toEqual({ device: 'tablet', turned: true, scale: 200 });
+    // „Slot frei“ nimmt Gerät und Drehen weg, Zoom-Test bleibt
+    ws = W.setDevView(ws, id, { device: null });
+    expect(ws.panels[0].devView).toEqual({ scale: 200 });
+    ws = W.setDevView(ws, id, { scale: 100 });
+    expect(ws.panels[0].devView).toBeUndefined();
+    expect(Dv.parseDevView({ device: 'toaster', scale: 300 })).toBeUndefined();
+    ws = W.setDevView(W.toggleDevPanel(W.toggleDevPanel(ws, id), id), id, { device: 'phone' });
+    ws = W.toggleDevPanel(ws, id);
+    expect(ws.panels[0].devView).toBeUndefined();
+  });
+});
+
+describe('F-116 Spaces und Cases (Stufe 1)', () => {
+  let n = 0;
+  const id = () => `id${++n}`;
+  it('anlegen, umbenennen, Farbe; doppelte Namen bekommen eine Nummer; speichern', () => {
+    let ws = W.defaultWorkspace();
+    const a = Cs.addSpace(ws, '  Firma ', id, '#64a970');
+    ws = a.ws;
+    ws = Cs.addSpace(ws, 'Firma', id).ws;
+    expect(ws.spheres.map((s) => s.name)).toEqual(['Firma', 'Firma 2']);
+    const c = Cs.addCase(ws, a.id!, 'Kunde XY', id);
+    ws = c.ws;
+    expect(Cs.addCase(ws, 'gibtsnicht', 'X', id).id).toBeNull();
+    ws = Cs.editCase(ws, c.id!, { name: 'Kunde Z', color: '#66afe1' });
+    ws = Cs.editSpace(ws, a.id!, { color: null, name: 'Arbeit' });
+    expect(ws.scenarios[0]).toEqual({ id: c.id, name: 'Kunde Z', space: a.id, color: '#66afe1' });
+    expect(ws.spheres[0]).toEqual({ id: a.id, name: 'Arbeit' });
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(back.spheres).toEqual(ws.spheres);
+    expect(back.scenarios).toEqual(ws.scenarios);
+  });
+  it('Layouts zuordnen, Case wählen: genau eins wird gesetzt, mehrere angeboten', () => {
+    let ws = W.defaultWorkspace();
+    const sp = Cs.addSpace(ws, 'Privat', id);
+    ws = sp.ws;
+    const ca = Cs.addCase(ws, sp.id!, 'Urlaub', id);
+    ws = ca.ws;
+    const first = DL.activeLayout(ws).id;
+    ws = DL.addLayout(ws, '', LAPTOP2, 'even', 'Reise');
+    const reise = DL.activeLayout(ws).id;
+    expect(reise).not.toBe(first);
+    ws = DL.switchLayout(ws, '', first);
+    ws = Cs.setLayoutCase(ws, '', reise, ca.id!, true);
+    expect(Cs.casesOfLayout(ws, '', reise).map((c) => c.name)).toEqual(['Urlaub']);
+    let r = Cs.pickCase(ws, '', ca.id!);
+    expect(r.switched?.id).toBe(reise);
+    expect(DL.activeLayout(r.ws).id).toBe(reise);
+    expect(Cs.activeCaseOf(r.ws, '')?.name).toBe('Urlaub');
+    // gespeichert (Zuordnung hängt nicht am Layout-Eintrag, übersteht den Wechsel)
+    const back = parseWorkspace(JSON.parse(JSON.stringify(r.ws)))!;
+    expect(back.layoutCases).toEqual({ [`|${reise}`]: [ca.id] });
+    expect(back.activeCase).toEqual({ '': ca.id });
+    // zweites Layout dazu: nur noch Angebot, kein Wechsel
+    ws = Cs.setLayoutCase(r.ws, '', first, ca.id!, true);
+    r = Cs.pickCase(ws, '', ca.id!);
+    expect(r.switched).toBeNull();
+    expect(r.offer.map((l) => l.id)).toEqual([first, reise]);
+    // abwählen
+    expect(Cs.pickCase(r.ws, '', null).ws.activeCase).toBeUndefined();
+  });
+  it('Löschen räumt auf: Case aus Zuordnung und Auswahl, Space samt Cases', () => {
+    let ws = W.defaultWorkspace();
+    const sp = Cs.addSpace(ws, 'Schule', id);
+    ws = sp.ws;
+    const ca = Cs.addCase(ws, sp.id!, 'Abi', id);
+    ws = Cs.setLayoutCase(ca.ws, '', DL.activeLayout(ca.ws).id, ca.id!, true);
+    ws = Cs.pickCase(ws, '', ca.id!).ws;
+    ws = Cs.deleteSpace(ws, sp.id!);
+    expect(ws.spheres).toHaveLength(0);
+    expect(ws.scenarios).toHaveLength(0);
+    expect(ws.layoutCases).toBeUndefined();
+    expect(ws.activeCase).toBeUndefined();
+    // Case ohne Space fällt beim Laden weg
+    expect(parseWorkspace({ ...JSON.parse(JSON.stringify(ws)), scenarios: [{ id: 'x', name: 'X', space: 'weg' }] })!.scenarios).toHaveLength(0);
   });
 });
 

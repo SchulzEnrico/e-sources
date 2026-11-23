@@ -61,6 +61,26 @@ export interface PanelMeta {
   dev?: boolean;
   /** F-200 (Entscheidung Enrico V52): Zoom und „Breite halten“ vor dem Entwickler-Modus – kommen beim Ausschalten zurück */
   devKeep?: { zoom?: number; fit?: number };
+  /** F-200 Stufe 2: Werkbank – Gerät (Id aus DEV_DEVICES, fehlt = Slot frei), gedreht, Zoom-Test (fehlt = 100). */
+  devView?: DevView;
+}
+
+/** F-200 Stufe 2: Einstellung der Entwickler-Leiste eines Portals. */
+export interface DevView {
+  device?: string;
+  turned?: boolean;
+  scale?: number;
+}
+
+/** F-116: Space – Lebensbereich mit Name und Farbe. */
+export interface Space extends Named {
+  color?: string;
+}
+
+/** F-116: Case – Fall in genau einem Space. */
+export interface Case extends Named {
+  color?: string;
+  space: string;
 }
 
 /** F-162: Rahmen- und Akzentfarbe (#rrggbb); was fehlt, erbt. */
@@ -169,10 +189,14 @@ export interface Workspace {
   lines: Record<string, 1 | 2>;
   /** Laufende Nummer für den Standardnamen neuer Panels. */
   nextNumber: number;
-  /** F-116 (vorbereitet): Spheres (Privat, Geschäftlich, Schule …). */
-  spheres: Named[];
-  /** F-116 (vorbereitet): Szenarien. */
-  scenarios: Named[];
+  /** F-116: Spaces (Privat, Firma, Schule …); im Code weiter „spheres“. */
+  spheres: Space[];
+  /** F-116: Cases, je genau einem Space zugeordnet; im Code weiter „scenarios“. */
+  scenarios: Case[];
+  /** F-116/F-53 Stufe 1: Layout → Cases (Schlüssel „Desk|Layout“, Desk '' = Main Desk). */
+  layoutCases?: Record<string, string[]>;
+  /** F-116: gewählter Case je Desk. */
+  activeCase?: Record<string, string>;
   /**
    * F-43: eigene Wahl je Domain, ob sie sich einbetten lässt (true) oder gesperrt ist (false).
    * Geht vor der eingebauten Liste bekannter Sperr-Seiten.

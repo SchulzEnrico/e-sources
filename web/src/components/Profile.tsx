@@ -122,8 +122,8 @@ export function ProfileDialog({ profile, onChange, onRestored, onClose }: Props)
           name={name}
           pending={pending}
           onApply={() => {
-            onChange({ welcome: draft });
-            flash({ text: W.applied(welcomeText(draft, new Date(), name)) });
+            if (pending) onChange({ welcome: draft });
+            flash({ text: (pending ? W.applied : W.unchanged)(welcomeText(draft, new Date(), name)) });
           }}
         />
       </div>
@@ -265,8 +265,8 @@ function WelcomePick({ draft, setDraft, name, pending, onApply }: { draft: Welco
       </div>
       <div className="welcome__apply">
         {pending && <span className="welcome__hint">{W.pending}</span>}
-        <button type="button" onClick={onApply} disabled={!pending} title={W.applyTitle}>
-          {pending ? W.apply : W.unchanged}
+        <button type="button" className={pending ? 'welcome__go is-pending' : 'welcome__go'} onClick={onApply} title={W.applyTitle}>
+          {W.apply}
         </button>
       </div>
     </fieldset>

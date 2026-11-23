@@ -716,6 +716,20 @@ button.is-off:hover,
   opacity: 0.55;
   cursor: not-allowed;
 }
+/* V49: kurze Erklärung unter einem Menüeintrag (Item hint) */
+.menu__hint {
+  display: block;
+  font-size: 0.8em;
+  line-height: 1.3;
+  color: var(--muted);
+  margin: 1px 0 1px 0;
+  white-space: normal;
+}
+.menu__list button.has-hint { max-width: 300px; }
+.menu__list button.is-icon .menu__hint { margin-left: 24px; }
+.menu__list button.is-check .menu__hint { margin-left: calc(1.2em + 4px); }
+.menu__list button.is-check.is-icon .menu__hint { margin-left: calc(1.2em + 4px + 24px); }
+@media (forced-colors: active) { .menu__hint { color: CanvasText; } }
 
 /* ---------- Maximiert und Splitscreen */
 .maximized,
@@ -5073,3 +5087,84 @@ button.is-off:hover,
     stroke: Highlight;
   }
 }
+
+/* F-202 Stufe 2: Mehrfachauswahl in der Library */
+.bm-select-mode {
+  align-self: flex-start;
+}
+.bm-select-mode[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.8);
+  background: rgba(var(--accent-rgb), 0.16);
+}
+.bm-pickbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(var(--accent-rgb), 0.5);
+  border-radius: 10px;
+  background: rgba(var(--glass), 0.96);
+}
+.bm-pickbar__count {
+  margin: 0;
+  font-weight: 600;
+  font-size: 13px;
+}
+.bm-pickbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bm-pickbar__actions button {
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.bm-pickbar .bm-hint {
+  margin: 0;
+}
+.bm-pick {
+  flex: none;
+  margin: 0 4px 0 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.bm-keep {
+  display: inline-flex;
+  margin-left: 5px;
+  vertical-align: -2px;
+}
+.bm-keep-icon {
+  display: inline-block;
+}
+/* wie am Tab: Kreis und Querstrich rot */
+.bm-keep-icon path:first-child,
+.bm-keep-icon path:last-child {
+  stroke: var(--keep-red, #ff4d4d);
+}
+:root[data-theme='light'] .bm-keep-icon path:first-child,
+:root[data-theme='light'] .bm-keep-icon path:last-child {
+  stroke: var(--keep-red-light, #c8201a);
+}
+@media (forced-colors: active) {
+  .bm-keep-icon path { stroke: CanvasText; }
+  .bm-select-mode[aria-pressed='true'] { outline: 2px solid Highlight; }
+}
+
+/* F-202 Stufe 3: Modus „Sources“ im Cockpit */
+.srcc { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; min-height: 0; overflow-y: auto; }
+.srcc__intro { margin: 0; font-size: 13px; color: var(--muted); }
+.overview .srcc__filter { align-self: flex-start; width: min(420px, 100%); max-width: none; }
+.srcc__groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px 16px; }
+.srcc__cat { margin: 4px 0 2px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.srcc__list { list-style: none; margin: 0; padding: 0; }
+.srcc__row { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 6px; cursor: pointer; font-size: 13px; min-width: 0; }
+.srcc__row:hover { background: rgba(var(--tint), 0.12); }
+.srcc__row:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.srcc__row:has(input:checked) { background: rgba(var(--accent-rgb), 0.14); }
+.srcc__title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srcc__host { flex: 0 1 auto; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40%; }
+@media (forced-colors: active) { .srcc__row:has(input:checked) { outline: 1px solid Highlight; } }

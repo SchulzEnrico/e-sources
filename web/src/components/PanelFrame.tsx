@@ -344,12 +344,14 @@ export function Menu(props: { icon: ReactNode; label: string; children: (close: 
   );
 }
 
-export function Item(props: { onClick: () => void; children: ReactNode; disabled?: boolean; title?: string; checked?: boolean; icon?: IconName }) {
+export function Item(props: { onClick: () => void; children: ReactNode; disabled?: boolean; title?: string; checked?: boolean; icon?: IconName; hint?: string }) {
   // checked gesetzt = Schalter (menuitemcheckbox), Häkchen sichtbar und angesagt
   const check = props.checked !== undefined;
+  // V49: hint = kurze sichtbare Erklärung unter dem Eintrag, als Beschreibung angesagt (NF-03)
+  const hintId = useId();
   return (
     <li>
-      <button type="button" role={check ? 'menuitemcheckbox' : 'menuitem'} aria-checked={check ? props.checked : undefined} onClick={props.onClick} disabled={props.disabled} title={props.title}>
+      <button type="button" className={props.hint ? `has-hint${check ? ' is-check' : ''}${props.icon ? ' is-icon' : ''}` : undefined} role={check ? 'menuitemcheckbox' : 'menuitem'} aria-checked={check ? props.checked : undefined} aria-describedby={props.hint ? hintId : undefined} onClick={props.onClick} disabled={props.disabled} title={props.title}>
         {check && (
           <span className="menu__check" aria-hidden="true">
             {props.checked ? '✓' : ''}
@@ -357,6 +359,11 @@ export function Item(props: { onClick: () => void; children: ReactNode; disabled
         )}
         {props.icon && <Icon name={props.icon} className="icon menu__icon" />}
         {props.children}
+        {props.hint && (
+          <span className="menu__hint" id={hintId}>
+            {props.hint}
+          </span>
+        )}
       </button>
     </li>
   );
@@ -1153,27 +1160,27 @@ export function PanelFrame(p: Props) {
                           <>
                             <MenuHead>{PAUSE_TEXT.tabMenu(tabLabel(t), state)}</MenuHead>
                             {p.onKeepTab && (
-                              <Item icon="keep" checked={!!t.keep || !!p.panel.keep} disabled={!!p.panel.keep} title={PAUSE_TEXT.keepTabTitle} onClick={run(() => p.onKeepTab?.(t.id))}>
+                              <Item icon="keep" checked={!!t.keep || !!p.panel.keep} disabled={!!p.panel.keep} title={PAUSE_TEXT.keepTabTitle} hint={p.panel.keep ? PAUSE_TEXT.hintTabByPortal : PAUSE_TEXT.hintTab} onClick={run(() => p.onKeepTab?.(t.id))}>
                                 {PAUSE_TEXT.keepTabMenu}
                               </Item>
                             )}
                             {p.onKeepSource && (
-                              <Item icon="source" checked={!!src?.keep} disabled={!src} title={src ? PAUSE_TEXT.sourceKeepHint : PAUSE_TEXT.sourceNone} onClick={run(() => src && p.onKeepSource?.(src.id, !src.keep))}>
+                              <Item icon="source" checked={!!src?.keep} disabled={!src} title={src ? PAUSE_TEXT.sourceKeepHint : PAUSE_TEXT.sourceNone} hint={src ? PAUSE_TEXT.hintSource : PAUSE_TEXT.hintSourceNone} onClick={run(() => src && p.onKeepSource?.(src.id, !src.keep))}>
                                 {src ? PAUSE_TEXT.sourceKeepMenu : PAUSE_TEXT.sourceKeepMenuNone}
                               </Item>
                             )}
                             {p.onKeep && (
-                              <Item icon="portal" checked={!!p.panel.keep} title={PAUSE_TEXT.keepTitle} onClick={run(p.onKeep)}>
+                              <Item icon="portal" checked={!!p.panel.keep} title={PAUSE_TEXT.keepTitle} hint={PAUSE_TEXT.hintPortal} onClick={run(p.onKeep)}>
                                 {PAUSE_TEXT.keepPanelMenu}
                               </Item>
                             )}
                             {t.id === tab.id && p.onPauseNow && (
-                              <Item icon="pause" disabled={kept} title={kept ? PAUSE_TEXT.pauseNowKept : PAUSE_TEXT.pauseNowTitle} onClick={run(p.onPauseNow)}>
+                              <Item icon="pause" disabled={kept} title={kept ? PAUSE_TEXT.pauseNowKept : PAUSE_TEXT.pauseNowTitle} hint={kept ? PAUSE_TEXT.hintPauseNowKept : PAUSE_TEXT.hintPauseNow} onClick={run(p.onPauseNow)}>
                                 {PAUSE_TEXT.pauseNow}
                               </Item>
                             )}
                             {p.onPauseSettings && (
-                              <Item icon="settings" onClick={run(p.onPauseSettings)}>
+                              <Item icon="settings" hint={PAUSE_TEXT.hintSettings} onClick={run(p.onPauseSettings)}>
                                 {PAUSE_TEXT.settingsMenu}
                               </Item>
                             )}

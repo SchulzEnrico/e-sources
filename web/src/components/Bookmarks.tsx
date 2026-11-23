@@ -1,7 +1,7 @@
 import { Icon } from './Icon';
 import { SiteIcon, useDisplay } from './SiteIcon';
 import { categoryIcon } from '../workspace/icons';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { Bookmark, Workspace } from '../workspace/types';
 import { NO_CATEGORY, categoryByName, collectionSize, groups, originOf, originText } from '../workspace/bookmarks';
@@ -221,6 +221,9 @@ export function CollectionDrawer(props: {
   /** Wohin die gezogene Kategorie fällt: vor oder hinter diese Kategorie. */
   const [catDrop, setCatDrop] = useState<{ id: string; after: boolean } | null>(null);
   const [announce, setAnnounce] = useState('');
+  // F-202 Stufe 2: Mehrfachauswahl (Haken je Source), z. B. „Ausgewählte nie pausieren“
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const catCount = ws.categories.length;
   const moveCat = (id: string, to: number) => {
     const target = Math.max(0, Math.min(catCount - 1, to));
@@ -232,6 +235,8 @@ export function CollectionDrawer(props: {
   const display = useDisplay();
   const [catSaid, setCatSaid] = useState('');
   const total = list.reduce((n, g) => n + g.items.length, 0);
+  const shownIds = list.flatMap((g) => g.items.map((b) => b.id));
+  const togglePick = (id: string) => setPicked((old) => togglePicked(old, id));
 
   const endDrag = () => {
     setDrag(null);
@@ -298,6 +303,20 @@ export function CollectionDrawer(props: {
           </button>
         </div>
         <input className="bm-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Suchen: Titel, Adresse, Kategorie, #Tag" aria-label="Library durchsuchen" />
+        {ws.bookmarks.length > 0 && (
+          <button
+            type="button"
+            className="bm-select-mode"
+            aria-pressed={selecting}
+            title={PAUSE_TEXT.selectModeTitle}
+            onClick={() => {
+              setSelecting((v) => !v);
+              setPicked(new Set());
+            }}
+          >
+            <Icon name="check" className="icon icon--inline" /> {PAUSE_TEXT.selectMode}
+          </button>
+        )}
         {props.onSaveCurrent && (
           <button type="button" className="bm-save-current" onClick={props.onSaveCurrent}>
             <Icon name={props.saved ? 'starOn' : 'star'} className="icon icon--inline" /> {props.saved ? 'Diese Source bearbeiten' : 'Diese Source speichern'}
@@ -307,6 +326,7 @@ export function CollectionDrawer(props: {
       <p className="sr-only" role="status" aria-live="polite">
         {announce}
       </p>
+      {selecting && <PickBar ws={ws} shownIds={shownIds} picked={picked} setPicked={setPicked} dispatch={props.dispatch} />}
       {total === 0 && list.length === 0 && (
         <p className="bm-hint">
           {query ? 'Nichts gefunden.' : scope === 'panel' ? 'Diesem Portal ist noch keine Source zugeordnet. Unter „Alle“ steht die ganze Library.' : 'Die Library ist noch leer. Mit dem Stern in der Adresszeile speicherst du die aktuelle Source.'}
@@ -468,10 +488,12 @@ export function CollectionDrawer(props: {
                     <span className="bm-grip" aria-hidden="true">
                       ⋮⋮
                     </span>
+                    {selecting && <input type="checkbox" className="bm-pick" checked={picked.has(b.id)} onChange={() => togglePick(b.id)} aria-label={PAUSE_TEXT.selectItem(b.title)} />}
                     <button type="button" className="bm-open" onClick={() => props.onOpen(b.url)} title={`${b.url}${b.note ? `\n${b.note}` : ''}`}>
                       <span className="bm-title">
                         <SiteIcon url={b.url} on={display.favicons} />
                         {b.title}
+                        {b.keep && <KeepBadge />}
                       </span>
                       <span className="bm-host">
                         {hostOf(b.url)}
@@ -500,5 +522,77 @@ export function CollectionDrawer(props: {
         );
       })}
     </Drawer>
+  );
+}
+
+/** F-202 Stufe 2/3: eine Source in der Auswahl an- oder abwählen. */
+export function togglePicked(old: Set<string>, id: string): Set<string> {
+  const next = new Set(old);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  return next;
+}
+
+/**
+ * F-202 Stufe 2/3: Leiste der Mehrfachauswahl (Library und Cockpit) – „Alle angezeigten wählen“
+ * (mit Zwischenzustand), Anzahl gewählt als Ansage, „Ausgewählte nie pausieren“ / „… wieder pausieren“.
+ */
+export function PickBar(props: { ws: Workspace; shownIds: string[]; picked: Set<string>; setPicked: (s: Set<string>) => void; dispatch: (a: Action) => void }) {
+  const { ws, shownIds, picked } = props;
+  // Meldung gilt nur für die Auswahl, bei der sie entstand; jede neue Auswahl zeigt wieder die Anzahl
+  const [said, setSaid] = useState<{ text: string; for: Set<string> } | null>(null);
+  const allBox = useRef<HTMLInputElement>(null);
+  const hintId = useId();
+  // Nur, was noch existiert, zählt als gewählt (gelöschte Sources fallen heraus)
+  const pickedIds = ws.bookmarks.filter((b) => picked.has(b.id)).map((b) => b.id);
+  const shownPicked = shownIds.filter((id) => picked.has(id)).length;
+  useEffect(() => {
+    if (allBox.current) allBox.current.indeterminate = shownPicked > 0 && shownPicked < shownIds.length;
+  });
+  const pickAll = (on: boolean) => {
+    const next = new Set(picked);
+    for (const id of shownIds) if (on) next.add(id);
+    else next.delete(id);
+    props.setPicked(next);
+  };
+  const keep = (on: boolean) => {
+    if (pickedIds.length === 0) return;
+    props.dispatch({ type: 'keepSources', ids: pickedIds, keep: on });
+    setSaid({ text: PAUSE_TEXT.selectedKept(pickedIds.length, on), for: picked });
+  };
+  return (
+    <div className="bm-pickbar" role="group" aria-label={PAUSE_TEXT.selectMode}>
+      <label className="bm-check bm-pickbar__all">
+        <input ref={allBox} type="checkbox" checked={shownIds.length > 0 && shownPicked === shownIds.length} disabled={shownIds.length === 0} onChange={(e) => pickAll(e.target.checked)} />
+        {PAUSE_TEXT.selectAll}
+      </label>
+      <p className="bm-pickbar__count" role="status" aria-live="polite">
+        {said?.for === picked ? said.text : PAUSE_TEXT.selected(pickedIds.length)}
+      </p>
+      <div className="bm-pickbar__actions">
+        <button type="button" disabled={pickedIds.length === 0} onClick={() => keep(true)} aria-describedby={hintId}>
+          <Icon name="keep" className="icon icon--inline bm-keep-icon" /> {PAUSE_TEXT.keepSelected}
+        </button>
+        <button type="button" disabled={pickedIds.length === 0} onClick={() => keep(false)}>
+          <Icon name="pause" className="icon icon--inline" /> {PAUSE_TEXT.unkeepSelected}
+        </button>
+        <button type="button" disabled={pickedIds.length === 0} onClick={() => props.setPicked(new Set())}>
+          {PAUSE_TEXT.clearSelection}
+        </button>
+      </div>
+      <p className="bm-hint" id={hintId}>
+        {PAUSE_TEXT.selectHint}
+      </p>
+    </div>
+  );
+}
+
+/** F-202: rot durchgestrichenes Pause-Zeichen hinter dem Namen einer Source, die nie pausiert. */
+export function KeepBadge() {
+  return (
+    <span className="bm-keep" title={PAUSE_TEXT.sourceKeepHint}>
+      <Icon name="keep" size={12} className="icon bm-keep-icon" />
+      <span className="sr-only">({PAUSE_TEXT.keptBadge})</span>
+    </span>
   );
 }

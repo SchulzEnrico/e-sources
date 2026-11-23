@@ -1,3 +1,4 @@
+import { SourceCockpit } from './SourceCockpit';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import type { Slot, Workspace } from '../workspace/types';
 import { type Focus, type RadarWindow, arrangeText, focusText, pointsText, radarMatches, radarOf } from '../workspace/focus';
@@ -218,11 +219,17 @@ export function Overview(p: OverviewProps) {
   const rulesBtn = useRef<HTMLButtonElement>(null);
   /** F-187: Modus „Layouts“ statt Portale. */
   const [layouts, setLayouts] = useState(!!p.startLayouts && !!p.layoutOps && !!p.dispatch);
+  /** F-202 Stufe 3: Modus „Sources“ (Mehrfachauswahl aller Sources). */
+  const [sources, setSources] = useState(false);
   const modeBtns = useRef<(HTMLButtonElement | null)[]>([]);
-  const setMode = (on: boolean) => {
-    setLayouts(on);
-    if (on) setRules(false);
-    setSaid(on ? DESK_LAYOUT_TEXT.modeOn : '');
+  type Mode = 'portals' | 'layouts' | 'sources';
+  const mode: Mode = layouts ? 'layouts' : sources ? 'sources' : 'portals';
+  const modes: Mode[] = ['portals', ...(p.layoutOps ? (['layouts'] as Mode[]) : []), 'sources'];
+  const setMode = (m: Mode) => {
+    setLayouts(m === 'layouts');
+    setSources(m === 'sources');
+    if (m !== 'portals') setRules(false);
+    setSaid(m === 'layouts' ? DESK_LAYOUT_TEXT.modeOn : m === 'sources' ? DESK_LAYOUT_TEXT.modeSourcesOn : '');
   };
   /** F-28: Panel (oder ganze Area), für das gerade ein Ziel gewählt wird. */
   const [moving, setMoving] = useState<{ id: string; whole: boolean } | null>(null);
@@ -787,7 +794,7 @@ export function Overview(p: OverviewProps) {
       <div
         id="overview"
         ref={box}
-        className={layouts ? 'overview is-layouts' : 'overview'}
+        className={layouts ? 'overview is-layouts' : sources ? 'overview is-sources' : 'overview'}
         role="dialog"
         aria-label="Cockpit: alle Portale auf einen Blick"
         aria-describedby="overview-help"
@@ -801,8 +808,8 @@ export function Overview(p: OverviewProps) {
           if (e.key === 'Escape') {
             e.stopPropagation();
             // F-187: Esc führt aus den Layout-Einstellungen erst zurück zu den Portalen.
-            if (layouts) {
-              setMode(false);
+            if (layouts || sources) {
+              setMode('portals');
               window.setTimeout(() => modeBtns.current[0]?.focus(), 0);
             } else dismiss();
           }
@@ -813,30 +820,32 @@ export function Overview(p: OverviewProps) {
           <span className="overview__focus">{focusText(p.focus)}</span>
           <span className="overview__focus">{p.info}</span>
           <span className="grow" />
-          {/* F-187: Umschalter Portale | Layouts (Pfeiltasten wechseln) */}
-          {p.layoutOps && p.dispatch && (
+          {/* F-187/F-202: Umschalter Portale | Layouts | Sources (Pfeiltasten wechseln) */}
+          {p.dispatch && (
             <div className="overview__mode" role="group" aria-label={DESK_LAYOUT_TEXT.modeGroup}>
-              {[false, true].map((on, i) => (
+              {modes.map((m, i) => (
                 <button
-                  key={i}
+                  key={m}
                   ref={(el) => (modeBtns.current[i] = el)}
                   type="button"
-                  className={layouts === on ? 'is-on' : undefined}
-                  aria-pressed={layouts === on}
-                  onClick={() => setMode(on)}
+                  className={mode === m ? 'is-on' : undefined}
+                  aria-pressed={mode === m}
+                  onClick={() => setMode(m)}
                   onKeyDown={(e) => {
                     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
                     e.preventDefault();
-                    setMode(!on);
-                    modeBtns.current[on ? 0 : 1]?.focus();
+                    const j = (i + (e.key === 'ArrowRight' ? 1 : modes.length - 1)) % modes.length;
+                    setMode(modes[j]);
+                    modeBtns.current[j]?.focus();
                   }}
                 >
-                  <Icon name={on ? 'layouts' : 'radar'} size={13} className="icon icon--inline" /> {on ? DESK_LAYOUT_TEXT.modeLayouts : DESK_LAYOUT_TEXT.modePortals}
+                  <Icon name={m === 'layouts' ? 'layouts' : m === 'sources' ? 'source' : 'radar'} size={13} className="icon icon--inline" />{' '}
+                  {m === 'layouts' ? DESK_LAYOUT_TEXT.modeLayouts : m === 'sources' ? DESK_LAYOUT_TEXT.modeSources : DESK_LAYOUT_TEXT.modePortals}
                 </button>
               ))}
             </div>
           )}
-          {!rules && !layouts && <input
+          {!rules && !layouts && !sources && <input
             ref={filterRef}
             className="radar__filter"
             type="search"
@@ -869,7 +878,7 @@ export function Overview(p: OverviewProps) {
             </button>
           )}
           {/* F-170: Hebel der Slotmaschine – klein, nur Symbol (Name im Tooltip und aria-label) */}
-          {p.onJackpot && !rules && !layouts && (
+          {p.onJackpot && !rules && !layouts && !sources && (
             <button type="button" className="overview__tour overview__jackpot" onClick={p.onJackpot} title={JACKPOT_TEXT.openTitle} aria-label={JACKPOT_TEXT.openTitle}>
               <Icon name="jackpot" />
             </button>
@@ -885,6 +894,7 @@ export function Overview(p: OverviewProps) {
               onClick={() => {
                 setRules(!rules);
                 setLayouts(false);
+                setSources(false);
                 if (rules) window.setTimeout(() => rulesBtn.current?.focus(), 0);
               }}
             >
@@ -934,7 +944,9 @@ export function Overview(p: OverviewProps) {
               />
             );
           })()}
-        {layouts && p.layoutOps && p.dispatch ? (
+        {sources && p.dispatch ? (
+          <SourceCockpit ws={p.ws} dispatch={p.dispatch} />
+        ) : layouts && p.layoutOps && p.dispatch ? (
           <LayoutCockpit ws={p.ws} win={p.win} desk={windowName(p.ws, p.win)} setup={p.setup} ops={p.layoutOps} dispatch={p.dispatch} say={setSaid} />
         ) : rules && p.dispatch ? (
           <Rules ws={p.ws} shown={p.shown ?? 'dark'} dispatch={p.dispatch} say={setSaid} />

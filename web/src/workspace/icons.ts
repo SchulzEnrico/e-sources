@@ -74,6 +74,8 @@ export const ICONS = {
   pause: { d: [ring(8, 8, 6), 'M6.5 5.5v5', 'M9.5 5.5v5'] },
   // F-201: durchgestrichenes Pause-Zeichen = pausiert nie
   keep: { d: [ring(8, 8, 6), 'M6.5 5.5v5', 'M9.5 5.5v5', 'M2.8 13.2 13.2 2.8'], w: 1.6 },
+  /** F-202 Stufe 2: Auswählen (Haken) */
+  check: { d: ['M3 8.6 6.4 12 13 4.4'], w: 1.6 },
   // F-194: Zoom – Lupe mit Plus
   zoom: { d: [ring(6.5, 6.5, 4.5), 'M10 10l4 4', 'M6.5 4.6v3.8', 'M4.6 6.5h3.8'] },
   ruler: { d: ['M1.5 10.5l9-9 4 4-9 9z', 'M4 8l1.5 1.5', 'M6.5 5.5 8 7', 'M9 3l1.5 1.5'] },

@@ -28,6 +28,27 @@ Stand: 23.11.2026 · Chat V48 abgeschlossen · Nächster Chat: **V49 E-Sources**
 - Hilfe `pause`: Zeichen am Tab erklärt, Frage „Was bedeutet das durchgestrichene Pause-Zeichen am Tab?“.
 - Tests: **260 grün**; `tsc --noEmit` sauber.
 
+## Commit-Text (für GitHub Desktop)
+
+**Summary:** `V47+V48: Portale pausieren, Pause-Zeichen am Tab, Source nie pausieren`
+
+**Description:**
+```
+V47 (F-06 Stufe 2):
+- Sichtbare Portale pausieren nach eigener Zeit (Einstellung „Sichtbares pausieren“)
+- „Jetzt pausieren“ und Ausnahme „Diesen Tab nicht pausieren“
+- Kein Neuladen beim View-Wechsel (Dashboard, 2 × 2, 2, Solo)
+- Fehler behoben: Inhalt schmaler Portale verrutschte beim Fokus auf ⋮
+
+V48 (F-201, F-202 Stufe 1):
+- Pause-Zeichen am Tab vor dem ×: schlicht, pausiert oder rot durchgestrichen (pausiert nie)
+- Menü am Zeichen: Tab, Source oder Portal nie pausieren, jetzt pausieren, Einstellungen
+- Schalter „Nie pausieren“ im Source-Dialog, gilt für alle Tabs mit dieser Source
+- YouTube-Embed-Adressen laden direkt
+- Pfeiltasten in Menüs auch über Einträge mit Häkchen
+- Lastenheft, Hilfe und Übergabe V48 aktualisiert; 260 Tests grün
+```
+
 ## Nächste Schritte
 
 1. **Enrico prüfen lassen:** Pause-Zeichen am Tab (Platz vor ×, rot durchgestrichen gut erkennbar? Menü verständlich?), „Einstellungen zum Pausieren …“, Schalter „Nie pausieren“ im Source-Dialog (Stern in der Adresszeile → Source → Haken), danach Tab mit dieser Source zeigt das rote Zeichen. YouTube-Embed lädt ohne „Trotzdem“.
@@ -139,4 +160,4 @@ Git nur bei Enrico (GitHub Desktop). Repo-Ordner per Ordnerzugriff freigeben (`~
 
 ## Arbeitsregeln
 
-Wie V15–V47: Funktion vor Design · Barrierefreiheit immer (NF-03) · Begriffe erklären (Texte nur in terms.ts/help.ts) · offene Punkte im Blick, Restplatz mit kleinen Punkten füllen · Lastenheft zuerst · Sammelmodus `>START` … `<ENDE` · Terminal: nur nächster Schritt · „PO“ = Push Origin · Übergabe spätestens bei 60–70 %, nie mitten in einer Aufgabe · Datei `Vxx_Uebergabe_E-Sources.md` unter `docs/uebergaben/` · Usability: so einfach und wirksam wie möglich für den Anwender.
+Wie V15–V47: Funktion vor Design · Barrierefreiheit immer (NF-03) · Begriffe erklären (Texte nur in terms.ts/help.ts) · offene Punkte im Blick, Restplatz mit kleinen Punkten füllen · Lastenheft zuerst · Sammelmodus `>START` … `<ENDE` · Terminal: nur nächster Schritt · „PO“ = Push Origin · Übergabe spätestens bei 60–70 %, nie mitten in einer Aufgabe · Datei `Vxx_Uebergabe_E-Sources.md` unter `docs/uebergaben/` · Usability: so einfach und wirksam wie möglich für den Anwender. · **Commit-Text:** Jede Übergabe enthält einen Abschnitt „Commit-Text“ (Summary + Description für GitHub Desktop), und Claude nennt ihn am Ende des Chats von sich aus – Enrico vergisst sonst die Beschreibung (seit V48).

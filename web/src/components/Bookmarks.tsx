@@ -7,6 +7,7 @@ import type { Bookmark, Workspace } from '../workspace/types';
 import { NO_CATEGORY, categoryByName, collectionSize, groups, originOf, originText } from '../workspace/bookmarks';
 import { hostOf, newId } from '../workspace/workspace';
 import { DIALOG_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
+import { flash } from '../workspace/flash';
 
 /** Zuletzt gewählte Kategorie, damit mehrere Lesezeichen hintereinander schnell in dieselbe gehen. */
 let lastCategory = NO_CATEGORY;
@@ -222,7 +223,6 @@ export function CollectionDrawer(props: {
   const [catDrop, setCatDrop] = useState<{ id: string; after: boolean } | null>(null);
   const [announce, setAnnounce] = useState('');
   // F-202 Stufe 2: Mehrfachauswahl (Haken je Source), z. B. „Ausgewählte nie pausieren“
-  const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const catCount = ws.categories.length;
   const moveCat = (id: string, to: number) => {
@@ -303,20 +303,6 @@ export function CollectionDrawer(props: {
           </button>
         </div>
         <input className="bm-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Suchen: Titel, Adresse, Kategorie, #Tag" aria-label="Library durchsuchen" />
-        {ws.bookmarks.length > 0 && (
-          <button
-            type="button"
-            className="bm-select-mode"
-            aria-pressed={selecting}
-            title={PAUSE_TEXT.selectModeTitle}
-            onClick={() => {
-              setSelecting((v) => !v);
-              setPicked(new Set());
-            }}
-          >
-            <Icon name="check" className="icon icon--inline" /> {PAUSE_TEXT.selectMode}
-          </button>
-        )}
         {props.onSaveCurrent && (
           <button type="button" className="bm-save-current" onClick={props.onSaveCurrent}>
             <Icon name={props.saved ? 'starOn' : 'star'} className="icon icon--inline" /> {props.saved ? 'Diese Source bearbeiten' : 'Diese Source speichern'}
@@ -326,7 +312,7 @@ export function CollectionDrawer(props: {
       <p className="sr-only" role="status" aria-live="polite">
         {announce}
       </p>
-      {selecting && <PickBar ws={ws} shownIds={shownIds} picked={picked} setPicked={setPicked} dispatch={props.dispatch} />}
+      {total > 0 && <PickBar ws={ws} shownIds={shownIds} picked={picked} setPicked={setPicked} dispatch={props.dispatch} />}
       {total === 0 && list.length === 0 && (
         <p className="bm-hint">
           {query ? 'Nichts gefunden.' : scope === 'panel' ? 'Diesem Portal ist noch keine Source zugeordnet. Unter „Alle“ steht die ganze Library.' : 'Die Library ist noch leer. Mit dem Stern in der Adresszeile speicherst du die aktuelle Source.'}
@@ -488,12 +474,12 @@ export function CollectionDrawer(props: {
                     <span className="bm-grip" aria-hidden="true">
                       ⋮⋮
                     </span>
-                    {selecting && <input type="checkbox" className="bm-pick" checked={picked.has(b.id)} onChange={() => togglePick(b.id)} aria-label={PAUSE_TEXT.selectItem(b.title)} />}
+                    <input type="checkbox" className="bm-pick" checked={picked.has(b.id)} onChange={() => togglePick(b.id)} aria-label={PAUSE_TEXT.selectItem(b.title)} />
+                    <KeepToggle ws={ws} id={b.id} title={b.title} keep={!!b.keep} dispatch={props.dispatch} />
                     <button type="button" className="bm-open" onClick={() => props.onOpen(b.url)} title={`${b.url}${b.note ? `\n${b.note}` : ''}`}>
                       <span className="bm-title">
                         <SiteIcon url={b.url} on={display.favicons} />
                         {b.title}
-                        {b.keep && <KeepBadge />}
                       </span>
                       <span className="bm-host">
                         {hostOf(b.url)}
@@ -534,13 +520,61 @@ export function togglePicked(old: Set<string>, id: string): Set<string> {
 }
 
 /**
- * F-202 Stufe 2/3: Leiste der Mehrfachauswahl (Library und Cockpit) – „Alle angezeigten wählen“
- * (mit Zwischenzustand), Anzahl gewählt als Ansage, „Ausgewählte nie pausieren“ / „… wieder pausieren“.
+ * V50: Sources auf „nie pausieren“ stellen oder zurück – mit Bestätigung unten und „Rückgängig“.
+ * Nur Sources, die sich wirklich ändern, werden beim Zurücknehmen wieder umgestellt.
+ */
+export function keepSourcesWithUndo(ws: Workspace, dispatch: (a: Action) => void, ids: readonly string[], keep: boolean): number {
+  const changed = ws.bookmarks.filter((b) => ids.includes(b.id) && !!b.keep !== keep).map((b) => b.id);
+  if (changed.length === 0) {
+    flash({ text: PAUSE_TEXT.selectedAlready(keep), ms: 4000 });
+    return 0;
+  }
+  dispatch({ type: 'keepSources', ids: changed, keep });
+  const one = changed.length === 1 ? ws.bookmarks.find((b) => b.id === changed[0]) : undefined;
+  flash({
+    text: one ? PAUSE_TEXT.sourceKept(one.title, keep) : PAUSE_TEXT.selectedKept(changed.length, keep),
+    ms: 8000,
+    action: {
+      label: PAUSE_TEXT.undo,
+      run: () => {
+        dispatch({ type: 'keepSources', ids: changed, keep: !keep });
+        flash({ text: PAUSE_TEXT.undone, ms: 3000 });
+      },
+    },
+  });
+  return changed.length;
+}
+
+/**
+ * V50: Schalter je Source (Library und Cockpit) – Pause-Zeichen grau = pausiert normal,
+ * rot durchgestrichen = pausiert nie. Ein Klick schaltet um (aria-pressed, NF-03).
+ */
+export function KeepToggle(p: { ws: Workspace; id: string; title: string; keep: boolean; dispatch: (a: Action) => void }) {
+  return (
+    <button
+      type="button"
+      className={p.keep ? 'bm-icon bm-keep-toggle is-on' : 'bm-icon bm-keep-toggle'}
+      aria-pressed={p.keep}
+      aria-label={PAUSE_TEXT.toggleLabel(p.title)}
+      title={p.keep ? PAUSE_TEXT.toggleOn : PAUSE_TEXT.toggleOff}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        keepSourcesWithUndo(p.ws, p.dispatch, [p.id], !p.keep);
+      }}
+    >
+      <Icon name={p.keep ? 'keep' : 'pause'} size={14} className={p.keep ? 'icon bm-keep-icon' : 'icon'} />
+    </button>
+  );
+}
+
+/**
+ * F-202 Stufe 2/3, V50 umgebaut: Haken stehen immer an den Sources. Oben „Alle angezeigten wählen“;
+ * sobald etwas gewählt ist, erscheint die Leiste „n gewählt: Nie pausieren · Normal pausieren · Fertig“.
+ * Nach dem Ausführen ist die Auswahl leer, unten kommt die Bestätigung mit „Rückgängig“.
  */
 export function PickBar(props: { ws: Workspace; shownIds: string[]; picked: Set<string>; setPicked: (s: Set<string>) => void; dispatch: (a: Action) => void }) {
   const { ws, shownIds, picked } = props;
-  // Meldung gilt nur für die Auswahl, bei der sie entstand; jede neue Auswahl zeigt wieder die Anzahl
-  const [said, setSaid] = useState<{ text: string; for: Set<string> } | null>(null);
   const allBox = useRef<HTMLInputElement>(null);
   const hintId = useId();
   // Nur, was noch existiert, zählt als gewählt (gelöschte Sources fallen heraus)
@@ -555,34 +589,44 @@ export function PickBar(props: { ws: Workspace; shownIds: string[]; picked: Set<
     else next.delete(id);
     props.setPicked(next);
   };
+  // Leiste verschwindet danach – Fokus zurück auf „Alle angezeigten wählen“, nicht ins Leere (NF-03)
+  const finish = () => {
+    props.setPicked(new Set());
+    allBox.current?.focus();
+  };
   const keep = (on: boolean) => {
     if (pickedIds.length === 0) return;
-    props.dispatch({ type: 'keepSources', ids: pickedIds, keep: on });
-    setSaid({ text: PAUSE_TEXT.selectedKept(pickedIds.length, on), for: picked });
+    keepSourcesWithUndo(ws, props.dispatch, pickedIds, on);
+    finish();
   };
   return (
-    <div className="bm-pickbar" role="group" aria-label={PAUSE_TEXT.selectMode}>
+    <div className={pickedIds.length ? 'bm-pickbar is-active' : 'bm-pickbar'} role="group" aria-label={PAUSE_TEXT.selectAll}>
       <label className="bm-check bm-pickbar__all">
         <input ref={allBox} type="checkbox" checked={shownIds.length > 0 && shownPicked === shownIds.length} disabled={shownIds.length === 0} onChange={(e) => pickAll(e.target.checked)} />
         {PAUSE_TEXT.selectAll}
       </label>
-      <p className="bm-pickbar__count" role="status" aria-live="polite">
-        {said?.for === picked ? said.text : PAUSE_TEXT.selected(pickedIds.length)}
-      </p>
-      <div className="bm-pickbar__actions">
-        <button type="button" disabled={pickedIds.length === 0} onClick={() => keep(true)} aria-describedby={hintId}>
-          <Icon name="keep" className="icon icon--inline bm-keep-icon" /> {PAUSE_TEXT.keepSelected}
-        </button>
-        <button type="button" disabled={pickedIds.length === 0} onClick={() => keep(false)}>
-          <Icon name="pause" className="icon icon--inline" /> {PAUSE_TEXT.unkeepSelected}
-        </button>
-        <button type="button" disabled={pickedIds.length === 0} onClick={() => props.setPicked(new Set())}>
-          {PAUSE_TEXT.clearSelection}
-        </button>
-      </div>
-      <p className="bm-hint" id={hintId}>
-        {PAUSE_TEXT.selectHint}
-      </p>
+      <span className="sr-only" role="status" aria-live="polite">
+        {pickedIds.length > 0 ? PAUSE_TEXT.selected(pickedIds.length) : ''}
+      </span>
+      {pickedIds.length > 0 && (
+        <div className="bm-pickbar__actions">
+          <span className="bm-pickbar__count" aria-hidden="true">
+            {PAUSE_TEXT.selected(pickedIds.length)}
+          </span>
+          <button type="button" onClick={() => keep(true)} aria-describedby={hintId}>
+            <Icon name="keep" className="icon icon--inline bm-keep-icon" /> {PAUSE_TEXT.keepSelected}
+          </button>
+          <button type="button" onClick={() => keep(false)}>
+            <Icon name="pause" className="icon icon--inline" /> {PAUSE_TEXT.unkeepSelected}
+          </button>
+          <button type="button" className="drawer__primary" title={PAUSE_TEXT.doneSelectionTitle} onClick={finish}>
+            {PAUSE_TEXT.doneSelection}
+          </button>
+          <p className="bm-hint" id={hintId}>
+            {PAUSE_TEXT.selectHint}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

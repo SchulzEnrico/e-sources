@@ -6,7 +6,7 @@
  */
 import { BROWSER_EXPORT, browserSend, helpById } from './help';
 import { type BrowserName, browserOf, currentUa, modKey } from './browser';
-import { CATEGORY_TEXT, TINT_TEXT } from './terms';
+import { CATEGORY_TEXT, PAUSE_TEXT, TINT_TEXT } from './terms';
 
 export interface TourStep {
   id: string;
@@ -30,7 +30,7 @@ export interface TourStep {
   keep?: boolean;
 }
 
-export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send';
+export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources';
 
 const t = (id: string) => helpById(id)?.text ?? '';
 
@@ -41,6 +41,8 @@ const D = '#design';
 const I = 'dialog.import';
 /** F-171 Stufe 2: Dialog „Farben“ eines Portals (F-162 bis F-164, F-183) */
 const K = 'dialog.colors';
+/** F-202 Stufe 4: vorderes Portal auf dem Desk */
+const P = 'main section[data-panel-id]';
 
 export const TOURS: Record<TourId, TourStep[]> = {
   start: [
@@ -70,7 +72,7 @@ export const TOURS: Record<TourId, TourStep[]> = {
     {
       id: 'focus',
       title: 'Fokusanzeige',
-      target: `${C} .overview__head .overview__focus`,
+      target: `${C} .overview__info`,
       text: `${t('focus')} Grün heißt: gut überschaubar, Gelb: es wird voll, Rot: zu viel auf einmal.`,
     },
     {
@@ -259,6 +261,62 @@ export const TOURS: Record<TourId, TourStep[]> = {
       action: 'Regeln zeigen',
     },
   ],
+  // F-202 Stufe 4: alle Stellen, an denen man einstellt, wie sich eine Source verhält und wie sie angezeigt wird
+  sources: [
+    {
+      id: 'intro',
+      title: 'Verhalten von Sources einstellen',
+      text: 'Diese Tour zeigt alle Stellen, an denen du festlegst, wie sich eine Source verhält und wie sie aussieht – mit → weiter, mit Esc beenden.',
+    },
+    {
+      id: 'pauseSign',
+      title: 'Pause-Zeichen am Tab',
+      target: `${P} .tab__pause`,
+      text: 'Steht hinten am Tab vor dem ×. Schlicht = pausiert nach der eingestellten Zeit, hervorgehoben = gerade pausiert, rot durchgestrichen = pausiert nie. Ein Klick öffnet ein kleines Menü:',
+      list: [PAUSE_TEXT.keepTabMenu + ' – nur dieser Tab', 'Source nie pausieren – überall, wo diese Seite offen ist', PAUSE_TEXT.keepPanelMenu + ' – alle Tabs dieses Portals', 'Jetzt pausieren und die Zeit einstellen'],
+    },
+    {
+      id: 'star',
+      title: 'Stern in der Adresszeile',
+      target: `${P} .win__star`,
+      text: 'Speichert die Source in der Library oder bearbeitet sie (gefüllter Stern = schon gespeichert): Titel, Kategorie, Tags, Notiz, „Nie pausieren“ und in welchen Portalen sie in der Library steht.',
+    },
+    {
+      id: 'library',
+      title: 'Library dieses Portals',
+      target: `${P} .win__coll`,
+      text: 'Zeigt die Sources dieses Portals, mit „Alle“ die ganze Library. Das Pause-Zeichen vorne an jeder Source schaltet „nie pausieren“ um (rot = nie); mit Haken stellst du mehrere auf einmal ein. Der Stern je Zeile nimmt eine Source in dieses Portal auf, ✎ bearbeitet sie.',
+    },
+    {
+      id: 'cockpit',
+      title: 'Alle Sources im Cockpit',
+      target: '.toolbar .focus-meter',
+      text: 'Ein Klick auf die Fokusanzeige öffnet das Cockpit. Unter „Sources“ stehen alle Sources nach Kategorie – mit Suchfeld, Pause-Zeichen je Zeile und Haken für mehrere auf einmal.',
+    },
+    {
+      id: 'colors',
+      title: 'Kategorie und Farben',
+      target: `${P} button[aria-label="Portal-Optionen"]`,
+      text: `Unter ⋮ › „${TINT_TEXT.menu}“ ordnest du das Portal einer Kategorie zu. ${CATEGORY_TEXT.intro} Farbe und Zeichen der Kategorie erscheinen am Portal, in der Library und in der Suche.`,
+    },
+    {
+      id: 'launcher',
+      title: 'Seiten, die sich nicht einbetten lassen',
+      target: '.toolbar button[aria-label^="Launcher"]',
+      text: 'Manche Seiten verbieten das Anzeigen in einem Portal. Solche Sources landen von selbst im Launcher und öffnen außerhalb – in neuem Tab oder neuem Fenster, das wählst du im Launcher (Strg/⌘+Klick nimmt das andere). Im Portal hilft „Trotzdem hier versuchen“.',
+    },
+    {
+      id: 'settings',
+      title: 'Einstellungen',
+      target: 'button[aria-label="Einstellungen"]',
+      text: 'Im Zahnrad stellst du ein, nach wie viel Zeit Unbenutztes pausiert, und ob vor jeder Source das Symbol ihrer Webseite steht (sonst der Anfangsbuchstabe).',
+    },
+    {
+      id: 'again',
+      title: 'Tour wieder starten',
+      text: 'Diese Tour findest du jederzeit in der Hilfe (?) und in der Suche („Tour Sources“).',
+    },
+  ],
 };
 
 /** Starttour (F-95) – bleibt für bestehende Stellen erhalten. */
@@ -270,7 +328,7 @@ export function tourSteps(has: (selector: string) => boolean, steps: TourStep[] 
 }
 
 /** Speicherschlüssel je Tour; die Starttour behält ihren bisherigen Schlüssel. */
-export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1' };
+export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1' };
 
 /** Wurde die Tour schon gezeigt (beendet oder übersprungen)? */
 export function tourSeen(id: TourId = 'start'): boolean {

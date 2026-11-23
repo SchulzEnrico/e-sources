@@ -5089,13 +5089,6 @@ button.is-off:hover,
 }
 
 /* F-202 Stufe 2: Mehrfachauswahl in der Library */
-.bm-select-mode {
-  align-self: flex-start;
-}
-.bm-select-mode[aria-pressed='true'] {
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.8);
-  background: rgba(var(--accent-rgb), 0.16);
-}
 .bm-pickbar {
   display: flex;
   flex-direction: column;
@@ -5151,7 +5144,6 @@ button.is-off:hover,
 }
 @media (forced-colors: active) {
   .bm-keep-icon path { stroke: CanvasText; }
-  .bm-select-mode[aria-pressed='true'] { outline: 2px solid Highlight; }
 }
 
 /* F-202 Stufe 3: Modus „Sources“ im Cockpit */
@@ -5168,3 +5160,42 @@ button.is-off:hover,
 .srcc__title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .srcc__host { flex: 0 1 auto; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40%; }
 @media (forced-colors: active) { .srcc__row:has(input:checked) { outline: 1px solid Highlight; } }
+
+/* V50: Mehrfachauswahl umgebaut – Haken immer da, Leiste erst bei Auswahl, Schalter je Zeile */
+.bm-pickbar { padding: 4px 8px; border-color: rgba(var(--tint), 0.25); }
+.bm-pickbar.is-active { position: sticky; top: 0; z-index: 2; padding: 8px 10px; border-color: rgba(var(--accent-rgb), 0.6); }
+.bm-pickbar__all { font-size: 13px; }
+.bm-pickbar__actions { align-items: center; }
+.bm-pickbar__actions .bm-hint { flex-basis: 100%; margin: 0; }
+.bm-keep-toggle { flex: none; opacity: 0.55; }
+.bm-keep-toggle:hover, .bm-keep-toggle:focus-visible, .bm-keep-toggle.is-on { opacity: 1; }
+.srcc__label { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; cursor: pointer; }
+.srcc__row:has(.bm-keep-toggle:focus-visible) { outline: none; }
+.srcc__filter-label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); align-self: flex-start; width: min(420px, 100%); }
+.overview .srcc__filter-label .srcc__filter { width: 100%; }
+
+/* F-188 (V50): Cockpit-Kopfzeile straffen – Infotext darunter, Beschriftungen bei wenig Platz nur als Symbol */
+.overview__head { gap: 8px; margin-bottom: 4px; flex-wrap: wrap; row-gap: 6px; }
+.overview__info { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.35; }
+/* Zwischen 761 und 1280 px nur Symbole (eine Zeile); schmaler stehen die Knöpfe in eigener Zeile wieder mit Namen */
+@media (min-width: 761px) and (max-width: 1280px) {
+  /* Name bleibt für Bildschirmleser und im Tooltip (wie „Kompakt“) */
+  .overview__head .c-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .overview__head .overview__tour { padding: 4px 8px; }
+}
+@media (max-width: 760px) {
+  .overview { left: 4px; right: 4px; padding: 10px; max-height: 86vh; }
+  /* Zeile 1: Cockpit · Umschalter · × – darunter die übrigen Knöpfe, ganz unten das Filterfeld */
+  .overview__head > * { order: 5; }
+  /* Zeilenumbruch nach dem × */
+  .overview__head::after { content: ''; order: 4; flex-basis: 100%; height: 0; }
+  .overview__head > .overview__name { order: 0; }
+  .overview__head > .overview__mode { order: 1; }
+  .overview__head > .grow { order: 2; }
+  .overview__head > .overview__x { order: 3; }
+  .overview__head > .radar__filter { order: 10; flex-basis: 100%; }
+  .overview__mode button { padding: 4px 8px; }
+}
+@media (max-width: 430px) {
+  .overview__head > .overview__name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}

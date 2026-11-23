@@ -76,6 +76,7 @@ import { BOOKMARKS_FILE_NAME, type BrowserBookmark, bookmarkFileOf, looksLikeBoo
 import { closedOf, restoreClosed, restoredSaid } from './workspace/closed';
 import { PORTAL_ALONE, nextTabOf, portalSaid, stepIn, tabAlone, tabSaid } from './workspace/cycle';
 import { Icon } from './components/Icon';
+import { FLASH_EVENT, type FlashRequest } from './workspace/flash';
 
 /** Knopf im Hinweis unten (F-162, F-163). */
 interface FlashAction {
@@ -603,6 +604,15 @@ function DeskApp(props: DeskProps) {
     setFlashAction(actions.length ? { text, actions } : null);
     flashRun(text, ms);
   }, [flashRun]);
+  // V50: Hinweise aus Bauteilen ohne eigenen Draht nach oben (Library, Cockpit) – workspace/flash.ts
+  useEffect(() => {
+    const on = (e: Event) => {
+      const r = (e as CustomEvent<FlashRequest>).detail;
+      if (r?.text) notify(r.text, r.ms, false, r.action);
+    };
+    window.addEventListener(FLASH_EVENT, on);
+    return () => window.removeEventListener(FLASH_EVENT, on);
+  }, [notify]);
 
   // F-162: Nach dem Anlegen bietet der Hinweis die Farbwahl an; das neueste Portal steht hinten in der Liste.
   const wsNow = useRef(ws);
@@ -2117,6 +2127,9 @@ function DeskApp(props: DeskProps) {
         return startImportTour();
       case 'tourSend':
         return startSendTour();
+      case 'tourSources':
+        setOverview(false);
+        return window.setTimeout(() => setTour('sources'), 0);
       case 'toursAuto':
         return switchAutoTours();
       case 'compact':

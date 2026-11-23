@@ -157,7 +157,7 @@ export const HELP_ICON: Record<string, IconName> = {
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',
   cockpit: 'cockpit', view: 'view', maximize: 'maximize', search: 'search',
-  tour: 'tour', tourCockpit: 'tour', tourDesign: 'tour', tourColors: 'tour', tourImport: 'tour', tourSend: 'tour', toursAuto: 'toggle', help: 'help', compact: 'dashboard', favicons: 'source', jackpot: 'jackpot',
+  tour: 'tour', tourCockpit: 'tour', tourDesign: 'tour', tourColors: 'tour', tourImport: 'tour', tourSend: 'tour', tourSources: 'tour', toursAuto: 'toggle', help: 'help', compact: 'dashboard', favicons: 'source', jackpot: 'jackpot',
   newSlot: 'newSlot', newDesk: 'newDesk', newPortal: 'portal', newTab: 'tab',
   switchDesk: 'switchDesk', collectDesks: 'collect', distributeDesks: 'spread',
   design: 'design', colorRules: 'category', rules: 'rules', colors: 'colors',

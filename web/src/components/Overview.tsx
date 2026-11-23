@@ -816,9 +816,7 @@ export function Overview(p: OverviewProps) {
         }}
       >
         <div className="overview__head">
-          <strong title={TERMS.cockpit}>Cockpit</strong>
-          <span className="overview__focus">{focusText(p.focus)}</span>
-          <span className="overview__focus">{p.info}</span>
+          <strong className="overview__name" title={TERMS.cockpit}>Cockpit</strong>
           <span className="grow" />
           {/* F-187/F-202: Umschalter Portale | Layouts | Sources (Pfeiltasten wechseln) */}
           {p.dispatch && (
@@ -912,6 +910,10 @@ export function Overview(p: OverviewProps) {
             <Icon name="close" size={14} />
           </button>
         </div>
+        {/* F-188: Infotext (Fokusanzeige, Slots) als ruhige Zeile unter der Kopfzeile – dort bricht er nicht in viele kurze Zeilen */}
+        <p className="overview__info">
+          {focusText(p.focus)} · {p.info}
+        </p>
         <p id="overview-help" className="sr-only">
           Radar: Jeder Desk zeigt seine Slots an ihrer Stelle auf dem Bildschirm. Pfeiltasten wandern zwischen den Slots, Enter öffnet die Portal-Liste. In der Liste wählen Pfeil hoch und runter ein Portal, Pfeil links geht zurück zum Radar. Enter zeigt das Portal, auch auf einem anderen Desk. V verschiebt das Portal, Umschalt und V den ganzen Slot. H holt ein Portal von einem anderen Desk hierher. Entf schließt es, F2 benennt es um. Auf einem Slot setzt Alt mit Pfeil ihn in diese Richtung an eine neue Position, Alt, Umschalt und Pfeil macht ihn breiter, schmaler, höher oder flacher; der Desk folgt sofort. Mit der Maus lässt sich eine Portal-Zeile auf einen Slot im Radar ziehen, auf das Feld „Eigener neuer Slot“ über einem Desk, und eine Slot-Kachel auf eine andere: in die Mitte = im Portal ablegen, an den Rand = an dieser Position einsetzen. Die Kante zwischen zwei Slots ändert beim Ziehen die Größe. Das Filterfeld zeigt Treffer von allen Desks. Escape schließt das Cockpit.
         </p>

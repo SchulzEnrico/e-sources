@@ -109,10 +109,11 @@ export const DESK_LAYOUT_TEXT = {
   /** F-202 Stufe 3 */
   modeSources: 'Sources',
   modeSourcesOn: 'Sources: alle gespeicherten Sources der Library. Haken setzen und gemeinsam einstellen, z. B. „nie pausieren“. Esc oder „Portale“ führt zurück.',
-  sourcesFilter: 'Sources filtern: Titel, Adresse, Kategorie, #Tag',
+  sourcesFilter: 'Titel, Adresse, Kategorie oder #Tag',
+  sourcesFilterLabel: 'Sources durchsuchen',
   sourcesEmpty: 'Die Library ist noch leer. Mit dem Stern in der Adresszeile eines Portals speicherst du eine Source.',
   sourcesNone: 'Keine Source passt.',
-  sourcesIntro: 'Alle Sources der Library. Setze Haken und stelle die gewählten gemeinsam ein.',
+  sourcesIntro: 'Alle Sources der Library. Das Pause-Zeichen je Zeile schaltet „nie pausieren“ (rot) um; mit Haken stellst du mehrere auf einmal ein.',
   modeOn: 'Layout-Einstellungen: Layouts dieses Desks ansehen, Slots ordnen, Standard festlegen. Esc oder „Portale“ führt zurück.',
   device: 'Dieses Gerät',
   recommended: (n: number) => `empfohlen ${n} Slots`,
@@ -390,19 +391,27 @@ export const PAUSE_TEXT = {
   sourceKeepHint: 'Tabs mit dieser Source bleiben immer geladen, auch im Hintergrund – z. B. Musik, Chat oder ein laufender Upload. Am Tab steht dann das durchgestrichene Pause-Zeichen.',
   pauseNow: 'Jetzt pausieren',
   /** F-202 Stufe 2: Mehrfachauswahl in der Library */
-  selectMode: 'Auswählen',
-  selectModeTitle: 'Mehrere Sources auswählen und gemeinsam einstellen, z. B. „nie pausieren“',
   selectAll: 'Alle angezeigten wählen',
   selectItem: (title: string) => `„${title}“ auswählen`,
-  selected: (n: number) => (n === 0 ? 'Keine Source gewählt' : n === 1 ? '1 Source gewählt' : `${n} Sources gewählt`),
-  keepSelected: 'Ausgewählte nie pausieren',
-  unkeepSelected: 'Ausgewählte wieder pausieren',
-  clearSelection: 'Auswahl aufheben',
+  selected: (n: number) => (n === 1 ? '1 Source gewählt:' : `${n} Sources gewählt:`),
+  keepSelected: 'Nie pausieren',
+  unkeepSelected: 'Normal pausieren',
+  doneSelection: 'Fertig',
+  doneSelectionTitle: 'Auswahl beenden (Haken entfernen)',
   selectHint: 'Nie pausieren: Tabs mit diesen Sources bleiben immer geladen, auch im Hintergrund – z. B. Musik oder Chat.',
   selectedKept: (n: number, keep: boolean) => {
     const what = n === 1 ? '1 Source pausiert' : `${n} Sources pausieren`;
     return keep ? `${what} jetzt nie.` : `${what} wieder nach der eingestellten Zeit.`;
   },
+  selectedAlready: (keep: boolean) => (keep ? 'Die gewählten Sources pausieren schon nie.' : 'Die gewählten Sources pausieren schon normal.'),
+  undo: 'Rückgängig',
+  undone: 'Zurückgenommen.',
+  /** V50: Schalter je Source in Library und Cockpit (Rückmeldung Enrico) */
+  toggleLabel: (title: string) => `Nie pausieren: „${title}“`,
+  toggleOn: 'Pausiert nie (rot) – Klick: wieder normal pausieren',
+  toggleOff: 'Pausiert nach der eingestellten Zeit – Klick: nie pausieren',
+  listHead: 'Pause',
+  listHeadTitle: 'Rotes Zeichen = pausiert nie. Klick auf das Zeichen schaltet um.',
   keptBadge: 'pausiert nie',
   /** V49: kurze Erklärungen unter den Einträgen im Menü am Pause-Zeichen (Rückmeldung Enrico) */
   hintTab: 'Nur dieser Tab bleibt immer geladen.',

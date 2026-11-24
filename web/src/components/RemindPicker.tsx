@@ -38,7 +38,7 @@ function monthDays(m: Date): Date[] {
 
 // ---------------------------------------------------------------- Drehrad
 /** Drehrad; V74 auch für die Stufe der Überschrift (labels statt Zahlen). */
-export function Wheel(props: { label: string; value: number; count: number; big: number; onChange: (v: number) => void; onEnter: () => void; labels?: string[]; wrap?: boolean; row?: number; show?: number; height?: number; passive?: boolean }) {
+export function Wheel(props: { label: string; value: number; count: number; big: number; onChange: (v: number) => void; onEnter: () => void; labels?: string[]; wrap?: boolean; row?: number; show?: number; height?: number; passive?: boolean; noPick?: boolean }) {
   const { value, count, onChange } = props;
   // V74: kompakte Größe (z. B. im Knopf „Überschrift“); passive = kein eigenes Tastaturziel (Knopf bedient es)
   const ROW = props.row ?? ROW_D;
@@ -125,7 +125,7 @@ export function Wheel(props: { label: string; value: number; count: number; big:
               className={`rpick__val${i === value ? ' is-on' : ''}`}
               style={own_ ? { height: ROW } : undefined}
               aria-hidden="true"
-              onClick={() => onChange(i)}
+              onClick={props.noPick ? undefined : () => onChange(i)}
             >
               {props.labels?.[i] ?? pad2(i)}
             </div>

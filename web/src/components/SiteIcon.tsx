@@ -5,7 +5,7 @@ import { standardRef } from '../workspace/device';
  * Anfangsbuchstabe der Domain. Immer aria-hidden: Titel und Adresse stehen daneben (NF-03).
  */
 import { type CSSProperties, useEffect, useState } from 'react';
-import { DISPLAY_EVENT, compactOn, faviconUrl, faviconsOn, siteHue, siteLetter, padOpacity, dockOpacity } from '../workspace/display';
+import { DISPLAY_EVENT, compactOn, faviconUrl, faviconsOn, siteHue, siteLetter, padOpacity, dockOpacity, knobOpacity, knobX } from '../workspace/display';
 
 /** Seiten, deren Symbol nicht lud – nicht bei jedem Zeichnen neu versuchen. */
 const failed = new Set<string>();
@@ -13,7 +13,7 @@ const failed = new Set<string>();
 /** Aktueller Stand der Anzeige-Einstellungen; aktualisiert sich bei Änderung (auch aus anderen Desks). */
 export function useDisplay() {
   // F-52: Gerät – das Standard-Layout meldet sich über dasselbe Ereignis
-  const read = () => ({ compact: compactOn(), favicons: faviconsOn(), standard: standardRef(), padOpacity: padOpacity(), dockOpacity: dockOpacity() });
+  const read = () => ({ compact: compactOn(), favicons: faviconsOn(), standard: standardRef(), padOpacity: padOpacity(), dockOpacity: dockOpacity(), knobOpacity: knobOpacity(), knobX: knobX() });
   const [state, setState] = useState(read);
   useEffect(() => {
     const update = () => setState(read());

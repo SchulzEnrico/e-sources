@@ -59,6 +59,8 @@ export function PadFooter(props: {
   onSwipe: (dir: SwipeDir) => void;
   /** Was das Wischen in diese Richtung bewirkt („Liste“, „Aufgabe“, …) */
   swipeLabel: (dir: SwipeDir) => string;
+  /** V75 (F-215 A2): Bildschirmtastatur offen – nur der Knopf schwebt direkt über der Tastatur (ohne Leiste) */
+  knob?: { bottom: number | null; opacity: number; x: number; onX: (v: number) => void };
 }) {
   const { items, onHome, say, onSwipe, swipeLabel } = props;
   /** V71: Weg beim Wischen (px), null = kein Wischen */
@@ -74,9 +76,16 @@ export function PadFooter(props: {
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const timer = useRef(0);
-  const start = useRef<{ x: number; y: number; moved: boolean; wasOpen: boolean; swipe: boolean } | null>(null);
+  const start = useRef<{ x: number; y: number; moved: boolean; wasOpen: boolean; swipe: boolean; slide: boolean } | null>(null);
   const spaceHeld = useRef(false);
   const skipClick = useRef(false);
+  // V75 (A2): schwebender Knopf über der Tastatur; Doppeltippen + halten, dann waagerecht ziehen = verschieben
+  const kbd = props.knob?.bottom != null;
+  const anchor = useRef<HTMLSpanElement>(null);
+  const lastTap = useRef(0);
+  const homeT = useRef(0);
+  const [slideX, setSlideX] = useState<number | null>(null);
+  useEffect(() => () => window.clearTimeout(homeT.current), []);
 
   useEffect(
     () => () => {
@@ -124,7 +133,7 @@ export function PadFooter(props: {
     const stop = (ev: TouchEvent) => ev.cancelable && ev.preventDefault();
     b.addEventListener('touchmove', stop, { passive: false });
     return () => b.removeEventListener('touchmove', stop);
-  }, []);
+  }, [kbd]);
 
   // ---------------------------------------------------------------- Zeiger
   const down = (e: PointerEvent<HTMLButtonElement>) => {
@@ -133,8 +142,16 @@ export function PadFooter(props: {
     // bleiben, Wischen formatiert die Zeile. Mit der Tastatur (Tab) bleibt der Knopf erreichbar.
     e.preventDefault();
     e.currentTarget.setPointerCapture?.(e.pointerId);
-    start.current = { x: e.clientX, y: e.clientY, moved: false, wasOpen: open, swipe: false };
+    start.current = { x: e.clientX, y: e.clientY, moved: false, wasOpen: open, swipe: false, slide: false };
     window.clearTimeout(timer.current);
+    // V75 (A2): zweites Antippen kurz nach dem ersten = Knopf verschieben (Home vom ersten Tippen entfällt)
+    if (kbd && Date.now() - lastTap.current < 320) {
+      window.clearTimeout(homeT.current);
+      lastTap.current = 0;
+      start.current.slide = true;
+      setSlideX(props.knob!.x);
+      return;
+    }
     if (!open) timer.current = window.setTimeout(() => openMenu(false), HOLD_MS);
   };
   // V70: Größe stufenlos nach Nähe (wie die Lupe im Dock des Mac) – direkt am Element, ohne Neuzeichnen
@@ -161,6 +178,11 @@ export function PadFooter(props: {
     const dx = e.clientX - s.x;
     const dy = e.clientY - s.y;
     if (Math.hypot(dx, dy) > MOVE_PX) s.moved = true;
+    if (s.slide) {
+      const v = Math.round(((e.clientX - 24) / Math.max(1, window.innerWidth - 48)) * 100);
+      setSlideX(Math.max(0, Math.min(100, v)));
+      return;
+    }
     if (open) {
       const x = e.clientX;
       const y = e.clientY;
@@ -187,6 +209,13 @@ export function PadFooter(props: {
     start.current = null;
     window.clearTimeout(timer.current);
     if (!s) return;
+    if (s.slide) {
+      const v = slideX ?? props.knob!.x;
+      setSlideX(null);
+      props.knob!.onX(v);
+      say(FOOT_TEXT.knobMoved(v));
+      return;
+    }
     if (s.swipe) {
       endDrag();
       const d = swipeDir(e.clientX - s.x, e.clientY - s.y);
@@ -200,7 +229,14 @@ export function PadFooter(props: {
       // nach dem Halten ohne Bewegung losgelassen: Halbkreis bleibt offen zum Antippen
       return;
     }
-    if (!s.moved) onHome();
+    if (!s.moved) {
+      // V75 (A2): über der Tastatur Home erst nach kurzer Pause – ein zweites Tippen startet das Verschieben
+      if (kbd) {
+        lastTap.current = Date.now();
+        window.clearTimeout(homeT.current);
+        homeT.current = window.setTimeout(onHome, 320);
+      } else onHome();
+    }
   };
   const endDrag = () => {
     cancelAnimationFrame(frame.current);
@@ -208,6 +244,7 @@ export function PadFooter(props: {
   };
   const cancel = () => {
     if (start.current?.swipe) endDrag();
+    if (start.current?.slide) setSlideX(null);
     start.current = null;
     window.clearTimeout(timer.current);
   };
@@ -283,8 +320,8 @@ export function PadFooter(props: {
       '--on-accent': cs.getPropertyValue('--on-accent'),
     } as CSSProperties;
   };
-  return (
-    <footer className={`padfoot${open ? ' is-open' : ''}${drag !== null ? ' is-swiping' : ''}`}>
+  const footer = (
+    <footer className={`padfoot${open ? ' is-open' : ''}${drag !== null ? ' is-swiping' : ''}${slideX !== null ? ' is-sliding' : ''}`}>
       {/* V71: Erst beim Wischen erscheint der Pfeil in Wischrichtung und baut sich mit dem Weg auf; darüber das Ziel.
           Im Dokument über allem (Portal), damit er an der Kante des Pads nicht abgeschnitten wird; Akzentfarbe vom Pad. */}
       {drag !== null &&
@@ -353,5 +390,24 @@ export function PadFooter(props: {
         <span className="padfoot__ring" aria-hidden="true" />
       </button>
     </footer>
+  );
+  if (!kbd) return footer;
+  // V75 (A2): Knopf schwebt über allem direkt über der Tastatur – im Dokument (Portal), Farben vom Pad übernommen;
+  // die Leiste selbst entfällt. Deckkraft einstellbar, der helle Ring bleibt immer sichtbar.
+  const k = props.knob!;
+  const x = slideX ?? k.x;
+  const cs = anchor.current ? getComputedStyle(anchor.current) : null;
+  const vars = cs ? Object.fromEntries(['--accent-rgb', '--on-accent', '--hi', '--lo', '--text', '--strong'].map((v) => [v, cs.getPropertyValue(v)])) : {};
+  return (
+    <>
+      <span ref={anchor} hidden />
+      {createPortal(
+        <div className="padknob" style={{ ...vars, top: (k.bottom ?? 0) - 46, left: `calc(24px + (100vw - 48px) * ${x / 100})`, '--knob-op': k.opacity / 100 } as CSSProperties}>
+          {footer}
+          <span className="padknob__ring" aria-hidden="true" />
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }

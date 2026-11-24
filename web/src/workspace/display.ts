@@ -59,6 +59,38 @@ export const dockOpacity = () => opacityOf(DOCK_OPACITY_KEY);
 export const setPadOpacity = (v: number) => setOpacity(PAD_OPACITY_KEY, v);
 export const setDockOpacity = (v: number) => setOpacity(DOCK_OPACITY_KEY, v);
 
+/**
+ * V75 (F-215, Telefon A2, Entscheidung Enrico V72): Steuerknopf über der Tastatur – Deckkraft 10–100 % (ab Werk 25 %)
+ * und Lage waagerecht (0 = links, 100 = rechts, ab Werk Mitte). Je Gerät bzw. Browser, nicht im Abgleich.
+ */
+export const KNOB_OP_MIN = 10;
+export const KNOB_OP_DEFAULT = 25;
+const KNOB_OP_KEY = 'esource.knobOpacity';
+const KNOB_X_KEY = 'esource.knobX';
+export function clampKnobOpacity(v: number): number {
+  if (!Number.isFinite(v)) return KNOB_OP_DEFAULT;
+  return Math.round(Math.min(100, Math.max(KNOB_OP_MIN, v)) / OPACITY_STEP) * OPACITY_STEP;
+}
+export function clampKnobX(v: number): number {
+  return Number.isFinite(v) ? Math.round(Math.min(100, Math.max(0, v))) : 50;
+}
+export const knobOpacity = (): number => {
+  const r = read(KNOB_OP_KEY);
+  return r === null ? KNOB_OP_DEFAULT : clampKnobOpacity(Number(r));
+};
+export const setKnobOpacity = (v: number) => {
+  const n = clampKnobOpacity(v);
+  write(KNOB_OP_KEY, n === KNOB_OP_DEFAULT ? null : String(n));
+};
+export const knobX = (): number => {
+  const r = read(KNOB_X_KEY);
+  return r === null ? 50 : clampKnobX(Number(r));
+};
+export const setKnobX = (v: number) => {
+  const n = clampKnobX(v);
+  write(KNOB_X_KEY, n === 50 ? null : String(n));
+};
+
 /** Symbole der Webseiten zeigen (Grundeinstellung an). */
 export const faviconsOn = (): boolean => read(FAVICON_KEY) !== 'off';
 export const setFavicons = (on: boolean) => write(FAVICON_KEY, on ? null : 'off');

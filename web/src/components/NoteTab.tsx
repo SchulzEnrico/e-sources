@@ -47,6 +47,11 @@ export interface Notice {
   ms?: number;
 }
 
+/** V75 (F-215, T5): Tastatur sofort nur bei einer neu angelegten Note – auf Touch-Geräten öffnet eine bestehende
+ *  leere Note die Bildschirmtastatur nicht von selbst. Neue Notes meldet, wer sie anlegt (Pad: Neue Note). */
+export const freshNotes = new Set<string>();
+const coarsePointer = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
 export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
   const raw = No.noteById(ws, noteId);
   const by = ws.profile?.name || undefined;
@@ -231,7 +236,7 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
         onRemind={(remind) => edit({ remind })}
         onPlace={(place) => edit({ place })}
       />
-      <NoteEditor key={n.id} text={n.text} label={NOTE_TEXT.text} autoFocus={!n.text && !n.title} onChange={(text) => edit({ text })} />
+      <NoteEditor key={n.id} text={n.text} label={NOTE_TEXT.text} autoFocus={!n.text && !n.title && (freshNotes.delete(n.id) || !coarsePointer())} onChange={(text) => edit({ text })} />
       {/* V74 (Wunsch Enrico): unter dem Textfeld nur noch der Zustand (Leiste unten); angelegt/geändert/von
           stehen im Tooltip des Zustands und für Bildschirmleser darin */}
       {draft && (

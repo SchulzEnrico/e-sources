@@ -989,7 +989,7 @@ export const NOTE_TEXT = {
   toolHeading: 'Überschrift',
   // V74: Stufe der Überschrift per Drehrad
   hLevel: 'Stufe der Überschrift',
-  hHint: 'Rad im Knopf (wischen, scrollen oder Pfeil hoch/runter) wählt H1–H6, Tippen setzt die Stufe; noch einmal = wieder Text',
+  hHint: 'Der Knopf ist ein Rad: wischen, scrollen oder Pfeil hoch/runter stellt die Größe H1–H6 ein; Tippen macht die Zeile zur Überschrift, noch einmal wieder zu Text',
   toolBold: 'fett',
   taskDone: 'erledigt',
   taskChecked: 'Aufgabe erledigt.',
@@ -1101,13 +1101,31 @@ export const PAD_TEXT = {
   opacityPads: 'Deckkraft der Pads',
   opacityDock: 'Deckkraft des Docks',
   opacityValue: (v: number) => `${v} %`,
+  // V75 (F-215, Telefon A2): Steuerknopf über der Tastatur – je Gerät
+  knobOpacity: 'Steuerknopf über der Tastatur: Deckkraft',
+  knobOpacityHint: 'Gilt auf Telefon und Tablet, solange die Bildschirmtastatur offen ist. Der helle Ring bleibt immer sichtbar; beim Berühren ist der Knopf ganz da. Gilt nur für dieses Gerät.',
+  knobX: 'Steuerknopf über der Tastatur: Lage',
+  knobXHint: 'Links bis rechts. Auf dem Gerät auch direkt: Knopf zweimal antippen, beim zweiten Mal halten und waagerecht ziehen.',
+  knobXValue: (v: number) => (v < 34 ? `links (${v} %)` : v > 66 ? `rechts (${v} %)` : `Mitte (${v} %)`),
   opacityHint: 'Gilt für alle Pads in diesem Browser. Darüberfahren, Klicken oder Fokus macht ein Pad immer ganz undurchsichtig.',
   opacityHintShort: 'gilt für alle Pads; beim Einstellen siehst du die Wirkung, sonst ist ein Pad unter Maus und Fokus ganz deckend',
   opacityDockHint: 'Das Dock kommt mit dem nächsten Bauschritt; seine Deckkraft lässt sich schon jetzt getrennt einstellen.',
 };
 
+/** V75 (F-215): Umschalter Desk Mode / Note Mode je Desk */
+export const DESK_MODE_TEXT = {
+  group: 'Arbeitsweise dieses Desks',
+  desk: 'Desk',
+  notes: 'Notes',
+  deskHint: 'Desk: Portale und Slots wie gewohnt, Pads schweben darüber',
+  notesHint: 'Notes: ein Pad füllt den ganzen Desk zum Schreiben – die Portale ruhen unsichtbar dahinter. Auf dem Telefon startet jeder Desk so.',
+  nowDesk: 'Desk Mode: Portale und Slots.',
+  nowNotes: 'Note Mode: das Pad füllt den Desk.',
+};
+
 /** F-215 (V69): Fußleiste mit Home-Knopf im Pad */
 export const FOOT_TEXT = {
+  knobMoved: (v: number) => `Steuerknopf liegt jetzt ${v < 34 ? 'links' : v > 66 ? 'rechts' : 'in der Mitte'}.`,
   home: 'Home',
   homeHint: 'Tippen: zur Liste · Halten: Auswahl im Halbkreis · Wischen in der offenen Note formatiert die Zeile: ← Liste, → Aufgabe, ↑ Überschrift H2, ↓ fett, noch einmal = wieder Text; ohne offene Note legt Wischen an: ↑ Neue Note, → Neue To-do-Liste, ← Neue Liste, ↓ Neue Erinnerung (Tastatur: Enter = Home, Pfeil hoch oder Leertaste halten = Auswahl, Alt+H = Home; formatieren mit der Leiste in der Note)',
   menu: 'Auswahl am Home-Knopf',

@@ -257,7 +257,8 @@ export const FMT_EVENT = 'esource:fmt';
 export type FmtTool = 'task' | 'li' | 'bold' | 'h1' | 'h2' | 'h3' | NoteTpl;
 /** V71 (Wunsch Enrico): Vorlagen beim Anlegen per Wischen – alle beginnen mit einem Titel als H1 */
 export type NoteTpl = 'tpl-note' | 'tpl-todo' | 'tpl-list' | 'tpl-remind';
-const H_LABELS = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'];
+// V75 (Wunsch Enrico): das Rad trägt die Beschriftung – „Überschrift H1“ … „Überschrift H6“
+const H_LABELS = [1, 2, 3, 4, 5, 6].map((n) => `${NOTE_TEXT.toolHeading} H${n}`);
 const TOOLS: { id: Tool; icon: IconName; label: string; keys?: string }[] = [
   { id: 'task', icon: 'task', label: NOTE_TEXT.toolTask, keys: 'Strg/⌘+Enter' },
   { id: 'li', icon: 'list', label: NOTE_TEXT.toolList },
@@ -280,7 +281,8 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
   const hist = useRef<{ past: Snap[]; future: Snap[]; at: number }>({ past: [], future: [], at: 0 });
   const change = useRef(onChange);
   change.current = onChange;
-  const [cur, setCur] = useState<{ k: ND.BlockKind | null; bold: boolean }>({ k: null, bold: false });
+  // lv = Stufe der Überschrift an der Schreibmarke (0 = keine)
+  const [cur, setCur] = useState<{ k: ND.BlockKind | null; bold: boolean; lv: number }>({ k: null, bold: false, lv: 0 });
   const [say, setSay] = useState('');
   const [empty, setEmpty] = useState(!text);
   const [tool, setTool] = useState(0);
@@ -351,7 +353,7 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
       const c = caretOf(el);
       lastCaret.current = c;
       const b = c ? blockEls(el)[c.i] : undefined;
-      setCur({ k: (b?.dataset.k as ND.BlockKind) ?? null, bold: document.queryCommandState?.('bold') ?? false });
+      setCur({ k: (b?.dataset.k as ND.BlockKind) ?? null, bold: document.queryCommandState?.('bold') ?? false, lv: b?.dataset.k === 'h' ? Number(b.dataset.level) || 1 : 0 });
     };
     document.addEventListener('selectionchange', onSel);
     return () => document.removeEventListener('selectionchange', onSel);
@@ -643,7 +645,8 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     const b = n && el.contains(n) ? (n instanceof Element ? n : n.parentElement)?.closest<HTMLElement>('[data-b]') : null;
     return b && /^H[3-6]$/.test(b.tagName) ? Number(b.dataset.level) || 1 : 0;
   };
-  /** Rad im Knopf gedreht: Stufe merken; steht die Schreibmarke in einer Überschrift, gleich umstellen. */
+  /** V75 (Wunsch Enrico): Das Rad ist die Einstellung – gewählte Stufe bleibt, Tippen auf den Knopf schaltet die
+   *  Überschrift an bzw. aus. Steht die Schreibmarke schon in einer Überschrift, stellt Drehen sie gleich mit um. */
   const turnLevel = (v: number) => {
     const lv = (v + 1) as ND.HLevel;
     setHLevel(lv);
@@ -653,14 +656,12 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
       remember(); // neue Stelle merken – die Zeile wurde neu aufgebaut, das nächste Drehen braucht sie
     }
   };
-  // Rad zeigt die Stufe der Zeile an der Schreibmarke
-  useEffect(() => {
-    const lv = levelHere();
-    if (lv) setHLevel(lv as ND.HLevel);
-  }, [cur.k]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Rad zeigt die Stufe der Überschrift an der Schreibmarke, sonst die eingestellte. */
+  const shownLevel = (cur.lv || hLevel) as ND.HLevel;
 
   const run = (t: Tool) => {
-    if (t === 'h') return setKind('h', hLevel);
+    // V75: an/aus – in einer Überschrift wird die Zeile wieder Text, sonst Überschrift in der eingestellten Stufe
+    if (t === 'h') return setKind('h', (levelHere() || hLevel) as ND.HLevel);
     if (t === 'bold') {
       restore();
       remember();
@@ -784,19 +785,25 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
                     // V74: Pfeil hoch/runter am Knopf dreht das Rad (links/rechts wandern weiter durch die Leiste)
                     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
                     e.preventDefault();
-                    turnLevel(Math.max(0, Math.min(5, hLevel - 1 + (e.key === 'ArrowDown' ? 1 : -1))));
+                    // Stufe direkt aus der Zeile lesen (der Zustand der Leiste hinkt nach dem Umbau der Zeile kurz hinterher)
+                    turnLevel(Math.max(0, Math.min(5, (levelHere() || hLevel) - 1 + (e.key === 'ArrowDown' ? 1 : -1))));
                     e.currentTarget.focus();
                   }
                 : undefined
             }
-            aria-label={t.id === 'h' ? `${t.label} ${H_LABELS[hLevel - 1]} – ${NOTE_TEXT.hHint}` : undefined}
+            aria-label={t.id === 'h' ? `${H_LABELS[shownLevel - 1]} – ${NOTE_TEXT.hHint}` : undefined}
+            className={t.id === 'h' ? 'nedit__hbtn' : undefined}
           >
-            <Icon name={t.icon} size={15} /> <span>{t.label}</span>
-            {/* V74: Drehrad im Knopf – wischen/scrollen wählt H1–H6, Tippen auf den Knopf setzt die Stufe */}
-            {t.id === 'h' && (
-              <span className="nedit__hwheel" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.preventDefault()}>
-                <Wheel label={NOTE_TEXT.hLevel} value={hLevel - 1} count={6} big={1} wrap={false} labels={H_LABELS} row={20} height={32} passive onChange={turnLevel} onEnter={() => setKind('h', hLevel)} />
+            {/* V75 (Wunsch Enrico): der Knopf „Überschrift“ IST das Rad – ohne Symbol, „Überschrift H1–H6“ auf dem Rad;
+                wischen/scrollen stellt die Stufe ein, Tippen schaltet an/aus */}
+            {t.id === 'h' ? (
+              <span className="nedit__hwheel" onPointerDown={(e) => e.preventDefault()}>
+                <Wheel label={NOTE_TEXT.hLevel} value={shownLevel - 1} count={6} big={1} wrap={false} labels={H_LABELS} row={20} height={28} passive noPick onChange={turnLevel} onEnter={() => run('h')} />
               </span>
+            ) : (
+              <>
+                <Icon name={t.icon} size={15} /> <span>{t.label}</span>
+              </>
             )}
           </button>
         ))}

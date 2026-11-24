@@ -38,6 +38,7 @@ import * as Ru from './rules';
 import * as DL from './deskLayouts';
 import * as Ic from './icons';
 import * as Dis from './display';
+import * as DM from './deskMode';
 import * as SF from './slotFile';
 import * as Pk from './picker';
 import * as Jp from './jackpot';
@@ -4773,5 +4774,34 @@ describe('F-215 V73: fällige Erinnerungen', () => {
     expect(Rm.dueReminders(notes, now, { a: t(10) }, since)).toEqual([]);
     expect(Rm.dueReminders([N('a', { at: t(11) })], now, { a: t(10) }, since).map((x) => x.id)).toEqual(['a']);
     expect(Rm.remindTime({ remind: { at: t(10), snooze: t(12, 30) } })).toBe(Date.parse(t(12, 30)));
+  });
+});
+
+describe('V75 Steuerknopf über der Tastatur (F-215 A2)', () => {
+  it('Deckkraft 10–100 % in 5er-Schritten, ab Werk 25 %', () => {
+    expect(Dis.clampKnobOpacity(3)).toBe(10);
+    expect(Dis.clampKnobOpacity(37)).toBe(35);
+    expect(Dis.clampKnobOpacity(140)).toBe(100);
+    expect(Dis.clampKnobOpacity(NaN)).toBe(Dis.KNOB_OP_DEFAULT);
+    expect(Dis.KNOB_OP_DEFAULT).toBe(25);
+  });
+  it('Lage waagerecht 0–100, sonst Mitte', () => {
+    expect(Dis.clampKnobX(-5)).toBe(0);
+    expect(Dis.clampKnobX(120)).toBe(100);
+    expect(Dis.clampKnobX(NaN)).toBe(50);
+  });
+});
+
+describe('V75 Umschalter Desk | Notes', () => {
+  it('Telefon startet im Note Mode, ausdrückliche Wahl gewinnt', () => {
+    expect(DM.modeOf({}, 'a', false)).toBe('desk');
+    expect(DM.modeOf({}, 'a', true)).toBe('notes');
+    expect(DM.modeOf({ a: 'desk' }, 'a', true)).toBe('desk');
+    expect(DM.modeOf(DM.withMode({}, 'a', 'notes'), 'a', false)).toBe('notes');
+  });
+  it('liest nur gültige Werte', () => {
+    expect(DM.parseModes('{"a":"notes","b":"x","c":"desk"}')).toEqual({ a: 'notes', c: 'desk' });
+    expect(DM.parseModes('kaputt')).toEqual({});
+    expect(DM.parseModes('[1]')).toEqual({});
   });
 });

@@ -4,6 +4,7 @@
  * Entscheidungen: Claude Doc „Pads mit Notizblock und Lageplan“ (P1–P9).
  */
 import { type CSSProperties, type Dispatch, type KeyboardEvent, type PointerEvent, useEffect, useRef, useState } from 'react';
+import { useKeyboard } from './useKeyboard';
 import type { Action } from '../workspace/useWorkspace';
 import type { NoteViewKind, Pad as PadT, PadPlace, Workspace } from '../workspace/types';
 import * as No from '../workspace/notes';
@@ -11,7 +12,7 @@ import { PAD_MIN } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
 import { DRAFT_TEXT, FOOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
-import { type Notice, NoteTab } from './NoteTab';
+import { type Notice, NoteTab, freshNotes } from './NoteTab';
 import { type FootItem, PadFooter } from './PadFooter';
 import type { SwipeDir } from '../workspace/footArc';
 import { FMT_EVENT, type FmtTool, type NoteTpl } from './NoteEditor';
@@ -27,7 +28,7 @@ import { Icon } from './Icon';
 import { RemindAlarm, useReminders } from './RemindAlarm';
 import { remindLabel } from '../workspace/remind';
 import { useDisplay } from './SiteIcon';
-import { OPACITY_MIN, OPACITY_STEP, setPadOpacity } from '../workspace/display';
+import { KNOB_OP_MIN, OPACITY_MIN, OPACITY_STEP, setKnobOpacity, setKnobX, setPadOpacity } from '../workspace/display';
 import type { IconName } from '../workspace/icons';
 
 const KIND_ICON: Record<NoteViewKind, IconName> = { block: 'note', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix' };
@@ -66,6 +67,9 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   const [live, setLive] = useState<PadPlace | null>(null);
   const [renaming, setRenaming] = useState(false);
   const display = useDisplay();
+  // V75 (F-215 A2): Bildschirmtastatur offen? Der Knopf schwebt dann nur beim Pad, in dem gerade geschrieben wird
+  const kbBottom = useKeyboard();
+  const [focusIn, setFocusIn] = useState(false);
   const minW = Math.min(1, PAD_MIN.w / box.w);
   const minH = Math.min(1, PAD_MIN.h / box.h);
   const sheet = No.viewById(ws, pad.active);
@@ -305,13 +309,16 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   return (
     <section
       ref={self}
-      className={`pad${top ? ' is-top' : ''}${live ? ' is-moving' : ''}`}
+      className={`pad${top ? ' is-top' : ''}${live ? ' is-moving' : ''}${curNote ? ' has-note' : ''}`}
       style={style}
       role="region"
       aria-label={PAD_TEXT.region(sheet?.name ?? TERMS.pad.split(' =')[0], where)}
       data-pad-id={pad.id}
       onPointerDownCapture={raise}
-      onFocusCapture={raise}
+      onFocusCapture={() => (raise(), setFocusIn(true))}
+      onBlurCapture={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusIn(false);
+      }}
       onKeyDown={onKey}
     >
       <header
@@ -427,6 +434,9 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
                 {PAD_TEXT.closePad}
               </Item>
               <OpacitySlider label={PAD_TEXT.opacityPads} hint={PAD_TEXT.opacityHint} value={display.padOpacity} onChange={setPadOpacity} />
+              {/* V75 (F-215 A2): Steuerknopf über der Bildschirmtastatur – je Gerät */}
+              <OpacitySlider label={PAD_TEXT.knobOpacity} hint={PAD_TEXT.knobOpacityHint} value={display.knobOpacity} min={KNOB_OP_MIN} onChange={setKnobOpacity} />
+              <OpacitySlider label={PAD_TEXT.knobX} hint={PAD_TEXT.knobXHint} value={display.knobX} min={0} step={1} valueText={PAD_TEXT.knobXValue} onChange={setKnobX} />
             </>
           )}
         </Menu>
@@ -478,7 +488,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           )}
         </div>
       )}
-      <PadFooter items={footItems} onHome={home} say={say} onSwipe={swipe} swipeLabel={swipeLabel} />
+      <PadFooter items={footItems} onHome={home} say={say} onSwipe={swipe} swipeLabel={swipeLabel} knob={{ bottom: focusIn ? kbBottom : null, opacity: display.knobOpacity, x: display.knobX, onX: setKnobX }} />
       {(['n', 's', 'e', 'w', 'se'] as Edge[]).map((edge) => (
         <div key={edge} className={`pad__grip pad__grip--${edge}`} aria-hidden="true" title={PAD_TEXT.resize} onPointerDown={(e) => gesture(e, edge)} />
       ))}
@@ -489,7 +499,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
 // ---------------------------------------------------------------- Deckkraft (V67, Wunsch Enrico)
 
 /** Schieberegler für die Deckkraft – als Eintrag in einem Menü (Pfeiltasten bleiben beim Regler). */
-export function OpacitySlider(props: { label: string; hint: string; value: number; onChange: (v: number) => void }) {
+export function OpacitySlider(props: { label: string; hint: string; value: number; onChange: (v: number) => void; min?: number; step?: number; valueText?: (v: number) => string }) {
+  const vt = props.valueText ?? PAD_TEXT.opacityValue;
   const id = `op-${props.label.replace(/\W+/g, '')}`;
   return (
     <li role="none" className="menu__range">
@@ -498,15 +509,15 @@ export function OpacitySlider(props: { label: string; hint: string; value: numbe
         <input
           id={id}
           type="range"
-          min={OPACITY_MIN}
+          min={props.min ?? OPACITY_MIN}
           max={100}
-          step={OPACITY_STEP}
+          step={props.step ?? OPACITY_STEP}
           value={props.value}
-          aria-valuetext={PAD_TEXT.opacityValue(props.value)}
+          aria-valuetext={vt(props.value)}
           aria-describedby={`${id}-d`}
           onChange={(e) => props.onChange(Number(e.target.value))}
         />
-        <output htmlFor={id}>{PAD_TEXT.opacityValue(props.value)}</output>
+        <output htmlFor={id}>{vt(props.value)}</output>
       </span>
       <span id={`${id}-d`} className="menu__range-hint">
         {props.hint}
@@ -573,6 +584,7 @@ function NoteBlock(props: {
   const add = () => {
     leave();
     const id = newId();
+    freshNotes.add(id); // V75 (T5): neue Note – Tastatur darf sofort aufgehen
     dispatch({ type: 'padNote', id: padId, sheet: sheetId, note: id, by: ws.profile?.name || undefined });
     onPick(id);
   };

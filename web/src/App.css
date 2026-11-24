@@ -7153,3 +7153,79 @@ h3.cases__name { font-size: 1.05em; }
 .nedit [data-level='5'] { font-size: 1em; font-weight: 600; line-height: 1.4; color: var(--text); }
 .nedit [data-level='6'] { font-size: 0.85em; font-weight: 600; line-height: 1.4; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .nedit__hwheel .rpick__cap { display: none; } /* Name steht im Knopf */
+
+/* V75 (Wunsch Enrico): Knopf „Überschrift“ = nur das Rad, ohne Symbol; „Überschrift H1–H6“ steht auf dem Rad */
+/* Knopf selbst wie die anderen (gleicher Innenabstand), nur etwas weniger seitlich, weil das Rad eigenen Rand hat */
+.nedit__tools button.nedit__hbtn, .pad .nedit__tools button.nedit__hbtn { padding-left: 6px; padding-right: 6px; }
+.nedit__hbtn .nedit__hwheel { margin: 0; }
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap { width: auto; min-width: 128px; }
+.nedit__hbtn .nedit__hwheel .rpick__val { font-size: 1em; font-weight: 400; padding: 0 8px; white-space: nowrap; }
+.nedit__hbtn .nedit__hwheel .rpick__val.is-on { font-weight: 400; color: inherit; } /* Schrift wie bei den anderen Knöpfen */
+.nedit__hbtn .nedit__hwheel .rpick__wheel { cursor: pointer; }
+/* V75 (Wunsch Enrico): Rahmen um „Überschrift Hx“ schwarz mit Schatten statt hell */
+.nedit__hbtn .nedit__hwheel .rpick__band,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap:focus-within .rpick__band {
+  border-color: #000;
+  /* V75 (Wunsch Enrico): Hintergrund im Clay-Stil wie die Notizen in der Seitenleiste (.pad .nblock__item) */
+  background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 14%, rgba(var(--hi), 0.14)), color-mix(in srgb, rgb(var(--accent-rgb)) 6%, rgba(var(--lo), 0.2)));
+  box-shadow:
+    inset 3px 3px 6px rgba(var(--hi), 0.22),
+    inset -4px -5px 9px rgba(var(--lo), 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.65);
+}
+
+/* V75 (F-215 A2, Entscheidung Enrico V72): Bildschirmtastatur offen – nur der Steuerknopf, ohne Leiste, direkt über
+   der Tastatur; sehr durchsichtig (einstellbar, ab Werk 25 %), der helle Ring bleibt immer sichtbar. Beim Berühren,
+   Halten, Wischen und Verschieben ganz da. */
+.padknob {
+  position: fixed;
+  z-index: 2147483000;
+  width: 64px;
+  height: 42px;
+  transform: translateX(-50%);
+}
+.padknob .padfoot { height: 42px; background: none; box-shadow: none; }
+.padknob .padfoot__home { opacity: var(--knob-op, 0.25); transition: opacity 0.15s ease, scale 0.22s ease; }
+.padknob .padfoot__home:active,
+.padknob .padfoot__home:focus-visible,
+.padknob .padfoot.is-open .padfoot__home,
+.padknob .padfoot.is-swiping .padfoot__home,
+.padknob .padfoot.is-sliding .padfoot__home { opacity: 1; }
+.padknob__ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  translate: -50% -50%;
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8), 0 0 4px rgba(0, 0, 0, 0.6);
+}
+.padknob .padfoot.is-sliding + .padknob__ring { box-shadow: 0 0 0 2px rgb(var(--accent-rgb)), 0 0 10px rgba(var(--accent-rgb), 0.6); }
+
+/* V75 (F-215 C): Vollbild-Schreibmodus unter 600 px – mit offener Note füllt das Pad den sichtbaren Bereich
+   (endet über der Bildschirmtastatur: --vv-top/--vv-h aus useKeyboard). */
+@media (max-width: 600px) {
+  .pad.has-note {
+    position: fixed !important;
+    left: 0 !important;
+    top: var(--vv-top, 0px) !important;
+    width: 100vw !important;
+    height: var(--vv-h, 100dvh) !important;
+    z-index: 2147482000 !important;
+    border-radius: 0;
+  }
+  /* Ebene der Pads über die Kopfzeile der Anwendung heben – sonst deckt sie das Vollbild oben ab */
+  .padlayer:has(.pad.has-note) { z-index: 2147482000; }
+}
+
+/* V75 (F-215): Umschalter Desk | Notes in der Kopfzeile – zwei Knöpfe als Gruppe, der aktive eingedrückt */
+.tb-mode { display: inline-flex; gap: 0; border-radius: 8px; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45); }
+.tb-mode__btn { display: inline-flex; align-items: center; gap: 5px; border-radius: 0; }
+.tb-mode__btn:first-child { border-radius: 8px 0 0 8px; }
+.tb-mode__btn:last-child { border-radius: 0 8px 8px 0; }
+.tb-mode__btn.on { background: rgba(var(--accent-rgb), 0.25); color: var(--strong); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45); }
+/* Note Mode: Portale ruhen unsichtbar (nicht bedienbar, für Bildschirmleser weg), das Pad füllt den Desk */
+.area.is-notes > :not(.padlayer) { visibility: hidden; }
+.padlayer.is-notes .pad { border-radius: 0; }

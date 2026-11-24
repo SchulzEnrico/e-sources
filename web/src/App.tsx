@@ -52,6 +52,8 @@ import { importSlot, isSlotFile, readSlotFile, slotFileName, slotToFile } from '
 import { type NoteHit, tabShowing, titleOf as noteTitleOf } from './workspace/notes';
 import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
+import { DESK_MODE_TEXT } from './workspace/terms';
+import { type DeskMode, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
 import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
@@ -298,6 +300,16 @@ function DeskApp(props: DeskProps) {
   const [active, setActive] = useState<string | null>(mine[0]?.id ?? null);
   /** F-206 Schritt 3: Pads aus-/einblenden (nur in diesem Fenster) und geöffnete Note je Notizblock. */
   const [padsHidden, setPadsHidden] = useState(false);
+  // V75 (F-215): Desk Mode / Note Mode je Desk (je Gerät); Telefon = schmal → startet im Note Mode
+  const [deskModes, setDeskModes] = useState(loadModes);
+  const [phone, setPhone] = useState(() => typeof matchMedia === 'function' && matchMedia('(max-width: 600px)').matches);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const mq = matchMedia('(max-width: 600px)');
+    const f = () => setPhone(mq.matches);
+    mq.addEventListener('change', f);
+    return () => mq.removeEventListener('change', f);
+  }, []);
   const [padPick, setPadPick] = useState<Record<string, string>>({});
   const pickInPad = (sheet: string, note: string | null) =>
     setPadPick((m) => {
@@ -1074,11 +1086,26 @@ function DeskApp(props: DeskProps) {
     notify(text);
     sayLive(text);
   };
+  // V75 (F-215): Note Mode – das oberste Pad füllt den Desk; fehlt eins, legt E-Sources es an
+  const notesMode = modeOf(deskModes, win, phone) === 'notes';
+  const setDeskMode = (m: DeskMode) => {
+    const next = withMode(deskModes, win, m);
+    setDeskModes(next);
+    saveModes(next);
+    const text = m === 'notes' ? DESK_MODE_TEXT.nowNotes : DESK_MODE_TEXT.nowDesk;
+    notify(text);
+    sayLive(text);
+    if (m === 'notes') setPadsHidden(false);
+  };
+  useEffect(() => {
+    if (notesMode && deskPads.length === 0) dispatch({ type: 'padNew', desk: win, id: newId(), sheet: newId(), place: padHome() });
+  }, [notesMode, deskPads.length, win]); // eslint-disable-line react-hooks/exhaustive-deps
+  const FULL = { x: 0, y: 0, w: 1, h: 1 };
   const padOrder = [...deskPads].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const padLayer =
-    !padsHidden && deskPads.length > 0 ? (
-      <div className="padlayer">
-        {padOrder.map((p) => {
+    (!padsHidden || notesMode) && deskPads.length > 0 ? (
+      <div className={`padlayer${notesMode ? ' is-notes' : ''}`}>
+        {(notesMode ? deskPads.slice(-1) : padOrder).map((p) => {
           const z = deskPads.indexOf(p);
           return (
             <PadView
@@ -1087,9 +1114,9 @@ function DeskApp(props: DeskProps) {
               dispatch={dispatch}
               pad={p}
               desk={win}
-              place={placeOf(ws, win, p.id) ?? padHome(p)}
+              place={notesMode ? FULL : (placeOf(ws, win, p.id) ?? padHome(p))}
               box={{ w: iw, h: ih, gap: GAP }}
-              top={z === deskPads.length - 1}
+              top={notesMode || z === deskPads.length - 1}
               z={z + 1}
               picked={padPick}
               onPick={pickInPad}
@@ -2752,6 +2779,22 @@ function DeskApp(props: DeskProps) {
             </button>
           );
         })()}
+        {/* V75 (F-215, Entscheidung Enrico V72): Umschalter Desk | Notes bei den Layout-Ansichten, je Desk */}
+        <span className="tb-mode" role="group" aria-label={DESK_MODE_TEXT.group}>
+          {(['desk', 'notes'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`tb-mode__btn${(m === 'notes') === notesMode ? ' on' : ''}`}
+              aria-pressed={(m === 'notes') === notesMode}
+              title={m === 'notes' ? DESK_MODE_TEXT.notesHint : DESK_MODE_TEXT.deskHint}
+              onClick={() => setDeskMode(m)}
+            >
+              <Icon name={m === 'notes' ? 'note' : 'desk'} size={14} />
+              <span className="tb-label">{m === 'notes' ? DESK_MODE_TEXT.notes : DESK_MODE_TEXT.desk}</span>
+            </button>
+          ))}
+        </span>
         {/* „Zum Dashboard“ nimmt außerhalb des Dashboards den Platz von „Gleich verteilen“ ein (dort ohnehin gesperrt) –
             so verschiebt sich beim Durchschalten nichts und der View-Knopf bleibt unter Finger und Maus */}
         {onArea ? (
@@ -3559,7 +3602,7 @@ function DeskApp(props: DeskProps) {
           </button>
         </div>
       )}
-      <main className="area" ref={areaRef}>
+      <main className={`area${notesMode ? ' is-notes' : ''}`} ref={areaRef}>
         {content}
         {padLayer}
       </main>

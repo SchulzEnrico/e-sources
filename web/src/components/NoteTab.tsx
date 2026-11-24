@@ -10,6 +10,8 @@ import * as No from '../workspace/notes';
 import { DRAFT_TEXT, NOTE_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
 import { flash } from '../workspace/flash';
 import { NoteEditor } from './NoteEditor';
+import { RemindChips } from './RemindChips';
+import { recentPlaces } from '../workspace/remind';
 import { Icon } from './Icon';
 import type { IconName } from '../workspace/icons';
 
@@ -219,6 +221,14 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
           <Icon name="pause" size={14} /> {auto}
         </p>
       )}
+      {/* F-215 (V72, Variante A): Erinnerung als zwei Chips direkt über dem Text */}
+      <RemindChips
+        remind={n.remind}
+        place={n.place}
+        places={recentPlaces(ws)}
+        onRemind={(remind) => edit({ remind })}
+        onPlace={(place) => edit({ place })}
+      />
       <NoteEditor key={n.id} text={n.text} label={NOTE_TEXT.text} autoFocus={!n.text && !n.title} onChange={(text) => edit({ text })} />
       <p className="note__meta">
         {raw.unsaved ? DRAFT_TEXT.neverSaved : `${NOTE_TEXT.created(when(n.created))} · ${NOTE_TEXT.changed(when(n.changed))}`}

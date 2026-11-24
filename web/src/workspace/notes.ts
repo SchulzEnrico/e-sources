@@ -140,7 +140,7 @@ export function createNote(ws: Workspace, init: NoteInit = {}, act: Act & { id?:
 
 /** Felder, die sich frei ändern lassen (Zustand, Eltern und Vorgänger haben eigene Funktionen). */
 export type NotePatch = Partial<
-  Pick<Note, 'title' | 'text' | 'category' | 'tags' | 'important' | 'urgent' | 'notBefore' | 'due' | 'waitReason' | 'attach' | 'delegated'>
+  Pick<Note, 'title' | 'text' | 'category' | 'tags' | 'important' | 'urgent' | 'notBefore' | 'due' | 'waitReason' | 'attach' | 'delegated' | 'remind' | 'place'>
 >;
 
 /** Notiz ändern; `undefined` im Patch entfernt das Feld. */
@@ -1087,13 +1087,18 @@ export function leaveTab(ws: Workspace, panelId: string, tabId: string): Workspa
 
 // ---------- F-213 (V68): Entwurf bis „Speichern“ (Option C, Entscheidungs-Doc F-213) ----------
 
-export const DRAFT_FIELDS: readonly NoteDraftField[] = ['title', 'text', 'state', 'waitReason', 'important', 'urgent', 'notBefore', 'due'];
+export const DRAFT_FIELDS: readonly NoteDraftField[] = ['title', 'text', 'state', 'waitReason', 'important', 'urgent', 'notBefore', 'due', 'remind', 'place'];
 export type DraftPatch = NoteDraft['fields'];
 
 /** Wert vergleichbar machen: leer, false und null zählen als „nicht gesetzt“ (Titel/Text: leerer Text). */
 function norm(k: NoteDraftField, v: unknown): unknown {
   if (k === 'title' || k === 'text') return typeof v === 'string' ? v : '';
   if (v === null || v === undefined || v === '' || v === false) return undefined;
+  // V72: Erinnerung ist ein Objekt – als Text vergleichbar (Reihenfolge der Felder fest)
+  if (k === 'remind' && isObj(v)) {
+    const r = v as Record<string, unknown>;
+    return JSON.stringify([r.at, r.repeat ?? null, r.snooze ?? null]);
+  }
   return v;
 }
 
@@ -1107,7 +1112,7 @@ export function shownNote(n: Note): Note {
   for (const k of Object.keys(n.draft.fields) as NoteDraftField[]) {
     const v = norm(k, n.draft.fields[k]);
     if (v === undefined) delete (out as unknown as Record<string, unknown>)[k];
-    else (out as unknown as Record<string, unknown>)[k] = v;
+    else (out as unknown as Record<string, unknown>)[k] = k === 'remind' ? n.draft.fields.remind : v;
   }
   if (out.state !== 'waiting') delete out.waitReason;
   return out;
@@ -1141,9 +1146,9 @@ export function saveDraft(ws: Workspace, id: string, act: Act = {}): Workspace {
   if (!n || !hasDraft(n)) return ws;
   const f = n.draft?.fields ?? {};
   const patch: NotePatch = {};
-  for (const k of ['title', 'text', 'important', 'urgent', 'notBefore', 'due'] as const) {
+  for (const k of ['title', 'text', 'important', 'urgent', 'notBefore', 'due', 'remind', 'place'] as const) {
     if (!(k in f)) continue;
-    const v = norm(k, f[k]);
+    const v = k === 'remind' ? (norm(k, f[k]) === undefined ? undefined : f.remind) : norm(k, f[k]);
     (patch as Record<string, unknown>)[k] = v;
   }
   let out = Object.keys(patch).length ? updateNote(ws, id, patch, act) : ws;
@@ -1208,7 +1213,9 @@ function parseDraft(v: unknown): NoteDraft | undefined {
       ((k === 'title' || k === 'text' || k === 'waitReason') && typeof x === 'string') ||
       (k === 'state' && NOTE_STATES.includes(x as NoteState)) ||
       ((k === 'important' || k === 'urgent') && typeof x === 'boolean') ||
-      ((k === 'notBefore' || k === 'due') && isDay(x));
+      ((k === 'notBefore' || k === 'due') && isDay(x)) ||
+      (k === 'place' && typeof x === 'string') ||
+      (k === 'remind' && isObj(x) && typeof x.at === 'string' && !Number.isNaN(Date.parse(x.at)));
     if (ok) (fields as Record<string, unknown>)[k] = x;
   }
   if (!Object.keys(fields).length) return undefined;

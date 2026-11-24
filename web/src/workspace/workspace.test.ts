@@ -49,6 +49,7 @@ import * as Web from './websearch';
 import * as Snd from './send';
 import * as Rc from './recent';
 import * as No from './notes';
+import * as Rm from './remind';
 import * as Pd from './pads';
 import * as ND from './noteDoc';
 
@@ -4693,5 +4694,64 @@ describe('V70: Schrift auf Akzentfarbe', () => {
     expect(L.inkOn('#ffd60a')).toBe('#16181c'); // gelb
     expect(L.inkOn('#e4522c')).toBe('#ffffff'); // Orange-Rot (Standard)
     expect(L.inkOn('#0a84ff')).toBe('#ffffff'); // blau
+  });
+});
+
+describe('F-215 V72: Erinnerung (Erinnern am, Ort)', () => {
+  const start = () => No.createNote(W.defaultWorkspace(), { title: 'Zahnarzt' }, { id: 'r' }).ws;
+
+  it('Erinnern am und Ort laufen über den Entwurf; gleicher Zeitpunkt zählt als unverändert', () => {
+    let ws = start();
+    ws = No.setDraft(ws, 'r', { remind: { at: '2026-11-25T09:00:00.000Z' }, place: 'Praxis' });
+    let n = No.noteById(ws, 'r')!;
+    expect(n.remind).toBeUndefined();
+    expect(No.shownNote(n).remind?.at).toBe('2026-11-25T09:00:00.000Z');
+    expect(No.shownNote(n).place).toBe('Praxis');
+    ws = No.saveDraft(ws, 'r');
+    n = No.noteById(ws, 'r')!;
+    expect(n.remind?.at).toBe('2026-11-25T09:00:00.000Z');
+    expect(n.place).toBe('Praxis');
+    ws = No.setDraft(ws, 'r', { remind: { at: '2026-11-25T09:00:00.000Z' } });
+    expect(No.noteById(ws, 'r')!.draft).toBeUndefined();
+    ws = No.setDraft(ws, 'r', { remind: undefined, place: undefined });
+    ws = No.saveDraft(ws, 'r');
+    n = No.noteById(ws, 'r')!;
+    expect(n.remind).toBeUndefined();
+    expect(n.place).toBeUndefined();
+  });
+
+  it('Lesen: Ort und Erinnerung bleiben erhalten, Unsinn fällt weg', () => {
+    const base = { id: 'x', title: 't', text: '', state: 'open', created: 1, changed: 1, trail: [] };
+    const [a] = No.parseNotes([{ ...base, place: 'Büro', remind: { at: '2026-11-25T09:00:00.000Z' } }], new Set());
+    expect(a.place).toBe('Büro');
+    expect(a.remind?.at).toBe('2026-11-25T09:00:00.000Z');
+    const [b] = No.parseNotes([{ ...base, place: '  ', remind: { at: 'morgen' } }], new Set());
+    expect(b.place).toBeUndefined();
+    expect(b.remind).toBeUndefined();
+  });
+});
+
+describe('F-215 V72: Erinnerung – Schnellwahlen und Anzeige', () => {
+  it('Schnellwahlen: vor 17 Uhr mit „Heute 18:00“, danach ohne; morgen 9:00', () => {
+    const early = Rm.quickPicks(new Date(2026, 10, 24, 10, 7));
+    expect(early.map((p) => p.id).join()).toBe('hour,evening,morning');
+    expect(new Date(early[0].at).getHours()).toBe(11);
+    expect(new Date(early[0].at).getMinutes()).toBe(10);
+    const late = Rm.quickPicks(new Date(2026, 10, 24, 17, 30));
+    expect(late.map((p) => p.id).join()).toBe('hour,morning');
+    const m = new Date(late[1].at);
+    expect(m.getDate()).toBe(25);
+    expect(m.getHours()).toBe(9);
+  });
+
+  it('Anzeige: Heute, Morgen, sonst Wochentag mit Datum; Feld der Auswahl hin und zurück', () => {
+    const now = new Date(2026, 10, 24, 10, 0);
+    expect(Rm.remindLabel(new Date(2026, 10, 24, 18, 0).toISOString(), now)).toBe('Heute, 18:00');
+    expect(Rm.remindLabel(new Date(2026, 10, 25, 9, 5).toISOString(), now)).toBe('Morgen, 9:05');
+    expect(Rm.remindLabel(new Date(2026, 10, 27, 9, 0).toISOString(), now)).toBe('Fr 27.11., 9:00');
+    const iso = new Date(2026, 10, 27, 9, 30).toISOString();
+    expect(Rm.toLocalInput(iso)).toBe('2026-11-27T09:30');
+    expect(Rm.fromLocalInput('2026-11-27T09:30')).toBe(iso);
+    expect(Rm.fromLocalInput('')).toBeUndefined();
   });
 });

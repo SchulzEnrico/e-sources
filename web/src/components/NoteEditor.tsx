@@ -254,7 +254,7 @@ type Tool = 'task' | 'li' | 'h' | 'bold';
 export const FMT_EVENT = 'esource:fmt';
 export type FmtTool = 'task' | 'li' | 'bold' | 'h1' | 'h2' | 'h3' | NoteTpl;
 /** V71 (Wunsch Enrico): Vorlagen beim Anlegen per Wischen – alle beginnen mit einem Titel als H1 */
-export type NoteTpl = 'tpl-note' | 'tpl-todo' | 'tpl-list';
+export type NoteTpl = 'tpl-note' | 'tpl-todo' | 'tpl-list' | 'tpl-remind';
 const TOOLS: { id: Tool; icon: IconName; label: string; keys?: string }[] = [
   { id: 'task', icon: 'task', label: NOTE_TEXT.toolTask, keys: 'Strg/⌘+Enter' },
   { id: 'li', icon: 'list', label: NOTE_TEXT.toolList },
@@ -649,6 +649,8 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
       const blocks: Block[] = [{ k: 'h', level: 1, text: '' }];
       if (t === 'tpl-todo') blocks.push({ k: 'task', done: false, text: '' });
       if (t === 'tpl-list') blocks.push({ k: 'li', text: '' });
+      // V72: Erinnerung – Titel, darunter Text; Zeit und Ort über die Chips „Wann?“/„Wo?“ über der Note
+      if (t === 'tpl-remind') blocks.push({ k: 'p', text: '' });
       el.focus({ preventScroll: true });
       apply(blocks, { i: 0, off: 0 });
       return;

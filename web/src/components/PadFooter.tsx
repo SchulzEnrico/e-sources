@@ -22,8 +22,8 @@ import { aimItem, nearness, arcPos, firstItem, stepItem, type SwipeDir, swipeDir
 /** V71 (Wunsch Enrico, Bild mit gestaffelten Winkeln): Pfeil aus Winkeln in Akzentfarbe. Er baut sich beim
  *  Wischen vom Knopf aus auf – je weiter der Finger, desto mehr Winkel; der vorderste ist der hellste. */
 const CHEV_N = 5;
-/** Weg (px), bei dem der Pfeil ganz aufgebaut ist */
-const CHEV_FULL = 110;
+/** Weg (px), bei dem der Pfeil ganz aufgebaut ist (V72: kurze Wege fürs Smartphone, 48 statt 110 px) */
+const CHEV_FULL = 48;
 function Chevrons({ dir, dist }: { dir: SwipeDir; dist: number }) {
   const shown = Math.max(1, Math.min(CHEV_N, Math.ceil((dist / CHEV_FULL) * CHEV_N)));
   return (
@@ -49,7 +49,7 @@ export interface FootItem {
 const HOLD_MS = 400;
 const CLOSE_MS = 160;
 const REDUCED = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-const MOVE_PX = 8;
+const MOVE_PX = 6;
 
 export function PadFooter(props: {
   items: FootItem[];
@@ -118,6 +118,9 @@ export function PadFooter(props: {
   // ---------------------------------------------------------------- Zeiger
   const down = (e: PointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0) return;
+    // V72 (F-215 B, Entscheidungs-Doc V72): Knopf nimmt dem Schreibfeld nie den Fokus – Schreibmarke und Tastatur
+    // bleiben, Wischen formatiert die Zeile. Mit der Tastatur (Tab) bleibt der Knopf erreichbar.
+    e.preventDefault();
     e.currentTarget.setPointerCapture?.(e.pointerId);
     start.current = { x: e.clientX, y: e.clientY, moved: false, wasOpen: open, swipe: false };
     window.clearTimeout(timer.current);
@@ -334,6 +337,7 @@ export function PadFooter(props: {
         onKeyUp={keyUp}
         onClick={click}
         onContextMenu={(e) => e.preventDefault()}
+        onMouseDown={(e) => e.preventDefault()}
       >
         <span className="padfoot__ring" aria-hidden="true" />
       </button>

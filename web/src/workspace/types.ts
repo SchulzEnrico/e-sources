@@ -425,6 +425,8 @@ export interface Note {
   /** V65: Meilenstein (Dauer 0). */
   milestone?: boolean;
   remind?: NoteRemind;
+  /** F-215 (V72, E2): Ort der Erinnerung – freier Text, vorerst nur angezeigt. */
+  place?: string;
   /** V65: Abnahmekriterien. */
   accept?: NoteCheck[];
   /** V65: verknüpfte Sources mit Stelle. */
@@ -441,7 +443,7 @@ export interface Note {
 }
 
 /** F-213 (V68): Felder, die ein Entwurf ändern kann (S9: alles in der Note). */
-export type NoteDraftField = 'title' | 'text' | 'state' | 'waitReason' | 'important' | 'urgent' | 'notBefore' | 'due';
+export type NoteDraftField = 'title' | 'text' | 'state' | 'waitReason' | 'important' | 'urgent' | 'notBefore' | 'due' | 'remind' | 'place';
 /** F-213: Entwurf; `null` = Feld beim Speichern entfernen. */
 export interface NoteDraft {
   fields: { [K in NoteDraftField]?: Note[K] | null };

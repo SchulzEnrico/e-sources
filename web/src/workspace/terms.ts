@@ -1106,7 +1106,7 @@ export const PAD_TEXT = {
 /** F-215 (V69): Fußleiste mit Home-Knopf im Pad */
 export const FOOT_TEXT = {
   home: 'Home',
-  homeHint: 'Tippen: zur Liste · Halten: Auswahl im Halbkreis · Wischen in der offenen Note formatiert die Zeile: ← Liste, → Aufgabe, ↑ Überschrift H2, ↓ fett, noch einmal = wieder Text; ohne offene Note legt Wischen an: ↑ Neue Note, → Neue To-do-Liste, ← Neue Liste (Tastatur: Enter = Home, Pfeil hoch oder Leertaste halten = Auswahl, Alt+H = Home; formatieren mit der Leiste in der Note)',
+  homeHint: 'Tippen: zur Liste · Halten: Auswahl im Halbkreis · Wischen in der offenen Note formatiert die Zeile: ← Liste, → Aufgabe, ↑ Überschrift H2, ↓ fett, noch einmal = wieder Text; ohne offene Note legt Wischen an: ↑ Neue Note, → Neue To-do-Liste, ← Neue Liste, ↓ Neue Erinnerung (Tastatur: Enter = Home, Pfeil hoch oder Leertaste halten = Auswahl, Alt+H = Home; formatieren mit der Leiste in der Note)',
   menu: 'Auswahl am Home-Knopf',
   menuHint: 'Pfeil links/rechts wählen, Enter ausführen, Esc schließen',
   recent: 'Zuletzt genutzt',
@@ -1121,7 +1121,7 @@ export const FOOT_TEXT = {
   // V71 (Wunsch Enrico): Wischen am Knopf formatiert die Zeile; noch einmal = wieder Text
   fmt: { left: 'Liste', right: 'Aufgabe', up: 'Überschrift H2', down: 'Fett' } as Record<'left' | 'right' | 'up' | 'down', string>,
   // V71: ohne offene Note legt Wischen eine Note an (nach Verwendung benannt)
-  make: { up: 'Neue Note', right: 'Neue To-do-Liste', left: 'Neue Liste', down: 'Neue Erinnerung – folgt' } as Record<'left' | 'right' | 'up' | 'down', string>,
+  make: { up: 'Neue Note', right: 'Neue To-do-Liste', left: 'Neue Liste', down: 'Neue Erinnerung' } as Record<'left' | 'right' | 'up' | 'down', string>,
   swipeHint: 'Wischen: ← Liste · → Aufgabe · ↑ H2 · ↓ fett',
   fmtNoBlock: 'Formatieren per Wischen geht in einem Notizblock',
   fmtNoEdit: 'Note zum Bearbeiten öffnen, dann wischen',
@@ -1131,4 +1131,29 @@ export const FOOT_TEXT = {
   recentList: 'Zuletzt genutzt in diesem Pad',
   recentNone: 'In diesem Pad noch nichts anderes genutzt.',
   recentHint: 'Pfeil hoch/runter wählen, Enter öffnen, Esc schließen',
+};
+
+/** F-215 (V72, Variante A): Erinnerung – Chips „Wann?“ und „Wo?“ über der Note */
+export const REMIND_TEXT = {
+  group: 'Erinnerung',
+  when: 'Wann?',
+  where: 'Wo?',
+  whenHint: 'Erinnern am – Zeitpunkt wählen',
+  whereHint: 'Ort der Erinnerung – nur zur Anzeige',
+  inHour: 'In 1 Stunde',
+  evening: 'Heute 18:00',
+  morning: 'Morgen 9:00',
+  pick: 'Datum wählen …',
+  pickLabel: 'Datum und Uhrzeit',
+  placeLabel: 'Ort',
+  clearWhen: 'Erinnerung entfernen',
+  clearWhere: 'Ort entfernen',
+  today: 'Heute',
+  tomorrow: 'Morgen',
+  days: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'],
+  set: (t: string) => `Erinnerung: ${t}`,
+  setPlace: (t: string) => `Ort: ${t}`,
+  cleared: 'Erinnerung entfernt',
+  clearedPlace: 'Ort entfernt',
+  past: 'vorbei',
 };

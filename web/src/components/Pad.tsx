@@ -19,7 +19,8 @@ import { FMT_EVENT, type FmtTool, type NoteTpl } from './NoteEditor';
 /** V71: Wischrichtung → Werkzeug im Editor */
 const FMT_OF: Record<SwipeDir, FmtTool> = { left: 'li', right: 'task', up: 'h2', down: 'bold' };
 /** V71: Wischrichtung ohne offene Note → Vorlage der neuen Note (unten: Erinnerung folgt) */
-const TPL_OF: Record<SwipeDir, NoteTpl | undefined> = { up: 'tpl-note', right: 'tpl-todo', left: 'tpl-list', down: undefined };
+// V72: ↓ = Neue Erinnerung (Titel H1, darunter Text; Zeit und Ort über die Chips „Wann?“/„Wo?“ über der Note)
+const TPL_OF: Record<SwipeDir, NoteTpl | undefined> = { up: 'tpl-note', right: 'tpl-todo', left: 'tpl-list', down: 'tpl-remind' };
 import { recentIn, type RecentRef } from '../workspace/pads';
 import { Item, Menu } from './PanelFrame';
 import { Icon } from './Icon';

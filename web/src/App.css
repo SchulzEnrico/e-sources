@@ -6657,45 +6657,207 @@ h3.cases__name { font-size: 1.05em; }
 }
 .padfoot { touch-action: none; }
 
-/* V71 (Wunsch Enrico: „mehr Emboss, mehr Haptik“): Einträge der Notizliste und „Neue Note“ wie Tasten mit
-   Körper – gewölbte Oberfläche (Verlauf), helle Kante oben, sichtbare dunkle Flanke unten (3 px), weicher
-   Schlagschatten; gewählt bzw. gedrückt sinkt die Taste ein (Flanke weg, Schatten innen). */
+/* V71 (Wunsch Enrico: „mehr Emboss, mehr Haptik“) → V72 (Enrico: „Clay Morphism ausprobieren“):
+   Einträge der Notizliste und „Neue Note“ wie weiche Knete – stark gerundet, prall gewölbt (Licht innen oben
+   links, Schatten innen unten rechts), schweben mit weichem Schatten über der Fläche; leicht in Akzentfarbe
+   getönt. Gewählt bzw. gedrückt wird die Knete eingedrückt (Schatten nach innen, etwas kleiner). */
 .pad .nblock__item,
 .pad .nblock__new {
-  background: linear-gradient(to bottom, rgba(var(--hi), 0.16) 0%, rgba(var(--hi), 0.06) 45%, rgba(var(--lo), 0.12) 100%);
-  border: 1px solid rgba(var(--hi), 0.1);
-  border-bottom-color: rgba(var(--lo), 0.6);
+  background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 14%, rgba(var(--hi), 0.14)), color-mix(in srgb, rgb(var(--accent-rgb)) 6%, rgba(var(--lo), 0.2)));
+  border: none;
+  border-radius: 7px; /* V72 (Enrico): erst 16 px „viel zu stark“, dann 4 px „doch etwas mehr“ */
   box-shadow:
-    inset 0 1px 0 rgba(var(--hi), 0.28),
-    inset 0 -2px 3px rgba(var(--lo), 0.35),
-    0 3px 0 rgba(var(--lo), 0.75),
-    0 5px 8px rgba(0, 0, 0, 0.45),
-    0 1px 2px rgba(0, 0, 0, 0.4);
-  margin-bottom: 3px;
-  transition: box-shadow 0.12s ease, translate 0.12s ease, background 0.15s ease;
+    inset 3px 3px 6px rgba(var(--hi), 0.22),
+    inset -4px -5px 9px rgba(var(--lo), 0.55),
+    5px 7px 14px rgba(0, 0, 0, 0.42),
+    -2px -2px 6px rgba(var(--hi), 0.06);
+  /* V72 (Enrico): links und rechts gleicher Abstand – volle Breite ohne seitlichen Rand (vorher 100 % + Rand = rechts zu eng) */
+  margin: 0 0 4px;
+  width: 100%;
+  box-sizing: border-box;
+  transition: box-shadow 0.18s ease, scale 0.18s ease, background 0.2s ease;
 }
 .pad .nblock__item:hover,
 .pad .nblock__new:hover {
-  background: linear-gradient(to bottom, rgba(var(--hi), 0.2) 0%, rgba(var(--hi), 0.08) 45%, rgba(var(--lo), 0.1) 100%);
+  background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 20%, rgba(var(--hi), 0.16)), color-mix(in srgb, rgb(var(--accent-rgb)) 9%, rgba(var(--lo), 0.18)));
 }
 .pad .nblock__item:active,
 .pad .nblock__new:active,
 .pad .nblock__item.is-on {
-  translate: 0 3px;
+  scale: 0.985;
   box-shadow:
-    inset 0 2px 5px rgba(0, 0, 0, 0.5),
-    inset 0 -1px 0 rgba(var(--hi), 0.08),
-    0 0 0 rgba(var(--lo), 0),
-    0 1px 1px rgba(var(--hi), 0.05);
+    inset 4px 5px 10px rgba(0, 0, 0, 0.45),
+    inset -2px -2px 5px rgba(var(--hi), 0.12),
+    1px 2px 4px rgba(0, 0, 0, 0.25);
 }
 .pad .nblock__item.is-on {
-  background: linear-gradient(to bottom, rgba(var(--accent-rgb), 0.1), rgba(var(--accent-rgb), 0.24));
-  border-color: rgba(var(--accent-rgb), 0.5);
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0.36));
 }
-.pad .nblock__list { display: flex; flex-direction: column; gap: 6px; }
+.pad .nblock__item:focus-visible,
+.pad .nblock__new:focus-visible {
+  outline: 2px solid rgb(var(--accent-rgb));
+  outline-offset: 2px;
+}
+.pad .nblock__list { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
 @media (forced-colors: active) {
-  .pad .nblock__item, .pad .nblock__new { box-shadow: none; border-color: ButtonText; }
+  .pad .nblock__item, .pad .nblock__new { box-shadow: none; border: 1px solid ButtonText; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pad .nblock__item, .pad .nblock__new { transition: none; }
+}
+
+/* ---------------------------------------------------------------- F-215 (V72, Variante A): Erinnerung
+   Zwei Chips über der Note: „Wann?“ mit Schnellwahlen, „Wo?“ als Textfeld. Groß genug für den Finger (36 px). */
+.remind { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 6px; }
+.remind__slot { position: relative; display: inline-flex; align-items: center; gap: 2px; }
+.remind__chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 4px 12px;
+  border-radius: 18px;
+  border: 1px dashed rgba(var(--hi), 0.35);
+  background: transparent;
+  color: var(--muted, inherit);
+  font-size: 14px;
+}
+.remind__chip.is-set {
+  border-style: solid;
+  border-color: rgba(var(--accent-rgb), 0.6);
+  background: rgba(var(--accent-rgb), 0.18);
+  color: inherit;
+}
+.remind__chip.is-past { border-color: rgba(var(--hi), 0.3); background: rgba(var(--hi), 0.06); }
+.remind__chip--input input {
+  border: none; background: transparent; color: inherit; font: inherit; min-width: 10em; outline: none;
+}
+.remind__chip--input:focus-within { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 2px; border-style: solid; }
+.remind__x {
+  display: inline-grid; place-items: center;
+  width: 32px; height: 32px; border-radius: 50%;
+  border: none; background: transparent; color: inherit; opacity: 0.7;
+}
+.remind__x:hover, .remind__x:focus-visible { opacity: 1; background: rgba(var(--hi), 0.1); }
+.remind__menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 20;
+  display: flex; flex-direction: column; gap: 2px; min-width: 190px; padding: 6px;
+  border-radius: 10px;
+  background: var(--panel, #22252b);
+  border: 1px solid rgba(var(--hi), 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.remind__menu button {
+  min-height: 40px; padding: 6px 12px; text-align: left; border-radius: 6px;
+  border: none; background: transparent; color: inherit; font-size: 15px;
+}
+.remind__menu button:hover, .remind__menu button:focus-visible { background: rgba(var(--accent-rgb), 0.22); }
+.remind__pick { display: flex; flex-direction: column; gap: 4px; padding: 4px 6px; font-size: 13px; }
+.remind__pick input { min-height: 40px; font-size: 15px; }
+@media (forced-colors: active) {
+  .remind__chip, .remind__menu { border: 1px solid ButtonText; }
+}
+
+/* V72 (Enrico: „Neue Note muss anders dargestellt sein – Neumorphism“): „Neue Note“ hebt sich von den Clay-Einträgen
+   ab – gleiche Farbe wie die Fläche, nur geformt durch Licht oben links und Schatten unten rechts; gedrückt sinkt sie ein. */
+.pad .nblock__new {
+  background: transparent; /* Farbe der Fläche darunter */
+  border: none;
+  border-radius: 10px;
+  box-shadow:
+    -3px -3px 7px rgba(var(--hi), 0.09),
+    4px 4px 9px rgba(0, 0, 0, 0.55);
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.pad .nblock__new:hover {
+  background: transparent; /* Farbe der Fläche darunter */
+  box-shadow:
+    -3px -3px 8px rgba(var(--hi), 0.12),
+    5px 5px 11px rgba(0, 0, 0, 0.6);
+}
+.pad .nblock__new:active {
+  scale: 1;
+  box-shadow:
+    inset -3px -3px 6px rgba(var(--hi), 0.08),
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55);
+}
+.pad .nblock__new .icon { color: rgb(var(--accent-rgb)); }
+
+/* V72 (Enrico): „+ Sheet“, „⋮“ und „✕“ im Pad-Kopf im Clay-Stil der Notizliste; Abstände im Kopf gleichmäßiger */
+.pad .pad__head { gap: 8px; padding: 5px 8px; }
+.pad .pad__head .pad__menu,
+.pad .pad__head .pad__close {
+  min-width: 34px;
+  min-height: 30px;
+  padding: 3px 10px;
+  border: none;
+  border-radius: 7px;
+  background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 14%, rgba(var(--hi), 0.14)), color-mix(in srgb, rgb(var(--accent-rgb)) 6%, rgba(var(--lo), 0.2)));
+  box-shadow:
+    inset 2px 2px 4px rgba(var(--hi), 0.2),
+    inset -3px -3px 6px rgba(var(--lo), 0.5),
+    3px 4px 9px rgba(0, 0, 0, 0.4);
+  transition: box-shadow 0.18s ease, scale 0.18s ease;
+}
+.pad .pad__head .pad__menu:hover,
+.pad .pad__head .pad__close:hover { filter: none; background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 20%, rgba(var(--hi), 0.16)), color-mix(in srgb, rgb(var(--accent-rgb)) 9%, rgba(var(--lo), 0.18))); }
+.pad .pad__head .pad__menu:active,
+.pad .pad__head .pad__menu[aria-expanded='true'],
+.pad .pad__head .pad__close:active {
+  scale: 0.97;
+  box-shadow: inset 3px 4px 8px rgba(0, 0, 0, 0.45), inset -2px -2px 4px rgba(var(--hi), 0.1);
+}
+.pad .pad__head .pad__menu:focus-visible,
+.pad .pad__head .pad__close:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 2px; }
+@media (forced-colors: active) {
+  .pad .pad__head .pad__menu, .pad .pad__head .pad__close { box-shadow: none; border: 1px solid ButtonText; }
+}
+
+/* V72 (Enrico): Bedienelemente in der Note im Neumorphism-Look wie „Neue Note“ – Knöpfe erhaben (Licht oben links,
+   Schatten unten rechts), Felder und gewählte Werkzeuge eingesenkt; Farbe der Fläche, keine Ränder. */
+.pad .nedit__tools button,
+.pad .note__del,
+.pad .note__actions button {
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  box-shadow:
+    -3px -3px 7px rgba(var(--hi), 0.09),
+    4px 4px 9px rgba(0, 0, 0, 0.55);
+  transition: box-shadow 0.15s ease;
+}
+.pad .nedit__tools button:hover,
+.pad .note__del:hover,
+.pad .note__actions button:hover {
+  filter: none;
+  background: transparent;
+  box-shadow:
+    -3px -3px 8px rgba(var(--hi), 0.12),
+    5px 5px 11px rgba(0, 0, 0, 0.6);
+}
+.pad .nedit__tools button:active,
+.pad .nedit__tools button[aria-pressed='true'],
+.pad .note__del:active,
+.pad .note__actions button:active {
+  box-shadow:
+    inset -3px -3px 6px rgba(var(--hi), 0.08),
+    inset 3px 3px 7px rgba(0, 0, 0, 0.55);
+}
+.pad .nedit__tools button[aria-pressed='true'] { color: rgb(var(--accent-rgb)); }
+.pad .note__bar select,
+.pad .note__bar input[type='date'],
+.pad .note__bar input[type='text'] {
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow:
+    inset -2px -2px 5px rgba(var(--hi), 0.07),
+    inset 3px 3px 6px rgba(0, 0, 0, 0.5);
+}
+.pad .nedit__tools button:focus-visible,
+.pad .note__del:focus-visible,
+.pad .note__actions button:focus-visible,
+.pad .note__bar select:focus-visible,
+.pad .note__bar input:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 2px; }
+@media (forced-colors: active) {
+  .pad .nedit__tools button, .pad .note__del, .pad .note__actions button,
+  .pad .note__bar select, .pad .note__bar input { box-shadow: none; border: 1px solid ButtonText; }
 }

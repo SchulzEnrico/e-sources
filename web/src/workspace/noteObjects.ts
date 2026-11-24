@@ -92,6 +92,7 @@ export function parseNoteExtras(v: Record<string, unknown>): Partial<Note> {
       ...(isTime(v.remind.snooze) ? { snooze: v.remind.snooze } : {}),
     };
   }
+  if (typeof v.place === 'string' && v.place.trim()) out.place = v.place;
   if (Array.isArray(v.accept)) {
     const accept: NoteCheck[] = v.accept
       .filter((c): c is Record<string, unknown> => isObj(c) && !!text(c.text))

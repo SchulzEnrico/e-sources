@@ -94,8 +94,9 @@ export function nearness(dx: number, dy: number): number[] {
 }
 
 // ---------------------------------------------------------------- F-215 (V71): Wischen am Knopf formatiert
-/** Ab diesem Weg (px) zählt Wischen; vorher ist es ein Tippen bzw. Halten */
-export const SWIPE_PX = 28;
+/** Ab diesem Weg (px) zählt Wischen; vorher ist es ein Tippen bzw. Halten.
+ *  V72 (Enrico: „man muss viel zu weit ziehen“, Smartphone): 14 statt 28 px. */
+export const SWIPE_PX = 14;
 export type SwipeDir = 'left' | 'right' | 'up' | 'down';
 
 /** Richtung eines Wischens um dx/dy (y nach unten positiv); die stärkere Achse gewinnt. Zu kurz → null. */

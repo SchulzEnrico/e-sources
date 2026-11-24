@@ -81,6 +81,9 @@ export type Action =
   | { type: 'dropBookmark'; id: string; target: string }
   | { type: 'toggleBookmarkPanel'; id: string; panel: string }
   | { type: 'openBookmark'; panel: string; url: string }
+  | { type: 'openNote'; panel: string; ref: No.NoteRef }
+  | { type: 'tabLeave'; id: string; tab: string }
+  | { type: 'newNote'; panel: string; kind: 'note' | NoteViewKind; by?: string }
   /** F-189 Stufe 2: gesendete Seite in einem neuen Slot öffnen. */
   | ({ type: 'sendNewSlot'; url: string } & S)
   | { type: 'addCategory'; id: string; name: string }
@@ -205,8 +208,24 @@ function step(ws: Workspace, a: Action): Workspace {
       return C.restoreClosed(ws, a.setup, a.entry).ws;
     case 'rename':
       return W.renamePanel(ws, a.id, a.name);
-    case 'setUrl':
-      return W.navigatePanel(ws, a.id, a.url);
+    case 'setUrl': {
+      // F-206: Adresse im Tab einer leeren Notiz → Notiz still verwerfen
+      const p = ws.panels.find((x) => x.id === a.id);
+      const t = p?.tabs.find((x) => x.id === p.activeTab);
+      const next = W.navigatePanel(ws, a.id, a.url);
+      return t?.note && !t.url && next !== ws ? No.dropIfEmpty(next, t.note) : next;
+    }
+    case 'newNote': {
+      const made = a.kind === 'note' ? No.createNote(ws, {}, { by: a.by }) : No.createView(ws, a.kind, '');
+      const r = No.openNoteIn(made.ws, a.panel, a.kind === 'note' ? { note: made.id } : { view: made.id });
+      return r.result === 'opened' ? r.ws : ws;
+    }
+    case 'tabLeave':
+      return No.leaveTab(ws, a.id, a.tab);
+    case 'openNote': {
+      const r = No.openNoteIn(ws, a.panel, a.ref);
+      return r.result === 'opened' ? r.ws : ws;
+    }
     case 'history':
       return W.historyStep(ws, a.id, a.step);
     case 'home':
@@ -220,11 +239,8 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'closeTab': {
       // F-206: leere Notiz still verwerfen; alles andere bleibt in der Library
       const t = ws.panels.find((p) => p.id === a.id)?.tabs.find((x) => x.id === a.tab);
-      const n = t?.note ? No.noteById(ws, t.note) : undefined;
-      if (n && No.isEmptyNote(ws, n) && No.viewsWith(ws, n.id).length === 0) {
-        const cleared = No.deleteNote(ws, n.id)!.ws;
-        return W.closeTab(cleared, a.id, a.tab);
-      }
+      const cleared = t && !t.url ? No.dropIfEmpty(ws, t.note, t.id) : ws;
+      if (cleared !== ws) return W.closeTab(cleared, a.id, a.tab);
       return C.closeTabRemember(ws, a.id, a.tab, (w) => W.closeTab(w, a.id, a.tab));
     }
     case 'tabNote': {

@@ -21,7 +21,7 @@ import type {
   PanelMeta,
   Workspace,
 } from './types';
-import { newId } from './workspace';
+import { TAB_MAX, newId } from './workspace';
 
 /** Höchstens so viele Notizen je Ansicht (Unter-Notizen zählen nicht). */
 export const VIEW_MAX = 200;
@@ -374,7 +374,7 @@ export function createView(ws: Workspace, kind: NoteViewKind, name: string, opts
   return { ws: withViews(ws, [...viewsOf(ws), v]), id };
 }
 
-const VIEW_BASE: Record<NoteViewKind, string> = { block: 'Notizblock', todo: 'To-do-Liste', kanban: 'Kanban-Board', eisenhower: 'Eisenhower-Matrix' };
+export const VIEW_BASE: Record<NoteViewKind, string> = { block: 'Notizblock', todo: 'To-do-Liste', kanban: 'Kanban-Board', eisenhower: 'Eisenhower-Matrix' };
 
 /** „To-do-Liste“, „To-do-Liste 2“ … */
 export function defaultViewName(ws: Workspace, kind: NoteViewKind): string {
@@ -882,4 +882,130 @@ export function importNotes(
     return out;
   });
   return { ws: { ...ws, notes: [...notesOf(ws), ...outNotes], noteViews: [...viewsOf(ws), ...outViews] }, noteIds, viewIds };
+}
+
+// ---------------------------------------------------------------- Schritt 3: Library und Suche
+
+/** Höchstzahl der Notiz-Treffer in der Suche. */
+export const NOTE_SEARCH_MAX = 20;
+
+/** Treffer der Suche: eine Notiz oder eine Ansicht. */
+export type NoteHit = { kind: 'note'; note: Note; title: string; snippet: string } | { kind: 'view'; view: NoteView };
+
+/** Text ohne Markdown-Zeichen (für Suche und Vorschau). */
+export function plainText(md: string): string {
+  return md
+    .split('\n')
+    .map((l) => l.replace(/^\s*(#{1,6}\s+|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+|>\s*|```.*)/, '').replace(/\\(.)/g, '$1').replace(/[*_`~]/g, '').trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** Ausschnitt um das erste Suchwort (für die Trefferliste), höchstens `len` Zeichen. */
+function snippetOf(text: string, word: string, len = 70): string {
+  if (!text) return '';
+  const i = word ? text.toLowerCase().indexOf(word) : -1;
+  const start = i > 20 ? i - 20 : 0;
+  const cut = text.slice(start, start + len).trim();
+  return `${start > 0 ? '…' : ''}${cut}${start + len < text.length ? '…' : ''}`;
+}
+
+/**
+ * F-206 Schritt 3: Notizen und Ansichten finden – über Titel, Text (ohne Markdown-Zeichen), Tags,
+ * Kategorie, „delegiert an“; Ansichten über ihren Namen und ihre Art. Alle Wörter müssen passen.
+ * Treffer im Titel stehen vorn, sonst zuletzt geänderte zuerst; Archiviertes und leere Notizen am Ende bzw. gar nicht.
+ */
+export function searchNotes(ws: Workspace, query: string, max = NOTE_SEARCH_MAX, kindName: Record<string, string> = VIEW_BASE): NoteHit[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean).map((w) => w.replace(/^#/, '')).filter(Boolean);
+  if (!words.length) return [];
+  const cat = (id?: string) => (id ? (ws.categories.find((c) => c.id === id)?.name ?? '') : '');
+  const notes = notesOf(ws)
+    .filter((n) => !isEmptyNote(ws, n))
+    .map((n) => {
+      const title = titleOf(n);
+      const body = plainText(n.text);
+      const hay = [title, body, ...(n.tags ?? []), cat(n.category), n.delegated?.to ?? ''].join(' ').toLowerCase();
+      return { n, title, body, hay };
+    })
+    .filter((x) => words.every((w) => x.hay.includes(w)));
+  const inTitle = (t: string) => words.every((w) => t.toLowerCase().includes(w));
+  const rank = (x: { n: Note; title: string }) => (x.n.state === 'archived' ? 2 : inTitle(x.title) ? 0 : 1);
+  notes.sort((a, b) => rank(a) - rank(b) || b.n.changed - a.n.changed);
+  const views = viewsOf(ws).filter((v) => {
+    const hay = [v.name, kindName[v.kind] ?? '', cat(v.category)].join(' ').toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
+  const out: NoteHit[] = [
+    ...views.map((view) => ({ kind: 'view' as const, view })),
+    ...notes.map((x) => {
+      // Ausschnitt ohne die erste Zeile, wenn sie nur den Titel wiederholt
+      const rest = x.body.startsWith(x.title) ? x.body.slice(x.title.length).trim() : x.body;
+      return { kind: 'note' as const, note: x.n, title: x.title, snippet: snippetOf(rest, inTitle(x.title) ? '' : words[0]) };
+    }),
+  ];
+  return out.slice(0, max);
+}
+
+/** Was ein Tab zeigen soll: eine Notiz oder eine Ansicht. */
+export type NoteRef = { note: string; view?: undefined } | { view: string; note?: undefined };
+
+/** Tab, der die Notiz bzw. Ansicht schon zeigt (bevorzugt im Portal `prefer`). */
+export function tabShowing(ws: Workspace, ref: NoteRef, prefer?: string): { panel: string; tab: string } | null {
+  const hit = (t: { url?: string; note?: string; view?: string }) => !t.url && (ref.note ? t.note === ref.note : t.view === ref.view);
+  const order = [...ws.panels].sort((a, b) => (b.id === prefer ? 1 : 0) - (a.id === prefer ? 1 : 0));
+  for (const p of order) {
+    const t = p.tabs.find(hit);
+    if (t) return { panel: p.id, tab: t.id };
+  }
+  return null;
+}
+
+export type OpenNoteResult = { result: 'shown' | 'opened'; ws: Workspace; panel: string; tab: string } | { result: 'full' | 'missing'; ws: Workspace };
+
+/**
+ * F-206 Schritt 3: Notiz bzw. Ansicht in einem Tab zeigen. Zeigt sie schon ein Tab (irgendwo), wird
+ * nur dieser genannt („shown“). Sonst kommt sie in den sichtbaren Tab des Portals, wenn der leer ist,
+ * sonst in einen neuen Tab („opened“; bei TAB_MAX Tabs „full“).
+ */
+export function openNoteIn(ws: Workspace, panelId: string, ref: NoteRef): OpenNoteResult {
+  if (ref.note ? !noteById(ws, ref.note) : !viewById(ws, ref.view!)) return { result: 'missing', ws };
+  const there = tabShowing(ws, ref, panelId);
+  if (there) return { result: 'shown', ws, ...there };
+  const p = ws.panels.find((x) => x.id === panelId);
+  if (!p) return { result: 'missing', ws };
+  const cur = p.tabs.find((t) => t.id === p.activeTab);
+  const set = (t: PanelMeta['tabs'][number]) => ({ ...t, ...(ref.note ? { note: ref.note } : { view: ref.view }) });
+  if (cur && !cur.url && !cur.note && !cur.view) {
+    const next = { ...ws, panels: ws.panels.map((x) => (x.id === panelId ? { ...x, tabs: x.tabs.map((t) => (t.id === cur.id ? set(t) : t)) } : x)) };
+    return { result: 'opened', ws: next, panel: panelId, tab: cur.id };
+  }
+  if (p.tabs.length >= TAB_MAX) return { result: 'full', ws };
+  const tab = set({ id: newId() });
+  const next = { ...ws, panels: ws.panels.map((x) => (x.id === panelId ? { ...x, tabs: [...x.tabs, tab], activeTab: tab.id } : x)) };
+  return { result: 'opened', ws: next, panel: panelId, tab: tab.id };
+}
+
+/**
+ * Leere Notiz still verwerfen (Tab schließen, Adresse im Notiz-Tab, F-206): nur wenn sie in keiner
+ * Ansicht liegt und kein anderer Tab als `exceptTab` sie zeigt.
+ */
+export function dropIfEmpty(ws: Workspace, noteId: string | undefined, exceptTab?: string): Workspace {
+  const n = noteId ? noteById(ws, noteId) : undefined;
+  if (!n || !isEmptyNote(ws, n) || viewsWith(ws, n.id).length) return ws;
+  if (ws.panels.some((p) => p.tabs.some((t) => t.id !== exceptTab && !t.url && t.note === n.id))) return ws;
+  return deleteNote(ws, n.id)?.ws ?? ws;
+}
+
+/**
+ * Tab wieder leer machen („Zurück zur Auswahl“): Notiz bzw. Ansicht bleibt erhalten, außer sie ist
+ * leer und sonst nirgends offen (leere Notiz; Ansicht ohne Notizen) – dann wird sie still verworfen.
+ */
+export function leaveTab(ws: Workspace, panelId: string, tabId: string): Workspace {
+  const t = ws.panels.find((p) => p.id === panelId)?.tabs.find((x) => x.id === tabId);
+  if (!t || t.url || (!t.note && !t.view)) return ws;
+  const cleared = { ...ws, panels: ws.panels.map((p) => (p.id !== panelId ? p : { ...p, tabs: p.tabs.map((x) => (x.id === tabId ? { id: x.id } : x)) })) };
+  if (t.note) return dropIfEmpty(cleared, t.note);
+  const v = viewById(cleared, t.view!);
+  const elsewhere = cleared.panels.some((p) => p.tabs.some((x) => !x.url && x.view === t.view));
+  return v && !elsewhere && countIn(cleared, v) === 0 ? (deleteView(cleared, v.id)?.ws ?? cleared) : cleared;
 }

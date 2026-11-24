@@ -1198,7 +1198,7 @@ export function PanelFrame(p: Props) {
               onDragOver={(e) => dragTab.current && e.preventDefault()}
               onDrop={(e) => dropTab(e, i)}
               onClick={() => p.onSelectTab(t.id)}
-              title={`${t.url ?? 'Neuer Tab'}${isPaused(t) ? ` · ${PAUSE_TEXT.paused}` : (t.keep || p.keptBySource?.(t.url)) && !p.panel.keep ? ` · ${PAUSE_TEXT.tabKept}` : ''}`}
+              title={`${t.url ?? tabLabel(t, p.ws)}${isPaused(t) ? ` · ${PAUSE_TEXT.paused}` : (t.keep || p.keptBySource?.(t.url)) && !p.panel.keep ? ` · ${PAUSE_TEXT.tabKept}` : ''}`}
             >
               <span className="tab__label">{tabLabel(t, p.ws)}</span>
               {/* F-201/F-202: Pause-Zeichen vor dem × – Zustand auf einen Blick, Klick öffnet das Pause-Menü */}
@@ -1381,7 +1381,11 @@ export function PanelFrame(p: Props) {
             // F-206: Notiz im Tab (nur Verweis; Inhalt liegt in der Library)
             <NoteTab key={tab.note} ws={p.ws} noteId={tab.note} dispatch={p.dispatch} />
           ) : !url && tab.view ? (
-            <ViewTab ws={p.ws} viewId={tab.view} />
+            <ViewTab ws={p.ws} viewId={tab.view} onBack={() => {
+                p.dispatch({ type: 'tabLeave', id: p.panel.id, tab: tab.id });
+                // Fokus auf die Auswahl im wieder leeren Tab (der Knopf selbst verschwindet)
+                window.setTimeout(() => document.querySelector<HTMLElement>(`main section[data-panel-id="${p.panel.id}"] .newin__btn`)?.focus(), 60);
+              }} />
           ) : !url ? (
             <>
               <p className="win__placeholder">{p.panel.name}</p>

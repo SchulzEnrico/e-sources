@@ -162,15 +162,29 @@ export function NoteTab({ ws, noteId, dispatch }: NoteProps) {
 
 // ---------- Ansicht (Platzhalter bis zu den nächsten Schritten) ----------
 
-export function ViewTab({ ws, viewId }: { ws: Workspace; viewId: string }) {
+export function ViewTab({ ws, viewId, onBack }: { ws: Workspace; viewId: string; onBack: () => void }) {
   const v = No.viewById(ws, viewId);
-  if (!v) return <p className="win__placeholder win__placeholder--small">{NOTE_TEXT.missingView}</p>;
+  const back = (
+    <button type="button" className="newin__btn" title={NOTE_TEXT.backHint} onClick={onBack}>
+      <Icon name="back" size={16} />
+      {NOTE_TEXT.back}
+    </button>
+  );
+  if (!v)
+    return (
+      <div className="note note--view">
+        <p className="win__placeholder win__placeholder--small">{NOTE_TEXT.missingView}</p>
+        {back}
+      </div>
+    );
   return (
     <div className="note note--view">
       <p className="win__placeholder">
         <Icon name={KIND_ICON[v.kind]} size={22} /> {v.name}
       </p>
       <p className="win__hint">{NOTE_TEXT.viewSoon(KIND_NAME[v.kind], No.countIn(ws, v))}</p>
+      <p className="win__hint">{NOTE_TEXT.addSoon}</p>
+      {back}
     </div>
   );
 }

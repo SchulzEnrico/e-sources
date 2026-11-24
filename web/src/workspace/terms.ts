@@ -1014,6 +1014,17 @@ export const NOTE_TEXT = {
   autoFrom: (d: string) => `wartet von selbst bis ${d}`,
   discarded: 'Leere Notiz verworfen.',
   viewSoon: (kind: string, n: number) => `${kind} mit ${n === 1 ? 'einer Notiz' : `${n} Notizen`}. Die Ansicht selbst kommt im nächsten Bauschritt.`,
+  back: 'Zurück zur Auswahl',
+  backHint: 'Tab wieder leer machen und etwas anderes wählen. Die Ansicht bleibt erhalten, solange Notizen darin liegen; eine leere wird verworfen.',
+  addSoon: 'Einträge hinzufügen und Karten verschieben kommen mit den nächsten Bauschritten (To-do-Liste, dann Kanban-Board, dann Eisenhower-Matrix).',
+  // Schritt 3: Suche
+  searchHead: 'Notizen',
+  searchNote: (t: string, state: string, where: string) => `Notiz ${t}, ${state}, öffnet in ${where}`,
+  searchView: (name: string, kind: string, where: string) => `${name === kind ? kind : `${kind} ${name}`}, öffnet in ${where}`,
+  searchShown: 'schon offen',
+  full: (portal: string, max: number) => `Im Portal „${portal}“ sind schon ${max} Tabs offen. Schließe dort einen Tab.`,
+  noPortal: 'Lege zuerst einen Slot an, dann lässt sich die Notiz öffnen.',
+  opened: (t: string, portal: string) => `„${t}“ ist in „${portal}“ offen.`,
   created: (d: string) => `angelegt ${d}`,
   changed: (d: string) => `geändert ${d}`,
 };

@@ -4115,6 +4115,125 @@ describe('F-206 Schritt 2: Notiz im Tab', () => {
   });
 });
 
+describe('F-206 Schritt 3: Notizen finden und öffnen', () => {
+  const base = () => {
+    let ws = W.defaultWorkspace();
+    const a = No.createNote(ws, { text: '# Einkauf\n- [ ] Milch\n- [ ] Brot' }, { id: 'n1', now: 1 });
+    ws = a.ws;
+    const b = No.createNote(ws, { text: 'Anruf beim **Zahnarzt** wegen Termin', tags: ['privat'] }, { id: 'n2', now: 2 });
+    ws = b.ws;
+    ws = No.createNote(ws, {}, { id: 'leer', now: 3 }).ws;
+    ws = No.createView(ws, 'kanban', 'Bewerbungen', { id: 'v1' }).ws;
+    return ws;
+  };
+  it('findet Notizen über Titel, Text ohne Markdown und Tags; leere nie', () => {
+    const ws = base();
+    expect(No.searchNotes(ws, 'einkauf').map((h) => (h.kind === 'note' ? h.note.id : h.view.id))).toEqual(['n1']);
+    const z = No.searchNotes(ws, 'zahnarzt termin');
+    expect(z).toHaveLength(1);
+    expect(z[0].kind === 'note' && z[0].title).toBe('Anruf beim Zahnarzt wegen Termin');
+    expect(No.searchNotes(ws, '#privat').map((h) => h.kind === 'note' && h.note.id)).toEqual(['n2']);
+    expect(No.searchNotes(ws, 'milch')[0].kind === 'note' && (No.searchNotes(ws, 'milch')[0] as { snippet: string }).snippet).toContain('Milch');
+    expect(No.searchNotes(ws, '   ')).toHaveLength(0);
+    expect(No.searchNotes(ws, 'xyz')).toHaveLength(0);
+  });
+  it('Ausschnitt wiederholt den Titel nicht', () => {
+    const h = No.searchNotes(base(), 'einkauf')[0];
+    expect(h.kind === 'note' && h.snippet).toBe('Milch Brot');
+  });
+  it('Titeltreffer zuerst, Archiviertes zuletzt; Ansichten über Name und Art', () => {
+    let ws = base();
+    ws = No.createNote(ws, { text: 'Notiz\nzum Einkauf später' }, { id: 'n3', now: 5 }).ws;
+    expect(No.searchNotes(ws, 'einkauf').map((h) => h.kind === 'note' && h.note.id)).toEqual(['n1', 'n3']);
+    ws = No.setState(ws, 'n1', 'archived');
+    expect(No.searchNotes(ws, 'einkauf').map((h) => h.kind === 'note' && h.note.id)).toEqual(['n3', 'n1']);
+    expect(No.searchNotes(ws, 'bewerb').map((h) => h.kind)).toEqual(['view']);
+    expect(No.searchNotes(ws, 'kanban', 20, { kanban: 'Kanban-Board' }).map((h) => h.kind)).toEqual(['view']);
+  });
+  it('öffnet im leeren Tab, sonst in neuem Tab; zeigt sie schon ein Tab, nur dorthin', () => {
+    let ws = base();
+    const pid = ws.panels[0].id;
+    let r = No.openNoteIn(ws, pid, { note: 'n1' });
+    expect(r.result).toBe('opened');
+    ws = r.ws;
+    expect(ws.panels[0].tabs).toHaveLength(1);
+    expect(ws.panels[0].tabs[0].note).toBe('n1');
+    r = No.openNoteIn(ws, pid, { note: 'n1' });
+    expect(r.result).toBe('shown');
+    expect(r.ws).toBe(ws);
+    r = No.openNoteIn(ws, pid, { view: 'v1' });
+    expect(r.result).toBe('opened');
+    ws = r.ws;
+    expect(ws.panels[0].tabs).toHaveLength(2);
+    expect(ws.panels[0].activeTab).toBe(ws.panels[0].tabs[1].id);
+    expect(ws.panels[0].tabs[1].view).toBe('v1');
+    expect(No.openNoteIn(ws, pid, { note: 'fehlt' }).result).toBe('missing');
+  });
+  it('volles Portal: „full“; über den Reducer', () => {
+    let ws = base();
+    const pid = ws.panels[0].id;
+    for (let i = 0; i < W.TAB_MAX; i++) ws = W.addTab(ws, pid, `a${i}.de`);
+    expect(No.openNoteIn(ws, pid, { note: 'n2' }).result).toBe('full');
+    const w1 = base();
+    const w2 = reducer(w1, { type: 'openNote', panel: w1.panels[0].id, ref: { note: 'n2' } });
+    expect(w2.panels[0].tabs[0].note).toBe('n2');
+  });
+  it('Adresse im Tab einer leeren Notiz verwirft sie still; beschriebene bleibt', () => {
+    const w0 = W.defaultWorkspace();
+    const pid = w0.panels[0].id;
+    let ws = reducer(w0, { type: 'tabNote', id: pid, tab: w0.panels[0].tabs[0].id, kind: 'note' });
+    ws = reducer(ws, { type: 'setUrl', id: pid, url: 'example.org' });
+    expect(ws.notes).toEqual([]);
+    expect(ws.panels[0].tabs[0].url).toBe('https://example.org');
+    ws = reducer(ws, { type: 'addTab', id: pid });
+    const tid = ws.panels[0].activeTab;
+    ws = reducer(ws, { type: 'tabNote', id: pid, tab: tid, kind: 'note' });
+    const nid = ws.panels[0].tabs[1].note!;
+    ws = reducer(ws, { type: 'noteEdit', id: nid, patch: { text: 'bleibt' } });
+    ws = reducer(ws, { type: 'setUrl', id: pid, url: 'example.com' });
+    expect(ws.notes!.map((n) => n.id)).toEqual([nid]);
+  });
+  it('leere Notiz bleibt, wenn ein anderer Tab sie zeigt oder sie in einer Ansicht liegt', () => {
+    let ws = base();
+    ws = { ...ws, panels: ws.panels.map((p, i) => (i === 0 ? { ...p, tabs: [{ id: 't1', note: 'leer' }, { id: 't2', note: 'leer' }] } : p)) };
+    expect(No.dropIfEmpty(ws, 'leer', 't1')).toBe(ws);
+    expect(No.dropIfEmpty(ws, 'leer').notes!.some((n) => n.id === 'leer')).toBe(true);
+    const w2 = { ...ws, panels: ws.panels.map((p, i) => (i === 0 ? { ...p, tabs: [{ id: 't1', note: 'leer' }] } : p)) };
+    expect(No.dropIfEmpty(w2, 'leer', 't1').notes!.some((n) => n.id === 'leer')).toBe(false);
+    const w3 = (No.placeNote(w2, 'leer', { view: 'v1' }) as { ws: Workspace }).ws;
+    expect(No.dropIfEmpty(w3, 'leer', 't1').notes!.some((n) => n.id === 'leer')).toBe(true);
+  });
+});
+
+describe('F-206: Zurück zur Auswahl', () => {
+  it('leere Ansicht wird verworfen, gefüllte bleibt; Tab ist danach leer', () => {
+    const w0 = W.defaultWorkspace();
+    const pid = w0.panels[0].id;
+    const tid = w0.panels[0].tabs[0].id;
+    let ws = reducer(w0, { type: 'tabNote', id: pid, tab: tid, kind: 'kanban' });
+    ws = reducer(ws, { type: 'tabLeave', id: pid, tab: tid });
+    expect(ws.noteViews).toEqual([]);
+    expect(ws.panels[0].tabs[0]).toEqual({ id: tid });
+    ws = reducer(ws, { type: 'tabNote', id: pid, tab: tid, kind: 'todo' });
+    const vid = ws.panels[0].tabs[0].view!;
+    const made = No.createNote(ws, { text: 'Karte' }, { id: 'k1' });
+    ws = (No.placeNote(made.ws, 'k1', { view: vid }) as { ws: Workspace }).ws;
+    ws = reducer(ws, { type: 'tabLeave', id: pid, tab: tid });
+    expect(ws.noteViews!.map((v) => v.id)).toEqual([vid]);
+    expect(ws.panels[0].tabs[0].view).toBeUndefined();
+  });
+  it('Notiz: leere wird verworfen; Tab mit Adresse bleibt unverändert', () => {
+    const w0 = W.defaultWorkspace();
+    const pid = w0.panels[0].id;
+    const tid = w0.panels[0].tabs[0].id;
+    let ws = reducer(w0, { type: 'tabNote', id: pid, tab: tid, kind: 'note' });
+    ws = reducer(ws, { type: 'tabLeave', id: pid, tab: tid });
+    expect(ws.notes).toEqual([]);
+    const w2 = W.navigatePanel(ws, pid, 'example.org');
+    expect(No.leaveTab(w2, pid, tid)).toBe(w2);
+  });
+});
+
 describe('F-206 Notiz-Eingabe: Markdown ↔ Blöcke', () => {
   const md = ['# Einkauf', 'Erste Zeile mit **fett** und *kursiv*', '- [ ] Milch', '- [x] Brot', '', '- Punkt', '1. eins', '2. zwei', '> Zitat', '```', 'a *b*', '```', '\\- kein Punkt'].join('\n');
   it('liest jede Zeile als Block und schreibt sie unverändert zurück', () => {

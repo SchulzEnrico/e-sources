@@ -47,8 +47,10 @@ import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { ColorPicker } from './components/ColorPicker';
 import { importSlot, isSlotFile, readSlotFile, slotFileName, slotToFile } from './workspace/slotFile';
+import { type NoteHit, openNoteIn, tabShowing, titleOf as noteTitleOf } from './workspace/notes';
+import type { NoteViewKind } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
+import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { browserOf, currentUa, modKey } from './workspace/browser';
@@ -1482,6 +1484,45 @@ function DeskApp(props: DeskProps) {
     openHit({ bookmark: b, panel: null, category: '' });
   };
 
+  /** F-206: Schreibmarke in die Notiz des Portals setzen (nach Öffnen aus der Suche bzw. Anlegen). */
+  const focusNote = (id: string) =>
+    window.setTimeout(() => document.querySelector<HTMLElement>(`main section[data-panel-id="${id}"] .nedit`)?.focus(), 80);
+  /** F-206 Schritt 3: Notiz bzw. Ansicht aus der Suche zeigen – dort, wo sie schon offen ist, sonst im aktiven Portal. */
+  const openNoteHit = (h: NoteHit) => {
+    const ref = h.kind === 'note' ? { note: h.note.id } : { view: h.view.id };
+    const title = h.kind === 'note' ? noteTitleOf(h.note) || NOTE_TEXT.untitled : h.view.name;
+    const shown = tabShowing(ws, ref);
+    if (shown) {
+      showPanel(shown.panel, shown.tab);
+      if (h.kind === 'note') focusNote(shown.panel);
+      return;
+    }
+    const id = currentPanel();
+    if (!id) return notify(NOTE_TEXT.noPortal);
+    const name = ws.panels.find((x) => x.id === id)?.name ?? '';
+    if (openNoteIn(ws, id, ref).result === 'full') return notify(NOTE_TEXT.full(name, TAB_MAX));
+    dispatch({ type: 'stackFront', setup, id });
+    dispatch({ type: 'openNote', panel: id, ref });
+    setActive(id);
+    if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
+    sayLive(NOTE_TEXT.opened(title, name));
+    if (h.kind === 'note') focusNote(id);
+  };
+  /** F-206: Notiz bzw. Ansicht im aktiven Portal anlegen (Suche, Hilfe). */
+  const newNoteHere = (kind: 'note' | NoteViewKind) => {
+    const id = currentPanel();
+    if (!id) return notify(NOTE_TEXT.noPortal);
+    const p = ws.panels.find((x) => x.id === id)!;
+    const cur = p.tabs.find((t) => t.id === p.activeTab);
+    const free = !!cur && !cur.url && !cur.note && !cur.view;
+    if (!free && p.tabs.length >= TAB_MAX) return notify(NOTE_TEXT.full(p.name, TAB_MAX));
+    dispatch({ type: 'stackFront', setup, id });
+    dispatch({ type: 'newNote', panel: id, kind, by: ws.profile?.name || undefined });
+    setActive(id);
+    if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
+    if (kind === 'note') focusNote(id);
+  };
+
   /** F-141: Panel aus der Suche nach vorn holen und aktiv machen. */
   const showPanel = (id: string, tabId?: string) => {
     // F-27: Liegt das Panel in einem anderen Fenster, holt jenes es nach vorn.
@@ -2249,6 +2290,14 @@ function DeskApp(props: DeskProps) {
         return slotImportRef.current?.click();
       case 'colorPicker':
         return setPickerOpen(true);
+      case 'newNote':
+        return newNoteHere('note');
+      case 'newTodo':
+        return newNoteHere('todo');
+      case 'newKanban':
+        return newNoteHere('kanban');
+      case 'newEisenhower':
+        return newNoteHere('eisenhower');
       case 'syncDesks':
         return setSyncOpen(true);
       case 'tourSync':
@@ -2638,7 +2687,7 @@ function DeskApp(props: DeskProps) {
           </button>
         )}
         {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
-        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} onRun={runHelp} onHelp={(id) => setHelpAt({ at: id })} launchHow={launcher.how} onWebSearch={webSearch} engineName={engineOf(ws).name} onPickCase={pickCaseHere} />
+        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} onRun={runHelp} onHelp={(id) => setHelpAt({ at: id })} launchHow={launcher.how} onWebSearch={webSearch} engineName={engineOf(ws).name} onPickCase={pickCaseHere} onOpenNote={openNoteHit} />
         {/* F-40: Launcher für Sources, die sich nicht einbetten lassen */}
         {(() => {
           const n = launcherCount(ws);

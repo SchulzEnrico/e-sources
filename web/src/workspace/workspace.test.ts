@@ -4445,6 +4445,20 @@ describe('F-206 Schritt 3: Pads (Logik, V66)', () => {
     expect(Pd.padsOf(ws)).toHaveLength(1);
   });
 
+  it('V67: Pad geschlossen – Note öffnet ihren eigenen Notizblock wieder statt eines neuen', () => {
+    let ws = start();
+    const r1 = Pd.openNoteInPad(ws, '', 'a', { makeId: make }) as { ws: Workspace; pad: string; sheet: string };
+    ws = Pd.closePad(r1.ws, r1.pad);
+    expect(Pd.padsOf(ws)).toHaveLength(0);
+    expect(Pd.padShowing(ws, { note: 'a' })).toBeNull();
+    const r2 = Pd.openNoteInPad(ws, '', 'a', { makeId: make }) as { result: string; ws: Workspace; sheet: string };
+    expect(r2.result).toBe('opened');
+    expect(r2.sheet).toBe(r1.sheet);
+    expect(No.viewsOf(r2.ws).filter((v) => v.kind === 'block')).toHaveLength(1);
+    expect(Pd.padShowing(r2.ws, { note: 'a' })!.sheet).toBe(r1.sheet);
+    expect(Pd.padShowing(r2.ws, { view: r1.sheet })!.sheet).toBe(r1.sheet);
+  });
+
   it('Sheet öffnen: Reiter im obersten Pad, bis 9; dann neues Pad; jedes Sheet nur an einem Ort', () => {
     let ws = start();
     ws = (Pd.openNoteInPad(ws, '', 'a', { makeId: make }) as { ws: Workspace }).ws;

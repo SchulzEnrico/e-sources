@@ -22,7 +22,9 @@ import { searchCases } from '../workspace/cases';
 import { CASE_TEXT } from '../workspace/terms';
 import { Dot } from './Cases';
 import { type NoteHit, VIEW_BASE, searchNotes, stateOf, tabShowing } from '../workspace/notes';
-import { NOTE_TEXT } from '../workspace/terms';
+import * as No from '../workspace/notes';
+import { padShowing } from '../workspace/pads';
+import { NOTE_TEXT, PAD_TEXT } from '../workspace/terms';
 
 interface Props {
   ws: Workspace;
@@ -423,7 +425,13 @@ export function Search(props: Props) {
           {noteHits.map((h, j) => {
             const ref = h.kind === 'note' ? { note: h.note.id } : { view: h.view.id };
             const shown = tabShowing(ws, ref);
-            const where = shown ? `${ws.panels.find((p) => p.id === shown.panel)?.name ?? ''} · ${NOTE_TEXT.searchShown}` : (activeName ?? 'aktives Portal');
+            // F-206 Schritt 3: Notes öffnen im Pad (alte Notiz-Tabs bis zum Umstieg noch im Portal)
+            const inPad = shown ? null : padShowing(ws, ref);
+            const where = shown
+              ? `${ws.panels.find((p) => p.id === shown.panel)?.name ?? ''} · ${NOTE_TEXT.searchShown}`
+              : inPad
+                ? `${PAD_TEXT.searchPad(No.viewById(ws, inPad.sheet)?.name ?? '')} · ${NOTE_TEXT.searchShown}`
+                : PAD_TEXT.searchToPad;
             if (h.kind === 'view') {
               const kind = VIEW_BASE[h.view.kind];
               return option(

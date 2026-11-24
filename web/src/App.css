@@ -5823,3 +5823,180 @@ h3.cases__name { font-size: 1.05em; }
 .md a {
   color: var(--accent);
 }
+
+/* ---------- F-206 Schritt 3 (V67): Pads – schwebende Fenster über dem Desk */
+.padlayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none; /* nur die Pads selbst fangen Klicks, die Portale darunter bleiben bedienbar */
+  z-index: 20;
+}
+.pad {
+  position: absolute;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: linear-gradient(145deg, var(--neu-top), var(--neu-bottom));
+  border: 1px solid rgba(var(--tint), 0.18);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px rgba(var(--lo), 0.7);
+  overflow: hidden;
+}
+.pad.is-top {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 18px 44px rgba(var(--lo), 0.75);
+}
+.pad.is-moving { opacity: 1; }
+/* V67 (Wunsch Enrico): einstellbare Deckkraft; Hover, Fokus und Ziehen = undurchsichtig */
+.pad { opacity: var(--pad-opacity, 1); transition: opacity 0.15s ease; }
+.pad:hover, .pad:focus-within, .pad.is-moving { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .pad { transition: none; } }
+.pad:focus-within { outline: none; }
+.pad__head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 8px;
+  cursor: move;
+  touch-action: none;
+  background: linear-gradient(180deg, rgba(var(--tint), 0.08), rgba(var(--tint), 0.015) 60%), rgba(var(--glass), 0.6);
+  box-shadow: inset 0 1px 0 rgba(var(--hi), 0.12);
+  user-select: none;
+}
+.pad__icon { flex: none; opacity: 0.7; }
+.pad__tabs {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+  min-width: 4.5em;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pad__tab {
+  min-width: 3em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 14em;
+  padding: 4px 9px;
+  border-radius: 7px 7px 0 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim, var(--text));
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  flex: none;
+}
+.pad__tab .icon { display: inline-block; flex: none; }
+.pad__tab.is-on {
+  color: var(--text);
+  background: rgba(var(--tint), 0.08);
+  border-color: rgba(var(--tint), 0.16);
+  border-bottom-color: var(--accent);
+}
+.pad__tabname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pad__rename { font: inherit; font-size: 13px; width: 11em; padding: 3px 6px; }
+.pad__add { font-size: 13px; padding: 0 4px; white-space: nowrap; }
+.pad__menu { flex: none; }
+.pad__close { flex: none; display: inline-flex; align-items: center; justify-content: center; }
+.pad__close .icon { display: inline-block; }
+.pad__body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  container: padbody / inline-size;
+}
+.pad__soon { padding: 14px; text-align: center; overflow: auto; height: 100%; }
+.pad__soon .icon { display: inline-block; vertical-align: -4px; }
+/* Ränder zum Ziehen der Größe */
+.pad__grip { position: absolute; z-index: 2; touch-action: none; }
+.pad__grip--n { top: 0; left: 8px; right: 8px; height: 5px; cursor: ns-resize; }
+.pad__grip--s { bottom: 0; left: 8px; right: 14px; height: 6px; cursor: ns-resize; }
+.pad__grip--e { right: 0; top: 8px; bottom: 14px; width: 6px; cursor: ew-resize; }
+.pad__grip--w { left: 0; top: 8px; bottom: 8px; width: 5px; cursor: ew-resize; }
+.pad__grip--se {
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 55%, rgba(var(--tint), 0.35) 55%, rgba(var(--tint), 0.35) 62%, transparent 62%, transparent 75%, rgba(var(--tint), 0.35) 75%, rgba(var(--tint), 0.35) 82%, transparent 82%);
+}
+
+/* Notizblock: Liste links, geöffnete Note rechts; schmal nur eins von beiden */
+.nblock {
+  display: grid;
+  grid-template-columns: minmax(150px, 34%) 1fr;
+  height: 100%;
+  min-height: 0;
+}
+.nblock__side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid rgba(var(--tint), 0.1);
+}
+.nblock__new { display: inline-flex; align-items: center; gap: 6px; justify-content: center; }
+.nblock__new .icon, .nblock__back .icon { display: inline-block; }
+.nblock__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.nblock__item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nblock__item:hover { background: rgba(var(--tint), 0.06); }
+.nblock__item.is-on { background: rgba(var(--accent-rgb), 0.14); border-color: rgba(var(--accent-rgb), 0.45); }
+.nblock__item.is-done .nblock__title { text-decoration: line-through; opacity: 0.7; }
+.nblock__title { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.nblock__state { font-size: 12px; opacity: 0.65; }
+.nblock__empty, .nblock__pick { font-size: 13px; opacity: 0.75; margin: 4px 2px; }
+.nblock__pick { padding: 14px; }
+.nblock__main { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.nblock__main > .note { position: relative; inset: auto; flex: 1; min-height: 0; }
+.nblock__back { display: none; align-self: flex-start; margin: 6px 0 0 10px; align-items: center; gap: 6px; }
+@container padbody (max-width: 470px) {
+  .nblock { grid-template-columns: 1fr; }
+  .nblock__side { border-right: 0; }
+  .nblock.has-open .nblock__side { display: none; }
+  .nblock:not(.has-open) .nblock__main { display: none; }
+  .nblock__back { display: inline-flex; }
+}
+.tb-newpad { position: relative; }
+.tb-newpad__n {
+  font-size: 11px;
+  min-width: 1.4em;
+  padding: 0 4px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb), 0.25);
+}
+@media (forced-colors: active) {
+  .pad { border: 1px solid CanvasText; opacity: 1; }
+  .pad.is-top { border: 2px solid Highlight; }
+  .nblock__item.is-on { border-color: Highlight; }
+}
+
+/* V67: Schieberegler im Menü (Deckkraft) */
+.menu__range { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px 10px; border-top: 1px solid rgba(var(--tint), 0.1); min-width: 220px; }
+.menu__range label { font-size: 13px; }
+.menu__range-row { display: flex; align-items: center; gap: 10px; }
+.menu__range-row input { flex: 1; accent-color: var(--accent); }
+.menu__range-row output { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+.menu__range-hint { font-size: 12px; opacity: 0.7; max-width: 260px; }

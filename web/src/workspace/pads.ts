@@ -163,6 +163,15 @@ export function raisePad(ws: Workspace, padId: string): Workspace {
 /** Oberstes (aktives) Pad eines Desks. */
 export const topPad = (ws: Workspace, desk: string): Pad | undefined => padsOn(ws, desk).at(-1);
 
+/** Pad und Sheet, in denen eine Note bzw. ein Sheet gerade offen ist (Suche: „schon offen“). */
+export function padShowing(ws: Workspace, ref: { note?: string; view?: string }): { pad: Pad; sheet: string } | null {
+  for (const p of [...padsOf(ws)].reverse()) {
+    const s = ref.view ? p.sheets.find((id) => id === ref.view) : p.sheets.find((id) => idsIn(viewById(ws, id)!).includes(ref.note ?? ''));
+    if (s) return { pad: p, sheet: s };
+  }
+  return null;
+}
+
 export type OpenInPadResult =
   | { result: 'shown' | 'opened'; ws: Workspace; pad: string; sheet: string }
   | { result: 'missing'; ws: Workspace };
@@ -189,6 +198,11 @@ export function openNoteInPad(ws: Workspace, desk: string, noteId: string, opts:
   }
   const make = opts.makeId ?? newId;
   const top = topPad(ws, desk);
+  // V67: ohne Pad auf dem Desk lieber den eigenen (geschlossenen) Notizblock der Note wieder öffnen als einen neuen anlegen
+  if (!top) {
+    const own = viewsOf(ws).find((v) => v.kind === 'block' && !padWith(ws, v.id) && idsIn(v).includes(noteId));
+    if (own) return openSheetInPad(ws, desk, own.id, { makeId: make });
+  }
   let next = ws;
   let pad = top?.id;
   let sheet: string | undefined;

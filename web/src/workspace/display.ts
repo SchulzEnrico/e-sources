@@ -38,6 +38,27 @@ const write = (key: string, value: string | null) => {
 export const compactOn = (): boolean => read(COMPACT_KEY) === 'on';
 export const setCompact = (on: boolean) => write(COMPACT_KEY, on ? 'on' : null);
 
+/**
+ * F-206 (V67, Wunsch Enrico): Deckkraft in Prozent – Pads und Dock getrennt, je Browser; Schieberegler
+ * an Pad und Dock (und im NewPad-Menü). Bei Hover, Fokus und Ziehen immer ganz undurchsichtig.
+ */
+export const OPACITY_MIN = 20;
+export const OPACITY_STEP = 5;
+const PAD_OPACITY_KEY = 'esource.padOpacity';
+const DOCK_OPACITY_KEY = 'esource.dockOpacity';
+const opacityOf = (key: string): number => {
+  const v = Number(read(key));
+  return Number.isFinite(v) && v >= OPACITY_MIN && v < 100 ? Math.round(v / OPACITY_STEP) * OPACITY_STEP : 100;
+};
+const setOpacity = (key: string, v: number) => {
+  const n = Math.round(Math.min(100, Math.max(OPACITY_MIN, v)) / OPACITY_STEP) * OPACITY_STEP;
+  write(key, n === 100 ? null : String(n));
+};
+export const padOpacity = () => opacityOf(PAD_OPACITY_KEY);
+export const dockOpacity = () => opacityOf(DOCK_OPACITY_KEY);
+export const setPadOpacity = (v: number) => setOpacity(PAD_OPACITY_KEY, v);
+export const setDockOpacity = (v: number) => setOpacity(DOCK_OPACITY_KEY, v);
+
 /** Symbole der Webseiten zeigen (Grundeinstellung an). */
 export const faviconsOn = (): boolean => read(FAVICON_KEY) !== 'off';
 export const setFavicons = (on: boolean) => write(FAVICON_KEY, on ? null : 'off');

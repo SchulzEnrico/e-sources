@@ -26,7 +26,8 @@ import { sortAll, sortInto } from './sortHelp';
 import { setCategoryIcon, setCategoryTint, setPanelCategory, setPanelNewCategory } from './category';
 import * as Cs from './cases';
 import * as No from './notes';
-import type { NoteState, NoteViewKind } from './types';
+import * as Pd from './pads';
+import type { NoteState, NoteViewKind, PadPlace } from './types';
 import { type RuleUndo, deleteRule, restoreRule, setRuleOn, setSiteCategory } from './rules';
 
 type S = { setup: ScreenSetup };
@@ -178,7 +179,40 @@ export type Action =
   | { type: 'noteEdit'; id: string; patch: No.NotePatch; by?: string }
   | { type: 'noteState'; id: string; state: NoteState; reason?: string; by?: string }
   | { type: 'noteDelete'; id: string; keepChildren?: boolean }
-  | { type: 'noteRestore'; undo: No.NoteUndo; by?: string };
+  | { type: 'noteRestore'; undo: No.NoteUndo; by?: string }
+  // F-206 Schritt 3: Pads (Ids kommen vom Aufrufer, damit er weiß, was entsteht)
+  | { type: 'padNew'; desk: string; id: string; sheet: string; place?: PadPlace }
+  | { type: 'padPlace'; desk: string; id: string; place: PadPlace }
+  | { type: 'padRaise'; id: string }
+  | { type: 'padShow'; id: string; sheet: string }
+  | { type: 'padAddSheet'; id: string; kind: NoteViewKind; sheet: string }
+  | { type: 'padMoveSheet'; id: string; sheet: string; to: number }
+  | { type: 'padCloseSheet'; id: string; sheet: string }
+  | { type: 'padClose'; id: string }
+  | { type: 'padRenameSheet'; sheet: string; name: string }
+  | { type: 'padNote'; id: string; sheet: string; note: string; by?: string }
+  | { type: 'padOpen'; desk: string; ref: No.NoteRef; ids: string[] }
+  | { type: 'padCreate'; desk: string; kind: 'note' | NoteViewKind; ids: string[]; by?: string };
+
+/**
+ * F-206 Schritt 3: Note/Sheet in einem Pad öffnen bzw. neu anlegen und öffnen (P3). Aufrufer und
+ * Reducer rechnen mit denselben Ids, damit die Oberfläche weiß, welches Pad und Sheet entsteht.
+ */
+export function padOpenResult(ws: Workspace, a: { desk: string; ref?: No.NoteRef; create?: 'note' | NoteViewKind; ids: string[]; by?: string }): Pd.OpenInPadResult & { id?: string } {
+  const make = idSeq(a.ids);
+  if (a.create) {
+    const made = a.create === 'note' ? No.createNote(ws, {}, { by: a.by, id: make() }) : No.createView(ws, a.create, No.defaultViewName(ws, a.create), { id: make() });
+    const r = a.create === 'note' ? Pd.openNoteInPad(made.ws, a.desk, made.id, { makeId: make }) : Pd.openSheetInPad(made.ws, a.desk, made.id, { makeId: make });
+    return { ...r, id: made.id };
+  }
+  return a.ref?.note ? Pd.openNoteInPad(ws, a.desk, a.ref.note, { makeId: make }) : Pd.openSheetInPad(ws, a.desk, a.ref?.view ?? '', { makeId: make });
+}
+
+/** Ids der Reihe nach ausgeben (danach zufällig) – Aufrufer und Reducer kommen so auf dieselben Ids. */
+export const idSeq = (ids: readonly string[]) => {
+  let i = 0;
+  return () => ids[i++] ?? W.newId();
+};
 
 export function reducer(ws: Workspace, a: Action): Workspace {
   const next = step(ws, a);
@@ -264,6 +298,38 @@ function step(ws: Workspace, a: Action): Workspace {
       return No.deleteNote(ws, a.id, { keepChildren: a.keepChildren })?.ws ?? ws;
     case 'noteRestore':
       return No.restoreNotes(ws, a.undo, { by: a.by });
+    case 'padNew': {
+      const v = No.createView(ws, 'block', No.defaultViewName(ws, 'block'), { id: a.sheet });
+      return Pd.createPad(v.ws, a.desk, [a.sheet], { id: a.id, place: a.place }).ws;
+    }
+    case 'padPlace':
+      return Pd.setPlace(ws, a.desk, a.id, a.place);
+    case 'padRaise':
+      return Pd.raisePad(ws, a.id);
+    case 'padShow':
+      return Pd.showSheet(ws, a.id, a.sheet);
+    case 'padAddSheet': {
+      const v = No.createView(ws, a.kind, No.defaultViewName(ws, a.kind), { id: a.sheet });
+      const r = Pd.addSheet(v.ws, a.id, a.sheet);
+      return r.ok ? Pd.raisePad(r.ws, a.id) : ws;
+    }
+    case 'padMoveSheet':
+      return Pd.moveSheet(ws, a.id, a.sheet, a.to);
+    case 'padCloseSheet':
+      return Pd.closeSheet(ws, a.id, a.sheet);
+    case 'padClose':
+      return Pd.closePad(ws, a.id);
+    case 'padRenameSheet':
+      return a.name.trim() ? No.updateView(ws, a.sheet, { name: a.name.trim() }) : ws;
+    case 'padNote': {
+      const made = No.createNote(ws, {}, { by: a.by, id: a.note });
+      const r = No.placeNote(made.ws, a.note, { view: a.sheet });
+      return r.ok ? Pd.raisePad(r.ws, a.id) : ws;
+    }
+    case 'padOpen':
+      return padOpenResult(ws, { desk: a.desk, ref: a.ref, ids: a.ids }).ws;
+    case 'padCreate':
+      return padOpenResult(ws, { desk: a.desk, create: a.kind, ids: a.ids, by: a.by }).ws;
     case 'selectTab':
       return W.selectTab(ws, a.id, a.tab);
     case 'moveTab':

@@ -33,6 +33,9 @@ export const ICONS = {
   todo: { d: ['M2 2.5h3v3H2z', 'M7 4h7', 'M2 10.5h3v3H2z', 'M7 12h7', 'M2.6 12l.8.8 1.5-1.7'] },
   kanban: { d: ['M2 2.5h3.5v11H2z', 'M6.25 2.5h3.5v7h-3.5z', 'M10.5 2.5H14v4.5h-3.5z'] },
   matrix: { d: ['M2 2h12v12H2z', 'M8 2v12', 'M2 8h12'] },
+  // F-206 Schritt 3: Pad = schwebendes Fenster über dem Desk
+  pad: { d: ['M1.5 1.5h9v8h-9z', 'M5.5 5.5h9v9h-9z', 'M5.5 8h9'] },
+  newPad: { d: ['M1.5 1.5h9v8h-9z', 'M5.5 5.5h9v9h-9z', 'M10 9.5v3.5', 'M8.25 11.25h3.5'] },
   // F-206 Notiz-Leiste
   task: { d: ['M2.5 3.5h4v4h-4z', 'M3.4 5.5l.9.9 1.4-1.6', 'M9 5.5h5', 'M2.5 10h4v4h-4z', 'M9 12h5'] },
   list: { d: ['M6 4h8', 'M6 8h8', 'M6 12h8', 'M2.5 4h.01', 'M2.5 8h.01', 'M2.5 12h.01'], w: 1.6 },

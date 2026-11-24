@@ -6,6 +6,8 @@ import { PAUSE_CHOICES, SHOWN_CHOICES, keepTabOf, keptBySource, keptSources, pau
 import logoUrl from './assets/e-sources-logo.svg';
 import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, MenuHead, PanelFrame } from './components/PanelFrame';
+import { OpacitySlider, Pad as PadView } from './components/Pad';
+import { PAD_MIN, padsOn, placeOf, zonePlace } from './workspace/pads';
 import {
   type Lines,
   type Orientation,
@@ -20,7 +22,7 @@ import * as T from './workspace/tree';
 import type { Bookmark, PanelMeta, Slot } from './workspace/types';
 import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
-import { type Action, useWorkspace } from './workspace/useWorkspace';
+import { type Action, padOpenResult, useWorkspace } from './workspace/useWorkspace';
 import type { Workspace } from './workspace/types';
 import { type SearchHit, NO_CATEGORY, addSamples, bookmarkOf, openBookmark, originOf } from './workspace/bookmarks';
 import { Launcher, LauncherIcon } from './components/Launcher';
@@ -47,15 +49,15 @@ import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { ColorPicker } from './components/ColorPicker';
 import { importSlot, isSlotFile, readSlotFile, slotFileName, slotToFile } from './workspace/slotFile';
-import { type NoteHit, openNoteIn, tabShowing, titleOf as noteTitleOf } from './workspace/notes';
-import type { NoteViewKind } from './workspace/types';
+import { type NoteHit, tabShowing, titleOf as noteTitleOf } from './workspace/notes';
+import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
+import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { browserOf, currentUa, modKey } from './workspace/browser';
 import { useSendReceiver } from './workspace/useSend';
-import { setCompact, setFavicons } from './workspace/display';
+import { setCompact, setDockOpacity, setFavicons, setPadOpacity } from './workspace/display';
 import { useDisplay } from './components/SiteIcon';
 import { categoryIcon } from './workspace/icons';
 import { clearDeskTints, deskTintCount, shownTint, slotTint } from './workspace/tint';
@@ -293,6 +295,16 @@ function DeskApp(props: DeskProps) {
     return w && shownTheme === 'terminal' ? `${w} Deshalb leuchtet die Schrift gerade in Terminal-Grün.` : w;
   })();
   const [active, setActive] = useState<string | null>(mine[0]?.id ?? null);
+  /** F-206 Schritt 3: Pads aus-/einblenden (nur in diesem Fenster) und geöffnete Note je Notizblock. */
+  const [padsHidden, setPadsHidden] = useState(false);
+  const [padPick, setPadPick] = useState<Record<string, string>>({});
+  const pickInPad = (sheet: string, note: string | null) =>
+    setPadPick((m) => {
+      const x = { ...m };
+      if (note) x[sheet] = note;
+      else delete x[sheet];
+      return x;
+    });
   const [mode, setMode] = useState<Mode>({ kind: 'area' });
   const [swapFrom, setSwapFrom] = useState<string | null>(null);
   /** F-28: Übersicht aller Panels (ausgeklappte Kopfleiste) und ihr Abstand von oben. */
@@ -1026,6 +1038,68 @@ function DeskApp(props: DeskProps) {
   const currentPanel = (): string | null =>
     (active && ws.panels.some((x) => x.id === active) ? active : null) ?? shownView.slots[0]?.front.id ?? null;
 
+  // ---------------------------------------------------------------- F-206 Schritt 3: Pads
+
+  /** Schwebende Pads dieses Desks (Reihenfolge = Stapel, zuletzt = oben). */
+  const deskPads = padsOn(ws, win).filter((p) => !p.docked);
+  const slotRectOf = (panelId: string | null) => (panelId ? shownView.slots.find((s) => s.panels.some((m) => m.id === panelId))?.rect : undefined);
+  /** P2/P5: ohne Platz über der rechten Hälfte des Slots seines Portals bzw. des aktiven Slots. */
+  const padHome = (p?: PadT): PadPlace => {
+    const r = (p?.from && slotRectOf(p.from)) || slotRectOf(currentPanel());
+    const z = r ? zonePlace(r, 'right') : { x: 0.5, y: 0, w: 0.5, h: 1 };
+    // Mindestgröße (P: 260 × 200 px) auch beim ersten Platz – in schmalen Slots ragt das Pad nach links bzw. oben
+    const w = Math.min(1, Math.max(z.w, PAD_MIN.w / iw));
+    const h = Math.min(1, Math.max(z.h, PAD_MIN.h / ih));
+    return { x: Math.max(0, Math.min(z.x + z.w - w, 1 - w)), y: Math.max(0, Math.min(z.y, 1 - h)), w, h };
+  };
+  // Beim ersten Zeigen bekommt ein Pad seinen Platz fest (danach bleibt es dort, auch wenn Slots wechseln).
+  const padsWithout = area.width > 0 ? deskPads.filter((p) => !placeOf(ws, win, p.id)).map((p) => p.id).join() : '';
+  useEffect(() => {
+    if (!padsWithout) return;
+    for (const p of deskPads) if (!placeOf(ws, win, p.id)) dispatch({ type: 'padPlace', desk: win, id: p.id, place: padHome(p) });
+  }, [padsWithout]); // eslint-disable-line react-hooks/exhaustive-deps
+  const newPad = () => {
+    const id = newId();
+    dispatch({ type: 'padNew', desk: win, id, sheet: newId(), place: padHome() });
+    setPadsHidden(false);
+    notify(PAD_TEXT.created);
+    sayLive(PAD_TEXT.created);
+    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .nblock__new`)?.focus(), 60);
+  };
+  const togglePads = () => {
+    const hide = !padsHidden;
+    setPadsHidden(hide);
+    const text = hide ? PAD_TEXT.hidden(deskPads.length) : PAD_TEXT.shown;
+    notify(text);
+    sayLive(text);
+  };
+  const padOrder = [...deskPads].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const padLayer =
+    !padsHidden && deskPads.length > 0 ? (
+      <div className="padlayer">
+        {padOrder.map((p) => {
+          const z = deskPads.indexOf(p);
+          return (
+            <PadView
+              key={p.id}
+              ws={ws}
+              dispatch={dispatch}
+              pad={p}
+              desk={win}
+              place={placeOf(ws, win, p.id) ?? padHome(p)}
+              box={{ w: iw, h: ih, gap: GAP }}
+              top={z === deskPads.length - 1}
+              z={z + 1}
+              picked={padPick}
+              onPick={pickInPad}
+              notify={notify}
+              say={sayLive}
+            />
+          );
+        })}
+      </div>
+    ) : null;
+
   // ---------------------------------------------------------------- F-171 Stufe 2 Tour „Farben“
 
   /** Tour „Farben“ beim ersten Öffnen des Dialogs (nicht aus der Frage nach der Kategorie – da soll man gleich wählen); Dialog zu → Tour endet mit. */
@@ -1484,43 +1558,45 @@ function DeskApp(props: DeskProps) {
     openHit({ bookmark: b, panel: null, category: '' });
   };
 
-  /** F-206: Schreibmarke in die Notiz des Portals setzen (nach Öffnen aus der Suche bzw. Anlegen). */
+  /** F-206: Schreibmarke in die Notiz des Portals setzen (alte Notiz-Tabs bis zum Umstieg). */
   const focusNote = (id: string) =>
     window.setTimeout(() => document.querySelector<HTMLElement>(`main section[data-panel-id="${id}"] .nedit`)?.focus(), 80);
-  /** F-206 Schritt 3: Notiz bzw. Ansicht aus der Suche zeigen – dort, wo sie schon offen ist, sonst im aktiven Portal. */
+  /** F-206 Schritt 3: Schreibmarke in die Note im Pad setzen. */
+  const focusPadNote = (pad: string) => window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${pad}"] .nedit`)?.focus(), 80);
+  /** F-206 Schritt 3 (P3): Note bzw. Sheet aus der Suche im Pad zeigen – liegt sie dort schon, dorthin, sonst ins oberste Pad. */
   const openNoteHit = (h: NoteHit) => {
     const ref = h.kind === 'note' ? { note: h.note.id } : { view: h.view.id };
     const title = h.kind === 'note' ? noteTitleOf(h.note) || NOTE_TEXT.untitled : h.view.name;
+    // bis zum Umstieg (P5) können Notizen noch in Tabs liegen
     const shown = tabShowing(ws, ref);
     if (shown) {
       showPanel(shown.panel, shown.tab);
       if (h.kind === 'note') focusNote(shown.panel);
       return;
     }
-    const id = currentPanel();
-    if (!id) return notify(NOTE_TEXT.noPortal);
-    const name = ws.panels.find((x) => x.id === id)?.name ?? '';
-    if (openNoteIn(ws, id, ref).result === 'full') return notify(NOTE_TEXT.full(name, TAB_MAX));
-    dispatch({ type: 'stackFront', setup, id });
-    dispatch({ type: 'openNote', panel: id, ref });
-    setActive(id);
-    if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
-    sayLive(NOTE_TEXT.opened(title, name));
-    if (h.kind === 'note') focusNote(id);
+    const ids = [newId(), newId()];
+    const r = padOpenResult(ws, { desk: win, ref, ids });
+    if (r.result === 'missing') return notify(NOTE_TEXT.missing);
+    setPadsHidden(false);
+    dispatch({ type: 'padOpen', desk: win, ref, ids });
+    if (h.kind === 'note') {
+      pickInPad(r.sheet, h.note.id);
+      focusPadNote(r.pad);
+    }
+    sayLive(PAD_TEXT.opened(title));
   };
-  /** F-206: Notiz bzw. Ansicht im aktiven Portal anlegen (Suche, Hilfe). */
+  /** F-206 Schritt 3 (P3): Note bzw. Sheet im obersten Pad anlegen (Suche, Hilfe). */
   const newNoteHere = (kind: 'note' | NoteViewKind) => {
-    const id = currentPanel();
-    if (!id) return notify(NOTE_TEXT.noPortal);
-    const p = ws.panels.find((x) => x.id === id)!;
-    const cur = p.tabs.find((t) => t.id === p.activeTab);
-    const free = !!cur && !cur.url && !cur.note && !cur.view;
-    if (!free && p.tabs.length >= TAB_MAX) return notify(NOTE_TEXT.full(p.name, TAB_MAX));
-    dispatch({ type: 'stackFront', setup, id });
-    dispatch({ type: 'newNote', panel: id, kind, by: ws.profile?.name || undefined });
-    setActive(id);
-    if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
-    if (kind === 'note') focusNote(id);
+    const ids = [newId(), newId(), newId()];
+    const by = ws.profile?.name || undefined;
+    const r = padOpenResult(ws, { desk: win, create: kind, ids, by });
+    if (r.result === 'missing') return;
+    setPadsHidden(false);
+    dispatch({ type: 'padCreate', desk: win, kind, ids, by });
+    if (kind === 'note' && r.id) {
+      pickInPad(r.sheet, r.id);
+      focusPadNote(r.pad);
+    }
   };
 
   /** F-141: Panel aus der Suche nach vorn holen und aktiv machen. */
@@ -2554,7 +2630,7 @@ function DeskApp(props: DeskProps) {
 
 
   return (
-    <div className={display.compact ? 'app app--compact' : 'app'}>
+    <div className={display.compact ? 'app app--compact' : 'app'} style={{ '--pad-opacity': display.padOpacity / 100, '--dock-opacity': display.dockOpacity / 100 } as CSSProperties}>
       <header className="toolbar" ref={toolbarRef}>
         {/* F-154: Logo und Name des Desks teilen sich die linke Spalte; der Main Desk heißt fest so, weitere Desks lassen sich umbenennen */}
         <div className="brand">
@@ -2743,6 +2819,27 @@ function DeskApp(props: DeskProps) {
             <Icon name="newSlot" size={15} className="icon tb-plus" /><span className="tb-label"> NewSlot</span>
           </button>
         )}
+        {/* F-206 Schritt 3 (P6): NewPad neben NewSlot – „Behandeln wie Slot“ */}
+        <Menu
+          icon={<span className="tb-add tb-newpad"><Icon name="newPad" size={15} className="icon tb-plus" /><span className="tb-label"> {PAD_TEXT.newPad}</span>{padsHidden && deskPads.length > 0 && <span className="tb-newpad__n" aria-hidden="true">{deskPads.length}</span>}</span>}
+          label={`${PAD_TEXT.newPadLabel} – ${TERMS.pad}${padsHidden && deskPads.length ? ` – ${PAD_TEXT.hidden(deskPads.length)}` : ''}`}
+        >
+          {(close) => (
+            <>
+              <Item icon="newPad" hint={PAD_TEXT.menuNewHint} onClick={() => (close(), newPad())}>
+                {PAD_TEXT.menuNew}
+              </Item>
+              <Item icon="slot" disabled title={PAD_TEXT.menuPlaceHint} hint={PAD_TEXT.menuPlaceHint} onClick={() => undefined}>
+                {PAD_TEXT.menuPlace}
+              </Item>
+              <Item icon="show" disabled={!deskPads.length} checked={!padsHidden && deskPads.length > 0} onClick={() => (close(), togglePads())}>
+                {padsHidden ? PAD_TEXT.show(deskPads.length) : PAD_TEXT.hide}
+              </Item>
+              <OpacitySlider label={PAD_TEXT.opacityPads} hint={PAD_TEXT.opacityHint} value={display.padOpacity} onChange={setPadOpacity} />
+              <OpacitySlider label={PAD_TEXT.opacityDock} hint={PAD_TEXT.opacityDockHint} value={display.dockOpacity} onChange={setDockOpacity} />
+            </>
+          )}
+        </Menu>
         {/* F-52: über der Empfehlung – ein Klick zurück auf die empfohlene Zahl */}
         {view.slots.length > rec && (
           <button type="button" className="tb-fit" onClick={fitBack} title={DESK_LAYOUT_TEXT.fitTitle(rec)} aria-label={`${DESK_LAYOUT_TEXT.fit(rec)} – ${view.slots.length} von ${rec} empfohlenen Slots`}>
@@ -3463,6 +3560,7 @@ function DeskApp(props: DeskProps) {
       )}
       <main className="area" ref={areaRef}>
         {content}
+        {padLayer}
       </main>
       {ask && (
         <div className="notice" role="alertdialog" aria-modal="true" aria-labelledby="ask-text" onClick={() => closeAsk()} onKeyDown={(e) => e.key === 'Escape' && closeAsk()}>

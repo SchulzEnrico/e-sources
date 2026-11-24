@@ -1039,7 +1039,7 @@ export const DRAFT_TEXT = {
   save: 'Speichern',
   discard: 'Verwerfen',
   close: 'Schließen',
-  saveHint: 'Änderungen übernehmen (Strg/⌘ + Enter)',
+  saveHint: 'Änderungen übernehmen (Strg/⌘ + S)',
   discardHint: 'Änderungen verwerfen – zurück zum gespeicherten Stand',
   discardNewHint: 'Neue Note verwerfen – sie wurde noch nie gespeichert',
   closeHint: 'Zurück zur Liste (Esc) – fragt nach, wenn etwas nicht gespeichert ist',

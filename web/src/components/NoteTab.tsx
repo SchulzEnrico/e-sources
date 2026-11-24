@@ -35,7 +35,14 @@ interface NoteProps {
    * F-213 (V68): Entwurf bis „Speichern“ (im Pad). Ohne diese Angabe speichert die Note wie bisher sofort
    * (alter Notiz-Tab bis zum Umstieg).
    */
-  draft?: { onClose: () => void; say: (text: string) => void };
+  draft?: { onClose: () => void; say: (text: string) => void; notice: (n: Notice) => void; shown?: Notice | null };
+}
+
+/** V68 (Wunsch Enrico, „perfekte Fokussierung“): Meldung am Ort des Geschehens statt unten am Bildschirmrand. */
+export interface Notice {
+  text: string;
+  undo?: () => void;
+  ms?: number;
 }
 
 export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
@@ -66,12 +73,20 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
       ? dispatch({ type: 'noteDraft', id: n.id, patch: reason === undefined ? { state } : { state, waitReason: reason }, by })
       : dispatch({ type: 'noteState', id: n.id, state, by, ...(reason === undefined ? {} : { reason }) });
 
+  /** Meldung: im Pad an Ort und Stelle (Statuszeile bzw. Liste), sonst wie bisher unten. */
+  const tell = (text: string, ms: number, undo?: () => void, undone?: string) => {
+    if (draft) {
+      draft.say(text);
+      draft.notice({ text, ms, ...(undo ? { undo: () => (undo(), undone && draft.notice({ text: undone, ms: 3000 })) } : {}) });
+    } else
+      flash({ text, ms, ...(undo ? { action: { label: PAUSE_TEXT.undo, run: () => (undo(), undone && flash({ text: undone, ms: 3000 })) } } : {}) });
+  };
+
   // ---------- F-213: Speichern, Verwerfen, Schließen
   const save = () => {
     if (!draft || !dirty) return;
     dispatch({ type: 'noteSave', id: n.id, by });
-    flash({ text: DRAFT_TEXT.saved, ms: 3000 });
-    draft.say(DRAFT_TEXT.saved);
+    tell(DRAFT_TEXT.saved, 3000);
   };
   const discard = (then?: () => void) => {
     if (!draft) return;
@@ -79,13 +94,7 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
     if (!r) return then?.();
     const wasNew = !!raw.unsaved;
     dispatch({ type: 'noteDiscard', id: n.id });
-    const text = wasNew ? DRAFT_TEXT.discardedNew : DRAFT_TEXT.discarded;
-    draft.say(text);
-    flash({
-      text,
-      ms: 10000,
-      action: { label: PAUSE_TEXT.undo, run: () => dispatch({ type: 'noteUndoDiscard', undo: r.undo, by }) },
-    });
+    tell(wasNew ? DRAFT_TEXT.discardedNew : DRAFT_TEXT.discarded, 10000, () => dispatch({ type: 'noteUndoDiscard', undo: r.undo, by }));
     if (wasNew) draft.onClose();
     else then?.();
   };
@@ -104,7 +113,8 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
   };
   const onRootKey = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!draft) return;
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.altKey) {
+    // V68: Strg/⌘+S (Strg/⌘+Enter hakt im Editor schon Aufgaben ab)
+    if (e.key.toLowerCase() === 's' && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
       e.preventDefault();
       e.stopPropagation();
       save();
@@ -125,17 +135,7 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
     const name = title || NOTE_TEXT.untitled;
     setAsk(0);
     dispatch({ type: 'noteDelete', id: n.id, keepChildren });
-    flash({
-      text: more > 0 ? NOTE_TEXT.deletedMore(name, more) : NOTE_TEXT.deleted(name),
-      ms: 10000,
-      action: {
-        label: PAUSE_TEXT.undo,
-        run: () => {
-          dispatch({ type: 'noteRestore', undo: r.undo, by });
-          flash({ text: NOTE_TEXT.restored, ms: 3000 });
-        },
-      },
-    });
+    tell(more > 0 ? NOTE_TEXT.deletedMore(name, more) : NOTE_TEXT.deleted(name), 10000, () => dispatch({ type: 'noteRestore', undo: r.undo, by }), NOTE_TEXT.restored);
   };
   const askDelete = () => {
     const open = No.openDescendants(ws, n.id).length;
@@ -149,12 +149,12 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
   const archive = () => {
     setAsk(0);
     changeState('archived');
-    flash({ text: draft ? DRAFT_TEXT.archivedDraft : NOTE_TEXT.archived, ms: 5000 });
+    tell(draft ? DRAFT_TEXT.archivedDraft : NOTE_TEXT.archived, 5000);
     delBtn.current?.focus();
   };
 
   return (
-    <div className={`note${draft ? ' note--draft' : ''}`} role="region" aria-label={`Notiz: ${title || NOTE_TEXT.untitled}${dirty ? ` (${DRAFT_TEXT.badge})` : ''}`} onKeyDown={onRootKey}>
+    <div className={`note${draft ? ' note--draft' : ''}`} role="region" aria-label={`Notiz: ${title || NOTE_TEXT.untitled}${dirty ? ` (${DRAFT_TEXT.badge})` : ''}`} onKeyDownCapture={onRootKey}>
       <div className="note__bar">
         <label className="note__opt">
           <span title={explain(TERMS.noteState)}>{NOTE_TEXT.state}</span>
@@ -226,8 +226,50 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
       </p>
       {draft && (
         <div className="note__actions" role="group" aria-label={DRAFT_TEXT.group}>
-          <span className={`note__status${dirty ? ' is-draft' : ''}`} role="status">
-            {dirty ? (raw.draft ? DRAFT_TEXT.since(when(raw.draft.at)) : DRAFT_TEXT.badge) : DRAFT_TEXT.clean}
+          {askClose && (
+          <div className="note__ask" role="alertdialog" aria-labelledby="note-close-t" aria-describedby="note-close-d" onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), cancelClose())}>
+            <strong id="note-close-t">{DRAFT_TEXT.askTitle}</strong>
+            <span id="note-close-d" className="note__hint">{DRAFT_TEXT.askHint}</span>
+            <button
+              ref={closeFirst}
+              type="button"
+              onClick={() => {
+                save();
+                setAskClose(false);
+                draft?.onClose();
+              }}
+            >
+              {DRAFT_TEXT.save}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAskClose(false);
+                discard(() => draft?.onClose());
+              }}
+            >
+              {DRAFT_TEXT.discard}
+            </button>
+            <button type="button" onClick={cancelClose}>
+              {NOTE_TEXT.cancel}
+            </button>
+          </div>
+        )}
+          <span className={`note__status${draft.shown ? ' is-notice' : dirty ? ' is-draft' : ''}`} role="status">
+            {draft.shown ? (
+              <>
+                {draft.shown.text}
+                {draft.shown.undo && (
+                  <button type="button" className="note__undo" onClick={draft.shown.undo}>
+                    {PAUSE_TEXT.undo}
+                  </button>
+                )}
+              </>
+            ) : dirty ? (
+              raw.draft ? DRAFT_TEXT.since(when(raw.draft.at)) : DRAFT_TEXT.badge
+            ) : (
+              DRAFT_TEXT.clean
+            )}
           </span>
           <button type="button" className="note__save" disabled={!dirty} onClick={save} title={DRAFT_TEXT.saveHint}>
             <Icon name="check" size={14} /> {DRAFT_TEXT.save}
@@ -237,35 +279,6 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
           </button>
           <button ref={closeBtn} type="button" onClick={close} title={DRAFT_TEXT.closeHint}>
             <Icon name="close" size={14} /> {DRAFT_TEXT.close}
-          </button>
-        </div>
-      )}
-      {askClose && (
-        <div className="note__ask" role="alertdialog" aria-labelledby="note-close-t" aria-describedby="note-close-d" onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), cancelClose())}>
-          <strong id="note-close-t">{DRAFT_TEXT.askTitle}</strong>
-          <span id="note-close-d" className="note__hint">{DRAFT_TEXT.askHint}</span>
-          <button
-            ref={closeFirst}
-            type="button"
-            onClick={() => {
-              save();
-              setAskClose(false);
-              draft?.onClose();
-            }}
-          >
-            {DRAFT_TEXT.save}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAskClose(false);
-              discard(() => draft?.onClose());
-            }}
-          >
-            {DRAFT_TEXT.discard}
-          </button>
-          <button type="button" onClick={cancelClose}>
-            {NOTE_TEXT.cancel}
           </button>
         </div>
       )}

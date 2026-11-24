@@ -9,9 +9,9 @@ import type { NoteViewKind, Pad as PadT, PadPlace, Workspace } from '../workspac
 import * as No from '../workspace/notes';
 import { PAD_MIN } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
-import { DRAFT_TEXT, NOTE_TEXT, PAD_TEXT, TERMS } from '../workspace/terms';
+import { DRAFT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
-import { NoteTab } from './NoteTab';
+import { type Notice, NoteTab } from './NoteTab';
 import { Item, Menu } from './PanelFrame';
 import { Icon } from './Icon';
 import { useDisplay } from './SiteIcon';
@@ -414,6 +414,17 @@ function NoteBlock(props: {
     .filter((n): n is NonNullable<typeof n> => !!n);
   const open = props.picked && notes.some((n) => n.id === props.picked) ? props.picked : undefined;
   const listRef = useRef<HTMLUListElement>(null);
+  // V68: Meldungen im Notizblock selbst (in der Note bzw. oben in der Liste), nicht unten am Rand
+  const [msg, setMsg] = useState<Notice | null>(null);
+  const timer = useRef(0);
+  const notice = (m: Notice) => {
+    window.clearTimeout(timer.current);
+    setMsg(m);
+    timer.current = window.setTimeout(() => setMsg(null), m.ms ?? 5000);
+  };
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const runUndo = msg?.undo ? () => (setMsg(null), msg.undo!()) : undefined;
+  const shown = msg ? { ...msg, ...(runUndo ? { undo: runUndo } : {}) } : null;
   // Note verschwunden (gelöscht, verschoben) → Auswahl lösen
   useEffect(() => {
     if (props.picked && !open) onPick(null);
@@ -444,6 +455,16 @@ function NoteBlock(props: {
   return (
     <div className={`nblock${open ? ' has-open' : ''}`}>
       <div className="nblock__side">
+        {!open && shown && (
+          <p className="nblock__msg" role="status">
+            {shown.text}
+            {shown.undo && (
+              <button type="button" className="note__undo" onClick={shown.undo}>
+                {PAUSE_TEXT.undo}
+              </button>
+            )}
+          </p>
+        )}
         <button type="button" className="nblock__new" onClick={add} title={explain(TERMS.note)}>
           <Icon name="plus" size={14} /> {PAD_TEXT.newNote}
         </button>
@@ -482,7 +503,7 @@ function NoteBlock(props: {
             <button type="button" className="nblock__back" onClick={back}>
               <Icon name="back" size={14} /> {PAD_TEXT.toList}
             </button>
-            <NoteTab ws={ws} noteId={open} dispatch={dispatch} draft={{ onClose: back, say: props.say }} />
+            <NoteTab ws={ws} noteId={open} dispatch={dispatch} draft={{ onClose: back, say: props.say, notice, shown }} />
           </>
         ) : (
           <p className="nblock__pick">{PAD_TEXT.pick}</p>

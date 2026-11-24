@@ -9,9 +9,10 @@ import type { NoteViewKind, Pad as PadT, PadPlace, Workspace } from '../workspac
 import * as No from '../workspace/notes';
 import { PAD_MIN } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
-import { DRAFT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
+import { DRAFT_TEXT, FOOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab } from './NoteTab';
+import { type FootItem, PadFooter } from './PadFooter';
 import { Item, Menu } from './PanelFrame';
 import { Icon } from './Icon';
 import { useDisplay } from './SiteIcon';
@@ -25,6 +26,7 @@ const explain = (t: string) => t.replace(/^[^=]*=\s*/, '');
 const STEP = 0.02;
 /** V68: Taste gedrückt halten = großer Schritt (statt eigener Tastenkombination – Alt+Strg/⌘+Pfeil wechselt im Browser den Tab). */
 const STEP_HOLD = 0.06;
+type BlockCmd = 'home' | 'new';
 
 type Edge = 'n' | 's' | 'e' | 'w' | 'se';
 
@@ -57,6 +59,22 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   const sheet = No.viewById(ws, pad.active);
   const tabsRef = useRef<HTMLDivElement>(null);
   const self = useRef<HTMLElement>(null);
+  // F-215: Befehle der Fußleiste an den Notizblock (Zähler, damit derselbe Befehl erneut wirkt)
+  const [cmd, setCmd] = useState<{ k: BlockCmd; n: number } | null>(null);
+  const send = (k: BlockCmd) => setCmd((c) => ({ k, n: (c?.n ?? 0) + 1 }));
+  const isBlock = sheet?.kind === 'block';
+  const footItems: FootItem[] = [
+    { id: 'recent', label: FOOT_TEXT.recent, icon: 'recent' },
+    { id: 'new', label: FOOT_TEXT.newNote, icon: 'plus', run: isBlock ? () => send('new') : undefined },
+    { id: 'voice', label: FOOT_TEXT.voice, icon: 'mic' },
+    { id: 'task', label: FOOT_TEXT.newTask, icon: 'task' },
+    { id: 'search', label: FOOT_TEXT.search, icon: 'search' },
+    { id: 'share', label: FOOT_TEXT.share, icon: 'share' },
+  ];
+  const home = () => {
+    if (isBlock) send('home');
+    say(FOOT_TEXT.atHome);
+  };
 
   const raise = () => {
     if (!top) dispatch({ type: 'padRaise', id: pad.id });
@@ -127,6 +145,13 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
       const next = fit(e.shiftKey ? { ...p, w: p.w + dx, h: p.h + dy } : { ...p, x: p.x + dx, y: p.y + dy });
       commit(next);
       say(e.shiftKey ? PAD_TEXT.sized(Math.round(next.w * box.w), Math.round(next.h * box.h)) : PAD_TEXT.moved(PAD_TEXT.where(next.x + next.w / 2, next.y + next.h / 2)));
+      return;
+    }
+    // F-215: Alt + H = Home (fängt auch „ª“ auf dem Mac ab)
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyH') {
+      e.preventDefault();
+      e.stopPropagation();
+      home();
       return;
     }
     // Strg + 1…9: Sheet wählen
@@ -331,7 +356,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
         {!sheet ? (
           <p className="win__placeholder win__placeholder--small">{NOTE_TEXT.missingView}</p>
         ) : sheet.kind === 'block' ? (
-          <NoteBlock ws={ws} dispatch={dispatch} padId={pad.id} sheetId={sheet.id} picked={picked[sheet.id]} onPick={(n) => onPick(sheet.id, n)} say={say} />
+          <NoteBlock ws={ws} dispatch={dispatch} padId={pad.id} sheetId={sheet.id} picked={picked[sheet.id]} onPick={(n) => onPick(sheet.id, n)} say={say} cmd={cmd} />
         ) : (
           <div className="pad__soon">
             <p className="win__placeholder">
@@ -341,6 +366,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           </div>
         )}
       </div>
+      <PadFooter items={footItems} onHome={home} say={say} />
       {(['n', 's', 'e', 'w', 'se'] as Edge[]).map((edge) => (
         <div key={edge} className={`pad__grip pad__grip--${edge}`} aria-hidden="true" title={PAD_TEXT.resize} onPointerDown={(e) => gesture(e, edge)} />
       ))}
@@ -406,6 +432,7 @@ function NoteBlock(props: {
   picked?: string;
   onPick: (note: string | null) => void;
   say: (text: string) => void;
+  cmd?: { k: BlockCmd; n: number } | null;
 }) {
   const { ws, dispatch, padId, sheetId, onPick } = props;
   const v = No.viewById(ws, sheetId)!;
@@ -451,10 +478,21 @@ function NoteBlock(props: {
     onPick(null);
     window.setTimeout(() => listRef.current?.querySelector<HTMLElement>(`[data-note="${was}"]`)?.focus() ?? listRef.current?.querySelector<HTMLElement>('button')?.focus(), 0);
   };
+  // F-215: Home = zur Liste (Fokus auf den Listenanfang), Neue Note aus dem Halbkreis
+  const sideRef = useRef<HTMLDivElement>(null);
+  const done = useRef(props.cmd?.n ?? 0);
+  useEffect(() => {
+    if (!props.cmd || props.cmd.n === done.current) return;
+    done.current = props.cmd.n;
+    if (props.cmd.k === 'new') return add();
+    if (open) leave();
+    onPick(null);
+    window.setTimeout(() => (listRef.current?.querySelector<HTMLElement>('button') ?? sideRef.current?.querySelector<HTMLElement>('button'))?.focus(), 0);
+  }, [props.cmd?.n]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className={`nblock${open ? ' has-open' : ''}`}>
-      <div className="nblock__side">
+      <div className="nblock__side" ref={sideRef}>
         {!open && shown && (
           <p className="nblock__msg" role="status">
             {shown.text}
@@ -466,7 +504,7 @@ function NoteBlock(props: {
           </p>
         )}
         <button type="button" className="nblock__new" onClick={add} title={explain(TERMS.note)}>
-          <Icon name="plus" size={14} /> {PAD_TEXT.newNote}
+          <Icon name="plus" size={14} /> <span className="nblock__newtext">{PAD_TEXT.newNote}</span>
         </button>
         {notes.length ? (
           <ul className="nblock__list" aria-label={PAD_TEXT.list} ref={listRef}>
@@ -481,8 +519,11 @@ function NoteBlock(props: {
                     data-note={n.id}
                     className={`nblock__item${n.id === open ? ' is-on' : ''}${No.isFinished(n.state) ? ' is-done' : ''}${draft ? ' is-draft' : ''}`}
                     aria-current={n.id === open ? 'true' : undefined}
+                    title={t}
                     onClick={() => pick(n.id)}
                   >
+                    {/* V69: Kürzel für die schmale Randleiste (Liste verschwindet nie ganz) */}
+                    <span className="nblock__mono" aria-hidden="true">{t.trim().charAt(0).toUpperCase() || '·'}</span>
                     <span className="nblock__title">{t}</span>
                     <span className="nblock__state">
                       {draft && <span className="nblock__draft">{DRAFT_TEXT.listDraft}</span>}

@@ -5988,6 +5988,7 @@ h3.cases__name { font-size: 1.05em; }
 .nblock__item:hover { background: rgba(var(--tint), 0.06); }
 .nblock__item.is-on { background: rgba(var(--accent-rgb), 0.14); border-color: rgba(var(--accent-rgb), 0.45); }
 .nblock__item.is-done .nblock__title { text-decoration: line-through; opacity: 0.7; }
+.nblock__mono { display: none; }
 .nblock__title { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .nblock__state { font-size: 12px; opacity: 0.65; }
 .nblock__empty, .nblock__pick { font-size: 13px; opacity: 0.75; margin: 4px 2px; }
@@ -5998,7 +5999,36 @@ h3.cases__name { font-size: 1.05em; }
 @container padbody (max-width: 470px) {
   .nblock { grid-template-columns: 1fr; }
   .nblock__side { border-right: 0; }
-  .nblock.has-open .nblock__side { display: none; }
+  /* V69 (Wunsch Enrico): Die Liste verschwindet nie ganz – bei offener Note wandert sie als schmale
+     Randleiste an den linken Rand (wie gestapelte Portale), mit Kürzel; Titel im Tooltip */
+  .nblock.has-open { grid-template-columns: 40px 1fr; }
+  .nblock.has-open .nblock__side {
+    position: relative;
+    z-index: 5;
+    width: 40px;
+    padding: 6px 4px;
+    gap: 4px;
+    border-right: 1px solid rgba(var(--tint), 0.1);
+    transition: width 0.15s ease, box-shadow 0.15s ease;
+  }
+  /* zu: nur Kürzel */
+  .nblock.has-open .nblock__side:not(:hover, :focus-within) { align-items: center; }
+  .nblock.has-open .nblock__side:not(:hover, :focus-within) :is(.nblock__newtext, .nblock__title, .nblock__state, .nblock__msg, .nblock__empty) {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .nblock.has-open .nblock__side:not(:hover, :focus-within) .nblock__new { width: 30px; height: 30px; padding: 0; }
+  .nblock.has-open .nblock__side:not(:hover, :focus-within) .nblock__list { width: 100%; align-items: center; }
+  .nblock.has-open .nblock__side:not(:hover, :focus-within) .nblock__item { width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
+  .nblock.has-open .nblock__side:not(:hover, :focus-within) .nblock__mono { display: block; font-size: 13px; font-weight: 600; }
+  .nblock.has-open .nblock__side:not(:hover, :focus-within) .nblock__item.is-draft .nblock__mono { font-style: italic; }
+  /* V69 (Wunsch Enrico): beim Hovern bzw. mit Tastaturfokus klappt die Randleiste über der Note aus */
+  .nblock.has-open .nblock__side:is(:hover, :focus-within) {
+    width: min(220px, 85cqw);
+    background: linear-gradient(145deg, var(--neu-top), var(--neu-bottom));
+    box-shadow: 6px 0 18px rgba(var(--lo), 0.45);
+  }
+  @media (prefers-reduced-motion: reduce) { .nblock.has-open .nblock__side { transition: none; } }
+  .nblock.has-open .nblock__back { display: none; }
   .nblock:not(.has-open) .nblock__main { display: none; }
   .nblock__back { display: inline-flex; }
 }
@@ -6078,10 +6108,12 @@ h3.cases__name { font-size: 1.05em; }
   .menu__range-row input[type='range'] { -webkit-appearance: auto; appearance: auto; }
 }
 
-/* V68 (Wunsch Enrico): Notizfläche im Pad versenkt (eingedrückt im Rahmen), Schrift leicht erhaben */
+/* V68 (Wunsch Enrico): Notizfläche im Pad versenkt (eingedrückt im Rahmen), Schrift leicht erhaben.
+   V69 (Wunsch Enrico): Rand um die Fläche halb so breit (3 px statt 6 px); die Ränder zum Ziehen
+   (.pad__grip, 5–6 px, z-index 2) liegen dafür leicht über dem Inhalt und bleiben greifbar. */
 .pad__body {
-  margin: 0 6px 6px;
-  border-radius: calc(var(--radius) - 4px);
+  margin: 0 3px 3px;
+  border-radius: calc(var(--radius) - 3px);
   background: rgba(var(--lo), 0.22);
 }
 /* Schatten als Deckschicht, damit ihn die Flächen darin (Liste, Editor) nicht verdecken */
@@ -6179,4 +6211,118 @@ h3.cases__name { font-size: 1.05em; }
   font-size: 13px;
   background: rgba(var(--accent-rgb), 0.12);
   border: 1px solid rgba(var(--accent-rgb), 0.4);
+}
+
+/* ---------------------------------------------------------------- F-215 (V69): Fußleiste mit Home-Knopf
+   Die Leiste ist Gehäuse, kein Bildschirm: Material des Pad-Rahmens, außerhalb der versenkten Notizfläche.
+   Knopf wie beim iPhone 7: flacher, leicht vertiefter Kreis, feiner Ring in Akzentfarbe, kein Quadrat.
+   Halbkreis-Menü (Bildschirm) im klaren Stil von iOS 10: flach, viel Luft, feine Linien. */
+.padfoot {
+  position: relative;
+  flex: none;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* leichte Kante oben und Licht von oben – wirkt wie ein Teil des Gehäuses */
+  background: linear-gradient(to bottom, rgba(var(--hi), 0.05), rgba(var(--lo), 0.12));
+  box-shadow: inset 0 1px 0 rgba(var(--hi), 0.06);
+}
+.padfoot__home {
+  position: relative;
+  z-index: 3;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  /* vertiefte Mulde im Gehäuse */
+  background: radial-gradient(circle at 50% 30%, rgba(var(--lo), 0.30), rgba(var(--lo), 0.10) 70%);
+  box-shadow:
+    inset 0 1.5px 2px rgba(var(--lo), 0.55),
+    inset 0 -1px 1px rgba(var(--hi), 0.10),
+    0 1px 0 rgba(var(--hi), 0.08);
+  transition: box-shadow 0.12s ease;
+}
+.padfoot__ring {
+  position: absolute;
+  inset: 1px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(var(--accent-rgb), 0.75);
+  pointer-events: none;
+}
+.padfoot__home:active,
+.padfoot.is-open .padfoot__home {
+  box-shadow:
+    inset 0 2.5px 4px rgba(var(--lo), 0.75),
+    inset 0 -1px 1px rgba(var(--hi), 0.06),
+    0 1px 0 rgba(var(--hi), 0.06);
+}
+.padfoot.is-open .padfoot__ring { border-color: var(--accent); box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.35); }
+.padfoot__home:focus-visible { outline: 2px solid rgba(var(--accent-rgb), 0.7); outline-offset: 3px; }
+
+/* Halbkreis: Einträge um die Knopfmitte */
+.padfoot__arc {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  z-index: 4;
+}
+.padfoot__item {
+  position: absolute;
+  left: -20px;
+  top: -20px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid rgba(var(--tint), 0.22);
+  border-radius: 50%;
+  color: var(--text);
+  background: rgba(var(--lo), 0.72);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow: 0 4px 14px rgba(var(--lo), 0.45);
+  cursor: pointer;
+  animation: padfoot-in 0.16s ease-out both;
+}
+.padfoot__item.is-main { left: -24px; top: -24px; width: 48px; height: 48px; }
+.padfoot__item.is-hot,
+.padfoot__item:hover:not([aria-disabled]) { background: var(--accent); color: #fff; border-color: transparent; }
+.padfoot__item[aria-disabled] { opacity: 0.4; cursor: default; }
+.padfoot__item:focus-visible { outline: 2px solid rgba(var(--accent-rgb), 0.9); outline-offset: 2px; }
+/* Beschriftung sichtbar am aktiven Eintrag (Begriffe erklären, Wunsch Enrico) */
+.padfoot__label {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  translate: -50% 0;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  background: rgba(var(--lo), 0.85);
+  color: var(--text);
+  opacity: 0;
+  pointer-events: none;
+}
+.padfoot__item.is-hot .padfoot__label,
+.padfoot__item:hover .padfoot__label,
+.padfoot__item:focus-visible .padfoot__label { opacity: 1; }
+@keyframes padfoot-in { from { opacity: 0; scale: 0.6; } }
+@media (prefers-reduced-motion: reduce) {
+  .padfoot__item { animation: none; }
+  .padfoot__home { transition: none; }
+}
+@media (forced-colors: active) {
+  .padfoot__home { border: 1px solid ButtonText; }
+  .padfoot__ring { border-color: Highlight; }
+  .padfoot__item { border: 1px solid ButtonText; background: Canvas; }
 }

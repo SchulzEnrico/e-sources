@@ -4603,3 +4603,28 @@ describe('F-213 Entwurf bis Speichern (V68)', () => {
     expect(No.shownNote(No.noteById(back, 'a')!).title).toBe('Neu');
   });
 });
+
+// ---------------------------------------------------------------- F-215 (V69): Halbkreis am Home-Knopf
+import * as FA from './footArc';
+describe('F-215 Halbkreis', () => {
+  it('legt sechs Plätze von links über oben nach rechts, Haupteintrag oben in der Mitte', () => {
+    expect(FA.ARC_ANGLES).toHaveLength(6);
+    expect(FA.arcPos(0)).toEqual({ x: -74, y: -0 });
+    expect(FA.arcPos(FA.ARC_MAIN)).toEqual({ x: 0, y: -74 });
+    // alle Einträge liegen links → rechts
+    const xs = FA.ARC_ANGLES.map((_, i) => FA.arcPos(i).x);
+    expect([...xs].sort((a, b) => a - b)).toEqual(xs);
+  });
+  it('überspringt gesperrte Einträge beim Wählen und läuft im Kreis', () => {
+    const items = [{ run: 1 }, {}, { run: 1 }, {}, { run: 1 }, {}];
+    expect(FA.stepItem(items, 0, 1)).toBe(2);
+    expect(FA.stepItem(items, 4, 1)).toBe(0);
+    expect(FA.stepItem(items, 0, -1)).toBe(4);
+    expect(FA.stepItem([{}, {}], 0, 1)).toBe(0);
+  });
+  it('fokussiert zuerst den Haupteintrag, sonst den nächsten wählbaren', () => {
+    expect(FA.firstItem([{}, {}, { run: 1 }, {}, {}, {}])).toBe(2);
+    expect(FA.firstItem([{}, { run: 1 }, {}, {}, {}, {}])).toBe(1);
+    expect(FA.firstItem([{}, {}, {}, { run: 1 }, {}, {}])).toBe(3);
+  });
+});

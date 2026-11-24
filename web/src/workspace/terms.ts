@@ -1102,3 +1102,21 @@ export const PAD_TEXT = {
   opacityHintShort: 'gilt für alle Pads; beim Einstellen siehst du die Wirkung, sonst ist ein Pad unter Maus und Fokus ganz deckend',
   opacityDockHint: 'Das Dock kommt mit dem nächsten Bauschritt; seine Deckkraft lässt sich schon jetzt getrennt einstellen.',
 };
+
+/** F-215 (V69): Fußleiste mit Home-Knopf im Pad */
+export const FOOT_TEXT = {
+  home: 'Home',
+  homeHint: 'Tippen: zur Liste · Halten: Auswahl im Halbkreis (Tastatur: Enter = Home, Pfeil hoch oder Leertaste halten = Auswahl, Alt+H = Home)',
+  menu: 'Auswahl am Home-Knopf',
+  menuHint: 'Pfeil links/rechts wählen, Enter ausführen, Esc schließen',
+  soon: (what: string) => `${what} – folgt im nächsten Schritt`,
+  recent: 'Zuletzt genutzt',
+  newNote: 'Neue Note',
+  voice: 'Sprachnotiz',
+  newTask: 'Neue Aufgabe',
+  search: 'Suche',
+  share: 'Bild & Teilen',
+  atHome: 'Liste des Notizblocks',
+  opened: 'Auswahl geöffnet',
+  closed: 'Auswahl geschlossen',
+};

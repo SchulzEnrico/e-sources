@@ -13,6 +13,8 @@ import { DRAFT_TEXT, FOOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS } from '.
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab } from './NoteTab';
 import { type FootItem, PadFooter } from './PadFooter';
+import { neighbour, type SwipeKind } from '../workspace/footArc';
+import { recentIn, type RecentRef } from '../workspace/pads';
 import { Item, Menu } from './PanelFrame';
 import { Icon } from './Icon';
 import { useDisplay } from './SiteIcon';
@@ -26,7 +28,8 @@ const explain = (t: string) => t.replace(/^[^=]*=\s*/, '');
 const STEP = 0.02;
 /** V68: Taste gedrückt halten = großer Schritt (statt eigener Tastenkombination – Alt+Strg/⌘+Pfeil wechselt im Browser den Tab). */
 const STEP_HOLD = 0.06;
-type BlockCmd = 'home' | 'new';
+type BlockCmd = 'home' | 'new' | 'go';
+type Cmd = { k: BlockCmd; n: number; id?: string };
 
 type Edge = 'n' | 's' | 'e' | 'w' | 'se';
 
@@ -60,11 +63,11 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   const tabsRef = useRef<HTMLDivElement>(null);
   const self = useRef<HTMLElement>(null);
   // F-215: Befehle der Fußleiste an den Notizblock (Zähler, damit derselbe Befehl erneut wirkt)
-  const [cmd, setCmd] = useState<{ k: BlockCmd; n: number } | null>(null);
-  const send = (k: BlockCmd) => setCmd((c) => ({ k, n: (c?.n ?? 0) + 1 }));
+  const [cmd, setCmd] = useState<Cmd | null>(null);
+  const send = (k: BlockCmd, id?: string) => setCmd((c) => ({ k, n: (c?.n ?? 0) + 1, id }));
   const isBlock = sheet?.kind === 'block';
   const footItems: FootItem[] = [
-    { id: 'recent', label: FOOT_TEXT.recent, icon: 'recent' },
+    { id: 'recent', label: FOOT_TEXT.recent, icon: 'recent', run: () => setRecentOpen(true) },
     { id: 'new', label: FOOT_TEXT.newNote, icon: 'plus', run: isBlock ? () => send('new') : undefined },
     { id: 'voice', label: FOOT_TEXT.voice, icon: 'mic' },
     { id: 'task', label: FOOT_TEXT.newTask, icon: 'task' },
@@ -74,6 +77,83 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   const home = () => {
     if (isBlock) send('home');
     say(FOOT_TEXT.atHome);
+  };
+  // F-215 Schritt 2 (V70): Wischen am Knopf – kurz = Note (nur im Notizblock), weit = Sheet
+  const noteIds = isBlock && sheet ? No.idsIn(sheet).filter((id) => No.noteById(ws, id)) : [];
+  const curNote = sheet ? picked[sheet.id] : undefined;
+  const swipeTarget = (kind: SwipeKind, dir: 1 | -1) => {
+    if (kind === 'note' && isBlock) {
+      const id = neighbour(noteIds, noteIds.includes(curNote ?? '') ? curNote : undefined, dir);
+      const n = id ? No.noteById(ws, id) : undefined;
+      return { kind, id, text: n ? FOOT_TEXT.toNote(No.titleOf(No.shownNote(n)) || NOTE_TEXT.untitled) : FOOT_TEXT.noNote };
+    }
+    const id = neighbour(pad.sheets, pad.active, dir);
+    const v = id ? No.viewById(ws, id) : undefined;
+    return { kind: 'sheet' as const, id: v ? id : undefined, text: v ? FOOT_TEXT.toSheet(v.name) : FOOT_TEXT.noSheet };
+  };
+  const swipe = (kind: SwipeKind, dir: 1 | -1) => {
+    const t = swipeTarget(kind, dir);
+    if (t.id && t.kind === 'note') send('go', t.id);
+    else if (t.id) show(t.id);
+    say(t.text);
+  };
+  // F-215 (V70): Zuletzt genutzt – Pad merkt sich geöffnete Sheets und Notes (gespeichert, je Pad)
+  const [recentOpen, setRecentOpen] = useState(false);
+  useEffect(() => {
+    if (pad.active) dispatch({ type: 'padRecent', id: pad.id, sheet: pad.active });
+  }, [pad.active]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (curNote) dispatch({ type: 'padRecent', id: pad.id, note: curNote });
+  }, [curNote]); // eslint-disable-line react-hooks/exhaustive-deps
+  const recent = recentOpen ? recentIn(ws, pad.id, { sheet: pad.active, note: isBlock ? curNote : undefined }) : [];
+  const recentText = (r: RecentRef) => {
+    if (r.kind === 'sheet') return FOOT_TEXT.toSheet(No.viewById(ws, r.id)?.name ?? '');
+    const n = No.noteById(ws, r.id);
+    return FOOT_TEXT.toNote((n && No.titleOf(No.shownNote(n))) || NOTE_TEXT.untitled);
+  };
+  const toKnob = () => self.current?.querySelector<HTMLElement>('.padfoot__home')?.focus();
+  const openRecent = (r: RecentRef) => {
+    setRecentOpen(false);
+    if (r.kind === 'sheet') show(r.id);
+    else if (r.sheet === pad.active) send('go', r.id);
+    else {
+      show(r.sheet);
+      onPick(r.sheet, r.id);
+    }
+    say(recentText(r));
+  };
+  const recentKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const items = [...e.currentTarget.querySelectorAll<HTMLElement>('button')];
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      e.stopPropagation();
+      items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      setRecentOpen(false);
+      toKnob();
+    }
+  };
+  useEffect(() => {
+    if (recentOpen) window.setTimeout(() => self.current?.querySelector<HTMLElement>('.padfoot__recent button')?.focus(), 0);
+  }, [recentOpen]);
+
+  // V70 (Wunsch Enrico: flüssiger): Fläche folgt dem Finger direkt am Element (kein Neuzeichnen des Pads),
+  // gedämpft wie ein Gummiband; beim Loslassen federt sie zurück (CSS)
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const followDrag = (dx: number | null) => {
+    const el = bodyRef.current;
+    if (!el) return;
+    if (dx === null) {
+      el.classList.remove('is-dragged');
+      el.style.removeProperty('--swipe');
+      return;
+    }
+    const d = (dx * 0.5) / (1 + Math.abs(dx) / 260);
+    el.classList.add('is-dragged');
+    el.style.setProperty('--swipe', `${d.toFixed(1)}px`);
   };
 
   const raise = () => {
@@ -352,7 +432,10 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           <Icon name="close" size={14} />
         </button>
       </header>
-      <div className="pad__body" role="tabpanel" id={`pad-${pad.id}-panel`} aria-labelledby={sheet ? `pad-${pad.id}-tab-${sheet.id}` : titleId}>
+      <div
+        className="pad__body"
+        ref={bodyRef}
+        role="tabpanel" id={`pad-${pad.id}-panel`} aria-labelledby={sheet ? `pad-${pad.id}-tab-${sheet.id}` : titleId}>
         {!sheet ? (
           <p className="win__placeholder win__placeholder--small">{NOTE_TEXT.missingView}</p>
         ) : sheet.kind === 'block' ? (
@@ -366,7 +449,35 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           </div>
         )}
       </div>
-      <PadFooter items={footItems} onHome={home} say={say} />
+      {recentOpen && (
+        <div
+          className="padfoot__recent"
+          role="menu"
+          aria-label={FOOT_TEXT.recentList}
+          title={FOOT_TEXT.recentHint}
+          onKeyDown={recentKey}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setRecentOpen(false);
+          }}
+        >
+          <p className="padfoot__recenthead" aria-hidden="true">
+            <Icon name="recent" size={13} /> {FOOT_TEXT.recentList}
+          </p>
+          {recent.length ? (
+            recent.map((r) => (
+              <button key={`${r.kind}:${r.id}`} type="button" role="menuitem" className="padfoot__recentitem" onClick={() => openRecent(r)}>
+                <Icon name={r.kind === 'sheet' ? KIND_ICON[No.viewById(ws, r.id)?.kind ?? 'block'] : 'note'} size={14} />
+                <span>{recentText(r)}</span>
+              </button>
+            ))
+          ) : (
+            <button type="button" role="menuitem" className="padfoot__recentitem is-empty" onClick={() => (setRecentOpen(false), toKnob())}>
+              {FOOT_TEXT.recentNone}
+            </button>
+          )}
+        </div>
+      )}
+      <PadFooter items={footItems} onHome={home} say={say} onSwipe={swipe} swipeLabel={(k, d) => swipeTarget(k, d).text} onDrag={followDrag} />
       {(['n', 's', 'e', 'w', 'se'] as Edge[]).map((edge) => (
         <div key={edge} className={`pad__grip pad__grip--${edge}`} aria-hidden="true" title={PAD_TEXT.resize} onPointerDown={(e) => gesture(e, edge)} />
       ))}
@@ -432,7 +543,7 @@ function NoteBlock(props: {
   picked?: string;
   onPick: (note: string | null) => void;
   say: (text: string) => void;
-  cmd?: { k: BlockCmd; n: number } | null;
+  cmd?: Cmd | null;
 }) {
   const { ws, dispatch, padId, sheetId, onPick } = props;
   const v = No.viewById(ws, sheetId)!;
@@ -485,6 +596,7 @@ function NoteBlock(props: {
     if (!props.cmd || props.cmd.n === done.current) return;
     done.current = props.cmd.n;
     if (props.cmd.k === 'new') return add();
+    if (props.cmd.k === 'go') return props.cmd.id ? pick(props.cmd.id) : undefined;
     if (open) leave();
     onPick(null);
     window.setTimeout(() => (listRef.current?.querySelector<HTMLElement>('button') ?? sideRef.current?.querySelector<HTMLElement>('button'))?.focus(), 0);

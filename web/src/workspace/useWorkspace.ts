@@ -185,6 +185,7 @@ export type Action =
   | { type: 'padPlace'; desk: string; id: string; place: PadPlace }
   | { type: 'padRaise'; id: string }
   | { type: 'padShow'; id: string; sheet: string }
+  | { type: 'padRecent'; id: string; note?: string; sheet?: string }
   | { type: 'padAddSheet'; id: string; kind: NoteViewKind; sheet: string }
   | { type: 'padMoveSheet'; id: string; sheet: string; to: number }
   | { type: 'padCloseSheet'; id: string; sheet: string }
@@ -321,6 +322,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return Pd.raisePad(ws, a.id);
     case 'padShow':
       return Pd.showSheet(ws, a.id, a.sheet);
+    case 'padRecent':
+      return Pd.touchRecent(ws, a.id, { note: a.note, sheet: a.sheet });
     case 'padAddSheet': {
       const v = No.createView(ws, a.kind, No.defaultViewName(ws, a.kind), { id: a.sheet });
       const r = Pd.addSheet(v.ws, a.id, a.sheet);

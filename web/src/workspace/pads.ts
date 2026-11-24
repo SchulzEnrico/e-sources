@@ -279,3 +279,33 @@ export function migrateNoteTabs(ws: Workspace, opts: { makeId?: () => string } =
   }
   return { ws: next, pads: count };
 }
+
+// ---------------------------------------------------------------- F-215 (V70): Zuletzt genutzt je Pad
+export const RECENT_MAX = 5;
+export type RecentRef = { kind: 'note'; id: string; sheet: string } | { kind: 'sheet'; id: string };
+
+/** Note bzw. Sheet als zuletzt genutzt vermerken (neueste zuerst, ohne Doppel, höchstens 5). */
+export function touchRecent(ws: Workspace, padId: string, ref: { note?: string; sheet?: string }): Workspace {
+  const key = ref.note ? `n:${ref.note}` : ref.sheet ? `s:${ref.sheet}` : '';
+  const p = padById(ws, padId);
+  if (!key || !p || p.recent?.[0] === key) return ws;
+  const recent = [key, ...(p.recent ?? []).filter((k) => k !== key)].slice(0, RECENT_MAX);
+  return patchPad(ws, padId, (x) => ({ ...x, recent }));
+}
+
+/** Zuletzt genutzt, soweit noch in diesem Pad vorhanden; ohne das gerade Sichtbare. */
+export function recentIn(ws: Workspace, padId: string, now: { note?: string; sheet?: string } = {}): RecentRef[] {
+  const p = padById(ws, padId);
+  if (!p) return [];
+  const out: RecentRef[] = [];
+  for (const k of p.recent ?? []) {
+    const id = k.slice(2);
+    if (k.startsWith('s:')) {
+      if (p.sheets.includes(id) && viewById(ws, id) && !(id === now.sheet && !now.note)) out.push({ kind: 'sheet', id });
+    } else {
+      const sheet = p.sheets.find((s) => idsIn(viewById(ws, s)!).includes(id));
+      if (sheet && noteById(ws, id) && id !== now.note) out.push({ kind: 'note', id, sheet });
+    }
+  }
+  return out;
+}

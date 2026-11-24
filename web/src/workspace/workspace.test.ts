@@ -4445,6 +4445,23 @@ describe('F-206 Schritt 3: Pads (Logik, V66)', () => {
     expect(Pd.padsOf(ws)).toHaveLength(1);
   });
 
+  it('F-215 V70: Zuletzt genutzt – neueste zuerst, ohne Doppel, höchstens 5, nur was noch im Pad liegt', () => {
+    let ws = start();
+    const r = Pd.openNoteInPad(ws, '', 'a', { makeId: make }) as { ws: Workspace; pad: string; sheet: string };
+    ws = Pd.openNoteInPad(r.ws, '', 'b', { makeId: make }).ws;
+    ws = Pd.touchRecent(ws, r.pad, { note: 'a' });
+    ws = Pd.touchRecent(ws, r.pad, { note: 'b' });
+    ws = Pd.touchRecent(ws, r.pad, { note: 'a' });
+    expect(Pd.padById(ws, r.pad)!.recent).toEqual(['n:a', 'n:b']);
+    expect(Pd.touchRecent(ws, r.pad, { note: 'a' })).toBe(ws); // schon vorn: nichts ändern
+    for (let i = 0; i < 6; i++) ws = Pd.touchRecent(ws, r.pad, { sheet: `x${i}` });
+    expect(Pd.padById(ws, r.pad)!.recent).toHaveLength(Pd.RECENT_MAX);
+    ws = Pd.touchRecent(Pd.touchRecent(ws, r.pad, { note: 'b' }), r.pad, { sheet: r.sheet });
+    // x… gibt es nicht; das Sichtbare (Note b) fehlt in der Liste
+    expect(Pd.recentIn(ws, r.pad, { sheet: r.sheet, note: 'b' })).toEqual([{ kind: 'sheet', id: r.sheet }]);
+    expect(Pd.recentIn(ws, r.pad, { sheet: r.sheet })).toEqual([{ kind: 'note', id: 'b', sheet: r.sheet }]);
+  });
+
   it('V67: Pad geschlossen – Note öffnet ihren eigenen Notizblock wieder statt eines neuen', () => {
     let ws = start();
     const r1 = Pd.openNoteInPad(ws, '', 'a', { makeId: make }) as { ws: Workspace; pad: string; sheet: string };
@@ -4607,13 +4624,18 @@ describe('F-213 Entwurf bis Speichern (V68)', () => {
 // ---------------------------------------------------------------- F-215 (V69): Halbkreis am Home-Knopf
 import * as FA from './footArc';
 describe('F-215 Halbkreis', () => {
-  it('legt sechs Plätze von links über oben nach rechts, Haupteintrag oben in der Mitte', () => {
+  it('legt fünf Plätze auf einen runden, symmetrischen Halbkreis und einen in die Mitte (V70)', () => {
     expect(FA.ARC_ANGLES).toHaveLength(6);
-    expect(FA.arcPos(0)).toEqual({ x: -74, y: -0 });
-    expect(FA.arcPos(FA.ARC_MAIN)).toEqual({ x: 0, y: -74 });
-    // alle Einträge liegen links → rechts
-    const xs = FA.ARC_ANGLES.map((_, i) => FA.arcPos(i).x);
-    expect([...xs].sort((a, b) => a - b)).toEqual(xs);
+    const r = FA.ARC_RADIUS;
+    expect(FA.arcPos(0)).toEqual({ x: -r, y: -FA.ARC_LIFT });
+    expect(FA.arcPos(FA.ARC_MAIN)).toEqual({ x: 0, y: -r - FA.ARC_LIFT });
+    expect(FA.arcPos(FA.ARC_INNER)).toEqual({ x: 0, y: -FA.ARC_LIFT });
+    // rund: alle Plätze auf dem Bogen gleich weit von der Kreismitte, links und rechts gespiegelt
+    const arc = FA.ARC_ANGLES.map((a, i) => (a === null ? null : FA.arcPos(i))).filter((p) => p !== null);
+    arc.forEach((p) => expect(Math.round(Math.hypot(p.x, p.y + FA.ARC_LIFT))).toBe(r));
+    expect(arc.map((p) => p.x)).toEqual(arc.map((p) => -p.x).reverse());
+    // über der Oberkante der Fußleiste (Knopfmitte 21 px darunter, Eintrag 40 px hoch)
+    FA.ARC_ANGLES.forEach((_, i) => expect(FA.arcPos(i).y + 20).toBeLessThanOrEqual(-21));
   });
   it('überspringt gesperrte Einträge beim Wählen und läuft im Kreis', () => {
     const items = [{ run: 1 }, {}, { run: 1 }, {}, { run: 1 }, {}];
@@ -4626,5 +4648,56 @@ describe('F-215 Halbkreis', () => {
     expect(FA.firstItem([{}, {}, { run: 1 }, {}, {}, {}])).toBe(2);
     expect(FA.firstItem([{}, { run: 1 }, {}, {}, {}, {}])).toBe(1);
     expect(FA.firstItem([{}, {}, {}, { run: 1 }, {}, {}])).toBe(3);
+  });
+  it('wählt den Eintrag in Wischrichtung (V70), nah am Knopf oder nach unten keinen', () => {
+    expect(FA.aimItem(0, -110)).toBe(FA.ARC_MAIN); // weit nach oben
+    expect(FA.aimItem(0, -45)).toBe(FA.ARC_INNER); // kurz nach oben = Mitte
+    expect(FA.aimItem(-70, 0)).toBe(0); // nach links
+    expect(FA.aimItem(70, 0)).toBe(4); // nach rechts
+    expect(FA.aimItem(60, -90)).toBe(3); // schräg rechts oben (45°)
+    expect(FA.aimItem(0, -10)).toBe(-1); // zu nah
+    expect(FA.aimItem(0, 60)).toBe(-1); // nach unten
+  });
+  it('vergrößert stufenlos nach Nähe, ohne Sprünge (V70)', () => {
+    const at = (deg: number, r = 80) => [Math.cos((deg * Math.PI) / 180) * r, -Math.sin((deg * Math.PI) / 180) * r - FA.ARC_LIFT] as const;
+    const n = FA.nearness(...at(90));
+    expect(n[FA.ARC_MAIN]).toBe(1);
+    expect(n[1]).toBeGreaterThan(0); // Nachbar wächst ein wenig mit
+    expect(n[0]).toBe(0);
+    // kleiner Schritt im Winkel = kleine Änderung der Größe
+    const a = FA.nearness(...at(100));
+    const b = FA.nearness(...at(102));
+    a.forEach((v, i) => expect(Math.abs(v - b[i])).toBeLessThan(0.1));
+    expect(FA.nearness(0, -FA.ARC_LIFT)[FA.ARC_INNER]).toBe(1);
+  });
+  it('wechselt an der Grenze zweier Einträge erst mit Spielraum (V70)', () => {
+    // 112,5° liegt genau zwischen 135° und 90°; knapp darüber hinaus bleibt die bisherige Auswahl
+    const at = (deg: number, r = 100) => [Math.cos((deg * Math.PI) / 180) * r, -Math.sin((deg * Math.PI) / 180) * r - FA.ARC_LIFT] as const;
+    expect(FA.aimItem(...at(110), undefined, 1)).toBe(1);
+    expect(FA.aimItem(...at(110))).toBe(FA.ARC_MAIN);
+    expect(FA.aimItem(...at(100), undefined, 1)).toBe(FA.ARC_MAIN);
+  });
+  it('unterscheidet kurzes (Note) und langes Wischen (Sheet) am Knopf (V70)', () => {
+    expect(FA.swipeKind(10)).toBeNull();
+    expect(FA.swipeKind(-40)).toEqual({ kind: 'note', dir: -1 });
+    expect(FA.swipeKind(FA.SWIPE_SHEET)).toEqual({ kind: 'sheet', dir: 1 });
+  });
+  it('findet den Nachbarn ohne Kreis, ohne Auswahl den ersten bzw. letzten (V70)', () => {
+    const l = ['a', 'b', 'c'];
+    expect(FA.neighbour(l, 'b', 1)).toBe('c');
+    expect(FA.neighbour(l, 'c', 1)).toBeUndefined();
+    expect(FA.neighbour(l, 'a', -1)).toBeUndefined();
+    expect(FA.neighbour(l, undefined, 1)).toBe('a');
+    expect(FA.neighbour(l, undefined, -1)).toBe('c');
+    expect(FA.neighbour([], undefined, 1)).toBeUndefined();
+  });
+});
+
+describe('V70: Schrift auf Akzentfarbe', () => {
+  it('nimmt dunkle Schrift auf hellen und weiße auf dunklen Akzenten', () => {
+    expect(L.inkOn('#c8c8c8')).toBe('#16181c'); // hellgrau (Enricos Akzent im Bildschirmfoto)
+    expect(L.inkOn('#ffd60a')).toBe('#16181c'); // gelb
+    expect(L.inkOn('#e4522c')).toBe('#ffffff'); // Orange-Rot (Standard)
+    expect(L.inkOn('#0a84ff')).toBe('#ffffff'); // blau
   });
 });

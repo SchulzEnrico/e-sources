@@ -507,6 +507,8 @@ export interface Pad {
   docked?: boolean;
   /** Umstieg aus Notiz-Tabs: Portal, über dessen Slot das Pad zuerst liegt (bis ein Platz gesetzt ist). */
   from?: string;
+  /** F-215 (V70): zuletzt genutzt, neueste zuerst, höchstens 5 – „n:<Note-Id>“ bzw. „s:<Sheet-Id>“. */
+  recent?: string[];
 }
 
 /** V65: Platz eines Pads auf diesem Gerät (Anteile der Desk-Fläche, 0…1). */

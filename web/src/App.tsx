@@ -34,7 +34,7 @@ import { arrangeText, deskFocusOf, effectOf, focusOf, placeText, radarOf, ruleOf
 import { snapColors, snapDesign } from './workspace/reset';
 import { loadRecent, newestSources, recentLists, recentSources, saveRecent, touch } from './workspace/recent';
 import { edgeFor, sizeCmdOf, sizeStep } from './workspace/sizing';
-import { contrastWarning, hasOwnLook, lookOf, pickLook, shownAccent, THEMES, resolveTheme, rgbOf } from './workspace/look';
+import { contrastWarning, hasOwnLook, lookOf, pickLook, shownAccent, THEMES, resolveTheme, rgbOf, inkOn } from './workspace/look';
 import { MAIN_NAME, collectedDesks, deskGone, deskRing, deskSaid, nextWindowName, stepDesk, windowList, windowName, windowUrl, winFromSearch } from './workspace/windows';
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
 import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
@@ -288,6 +288,7 @@ function DeskApp(props: DeskProps) {
     const root = document.documentElement;
     root.dataset.theme = shownTheme;
     root.style.setProperty('--accent-rgb', rgbOf(shownAccent(look.accent, shownTheme)).join(', '));
+    root.style.setProperty('--on-accent', inkOn(shownAccent(look.accent, shownTheme)));
   }, [shownTheme, look.accent]);
   const lookWarning = (() => {
     const w = contrastWarning(look.accent, shownTheme);

@@ -1106,9 +1106,9 @@ export const PAD_TEXT = {
 /** F-215 (V69): Fußleiste mit Home-Knopf im Pad */
 export const FOOT_TEXT = {
   home: 'Home',
-  homeHint: 'Tippen: zur Liste · Halten: Auswahl im Halbkreis (Tastatur: Enter = Home, Pfeil hoch oder Leertaste halten = Auswahl, Alt+H = Home)',
+  homeHint: 'Tippen: zur Liste · Halten: Auswahl im Halbkreis · Wischen: kurz = andere Note, weit = anderes Sheet (Tastatur: Enter = Home, Pfeil hoch oder Leertaste halten = Auswahl, Pfeil links/rechts = Note, Umschalt+Pfeil = Sheet, Alt+H = Home)',
   menu: 'Auswahl am Home-Knopf',
-  menuHint: 'Pfeil links/rechts wählen, Enter ausführen, Esc schließen',
+  menuHint: 'Pfeil links/rechts wählen, Pfeil runter = Mitte, Pfeil hoch = oben, Enter ausführen, Esc schließen',
   soon: (what: string) => `${what} – folgt im nächsten Schritt`,
   recent: 'Zuletzt genutzt',
   newNote: 'Neue Note',
@@ -1119,4 +1119,15 @@ export const FOOT_TEXT = {
   atHome: 'Liste des Notizblocks',
   opened: 'Auswahl geöffnet',
   closed: 'Auswahl geschlossen',
+  // F-215 Schritt 2 (V70): Wischen
+  swipeShort: 'kurz: Note',
+  swipeLong: 'weit: Sheet',
+  toNote: (t: string) => `Note: ${t}`,
+  toSheet: (t: string) => `Sheet: ${t}`,
+  noNote: 'Keine weitere Note',
+  noSheet: 'Kein weiteres Sheet',
+  // V70: Zuletzt genutzt
+  recentList: 'Zuletzt genutzt in diesem Pad',
+  recentNone: 'In diesem Pad noch nichts anderes genutzt.',
+  recentHint: 'Pfeil hoch/runter wählen, Enter öffnen, Esc schließen',
 };

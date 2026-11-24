@@ -195,3 +195,12 @@ export function parseDeskLooks(v: unknown, ids: ReadonlySet<string>): Record<str
   }
   return Object.keys(out).length ? out : undefined;
 }
+
+/**
+ * V70 (Wunsch Enrico: „Schrift so, dass man sie lesen kann“): Schriftfarbe auf einer Fläche in Akzentfarbe –
+ * dunkel auf hellen Akzenten (z. B. Grau, Weiß, Gelb), sonst weiß.
+ */
+export function inkOn(hex: string): '#16181c' | '#ffffff' {
+  // ab mittlerer Helligkeit dunkel; kräftige Farben (Orange, Blau, Grün) behalten weiße Schrift wie bei iOS
+  return luminance(hex) > 0.36 ? '#16181c' : '#ffffff';
+}

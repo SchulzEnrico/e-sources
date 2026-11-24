@@ -19,7 +19,7 @@ import * as FH from '../workspace/frameHistory';
 import { CATEGORY_TEXT, DEV_TEXT, PAUSE_TEXT, SLOT_FILE_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT, DIALOG_TEXT } from '../workspace/terms';
 import { looksLikeAddress } from '../workspace/websearch';
 import type { ShownTint } from '../workspace/tint';
-import { rgbOf } from '../workspace/look';
+import { inkOn, rgbOf } from '../workspace/look';
 import { Icon } from './Icon';
 import { NewInTab, NoteTab, ViewTab } from './NoteTab';
 import type { IconName } from '../workspace/icons';
@@ -712,7 +712,7 @@ export function PanelFrame(p: Props) {
           '--load': loadColor(load),
           // F-162: eigene Farben gelten nur in diesem Portal
           ...(!p.panel.dev && p.tint?.frame ? { '--frame': p.tint.frame } : {}),
-          ...(!p.panel.dev && p.tint?.accent ? { '--accent-rgb': rgbOf(p.tint.accent).join(', ') } : {}),
+          ...(!p.panel.dev && p.tint?.accent ? { '--accent-rgb': rgbOf(p.tint.accent).join(', '), '--on-accent': inkOn(p.tint.accent) } : {}),
         } as CSSProperties
       }
     >

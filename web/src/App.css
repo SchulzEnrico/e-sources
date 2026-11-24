@@ -76,6 +76,13 @@ body,
 html {
   cursor: var(--cur-arrow);
 }
+/* V76 (Enrico, iPhone: Seite nach dem Drehen seitlich verschoben): nie waagerecht scrollen – die Anwendung passt
+   sich der Breite an, was darüber hinausragt, wird abgeschnitten statt die Seite zu verschieben. */
+html,
+body {
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+}
 a[href],
 [role='tab'],
 [role='option'],
@@ -6030,7 +6037,6 @@ h3.cases__name { font-size: 1.05em; }
   .nblock.has-open .nblock__side:not(:hover, :focus-within) .nblock__list { width: 100%; align-items: center; }
   .nblock.has-open .nblock__side:not(:hover, :focus-within) .nblock__item { width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
   .nblock.has-open .nblock__side:not(:hover, :focus-within) .nblock__mono { display: block; font-size: 13px; font-weight: 600; }
-  .nblock.has-open .nblock__side:not(:hover, :focus-within) .nblock__item.is-draft .nblock__mono { font-style: italic; }
   /* V69 (Wunsch Enrico): beim Hovern bzw. mit Tastaturfokus klappt die Randleiste über der Note aus */
   .nblock.has-open .nblock__side:is(:hover, :focus-within) {
     width: min(220px, 85cqw);
@@ -6187,7 +6193,7 @@ h3.cases__name { font-size: 1.05em; }
   color: var(--accent);
   border: 1px solid rgba(var(--accent-rgb), 0.55);
 }
-.nblock__item.is-draft .nblock__title { font-style: italic; }
+/* V76 (Enrico: „sieht schrecklich aus“): Entwurf in der Liste nicht mehr kursiv – das Schild „Entwurf“ genügt */
 @media (forced-colors: active) {
   .note__save:not(:disabled) { background: ButtonText; color: ButtonFace; }
   .nblock__draft { border-color: CanvasText; color: CanvasText; }
@@ -7205,8 +7211,9 @@ h3.cases__name { font-size: 1.05em; }
 .padknob .padfoot.is-sliding + .padknob__ring { box-shadow: 0 0 0 2px rgb(var(--accent-rgb)), 0 0 10px rgba(var(--accent-rgb), 0.6); }
 
 /* V75 (F-215 C): Vollbild-Schreibmodus unter 600 px – mit offener Note füllt das Pad den sichtbaren Bereich
-   (endet über der Bildschirmtastatur: --vv-top/--vv-h aus useKeyboard). */
-@media (max-width: 600px) {
+   (endet über der Bildschirmtastatur: --vv-top/--vv-h aus useKeyboard).
+   V76 (Enrico: „Landscaping auf dem Telefon passt noch nicht“): auch im Querformat des Telefons (niedrig, Touch). */
+@media (max-width: 600px), (pointer: coarse) and (max-height: 600px) {
   .pad.has-note {
     position: fixed !important;
     left: 0 !important;

@@ -9,6 +9,8 @@ export type DeskMode = 'desk' | 'notes';
 export type DeskModes = Record<string, DeskMode>;
 
 const KEY = 'esource.deskMode.v1';
+/** V76: Telefon – schmal (Hochformat) oder niedrig mit Touch (Querformat); gleiche Regel wie das Vollbild im CSS */
+export const PHONE_MQ = '(max-width: 600px), (pointer: coarse) and (max-height: 600px)';
 
 export function modeOf(modes: DeskModes, desk: string, phone: boolean): DeskMode {
   return modes[desk] ?? (phone ? 'notes' : 'desk');

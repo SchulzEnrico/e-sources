@@ -125,3 +125,11 @@ export function siteHue(url: string): number {
   for (const c of domain(url)) h = (h * 31 + c.charCodeAt(0)) % 360;
   return h;
 }
+
+/**
+ * V76 (F-215 Schritt 3): Sprachnotiz – Spracherkennung ab Werk aus, nur nach Einschalten und nur lokal
+ * auf dem Gerät (`processLocally`). Je Gerät bzw. Browser, nicht im Abgleich (die Fähigkeit hängt am Gerät).
+ */
+const VOICE_KEY = 'esource.voice';
+export const voiceOn = (): boolean => read(VOICE_KEY) === 'local';
+export const setVoice = (on: boolean) => write(VOICE_KEY, on ? 'local' : null);

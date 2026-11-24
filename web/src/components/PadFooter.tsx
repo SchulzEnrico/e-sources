@@ -50,6 +50,9 @@ const HOLD_MS = 400;
 const CLOSE_MS = 160;
 const REDUCED = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const MOVE_PX = 6;
+/** V76 (Enrico: „Am Rechner gibt es das Halbkreismenü nicht“): Beim Halten wandert der Zeiger am Trackpad leicht –
+ *  erst ab diesem Weg wird aus dem Drücken ein Wischen (vorher öffnet Halten weiter den Halbkreis). */
+const SWIPE_START_PX = 12;
 
 export function PadFooter(props: {
   items: FootItem[];
@@ -96,7 +99,8 @@ export function PadFooter(props: {
     [],
   );
   useEffect(() => {
-    if (open && hot >= 0) menu.current?.querySelector<HTMLElement>(`[data-i="${hot}"]`)?.focus();
+    // V76 (Enrico: „extrem sprunghaft“): Fokus ohne Scrollen – sonst rückte das Pad beim Wählen nach
+    if (open && hot >= 0) menu.current?.querySelector<HTMLElement>(`[data-i="${hot}"]`)?.focus({ preventScroll: true });
   }, [open, hot]);
 
   const first = () => firstItem(items);
@@ -125,14 +129,19 @@ export function PadFooter(props: {
   };
 
   // V74 (Enrico, iPhone): Wischen am Knopf verschob die ganze Seite – iOS beachtet touch-action nicht immer,
-  // vor allem bei offener Tastatur. Ein eigener touchmove-Listener (nicht passiv) verhindert das Verschieben.
-  // touchstart bleibt frei, sonst käme auf iOS kein Klick (Tippen = Home) mehr an.
+  // vor allem bei offener Tastatur. V76 (Enrico: „Wischgesten funktionieren nicht“): iOS bricht die Zeiger-Ereignisse
+  // ab (pointercancel), sobald es selbst eine Geste beginnt (Scrollen, Lupe, Kontextmenü). Darum fängt der Knopf
+  // die Berührung jetzt ganz ab – auch touchstart. Tippen läuft über pointerup (up), nicht über click.
   useEffect(() => {
     const b = btn.current;
     if (!b) return;
     const stop = (ev: TouchEvent) => ev.cancelable && ev.preventDefault();
+    b.addEventListener('touchstart', stop, { passive: false });
     b.addEventListener('touchmove', stop, { passive: false });
-    return () => b.removeEventListener('touchmove', stop);
+    return () => {
+      b.removeEventListener('touchstart', stop);
+      b.removeEventListener('touchmove', stop);
+    };
   }, [kbd]);
 
   // ---------------------------------------------------------------- Zeiger
@@ -194,7 +203,7 @@ export function PadFooter(props: {
       return;
     }
     // V71: Bewegung vor dem Halten (in jede Richtung) → Wischen (Halbkreis öffnet dann nicht)
-    if (!s.swipe && Math.hypot(dx, dy) > MOVE_PX) {
+    if (!s.swipe && Math.hypot(dx, dy) > SWIPE_START_PX) {
       s.swipe = true;
       window.clearTimeout(timer.current);
     }
@@ -298,6 +307,20 @@ export function PadFooter(props: {
       closeMenu(false);
     }
   };
+  // V76 (Enrico: Halbkreis nach Rechtsklick „extrem sprunghaft“): Mit der Maus über dem offenen Halbkreis (ohne
+  // gedrückte Taste) folgt die Größe jetzt stufenlos der Nähe wie beim Halten – statt hart vergrößerter Einträge
+  // beim Hovern; die Auswahl wandert mit, ohne Sprünge
+  const hover = (e: PointerEvent<HTMLDivElement>) => {
+    if (start.current || e.pointerType !== 'mouse') return;
+    const x = e.clientX;
+    const y = e.clientY;
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      lens(x, y);
+      const i = itemAt(x, y);
+      if (i >= 0) setHot(i);
+    });
+  };
   // Leertaste, die den Halbkreis geöffnet hat, wird über einem Eintrag losgelassen
   const menuKeyUp = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === ' ' && spaceHeld.current) {
@@ -333,7 +356,7 @@ export function PadFooter(props: {
           document.body,
         )}
       {(open || closing) && (
-        <div className={`padfoot__arc${closing && !open ? ' is-closing' : ''}`} role="menu" aria-label={FOOT_TEXT.menu} ref={menu} onKeyDown={menuKey} onKeyUp={menuKeyUp}>
+        <div className={`padfoot__arc${closing && !open ? ' is-closing' : ''}`} role="menu" aria-label={FOOT_TEXT.menu} ref={menu} onKeyDown={menuKey} onKeyUp={menuKeyUp} onPointerMove={hover}>
           {items.map((it, i) => {
             const p = arcPos(i);
             const label = it.label;
@@ -376,7 +399,8 @@ export function PadFooter(props: {
         aria-label={`${FOOT_TEXT.home}. ${FOOT_TEXT.homeHint}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={`${FOOT_TEXT.home} – ${FOOT_TEXT.homeHint}`}
+        // V76: bei offenem Halbkreis kein Tooltip – er legte sich nach dem Rechtsklick groß über die Einträge
+        title={open ? undefined : `${FOOT_TEXT.home} – ${FOOT_TEXT.homeHint}`}
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}
@@ -384,7 +408,17 @@ export function PadFooter(props: {
         onKeyDown={keyDown}
         onKeyUp={keyUp}
         onClick={click}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          // V76 (Enrico: „Halbkreis geht nicht auf dem Rechner“): Am Trackpad mit „Tippen zum Klicken“ gibt es kein
+          // Halten – Rechtsklick bzw. zwei Finger tippen öffnet den Halbkreis. Auf Touch löst langes Drücken
+          // contextmenu aus; dort öffnet ihn schon das Halten, darum nur bei Maus/Trackpad.
+          if (matchMedia('(pointer: fine)').matches && !open) {
+            window.clearTimeout(timer.current);
+            start.current = null;
+            openMenu(true);
+          }
+        }}
         onMouseDown={(e) => e.preventDefault()}
       >
         <span className="padfoot__ring" aria-hidden="true" />

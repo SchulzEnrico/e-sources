@@ -53,7 +53,7 @@ import { type NoteHit, tabShowing, titleOf as noteTitleOf } from './workspace/no
 import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
 import { DESK_MODE_TEXT } from './workspace/terms';
-import { type DeskMode, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
+import { type DeskMode, PHONE_MQ, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
 import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
@@ -302,10 +302,12 @@ function DeskApp(props: DeskProps) {
   const [padsHidden, setPadsHidden] = useState(false);
   // V75 (F-215): Desk Mode / Note Mode je Desk (je Gerät); Telefon = schmal → startet im Note Mode
   const [deskModes, setDeskModes] = useState(loadModes);
-  const [phone, setPhone] = useState(() => typeof matchMedia === 'function' && matchMedia('(max-width: 600px)').matches);
+  // V76 (Enrico: Querformat auf dem Telefon): Telefon = schmal oder im Querformat niedrig mit Touch – sonst sprang
+  // E-Sources beim Drehen in den Desk Mode (über 600 px breit)
+  const [phone, setPhone] = useState(() => typeof matchMedia === 'function' && matchMedia(PHONE_MQ).matches);
   useEffect(() => {
     if (typeof matchMedia !== 'function') return;
-    const mq = matchMedia('(max-width: 600px)');
+    const mq = matchMedia(PHONE_MQ);
     const f = () => setPhone(mq.matches);
     mq.addEventListener('change', f);
     return () => mq.removeEventListener('change', f);
@@ -1087,7 +1089,10 @@ function DeskApp(props: DeskProps) {
     sayLive(text);
   };
   // V75 (F-215): Note Mode – das oberste Pad füllt den Desk; fehlt eins, legt E-Sources es an
-  const notesMode = modeOf(deskModes, win, phone) === 'notes';
+  // V76 (Enrico: „Schalte die Notizen in der Mobilansicht vorerst weg“): auf dem Telefon keine Pads, kein NewPad
+  // und kein Umschalter – erst alle Funktionen, die Mobilansicht der Notizen kommt später
+  const notesOff = phone;
+  const notesMode = !notesOff && modeOf(deskModes, win, phone) === 'notes';
   const setDeskMode = (m: DeskMode) => {
     const next = withMode(deskModes, win, m);
     setDeskModes(next);
@@ -1103,7 +1108,7 @@ function DeskApp(props: DeskProps) {
   const FULL = { x: 0, y: 0, w: 1, h: 1 };
   const padOrder = [...deskPads].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const padLayer =
-    (!padsHidden || notesMode) && deskPads.length > 0 ? (
+    !notesOff && (!padsHidden || notesMode) && deskPads.length > 0 ? (
       <div className={`padlayer${notesMode ? ' is-notes' : ''}`}>
         {(notesMode ? deskPads.slice(-1) : padOrder).map((p) => {
           const z = deskPads.indexOf(p);
@@ -2780,6 +2785,7 @@ function DeskApp(props: DeskProps) {
           );
         })()}
         {/* V75 (F-215, Entscheidung Enrico V72): Umschalter Desk | Notes bei den Layout-Ansichten, je Desk */}
+        {!notesOff && (
         <span className="tb-mode" role="group" aria-label={DESK_MODE_TEXT.group}>
           {(['desk', 'notes'] as const).map((m) => (
             <button
@@ -2795,6 +2801,7 @@ function DeskApp(props: DeskProps) {
             </button>
           ))}
         </span>
+        )}
         {/* „Zum Dashboard“ nimmt außerhalb des Dashboards den Platz von „Gleich verteilen“ ein (dort ohnehin gesperrt) –
             so verschiebt sich beim Durchschalten nichts und der View-Knopf bleibt unter Finger und Maus */}
         {onArea ? (
@@ -2864,6 +2871,8 @@ function DeskApp(props: DeskProps) {
           </button>
         )}
         {/* F-206 Schritt 3 (P6): NewPad neben NewSlot – „Behandeln wie Slot“ */}
+        {/* V76 (Enrico): Notizen auf dem Telefon vorerst ausgeblendet – erst alle Funktionen, die Mobilansicht später */}
+        {!notesOff && (
         <Menu
           icon={<span className="tb-add tb-newpad"><Icon name="newPad" size={15} className="icon tb-plus" /><span className="tb-label"> {PAD_TEXT.newPad}</span>{padsHidden && deskPads.length > 0 && <span className="tb-newpad__n" aria-hidden="true">{deskPads.length}</span>}</span>}
           label={`${PAD_TEXT.newPadLabel} – ${TERMS.pad}${padsHidden && deskPads.length ? ` – ${PAD_TEXT.hidden(deskPads.length)}` : ''}`}
@@ -2884,6 +2893,7 @@ function DeskApp(props: DeskProps) {
             </>
           )}
         </Menu>
+        )}
         {/* F-52: über der Empfehlung – ein Klick zurück auf die empfohlene Zahl */}
         {view.slots.length > rec && (
           <button type="button" className="tb-fit" onClick={fitBack} title={DESK_LAYOUT_TEXT.fitTitle(rec)} aria-label={`${DESK_LAYOUT_TEXT.fit(rec)} – ${view.slots.length} von ${rec} empfohlenen Slots`}>

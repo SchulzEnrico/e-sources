@@ -4805,3 +4805,48 @@ describe('V75 Umschalter Desk | Notes', () => {
     expect(DM.parseModes('[1]')).toEqual({});
   });
 });
+
+// ---------------------------------------------------------------- F-215 Schritt 3 (V76): Sprachnotiz
+import * as Vo from './voice';
+describe('V76 Sprachnotiz', () => {
+  it('Gesten: ↑ feststellen, ← abbrechen, sonst nichts', () => {
+    expect(Vo.voiceGesture(0, -Vo.VOICE_LOCK_PX)).toBe('lock');
+    expect(Vo.voiceGesture(-Vo.VOICE_CANCEL_PX, 0)).toBe('cancel');
+    expect(Vo.voiceGesture(-20, -20)).toBeNull();
+    expect(Vo.voiceGesture(60, 0)).toBeNull();
+    expect(Vo.voiceGesture(0, 60)).toBeNull();
+    // schräg: die stärkere Richtung entscheidet, oben zählt bei Gleichstand
+    expect(Vo.voiceGesture(-50, -50)).toBe('lock');
+    expect(Vo.voiceGesture(-70, -30)).toBe('cancel');
+  });
+  it('Fortschritt bis zur Geste 0–1', () => {
+    expect(Vo.voiceProgress(0, 0)).toEqual({ lock: 0, cancel: 0 });
+    expect(Vo.voiceProgress(-Vo.VOICE_CANCEL_PX * 2, -Vo.VOICE_LOCK_PX / 2)).toEqual({ lock: 0.5, cancel: 1 });
+  });
+  it('setzt erkannte Teile zusammen, Satzanfang groß', () => {
+    expect(Vo.joinSpeech('', ' milch  kaufen ')).toBe('Milch kaufen');
+    expect(Vo.joinSpeech('Milch kaufen', 'und brot')).toBe('Milch kaufen und brot');
+    expect(Vo.joinSpeech('Fertig.', 'neuer satz')).toBe('Fertig. Neuer satz');
+    expect(Vo.joinSpeech('Text', '   ')).toBe('Text');
+    expect(Vo.joinSpeech('', 'äpfel')).toBe('Äpfel');
+  });
+  it('trennt festen und vorläufigen Text', () => {
+    const r = [
+      { isFinal: true, 0: { transcript: 'hallo welt' } },
+      { isFinal: true, 0: { transcript: 'noch was' } },
+      { isFinal: false, 0: { transcript: 'und dann' } },
+    ];
+    expect(Vo.speechParts(r)).toEqual({ final: 'Hallo welt noch was', interim: 'Und dann' });
+  });
+  it('lokale Verfügbarkeit → nächster Schritt', () => {
+    expect(Vo.voiceReady('available')).toBe('go');
+    expect(Vo.voiceReady('downloadable')).toBe('install');
+    expect(Vo.voiceReady('downloading')).toBe('wait');
+    expect(Vo.voiceReady('unavailable')).toBe('fallback');
+    expect(Vo.voiceReady('none')).toBe('fallback');
+  });
+  it('Ziel: offene Note, sonst neue Note', () => {
+    expect(Vo.defaultTarget(true)).toBe('here');
+    expect(Vo.defaultTarget(false)).toBe('new');
+  });
+});

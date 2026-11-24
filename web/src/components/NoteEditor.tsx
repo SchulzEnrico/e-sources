@@ -12,6 +12,7 @@ import { type FormEvent, type KeyboardEvent as RKeyboardEvent, type MouseEvent a
 import * as ND from '../workspace/noteDoc';
 import { NOTE_TEXT } from '../workspace/terms';
 import { Icon } from './Icon';
+import { Wheel } from './RemindPicker';
 import type { IconName } from '../workspace/icons';
 
 type Block = ND.Block;
@@ -56,7 +57,8 @@ function spanNodes(spans: ND.Span[]): Node[] {
 const TAG: Record<ND.BlockKind, string> = { p: 'p', h: 'h3', li: 'li', ol: 'li', task: 'li', quote: 'blockquote', code: 'pre' };
 
 function blockEl(b: Block): HTMLElement {
-  const el = document.createElement(b.k === 'h' ? `h${2 + (b.level ?? 1)}` : TAG[b.k]);
+  // V74: H1–H6 – Tags h3–h6 (h6 auch für Stufe 5 und 6), Größe und Stufe hängen an data-level
+  const el = document.createElement(b.k === 'h' ? `h${Math.min(6, 2 + (b.level ?? 1))}` : TAG[b.k]);
   el.setAttribute('data-b', '');
   el.dataset.k = b.k;
   if (b.level) el.dataset.level = String(b.level);
@@ -148,7 +150,7 @@ function readBlock(el: HTMLElement): Block {
   const k = (el.dataset.k as ND.BlockKind) || 'p';
   if (k === 'code') return { k, text: codeText(el) };
   const b: Block = { k, text: inlineOf(el) };
-  if (k === 'h') b.level = (Number(el.dataset.level) || 1) as 1 | 2 | 3;
+  if (k === 'h') b.level = (Number(el.dataset.level) || 1) as ND.HLevel;
   if (k === 'task') b.done = !!el.querySelector<HTMLInputElement>('input[type=checkbox]')?.checked;
   return b;
 }
@@ -255,6 +257,7 @@ export const FMT_EVENT = 'esource:fmt';
 export type FmtTool = 'task' | 'li' | 'bold' | 'h1' | 'h2' | 'h3' | NoteTpl;
 /** V71 (Wunsch Enrico): Vorlagen beim Anlegen per Wischen – alle beginnen mit einem Titel als H1 */
 export type NoteTpl = 'tpl-note' | 'tpl-todo' | 'tpl-list' | 'tpl-remind';
+const H_LABELS = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'];
 const TOOLS: { id: Tool; icon: IconName; label: string; keys?: string }[] = [
   { id: 'task', icon: 'task', label: NOTE_TEXT.toolTask, keys: 'Strg/⌘+Enter' },
   { id: 'li', icon: 'list', label: NOTE_TEXT.toolList },
@@ -281,6 +284,8 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
   const [say, setSay] = useState('');
   const [empty, setEmpty] = useState(!text);
   const [tool, setTool] = useState(0);
+  // V74 (Wunsch Enrico): Stufe der Überschrift per Drehrad im Knopf (H1–H6), Aussehen wie die Uhrzeit-Räder
+  const [hLevel, setHLevel] = useState<ND.HLevel>(1);
   const uid = useId();
 
   /** Stand merken, bevor sich etwas ändert (Tippen: nur nach einer Pause). */
@@ -577,7 +582,7 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
   };
 
   /** Block(e) der Auswahl umstellen; sind alle schon so, werden sie wieder Text. */
-  const setKind = (k: 'task' | 'li' | 'h', level: 1 | 2 | 3 = 1) => {
+  const setKind = (k: 'task' | 'li' | 'h', level: ND.HLevel = 1) => {
     const el = root.current!;
     restore();
     const sel = document.getSelection();
@@ -628,7 +633,34 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     }
   };
 
+  /** Stufe der Zeile an der Schreibmarke: 0 = keine Überschrift, sonst 1–3 */
+  const levelHere = () => {
+    const el = root.current;
+    if (!el) return 0;
+    // Schreibmarke im Text oder – wenn der Fokus am Rad liegt – die zuletzt gemerkte Stelle
+    const r = saved.current && el.contains(saved.current.startContainer) ? saved.current : null;
+    const n = r ? r.startContainer : document.getSelection()?.anchorNode;
+    const b = n && el.contains(n) ? (n instanceof Element ? n : n.parentElement)?.closest<HTMLElement>('[data-b]') : null;
+    return b && /^H[3-6]$/.test(b.tagName) ? Number(b.dataset.level) || 1 : 0;
+  };
+  /** Rad im Knopf gedreht: Stufe merken; steht die Schreibmarke in einer Überschrift, gleich umstellen. */
+  const turnLevel = (v: number) => {
+    const lv = (v + 1) as ND.HLevel;
+    setHLevel(lv);
+    const now = levelHere();
+    if (now && now !== lv) {
+      setKind('h', lv);
+      remember(); // neue Stelle merken – die Zeile wurde neu aufgebaut, das nächste Drehen braucht sie
+    }
+  };
+  // Rad zeigt die Stufe der Zeile an der Schreibmarke
+  useEffect(() => {
+    const lv = levelHere();
+    if (lv) setHLevel(lv as ND.HLevel);
+  }, [cur.k]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const run = (t: Tool) => {
+    if (t === 'h') return setKind('h', hLevel);
     if (t === 'bold') {
       restore();
       remember();
@@ -675,7 +707,7 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
       return;
     }
     if (t === 'task' || t === 'li') return run(t);
-    setKind('h', Number(t.slice(1)) as 1 | 2 | 3);
+    setKind('h', Number(t.slice(1)) as ND.HLevel);
   };
   useEffect(() => {
     const el = root.current;
@@ -746,8 +778,26 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
             aria-keyshortcuts={t.id === 'bold' ? 'Control+B Meta+B' : t.id === 'task' ? 'Control+Enter Meta+Enter' : undefined}
             onPointerDown={(e) => e.preventDefault()}
             onClick={() => run(t.id)}
+            onKeyDown={
+              t.id === 'h'
+                ? (e) => {
+                    // V74: Pfeil hoch/runter am Knopf dreht das Rad (links/rechts wandern weiter durch die Leiste)
+                    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+                    e.preventDefault();
+                    turnLevel(Math.max(0, Math.min(5, hLevel - 1 + (e.key === 'ArrowDown' ? 1 : -1))));
+                    e.currentTarget.focus();
+                  }
+                : undefined
+            }
+            aria-label={t.id === 'h' ? `${t.label} ${H_LABELS[hLevel - 1]} – ${NOTE_TEXT.hHint}` : undefined}
           >
             <Icon name={t.icon} size={15} /> <span>{t.label}</span>
+            {/* V74: Drehrad im Knopf – wischen/scrollen wählt H1–H6, Tippen auf den Knopf setzt die Stufe */}
+            {t.id === 'h' && (
+              <span className="nedit__hwheel" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.preventDefault()}>
+                <Wheel label={NOTE_TEXT.hLevel} value={hLevel - 1} count={6} big={1} wrap={false} labels={H_LABELS} row={20} height={32} passive onChange={turnLevel} onEnter={() => setKind('h', hLevel)} />
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -766,7 +816,8 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
         onKeyDown={onKeyDown}
         onClick={onClick}
       />
-      <p className="note__hint" id={`${uid}-hint`}>
+      {/* V74 (Wunsch Enrico): Hinweis nicht mehr sichtbar unter dem Textfeld – bleibt für Bildschirmleser */}
+      <p className="sr-only" id={`${uid}-hint`}>
         {NOTE_TEXT.editHint}
       </p>
       <span className="sr-only" role="status" aria-live="polite">

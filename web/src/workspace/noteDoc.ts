@@ -13,9 +13,10 @@ export interface Block {
   text: string;
   /** Aufgabe erledigt. */
   done?: boolean;
-  /** Überschrift 1–3. */
-  level?: 1 | 2 | 3;
+  /** Überschrift 1–6 (V74, Wunsch Enrico; vorher 1–3). */
+  level?: HLevel;
 }
+export type HLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
 const LIST = /^\s*[-*+]\s+/;
 const NUM = /^\s*\d+[.)]\s+/;
@@ -25,7 +26,7 @@ const TASK = /^\s*[-*+]\s+\[([ xX])\]\s?/;
 export function parseLine(line: string): Block {
   let m: RegExpExecArray | null;
   if ((m = TASK.exec(line))) return { k: 'task', text: line.slice(m[0].length), done: m[1] !== ' ' };
-  if ((m = /^(#{1,6})\s+/.exec(line))) return { k: 'h', text: line.slice(m[0].length), level: Math.min(3, m[1].length) as 1 | 2 | 3 };
+  if ((m = /^(#{1,6})\s+/.exec(line))) return { k: 'h', text: line.slice(m[0].length), level: Math.min(6, m[1].length) as HLevel };
   if ((m = LIST.exec(line))) return { k: 'li', text: line.slice(m[0].length) };
   if ((m = NUM.exec(line))) return { k: 'ol', text: line.slice(m[0].length) };
   if ((m = /^>\s?/.exec(line))) return { k: 'quote', text: line.slice(m[0].length) };
@@ -87,7 +88,7 @@ export function serializeDoc(blocks: Block[]): string {
 export function shortcut(text: string): Block | null {
   let m: RegExpExecArray | null;
   if ((m = /^(?:[-*+]\s)?\[(\s?|x)\]\s/.exec(text))) return { k: 'task', text: text.slice(m[0].length), done: m[1] === 'x' };
-  if ((m = /^(#{1,3})\s/.exec(text))) return { k: 'h', text: text.slice(m[0].length), level: m[1].length as 1 | 2 | 3 };
+  if ((m = /^(#{1,6})\s/.exec(text))) return { k: 'h', text: text.slice(m[0].length), level: m[1].length as HLevel };
   if ((m = /^[-*+]\s/.exec(text))) return { k: 'li', text: text.slice(m[0].length) };
   if ((m = /^1[.)]\s/.exec(text))) return { k: 'ol', text: text.slice(m[0].length) };
   if ((m = /^>\s/.exec(text))) return { k: 'quote', text: text.slice(m[0].length) };

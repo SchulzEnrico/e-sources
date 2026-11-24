@@ -115,6 +115,17 @@ export function PadFooter(props: {
     it.run();
   };
 
+  // V74 (Enrico, iPhone): Wischen am Knopf verschob die ganze Seite – iOS beachtet touch-action nicht immer,
+  // vor allem bei offener Tastatur. Ein eigener touchmove-Listener (nicht passiv) verhindert das Verschieben.
+  // touchstart bleibt frei, sonst käme auf iOS kein Klick (Tippen = Home) mehr an.
+  useEffect(() => {
+    const b = btn.current;
+    if (!b) return;
+    const stop = (ev: TouchEvent) => ev.cancelable && ev.preventDefault();
+    b.addEventListener('touchmove', stop, { passive: false });
+    return () => b.removeEventListener('touchmove', stop);
+  }, []);
+
   // ---------------------------------------------------------------- Zeiger
   const down = (e: PointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0) return;

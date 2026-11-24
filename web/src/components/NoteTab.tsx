@@ -3,7 +3,7 @@
  * liegen in Workspace.notes. Geschrieben wird direkt formatiert (NoteEditor), gespeichert als Markdown.
  * Ansichten (To-do, Kanban, Eisenhower) zeigen hier vorerst nur einen Platzhalter.
  */
-import { type Dispatch, type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
+import { type Dispatch, type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { NoteState, NoteViewKind, Workspace } from '../workspace/types';
 import * as No from '../workspace/notes';
@@ -37,7 +37,7 @@ interface NoteProps {
    * F-213 (V68): Entwurf bis „Speichern“ (im Pad). Ohne diese Angabe speichert die Note wie bisher sofort
    * (alter Notiz-Tab bis zum Umstieg).
    */
-  draft?: { onClose: () => void; say: (text: string) => void; notice: (n: Notice) => void; shown?: Notice | null };
+  draft?: { onClose: () => void; say: (text: string) => void; notice: (n: Notice) => void; shown?: Notice | null; above?: ReactNode };
 }
 
 /** V68 (Wunsch Enrico, „perfekte Fokussierung“): Meldung am Ort des Geschehens statt unten am Bildschirmrand. */
@@ -156,6 +156,7 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
     delBtn.current?.focus();
   };
 
+  const meta = `${raw.unsaved ? DRAFT_TEXT.neverSaved : `${NOTE_TEXT.created(when(n.created))} · ${NOTE_TEXT.changed(when(n.changed))}`}${n.origin?.by ? ` · ${n.origin.by}` : ''}`;
   return (
     <div className={`note${draft ? ' note--draft' : ''}`} role="region" aria-label={`Notiz: ${title || NOTE_TEXT.untitled}${dirty ? ` (${DRAFT_TEXT.badge})` : ''}`} onKeyDownCapture={onRootKey}>
       <div className="note__bar">
@@ -231,12 +232,12 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
         onPlace={(place) => edit({ place })}
       />
       <NoteEditor key={n.id} text={n.text} label={NOTE_TEXT.text} autoFocus={!n.text && !n.title} onChange={(text) => edit({ text })} />
-      <p className="note__meta">
-        {raw.unsaved ? DRAFT_TEXT.neverSaved : `${NOTE_TEXT.created(when(n.created))} · ${NOTE_TEXT.changed(when(n.changed))}`}
-        {n.origin?.by ? ` · ${n.origin.by}` : ''}
-      </p>
+      {/* V74 (Wunsch Enrico): unter dem Textfeld nur noch der Zustand (Leiste unten); angelegt/geändert/von
+          stehen im Tooltip des Zustands und für Bildschirmleser darin */}
       {draft && (
         <div className="note__actions" role="group" aria-label={DRAFT_TEXT.group}>
+          {/* V74: Meldungen (z. B. Erinnerung) schweben über dieser Leiste */}
+          {draft.above && <div className="note__above">{draft.above}</div>}
           {askClose && (
           <div className="note__ask" role="alertdialog" aria-labelledby="note-close-t" aria-describedby="note-close-d" onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), cancelClose())}>
             <strong id="note-close-t">{DRAFT_TEXT.askTitle}</strong>
@@ -266,7 +267,7 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
             </button>
           </div>
         )}
-          <span className={`note__status${draft.shown ? ' is-notice' : dirty ? ' is-draft' : ''}`} role="status">
+          <span className={`note__status${draft.shown ? ' is-notice' : dirty ? ' is-draft' : ''}`} role="status" title={meta}>
             {draft.shown ? (
               <>
                 {draft.shown.text}

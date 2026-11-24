@@ -7,7 +7,7 @@ import logoUrl from './assets/e-sources-logo.svg';
 import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, MenuHead, PanelFrame } from './components/PanelFrame';
 import { OpacitySlider, Pad as PadView } from './components/Pad';
-import { PAD_MIN, padsOn, placeOf, zonePlace } from './workspace/pads';
+import { PAD_START, padsOn, placeOf, zonePlace } from './workspace/pads';
 import {
   type Lines,
   type Orientation,
@@ -1048,9 +1048,9 @@ function DeskApp(props: DeskProps) {
   const padHome = (p?: PadT): PadPlace => {
     const r = (p?.from && slotRectOf(p.from)) || slotRectOf(currentPanel());
     const z = r ? zonePlace(r, 'right') : { x: 0.5, y: 0, w: 0.5, h: 1 };
-    // Mindestgröße (P: 260 × 200 px) auch beim ersten Platz – in schmalen Slots ragt das Pad nach links bzw. oben
-    const w = Math.min(1, Math.max(z.w, PAD_MIN.w / iw));
-    const h = Math.min(1, Math.max(z.h, PAD_MIN.h / ih));
+    // V74: Startgröße 520 × 720 px (statt Mindestgröße 260 × 200) – in kleinen Slots ragt das Pad nach links bzw. oben
+    const w = Math.min(1, Math.max(z.w, PAD_START.w / iw));
+    const h = Math.min(1, Math.max(z.h, PAD_START.h / ih));
     return { x: Math.max(0, Math.min(z.x + z.w - w, 1 - w)), y: Math.max(0, Math.min(z.y, 1 - h)), w, h };
   };
   // Beim ersten Zeigen bekommt ein Pad seinen Platz fest (danach bleibt es dort, auch wenn Slots wechseln).

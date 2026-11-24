@@ -12,6 +12,8 @@ import { newId } from './workspace';
 
 /** Mindestgröße eines Pads in Pixeln (Doc: 260 × 200). */
 export const PAD_MIN = { w: 260, h: 200 } as const;
+/** V74 (Enrico: „schlechte Standardgröße“): Startgröße eines neuen Pads – mindestens so groß, höchstens die Desk-Fläche. */
+export const PAD_START = { w: 520, h: 720 } as const;
 /** Lageplan: Zonen je Slot (P1, Weg C). */
 export type PadZone = 'top' | 'bottom' | 'left' | 'right' | 'full';
 export const PAD_ZONES: readonly PadZone[] = ['top', 'bottom', 'left', 'right', 'full'];

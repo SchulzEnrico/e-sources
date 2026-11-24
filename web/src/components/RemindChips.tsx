@@ -1,13 +1,14 @@
 /**
  * F-215 (V72, Variante A, Wunsch Enrico: „so intuitiv wie möglich“): zwei Chips über der Note.
- * „Wann?“ öffnet Schnellwahlen (in 1 Stunde, heute 18:00, morgen 9:00, Datum wählen … mit der Auswahl des
- * Systems), „Wo?“ wird zum Textfeld mit zuletzt benutzten Orten. Gesetzt zeigt der Chip das Ergebnis mit ✕.
+ * „Wann?“ öffnet (seit V74, Wunsch Enrico) gleich die eigene Auswahl im Pad-Stil – Uhrzeit-Räder und Kalender,
+ * siehe RemindPicker; die Schnellwahlen aus V72 sind entfallen, „Wo?“ wird zum Textfeld mit zuletzt benutzten Orten. Gesetzt zeigt der Chip das Ergebnis mit ✕.
  * Tastatur (NF-03): alles sind Knöpfe bzw. Felder; Esc schließt, Ansage am Ort (aria-live).
  */
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import type { NoteRemind } from '../workspace/types';
 import { REMIND_TEXT as RT } from '../workspace/terms';
-import { fromLocalInput, quickPicks, remindLabel, toLocalInput } from '../workspace/remind';
+import { remindLabel } from '../workspace/remind';
+import { RemindPicker } from './RemindPicker';
 import { Icon } from './Icon';
 
 export function RemindChips(props: {
@@ -25,12 +26,11 @@ export function RemindChips(props: {
   const whenBtn = useRef<HTMLButtonElement>(null);
   const whereBtn = useRef<HTMLButtonElement>(null);
   const box = useRef<HTMLDivElement>(null);
-  const dateIn = useRef<HTMLInputElement>(null);
+  // V74: zuletzt in der Auswahl eingestellter Zeitpunkt (Klick außerhalb übernimmt ihn)
+  const pending = useRef<Date | null>(null);
   const uid = useId();
 
-  useEffect(() => {
-    if (menu) box.current?.querySelector<HTMLElement>('button, input')?.focus();
-  }, [menu]);
+  // Fokus setzt die Auswahl selbst (Stundenrad)
   // V73: Klick außerhalb schließt das Menü „Wann?“ (ohne Fokus zu verschieben)
   useEffect(() => {
     if (!menu) return;
@@ -38,29 +38,22 @@ export function RemindChips(props: {
       const slot = box.current?.parentElement;
       if (!slot || slot.contains(e.target as Node)) return;
       // ein gewähltes Datum nicht verlieren: übernehmen wie beim Verlassen des Feldes, Fokus bleibt beim Klick
-      const v = dateIn.current?.value;
-      if (v && v !== toLocalInput(remind?.at)) {
-        const iso = fromLocalInput(v);
-        if (iso) (onRemind({ at: iso }), setSay(RT.set(remindLabel(iso))));
+      const d = pending.current;
+      if (d && d.toISOString() !== remind?.at) {
+        const iso = d.toISOString();
+        onRemind({ at: iso });
+        setSay(RT.set(remindLabel(iso)));
       }
+      pending.current = null;
       setMenu(false);
       setPicking(false);
     };
     document.addEventListener('pointerdown', out, true);
     return () => document.removeEventListener('pointerdown', out, true);
   }, [menu, remind, onRemind]);
-  useEffect(() => {
-    if (!picking) return;
-    const el = dateIn.current;
-    el?.focus();
-    try {
-      el?.showPicker?.();
-    } catch {
-      /* nicht überall erlaubt – Feld bleibt zum Tippen */
-    }
-  }, [picking]);
 
   const setWhen = (iso: string | undefined) => {
+    pending.current = null;
     setMenu(false);
     setPicking(false);
     onRemind(iso ? { at: iso } : undefined);
@@ -78,6 +71,7 @@ export function RemindChips(props: {
     if (e.key !== 'Escape') return;
     e.preventDefault();
     e.stopPropagation();
+    pending.current = null;
     setMenu(false);
     setPicking(false);
     whenBtn.current?.focus();
@@ -94,7 +88,7 @@ export function RemindChips(props: {
           aria-haspopup="true"
           aria-expanded={menu}
           title={RT.whenHint}
-          onClick={() => setMenu((m) => !m)}
+          onClick={() => (setMenu((m) => !m), setPicking((m) => !m))}
         >
           <Icon name="recent" size={14} />
           {remind ? `${remindLabel(remind.at)}${past ? ` · ${RT.past}` : ''}` : RT.when}
@@ -105,28 +99,20 @@ export function RemindChips(props: {
           </button>
         )}
         {menu && (
-          <div className="remind__menu" ref={box} onKeyDown={menuKey}>
-            {!picking &&
-              quickPicks().map((p) => (
-                <button key={p.id} type="button" onClick={() => setWhen(p.at)}>
-                  {p.label}
-                </button>
-              ))}
-            {!picking ? (
-              <button type="button" onClick={() => setPicking(true)}>
-                {RT.pick}
-              </button>
-            ) : (
-              <label className="remind__pick">
-                {RT.pickLabel}
-                <input
-                  ref={dateIn}
-                  type="datetime-local"
-                  defaultValue={toLocalInput(remind?.at)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), setWhen(fromLocalInput(e.currentTarget.value)))}
-                  onBlur={(e) => e.currentTarget.value && setWhen(fromLocalInput(e.currentTarget.value))}
-                />
-              </label>
+          <div className={`remind__menu${picking ? ' is-picking' : ''}`} ref={box} onKeyDown={menuKey}>
+            {/* V74 (Wunsch Enrico): keine Schnellwahlen mehr – „Wann?“ öffnet gleich Uhrzeit und Kalender */}
+            {picking && (
+              <RemindPicker
+                at={remind?.at}
+                onDraft={(d) => (pending.current = d)}
+                onDone={(d) => setWhen(d.toISOString())}
+                onCancel={() => {
+                  pending.current = null;
+                  setPicking(false);
+                  setMenu(false);
+                  whenBtn.current?.focus();
+                }}
+              />
             )}
           </div>
         )}

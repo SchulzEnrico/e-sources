@@ -3,6 +3,9 @@
  * Prüft nur, solange das Pad offen ist (alle 15 s und beim Zurückkehren in den Tab). Was schon vor dem Öffnen
  * fällig war, heißt „Verpasst“. Systemmitteilung nur, wenn der Anwender sie hier erlaubt hat.
  * Tastatur (NF-03): Knöpfe „Öffnen“ und ✕; Esc schließt die Meldung; Ansage über role="alert".
+ * V74: Ton bei neuer Meldung; Logik (useReminders) und Anzeige getrennt – die Anzeige sitzt über der
+ * Leiste Speichern/Verwerfen/Schließen bzw. unten in der Notizfläche (Wunsch Enrico, F-214), der Zustand
+ * bleibt beim Wechsel zwischen beiden Orten erhalten.
  */
 import { useEffect, useRef, useState } from 'react';
 import type { Note } from '../workspace/types';
@@ -10,25 +13,32 @@ import * as No from '../workspace/notes';
 import { NOTE_TEXT, REMIND_TEXT as RT } from '../workspace/terms';
 import { type DueRemind, dueReminders, markSeen, remindLabel, seenReminders } from '../workspace/remind';
 import { Icon } from './Icon';
+import { armChime, playChime } from './chime';
 
 const CHECK_MS = 15000;
 const canNotify = () => typeof Notification !== 'undefined';
 
-export function RemindAlarm(props: { notes: readonly Note[]; onOpen: (id: string) => void }) {
-  const notes = useRef(props.notes);
-  notes.current = props.notes;
+export interface Reminders {
+  notes: readonly Note[];
+  shown: DueRemind[];
+  drop: (id: string) => void;
+}
+
+/** Prüft fällige Erinnerungen, solange das Pad offen ist; spielt beim Auftauchen einen Ton. */
+export function useReminders(list: readonly Note[]): Reminders {
+  const notes = useRef(list);
+  notes.current = list;
   const since = useRef(Date.now());
   const [due, setDue] = useState<DueRemind[]>([]);
-  const [perm, setPerm] = useState(() => (canNotify() ? Notification.permission : 'denied'));
-  const [note, setNote] = useState('');
-  const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    armChime();
     const check = () => {
       const found = dueReminders(notes.current, Date.now(), seenReminders(), since.current);
       if (!found.length) return;
       markSeen(found);
       setDue((d) => [...d.filter((x) => !found.some((f) => f.id === x.id)), ...found]);
+      playChime(found.every((f) => f.missed));
       if (canNotify() && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
         for (const f of found) {
           const n = notes.current.find((x) => x.id === f.id);
@@ -48,12 +58,20 @@ export function RemindAlarm(props: { notes: readonly Note[]; onOpen: (id: string
   }, []);
 
   // gelöschte oder erledigte Notes nicht weiter melden
-  const shown = due.filter((d) => props.notes.some((n) => n.id === d.id && n.state !== 'done' && n.state !== 'archived'));
+  const shown = due.filter((d) => list.some((n) => n.id === d.id && n.state !== 'done' && n.state !== 'archived'));
+  const drop = (id: string) => setDue((d) => d.filter((x) => x.id !== id));
+  return { notes: list, shown, drop };
+}
+
+export function RemindAlarm(props: { r: Reminders; onOpen: (id: string) => void }) {
+  const { shown, drop } = props.r;
+  const [perm, setPerm] = useState(() => (canNotify() ? Notification.permission : 'denied'));
+  const [note, setNote] = useState('');
+  const box = useRef<HTMLDivElement>(null);
   if (!shown.length) return null;
   const first = shown[0];
-  const n = props.notes.find((x) => x.id === first.id)!;
+  const n = props.r.notes.find((x) => x.id === first.id)!;
   const title = No.titleOf(n) || NOTE_TEXT.untitled;
-  const drop = (id: string) => setDue((d) => d.filter((x) => x.id !== id));
   const allow = async () => {
     try {
       const p = await Notification.requestPermission();

@@ -987,6 +987,9 @@ export const NOTE_TEXT = {
   toolTask: 'Aufgabe',
   toolList: 'Liste',
   toolHeading: 'Überschrift',
+  // V74: Stufe der Überschrift per Drehrad
+  hLevel: 'Stufe der Überschrift',
+  hHint: 'Rad im Knopf (wischen, scrollen oder Pfeil hoch/runter) wählt H1–H6, Tippen setzt die Stufe; noch einmal = wieder Text',
   toolBold: 'fett',
   taskDone: 'erledigt',
   taskChecked: 'Aufgabe erledigt.',
@@ -1167,4 +1170,12 @@ export const REMIND_TEXT = {
   denied: 'Mitteilungen sind im Browser abgelehnt – in den Einstellungen der Website änderbar',
   say: (title: string, missed: boolean) => `${missed ? 'Verpasste Erinnerung' : 'Erinnerung'}: ${title}`,
   more: (n: number) => `und ${n} weitere`,
+  // V74: eigene Auswahl für Datum und Uhrzeit
+  prevMonth: 'Voriger Monat',
+  nextMonth: 'Nächster Monat',
+  weekdays: ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'],
+  hour: 'Stunde',
+  minute: 'Minute',
+  apply: 'Übernehmen',
+  cancel: 'Abbrechen',
 };

@@ -24,7 +24,7 @@ const TPL_OF: Record<SwipeDir, NoteTpl | undefined> = { up: 'tpl-note', right: '
 import { recentIn, type RecentRef } from '../workspace/pads';
 import { Item, Menu } from './PanelFrame';
 import { Icon } from './Icon';
-import { RemindAlarm } from './RemindAlarm';
+import { RemindAlarm, useReminders } from './RemindAlarm';
 import { remindLabel } from '../workspace/remind';
 import { useDisplay } from './SiteIcon';
 import { OPACITY_MIN, OPACITY_STEP, setPadOpacity } from '../workspace/display';
@@ -553,6 +553,7 @@ function NoteBlock(props: {
     .filter((n): n is NonNullable<typeof n> => !!n);
   const open = props.picked && notes.some((n) => n.id === props.picked) ? props.picked : undefined;
   const listRef = useRef<HTMLUListElement>(null);
+  const reminders = useReminders(notes);
   // V68: Meldungen im Notizblock selbst (in der Note bzw. oben in der Liste), nicht unten am Rand
   const [msg, setMsg] = useState<Notice | null>(null);
   const timer = useRef(0);
@@ -605,19 +606,7 @@ function NoteBlock(props: {
 
   return (
     <div className={`nblock${open ? ' has-open' : ''}`}>
-      {/* V73: fällige Erinnerungen am Pad (nur solange es offen ist) */}
-      <RemindAlarm notes={notes} onOpen={pick} />
       <div className="nblock__side" ref={sideRef}>
-        {!open && shown && (
-          <p className="nblock__msg" role="status">
-            {shown.text}
-            {shown.undo && (
-              <button type="button" className="note__undo" onClick={shown.undo}>
-                {PAUSE_TEXT.undo}
-              </button>
-            )}
-          </p>
-        )}
         <button type="button" className="nblock__new" onClick={add} title={explain(TERMS.note)}>
           <Icon name="plus" size={14} /> <span className="nblock__newtext">{PAD_TEXT.newNote}</span>
         </button>
@@ -661,12 +650,30 @@ function NoteBlock(props: {
             <button type="button" className="nblock__back" onClick={back}>
               <Icon name="back" size={14} /> {PAD_TEXT.toList}
             </button>
-            <NoteTab ws={ws} noteId={open} dispatch={dispatch} draft={{ onClose: back, say: props.say, notice, shown }} />
+            {/* V74: Erinnerung über der Leiste Speichern/Verwerfen/Schließen (am Ort, F-214) */}
+            <NoteTab ws={ws} noteId={open} dispatch={dispatch} draft={{ onClose: back, say: props.say, notice, shown, above: <RemindAlarm r={reminders} onOpen={pick} /> }} />
           </>
         ) : (
           <p className="nblock__pick">{PAD_TEXT.pick}</p>
         )}
       </div>
+      {/* V74 (Wunsch Enrico): ohne offene Note erscheinen Meldungen unten in der Notizfläche – dort, wo eben
+          noch Speichern/Verwerfen/Schließen standen –, nicht in der Seitenleiste */}
+      {!open && (shown || reminders.shown.length > 0) && (
+        <div className="nblock__float">
+          <RemindAlarm r={reminders} onOpen={pick} />
+          {shown && (
+            <p className="nblock__msg" role="status">
+              {shown.text}
+              {shown.undo && (
+                <button type="button" className="note__undo" onClick={shown.undo}>
+                  {PAUSE_TEXT.undo}
+                </button>
+              )}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

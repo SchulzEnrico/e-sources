@@ -4624,72 +4624,66 @@ describe('F-213 Entwurf bis Speichern (V68)', () => {
 // ---------------------------------------------------------------- F-215 (V69): Halbkreis am Home-Knopf
 import * as FA from './footArc';
 describe('F-215 Halbkreis', () => {
-  it('legt fünf Plätze auf einen runden, symmetrischen Halbkreis und einen in die Mitte (V70)', () => {
+  it('legt sechs Plätze auf einen runden, symmetrischen Halbkreis, oben in der Mitte frei (V71)', () => {
     expect(FA.ARC_ANGLES).toHaveLength(6);
+    expect(FA.ARC_ANGLES).not.toContain(90);
+    expect(FA.ARC_ANGLES).not.toContain(null);
     const r = FA.ARC_RADIUS;
     expect(FA.arcPos(0)).toEqual({ x: -r, y: -FA.ARC_LIFT });
-    expect(FA.arcPos(FA.ARC_MAIN)).toEqual({ x: 0, y: -r - FA.ARC_LIFT });
-    expect(FA.arcPos(FA.ARC_INNER)).toEqual({ x: 0, y: -FA.ARC_LIFT });
-    // rund: alle Plätze auf dem Bogen gleich weit von der Kreismitte, links und rechts gespiegelt
-    const arc = FA.ARC_ANGLES.map((a, i) => (a === null ? null : FA.arcPos(i))).filter((p) => p !== null);
-    arc.forEach((p) => expect(Math.round(Math.hypot(p.x, p.y + FA.ARC_LIFT))).toBe(r));
-    expect(arc.map((p) => p.x)).toEqual(arc.map((p) => -p.x).reverse());
+    const arc = FA.ARC_ANGLES.map((_, i) => FA.arcPos(i));
+    // rund: gleich weit von der Kreismitte (ganze Pixel, höchstens 1 px Abweichung), links und rechts gespiegelt
+    arc.forEach((p) => expect(Math.abs(Math.hypot(p.x, p.y + FA.ARC_LIFT) - r)).toBeLessThanOrEqual(1));
+    // 0 - x statt -x: sonst wird aus 0 ein −0, und toEqual unterscheidet die beiden
+    expect(arc.map((p) => p.x)).toEqual(arc.map((p) => 0 - p.x).reverse());
+    // Nachbarn berühren sich nicht (Eintrag 40 px breit)
+    arc.slice(1).forEach((p, i) => expect(Math.hypot(p.x - arc[i].x, p.y - arc[i].y)).toBeGreaterThan(40));
     // über der Oberkante der Fußleiste (Knopfmitte 21 px darunter, Eintrag 40 px hoch)
     FA.ARC_ANGLES.forEach((_, i) => expect(FA.arcPos(i).y + 20).toBeLessThanOrEqual(-21));
   });
-  it('überspringt gesperrte Einträge beim Wählen und läuft im Kreis', () => {
+  it('überspringt nicht wählbare Plätze beim Wählen und läuft im Kreis', () => {
     const items = [{ run: 1 }, {}, { run: 1 }, {}, { run: 1 }, {}];
     expect(FA.stepItem(items, 0, 1)).toBe(2);
     expect(FA.stepItem(items, 4, 1)).toBe(0);
     expect(FA.stepItem(items, 0, -1)).toBe(4);
     expect(FA.stepItem([{}, {}], 0, 1)).toBe(0);
   });
-  it('fokussiert zuerst den Haupteintrag, sonst den nächsten wählbaren', () => {
-    expect(FA.firstItem([{}, {}, { run: 1 }, {}, {}, {}])).toBe(2);
-    expect(FA.firstItem([{}, { run: 1 }, {}, {}, {}, {}])).toBe(1);
+  it('fokussiert zuerst den ersten wählbaren Eintrag von links (V71)', () => {
+    expect(FA.firstItem([{ run: 1 }, { run: 1 }, {}, {}, {}, {}])).toBe(0);
     expect(FA.firstItem([{}, {}, {}, { run: 1 }, {}, {}])).toBe(3);
   });
-  it('wählt den Eintrag in Wischrichtung (V70), nah am Knopf oder nach unten keinen', () => {
-    expect(FA.aimItem(0, -110)).toBe(FA.ARC_MAIN); // weit nach oben
-    expect(FA.aimItem(0, -45)).toBe(FA.ARC_INNER); // kurz nach oben = Mitte
+  it('wählt den Eintrag in Wischrichtung, nah am Knopf oder nach unten keinen', () => {
     expect(FA.aimItem(-70, 0)).toBe(0); // nach links
-    expect(FA.aimItem(70, 0)).toBe(4); // nach rechts
-    expect(FA.aimItem(60, -90)).toBe(3); // schräg rechts oben (45°)
+    expect(FA.aimItem(70, 0)).toBe(5); // nach rechts
+    const at = (deg: number, r = 100) => [Math.cos((deg * Math.PI) / 180) * r, -Math.sin((deg * Math.PI) / 180) * r - FA.ARC_LIFT] as const;
+    expect(FA.aimItem(...at(116))).toBe(2);
+    expect(FA.aimItem(...at(64))).toBe(3);
     expect(FA.aimItem(0, -10)).toBe(-1); // zu nah
     expect(FA.aimItem(0, 60)).toBe(-1); // nach unten
   });
   it('vergrößert stufenlos nach Nähe, ohne Sprünge (V70)', () => {
     const at = (deg: number, r = 80) => [Math.cos((deg * Math.PI) / 180) * r, -Math.sin((deg * Math.PI) / 180) * r - FA.ARC_LIFT] as const;
-    const n = FA.nearness(...at(90));
-    expect(n[FA.ARC_MAIN]).toBe(1);
-    expect(n[1]).toBeGreaterThan(0); // Nachbar wächst ein wenig mit
-    expect(n[0]).toBe(0);
+    const n = FA.nearness(...at(148));
+    expect(n[1]).toBe(1);
+    expect(n[0]).toBeGreaterThan(0); // Nachbar wächst ein wenig mit
+    expect(n[5]).toBe(0);
     // kleiner Schritt im Winkel = kleine Änderung der Größe
     const a = FA.nearness(...at(100));
     const b = FA.nearness(...at(102));
     a.forEach((v, i) => expect(Math.abs(v - b[i])).toBeLessThan(0.1));
-    expect(FA.nearness(0, -FA.ARC_LIFT)[FA.ARC_INNER]).toBe(1);
   });
   it('wechselt an der Grenze zweier Einträge erst mit Spielraum (V70)', () => {
-    // 112,5° liegt genau zwischen 135° und 90°; knapp darüber hinaus bleibt die bisherige Auswahl
+    // 132° liegt genau zwischen 148° und 116°; knapp darüber hinaus bleibt die bisherige Auswahl
     const at = (deg: number, r = 100) => [Math.cos((deg * Math.PI) / 180) * r, -Math.sin((deg * Math.PI) / 180) * r - FA.ARC_LIFT] as const;
-    expect(FA.aimItem(...at(110), undefined, 1)).toBe(1);
-    expect(FA.aimItem(...at(110))).toBe(FA.ARC_MAIN);
-    expect(FA.aimItem(...at(100), undefined, 1)).toBe(FA.ARC_MAIN);
+    expect(FA.aimItem(...at(129), undefined, 1)).toBe(1);
+    expect(FA.aimItem(...at(129))).toBe(2);
+    expect(FA.aimItem(...at(120), undefined, 1)).toBe(2);
   });
-  it('unterscheidet kurzes (Note) und langes Wischen (Sheet) am Knopf (V70)', () => {
-    expect(FA.swipeKind(10)).toBeNull();
-    expect(FA.swipeKind(-40)).toEqual({ kind: 'note', dir: -1 });
-    expect(FA.swipeKind(FA.SWIPE_SHEET)).toEqual({ kind: 'sheet', dir: 1 });
-  });
-  it('findet den Nachbarn ohne Kreis, ohne Auswahl den ersten bzw. letzten (V70)', () => {
-    const l = ['a', 'b', 'c'];
-    expect(FA.neighbour(l, 'b', 1)).toBe('c');
-    expect(FA.neighbour(l, 'c', 1)).toBeUndefined();
-    expect(FA.neighbour(l, 'a', -1)).toBeUndefined();
-    expect(FA.neighbour(l, undefined, 1)).toBe('a');
-    expect(FA.neighbour(l, undefined, -1)).toBe('c');
-    expect(FA.neighbour([], undefined, 1)).toBeUndefined();
+  it('erkennt die Wischrichtung am Knopf: stärkere Achse gewinnt, zu kurz = keine (V71)', () => {
+    expect(FA.swipeDir(10, 5)).toBeNull();
+    expect(FA.swipeDir(-40, 10)).toBe('left');
+    expect(FA.swipeDir(40, -20)).toBe('right');
+    expect(FA.swipeDir(10, -40)).toBe('up');
+    expect(FA.swipeDir(-5, FA.SWIPE_PX)).toBe('down');
   });
 });
 

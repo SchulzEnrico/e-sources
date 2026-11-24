@@ -5720,6 +5720,10 @@ h3.cases__name { font-size: 1.05em; }
   margin: 6px 0 2px;
   color: var(--strong);
 }
+/* V71 (Enrico: „welche Überschrift ist das?“): Stufen klar verschieden und deutlich größer als fett */
+.nedit h3 { font-size: 1.5em; font-weight: 700; line-height: 1.25; }
+.nedit h4 { font-size: 1.28em; font-weight: 650; line-height: 1.3; }
+.nedit h5 { font-size: 1.1em; font-weight: 600; line-height: 1.35; }
 .nedit ul,
 .nedit ol {
   padding-left: 22px;
@@ -5942,7 +5946,8 @@ h3.cases__name { font-size: 1.05em; }
 .pad__soon { padding: 14px; text-align: center; overflow: auto; height: 100%; }
 .pad__soon .icon { display: inline-block; vertical-align: -4px; }
 /* Ränder zum Ziehen der Größe */
-.pad__grip { position: absolute; z-index: 2; touch-action: none; }
+/* V71: z-index 7 – über Fußleiste (6) und schmaler Randleiste (5), sonst greifen die unteren Kanten nicht */
+.pad__grip { position: absolute; z-index: 7; touch-action: none; }
 .pad__grip--n { top: 0; left: 8px; right: 8px; height: 5px; cursor: ns-resize; }
 .pad__grip--s { bottom: 0; left: 8px; right: 14px; height: 6px; cursor: ns-resize; }
 .pad__grip--e { right: 0; top: 8px; bottom: 14px; width: 6px; cursor: ew-resize; }
@@ -6225,6 +6230,8 @@ h3.cases__name { font-size: 1.05em; }
    Halbkreis-Menü (Bildschirm) im klaren Stil von iOS 10: flach, viel Luft, feine Linien. */
 .padfoot {
   position: relative;
+  /* V71: über der schmalen Randleiste (.nblock__side, z-index 5) – sonst deckt sie Halbkreis und Liste zu */
+  z-index: 6;
   flex: none;
   height: 42px;
   display: flex;
@@ -6296,7 +6303,7 @@ h3.cases__name { font-size: 1.05em; }
 .padfoot__arc {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 21px;
   width: 0;
   height: 0;
   z-index: 4;
@@ -6350,6 +6357,8 @@ h3.cases__name { font-size: 1.05em; }
     0 6px 18px rgba(var(--lo), 0.4);
 }
 .padfoot__item[aria-disabled] { opacity: 0.55; cursor: default; }
+/* V71: noch nicht gebauter Platz – leerer Kreis ohne Symbol */
+.padfoot__item.is-empty { opacity: 0.55; cursor: default; pointer-events: auto; }
 /* Zeiger im Halbkreis: Größe nach Nähe statt nach Auswahl – die Vergrößerung wandert wie eine Welle mit */
 .padfoot__arc.is-aiming .padfoot__item,
 .padfoot__arc.is-aiming .padfoot__item.is-hot,
@@ -6400,7 +6409,7 @@ h3.cases__name { font-size: 1.05em; }
    Schrift wie eingeprägt, waagerecht. Kerben ‹ › neben dem Knopf zeigen dauerhaft, dass man wischen kann. */
 .padfoot__notch {
   position: absolute;
-  top: 50%;
+  top: 21px;
   translate: 0 -54%;
   font-size: 15px;
   line-height: 1;
@@ -6566,4 +6575,127 @@ h3.cases__name { font-size: 1.05em; }
     inset 0 2.5px 4px rgba(var(--lo), 0.75),
     inset 0 -1px 1px rgba(var(--hi), 0.06),
     0 1px 0 rgba(var(--hi), 0.06);
+}
+
+/* ---------------------------------------------------------------- F-215 (V71): Pfeile der Wischgesten
+   Wunsch Enrico (Bild mit gestaffelten Winkeln): drei Winkel hintereinander, nach hinten blasser, in der
+   Akzentfarbe des Nutzers. Im offenen Halbkreis stehen sie oben in der Mitte und über dem Knopf (Kreuz um die
+   frühere Mitte), beim Wischen leuchtet die Spur in Wischrichtung. */
+.padfoot__swipe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.padfoot__swipe {
+  /* V71: im Dokument (Portal), Lage per style in der Knopfmitte – nicht an der Kante des Pads abgeschnitten */
+  position: fixed;
+  z-index: 60;
+}
+.padfoot__chev {
+  /* Punkt in der Knopfmitte; gedreht wird um ihn. Grundform zeigt nach links. */
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+.padfoot__chev--right { rotate: 180deg; }
+.padfoot__chev--up { rotate: 90deg; }
+.padfoot__chev--down { rotate: -90deg; }
+.padfoot__trail {
+  /* beginnt 24 px neben der Knopfmitte und wächst nach außen; der erste Winkel liegt am Knopf */
+  position: absolute;
+  right: 24px;
+  top: 0;
+  translate: 0 -50%;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 6px;
+  filter: drop-shadow(0 0 4px rgba(var(--accent-rgb), 0.6));
+}
+.padfoot__trail i {
+  /* Größe und Strichstärke je Winkel im Code (zum Ende hin breiter) */
+  border-style: solid none none solid;
+  border-color: rgb(var(--accent-rgb));
+  rotate: -45deg;
+  border-radius: 1px;
+  transition: opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.padfoot__swipegoal {
+  position: absolute;
+  left: 0;
+  bottom: 34px;
+  translate: -50% 0;
+  padding: 3px 9px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--on-accent, #fff);
+  background: rgba(var(--accent-rgb), 0.85);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.padfoot__item.is-empty { pointer-events: auto; }
+@media (forced-colors: active) {
+  .padfoot__trail i { border-color: CanvasText; }
+  .padfoot__swipegoal { forced-color-adjust: none; background: Canvas; color: CanvasText; border: 1px solid CanvasText; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .padfoot__trail i { transition: none; }
+}
+/* V71 (Enrico, iPhone): Halten und Wischen am Knopf löste die Textauswahl bzw. das Kontextmenü von iOS aus.
+   Die ganze Fußleiste (Knopf, Halbkreis, Pfeile) ist darum nicht auswählbar; das Schreibfeld der Note bleibt es. */
+.padfoot,
+.padfoot * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.padfoot { touch-action: none; }
+
+/* V71 (Wunsch Enrico: „mehr Emboss, mehr Haptik“): Einträge der Notizliste und „Neue Note“ wie Tasten mit
+   Körper – gewölbte Oberfläche (Verlauf), helle Kante oben, sichtbare dunkle Flanke unten (3 px), weicher
+   Schlagschatten; gewählt bzw. gedrückt sinkt die Taste ein (Flanke weg, Schatten innen). */
+.pad .nblock__item,
+.pad .nblock__new {
+  background: linear-gradient(to bottom, rgba(var(--hi), 0.16) 0%, rgba(var(--hi), 0.06) 45%, rgba(var(--lo), 0.12) 100%);
+  border: 1px solid rgba(var(--hi), 0.1);
+  border-bottom-color: rgba(var(--lo), 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(var(--hi), 0.28),
+    inset 0 -2px 3px rgba(var(--lo), 0.35),
+    0 3px 0 rgba(var(--lo), 0.75),
+    0 5px 8px rgba(0, 0, 0, 0.45),
+    0 1px 2px rgba(0, 0, 0, 0.4);
+  margin-bottom: 3px;
+  transition: box-shadow 0.12s ease, translate 0.12s ease, background 0.15s ease;
+}
+.pad .nblock__item:hover,
+.pad .nblock__new:hover {
+  background: linear-gradient(to bottom, rgba(var(--hi), 0.2) 0%, rgba(var(--hi), 0.08) 45%, rgba(var(--lo), 0.1) 100%);
+}
+.pad .nblock__item:active,
+.pad .nblock__new:active,
+.pad .nblock__item.is-on {
+  translate: 0 3px;
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(var(--hi), 0.08),
+    0 0 0 rgba(var(--lo), 0),
+    0 1px 1px rgba(var(--hi), 0.05);
+}
+.pad .nblock__item.is-on {
+  background: linear-gradient(to bottom, rgba(var(--accent-rgb), 0.1), rgba(var(--accent-rgb), 0.24));
+  border-color: rgba(var(--accent-rgb), 0.5);
+}
+.pad .nblock__list { display: flex; flex-direction: column; gap: 6px; }
+@media (forced-colors: active) {
+  .pad .nblock__item, .pad .nblock__new { box-shadow: none; border-color: ButtonText; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pad .nblock__item, .pad .nblock__new { transition: none; }
 }

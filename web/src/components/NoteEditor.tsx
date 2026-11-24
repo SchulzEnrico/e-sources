@@ -250,6 +250,11 @@ const asPara = (b: Block): Block[] => (b.k === 'code' ? b.text.split('\n').map((
 // ---------- Leiste ----------
 
 type Tool = 'task' | 'li' | 'h' | 'bold';
+/** V71 (F-215): Formatieren von außen, z. B. per Wischen am Knopf der Fußleiste – Ereignis am Editor-Element */
+export const FMT_EVENT = 'esource:fmt';
+export type FmtTool = 'task' | 'li' | 'bold' | 'h1' | 'h2' | 'h3' | NoteTpl;
+/** V71 (Wunsch Enrico): Vorlagen beim Anlegen per Wischen – alle beginnen mit einem Titel als H1 */
+export type NoteTpl = 'tpl-note' | 'tpl-todo' | 'tpl-list';
 const TOOLS: { id: Tool; icon: IconName; label: string; keys?: string }[] = [
   { id: 'task', icon: 'task', label: NOTE_TEXT.toolTask, keys: 'Strg/⌘+Enter' },
   { id: 'li', icon: 'list', label: NOTE_TEXT.toolList },
@@ -385,6 +390,12 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
       }
       blocks[c.i] = { k: 'code', text: `${b.text.slice(0, c.off)}\n${b.text.slice(c.off)}` };
       return apply(blocks, { i: c.i, off: c.off + 1 });
+    }
+    // V71 (Wunsch Enrico): Enter am Ende einer Überschrift, unter der eine noch leere Aufgabe bzw. ein leerer
+    // Listenpunkt steht (Vorlage To-do-Liste/Liste), springt dorthin statt einen Absatz dazwischenzuschieben
+    const below = blocks[c.i + 1];
+    if (b.k === 'h' && c.off === plainLen(b) && below && (below.k === 'li' || below.k === 'task' || below.k === 'ol') && plainLen(below) === 0) {
+      return apply(blocks, { i: c.i + 1, off: 0 });
     }
     if (listy && plainLen(b) === 0) {
       // Enter in leerer Aufgabe/Liste beendet sie
@@ -566,7 +577,7 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
   };
 
   /** Block(e) der Auswahl umstellen; sind alle schon so, werden sie wieder Text. */
-  const setKind = (k: 'task' | 'li' | 'h') => {
+  const setKind = (k: 'task' | 'li' | 'h', level: 1 | 2 | 3 = 1) => {
     const el = root.current!;
     restore();
     const sel = document.getSelection();
@@ -580,12 +591,15 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     }
     remember();
     const { blocks } = read(el);
+    // V71: leere Note (z. B. gerade per Wischen angelegt) – erste Zeile anlegen, damit das Format greift
+    if (!blocks.length) blocks.push({ k: 'p', text: '' });
     const pick = blocks.slice(c.i, to + 1);
-    const all = pick.every((b) => b.k === k);
+    // V71: Überschrift zählt nur als „schon so“, wenn auch die Stufe stimmt (sonst Stufe wechseln)
+    const all = pick.every((b) => b.k === k && (k !== 'h' || (b.level ?? 1) === level));
     const out = pick.flatMap((b): Block[] => {
       if (all) return [{ k: 'p', text: b.text }];
       const base = b.k === 'code' ? asPara(b) : [b];
-      return base.map((x) => ({ k, text: x.text, ...(k === 'task' ? { done: x.k === 'task' ? x.done : false } : {}), ...(k === 'h' ? { level: 1 as const } : {}) }));
+      return base.map((x) => ({ k, text: x.text, ...(k === 'task' ? { done: x.k === 'task' ? x.done : false } : {}), ...(k === 'h' ? { level } : {}) }));
     });
     blocks.splice(c.i, pick.length, ...out);
     setSay(all ? NOTE_TEXT.toText : NOTE_TEXT.became(NOTE_TEXT.kinds[k]));
@@ -623,6 +637,51 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     }
     setKind(t);
   };
+
+  // V71: Formatieren von außen (Wischen am Knopf); gleiche Geste noch einmal = wieder Text (wie die Leiste)
+  const fmtRef = useRef<(t: FmtTool) => void>(() => {});
+  fmtRef.current = (t) => {
+    if (t.startsWith('tpl-')) {
+      // nur in einer noch leeren Note: Titel H1, darunter je nach Vorlage eine Aufgabe bzw. ein Listenpunkt
+      const el = root.current!;
+      if (read(el).blocks.some((x) => x.text.trim())) return;
+      remember();
+      const blocks: Block[] = [{ k: 'h', level: 1, text: '' }];
+      if (t === 'tpl-todo') blocks.push({ k: 'task', done: false, text: '' });
+      if (t === 'tpl-list') blocks.push({ k: 'li', text: '' });
+      el.focus({ preventScroll: true });
+      apply(blocks, { i: 0, off: 0 });
+      return;
+    }
+    if (t === 'bold') {
+      // ohne Markierung die ganze Zeile fett (bzw. wieder normal) – sonst wirkte es nur auf künftiges Tippen
+      const el = root.current!;
+      restore();
+      const sel = document.getSelection();
+      if (sel && (!sel.rangeCount || sel.isCollapsed)) {
+        const b = blockEls(el)[caretOf(el)?.i ?? 0];
+        if (b?.textContent) {
+          const r = document.createRange();
+          r.selectNodeContents(b);
+          sel.removeAllRanges();
+          sel.addRange(r);
+        }
+      }
+      remember();
+      document.execCommand('bold');
+      document.getSelection()?.collapseToEnd();
+      return;
+    }
+    if (t === 'task' || t === 'li') return run(t);
+    setKind('h', Number(t.slice(1)) as 1 | 2 | 3);
+  };
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const on = (e: Event) => fmtRef.current((e as CustomEvent<FmtTool>).detail);
+    el.addEventListener(FMT_EVENT, on);
+    return () => el.removeEventListener(FMT_EVENT, on);
+  }, []);
 
   const onKeyDown = (e: RKeyboardEvent<HTMLDivElement>) => {
     if (e.nativeEvent.isComposing) return;

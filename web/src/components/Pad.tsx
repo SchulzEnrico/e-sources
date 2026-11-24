@@ -13,7 +13,13 @@ import { DRAFT_TEXT, FOOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS } from '.
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab } from './NoteTab';
 import { type FootItem, PadFooter } from './PadFooter';
-import { neighbour, type SwipeKind } from '../workspace/footArc';
+import type { SwipeDir } from '../workspace/footArc';
+import { FMT_EVENT, type FmtTool, type NoteTpl } from './NoteEditor';
+
+/** V71: Wischrichtung → Werkzeug im Editor */
+const FMT_OF: Record<SwipeDir, FmtTool> = { left: 'li', right: 'task', up: 'h2', down: 'bold' };
+/** V71: Wischrichtung ohne offene Note → Vorlage der neuen Note (unten: Erinnerung folgt) */
+const TPL_OF: Record<SwipeDir, NoteTpl | undefined> = { up: 'tpl-note', right: 'tpl-todo', left: 'tpl-list', down: undefined };
 import { recentIn, type RecentRef } from '../workspace/pads';
 import { Item, Menu } from './PanelFrame';
 import { Icon } from './Icon';
@@ -78,24 +84,33 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     if (isBlock) send('home');
     say(FOOT_TEXT.atHome);
   };
-  // F-215 Schritt 2 (V70): Wischen am Knopf – kurz = Note (nur im Notizblock), weit = Sheet
-  const noteIds = isBlock && sheet ? No.idsIn(sheet).filter((id) => No.noteById(ws, id)) : [];
+  // F-215 (V71, Wunsch Enrico): Wischen am Knopf formatiert die Zeile der offenen Note – links Liste,
+  // rechts Aufgabe, oben Überschrift H2, unten fett; dieselbe Geste noch einmal = wieder Text.
+  // Ohne offene Note: neue Note anlegen und deren erste Zeile formatieren. Der Editor hört auf `esource:fmt`.
   const curNote = sheet ? picked[sheet.id] : undefined;
-  const swipeTarget = (kind: SwipeKind, dir: 1 | -1) => {
-    if (kind === 'note' && isBlock) {
-      const id = neighbour(noteIds, noteIds.includes(curNote ?? '') ? curNote : undefined, dir);
-      const n = id ? No.noteById(ws, id) : undefined;
-      return { kind, id, text: n ? FOOT_TEXT.toNote(No.titleOf(No.shownNote(n)) || NOTE_TEXT.untitled) : FOOT_TEXT.noNote };
-    }
-    const id = neighbour(pad.sheets, pad.active, dir);
-    const v = id ? No.viewById(ws, id) : undefined;
-    return { kind: 'sheet' as const, id: v ? id : undefined, text: v ? FOOT_TEXT.toSheet(v.name) : FOOT_TEXT.noSheet };
-  };
-  const swipe = (kind: SwipeKind, dir: 1 | -1) => {
-    const t = swipeTarget(kind, dir);
-    if (t.id && t.kind === 'note') send('go', t.id);
-    else if (t.id) show(t.id);
-    say(t.text);
+  // V71 (Wunsch Enrico): Ist keine Note offen, legt Wischen eine neue an – nach Verwendung benannt:
+  // ↑ Neue Note, → Neue To-do-Liste, ← Neue Liste, ↓ Neue Erinnerung (folgt). Alle beginnen mit Titel H1.
+  // Ist eine Note offen (geöffnet oder gerade angelegt), formatiert Wischen sofort die Zeile.
+  const editor = () => self.current?.querySelector<HTMLElement>('.nedit');
+  const swipeLabel = (dir: SwipeDir) => (isBlock && !editor() ? FOOT_TEXT.make[dir] : FOOT_TEXT.fmt[dir]);
+  const swipe = (dir: SwipeDir) => {
+    if (!isBlock) return say(FOOT_TEXT.fmtNoBlock);
+    const now = editor();
+    if (now) return void now.dispatchEvent(new CustomEvent(FMT_EVENT, { detail: FMT_OF[dir] }));
+    const tpl = TPL_OF[dir];
+    if (!tpl) return say(FOOT_TEXT.make[dir]);
+    send('new');
+    // warten, bis die neue Note mit ihrem Editor da ist (höchstens ~1 s)
+    let tries = 60;
+    const wait = () => {
+      const el = editor();
+      if (el) {
+        el.dispatchEvent(new CustomEvent(FMT_EVENT, { detail: tpl }));
+        say(FOOT_TEXT.make[dir]);
+      } else if (--tries > 0) requestAnimationFrame(wait);
+      else say(FOOT_TEXT.fmtNoEdit);
+    };
+    requestAnimationFrame(wait);
   };
   // F-215 (V70): Zuletzt genutzt – Pad merkt sich geöffnete Sheets und Notes (gespeichert, je Pad)
   const [recentOpen, setRecentOpen] = useState(false);
@@ -139,22 +154,6 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   useEffect(() => {
     if (recentOpen) window.setTimeout(() => self.current?.querySelector<HTMLElement>('.padfoot__recent button')?.focus(), 0);
   }, [recentOpen]);
-
-  // V70 (Wunsch Enrico: flüssiger): Fläche folgt dem Finger direkt am Element (kein Neuzeichnen des Pads),
-  // gedämpft wie ein Gummiband; beim Loslassen federt sie zurück (CSS)
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const followDrag = (dx: number | null) => {
-    const el = bodyRef.current;
-    if (!el) return;
-    if (dx === null) {
-      el.classList.remove('is-dragged');
-      el.style.removeProperty('--swipe');
-      return;
-    }
-    const d = (dx * 0.5) / (1 + Math.abs(dx) / 260);
-    el.classList.add('is-dragged');
-    el.style.setProperty('--swipe', `${d.toFixed(1)}px`);
-  };
 
   const raise = () => {
     if (!top) dispatch({ type: 'padRaise', id: pad.id });
@@ -434,7 +433,6 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
       </header>
       <div
         className="pad__body"
-        ref={bodyRef}
         role="tabpanel" id={`pad-${pad.id}-panel`} aria-labelledby={sheet ? `pad-${pad.id}-tab-${sheet.id}` : titleId}>
         {!sheet ? (
           <p className="win__placeholder win__placeholder--small">{NOTE_TEXT.missingView}</p>
@@ -477,7 +475,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           )}
         </div>
       )}
-      <PadFooter items={footItems} onHome={home} say={say} onSwipe={swipe} swipeLabel={(k, d) => swipeTarget(k, d).text} onDrag={followDrag} />
+      <PadFooter items={footItems} onHome={home} say={say} onSwipe={swipe} swipeLabel={swipeLabel} />
       {(['n', 's', 'e', 'w', 'se'] as Edge[]).map((edge) => (
         <div key={edge} className={`pad__grip pad__grip--${edge}`} aria-hidden="true" title={PAD_TEXT.resize} onPointerDown={(e) => gesture(e, edge)} />
       ))}

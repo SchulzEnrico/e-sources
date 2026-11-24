@@ -5,7 +5,9 @@
  * V70 (Wunsch Enrico: „rund, kein Ei“, über der Oberkante der Fußleiste): echter Halbkreis, symmetrisch,
  * fünf Plätze auf dem Bogen (Sprachnotiz oben in der Mitte) und einer innen.
  */
-export const ARC_ANGLES: (number | null)[] = [180, 135, 90, 45, 0, null];
+// V71 (Wunsch Enrico): Mitte oben und der Platz über dem Knopf sind frei für die Pfeile der Wischgesten –
+// sechs Plätze auf dem Bogen, links und rechts je drei (Abstand 32°, Lücke oben 52°).
+export const ARC_ANGLES: (number | null)[] = [180, 148, 116, 64, 32, 0];
 export const ARC_RADIUS = 80;
 /** Mitte des Kreises liegt so weit über der Knopfmitte (px): Knopfmitte 21 px unter der Oberkante der
  *  Fußleiste + halber Eintrag 20 px + 5 px Luft – so liegen auch die Plätze bei 0° und 180° darüber. */
@@ -38,9 +40,9 @@ export function stepItem(items: readonly { run?: unknown }[], from: number, dir:
   return from;
 }
 
-/** Erster Fokus im Halbkreis: der Haupteintrag (oben Mitte), sonst der nächste wählbare */
+/** Erster Fokus im Halbkreis: der erste wählbare von links (V71: keine Mitte oben mehr) */
 export function firstItem(items: readonly { run?: unknown }[]) {
-  return items[ARC_MAIN]?.run ? ARC_MAIN : stepItem(items, ARC_MAIN, 1);
+  return items[0]?.run ? 0 : stepItem(items, 0, 1);
 }
 
 /**
@@ -91,23 +93,14 @@ export function nearness(dx: number, dy: number): number[] {
   });
 }
 
-// ---------------------------------------------------------------- F-215 Schritt 2 (V70): Wischen am Knopf
-/** Ab hier wechselt Wischen die Note, ab SWIPE_SHEET das Sheet (px waagerecht) */
-export const SWIPE_NOTE = 28;
-export const SWIPE_SHEET = 110;
-export type SwipeKind = 'note' | 'sheet';
+// ---------------------------------------------------------------- F-215 (V71): Wischen am Knopf formatiert
+/** Ab diesem Weg (px) zählt Wischen; vorher ist es ein Tippen bzw. Halten */
+export const SWIPE_PX = 28;
+export type SwipeDir = 'left' | 'right' | 'up' | 'down';
 
-/** Was ein waagerechtes Wischen um dx auslöst; dir 1 = nach rechts = nächste/r */
-export function swipeKind(dx: number): { kind: SwipeKind; dir: 1 | -1 } | null {
-  const a = Math.abs(dx);
-  if (a < SWIPE_NOTE) return null;
-  return { kind: a >= SWIPE_SHEET ? 'sheet' : 'note', dir: dx > 0 ? 1 : -1 };
-}
-
-/** Nachbar in einer Reihe (nicht im Kreis). Nichts gewählt → erster bzw. letzter. Am Ende → undefined. */
-export function neighbour<T>(list: readonly T[], cur: T | undefined, dir: 1 | -1): T | undefined {
-  if (!list.length) return undefined;
-  const i = cur === undefined ? -1 : list.indexOf(cur);
-  if (i < 0) return dir > 0 ? list[0] : list[list.length - 1];
-  return list[i + dir];
+/** Richtung eines Wischens um dx/dy (y nach unten positiv); die stärkere Achse gewinnt. Zu kurz → null. */
+export function swipeDir(dx: number, dy: number): SwipeDir | null {
+  if (Math.hypot(dx, dy) < SWIPE_PX) return null;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx > 0 ? 'right' : 'left';
+  return dy > 0 ? 'down' : 'up';
 }

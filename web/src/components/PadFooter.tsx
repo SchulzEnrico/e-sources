@@ -5,22 +5,44 @@
  * Tippen = Home (zur Liste). Halten (ab 0,4 s) = Halbkreis-Menü über dem Knopf; in Richtung eines Eintrags
  * wischen vergrößert ihn (V70), Loslassen wählt. Tastatur (NF-03): Enter/Leertaste = Home, Pfeil hoch oder Leertaste halten = Halbkreis,
  * im Halbkreis Pfeil links/rechts wählen, Enter ausführen, Esc schließen.
- * Schritt 2 (V70): Drücken und waagerecht wischen – kurz = andere Note, weit = anderes Sheet. Dabei erscheint
- * eine flache, eingravierte Schiene im Gehäuse (bewusst anders als das Glas des Halbkreises), die Fläche folgt
- * dem Finger. Tastatur am Knopf: Pfeil links/rechts = Note, Umschalt+Pfeil = Sheet.
- * Schritt 1: Home, Halbkreis, Neue Note. Zuletzt, Sprache, Aufgabe, Suche, Bild & Teilen folgen.
+ * V71 (Wunsch Enrico): Drücken und sofort wischen formatiert die Zeile der offenen Note – links Liste, rechts
+ * Aufgabe, oben Überschrift H2, unten fett, noch einmal = wieder Text (ohne offene Note: neue Note). Dabei zeigen
+ * gestaffelte Pfeile in Akzentfarbe die Richtung, darüber das Ziel. Formatieren per Tastatur geschieht in der Note.
+ * (Blättern zwischen Notes/Sheets am Knopf aus V70 entfällt.)
+ * Schritt 1: Home, Halbkreis, Neue Note. Zuletzt, Sprache, Aufgabe, Suche, Bild & Teilen folgen –
+ * noch nicht gebaute Plätze sind leere Kreise ohne Symbol (V71).
  */
 import { type CSSProperties, type KeyboardEvent, type PointerEvent, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { FOOT_TEXT } from '../workspace/terms';
 import type { IconName } from '../workspace/icons';
 import { Icon } from './Icon';
-import { ARC_ANGLES, ARC_INNER, ARC_MAIN, aimItem, nearness, arcPos, firstItem, stepItem, type SwipeKind, swipeKind } from '../workspace/footArc';
+import { aimItem, nearness, arcPos, firstItem, stepItem, type SwipeDir, swipeDir } from '../workspace/footArc';
+
+/** V71 (Wunsch Enrico, Bild mit gestaffelten Winkeln): Pfeil aus Winkeln in Akzentfarbe. Er baut sich beim
+ *  Wischen vom Knopf aus auf – je weiter der Finger, desto mehr Winkel; der vorderste ist der hellste. */
+const CHEV_N = 5;
+/** Weg (px), bei dem der Pfeil ganz aufgebaut ist */
+const CHEV_FULL = 110;
+function Chevrons({ dir, dist }: { dir: SwipeDir; dist: number }) {
+  const shown = Math.max(1, Math.min(CHEV_N, Math.ceil((dist / CHEV_FULL) * CHEV_N)));
+  return (
+    <span className={`padfoot__chev padfoot__chev--${dir}`} aria-hidden="true">
+      <span className="padfoot__trail">
+        {Array.from({ length: CHEV_N }, (_, k) => (
+          // V71 (Wunsch Enrico): zum Ende hin breiter werdend
+          <i key={k} style={{ opacity: k < shown ? 0.25 + (0.75 * (k + 1)) / shown : 0, width: 7 + 3 * k, height: 7 + 3 * k, borderWidth: 2.5 + 0.5 * k }} />
+        ))}
+      </span>
+    </span>
+  );
+}
 
 export interface FootItem {
   id: string;
   label: string;
   icon: IconName;
-  /** fehlt = folgt (sichtbar, aber gesperrt) */
+  /** fehlt = noch nicht gebaut – V71 (Wunsch Enrico): leerer Kreis ohne Symbol, nicht wählbar */
   run?: () => void;
 }
 
@@ -33,15 +55,14 @@ export function PadFooter(props: {
   items: FootItem[];
   onHome: () => void;
   say: (text: string) => void;
-  /** Wischen bzw. Pfeil am Knopf ausgeführt */
-  onSwipe: (kind: SwipeKind, dir: 1 | -1) => void;
-  /** Ziel für die Schiene („Note: Titel“, „Kein weiteres Sheet“) */
-  swipeLabel: (kind: SwipeKind, dir: 1 | -1) => string;
-  /** Fläche folgt dem Finger: Weg in px, null = losgelassen */
-  onDrag: (dx: number | null) => void;
+  /** V71: Wischen am Knopf ausgeführt (formatiert die Note) */
+  onSwipe: (dir: SwipeDir) => void;
+  /** Was das Wischen in diese Richtung bewirkt („Liste“, „Aufgabe“, …) */
+  swipeLabel: (dir: SwipeDir) => string;
 }) {
-  const { items, onHome, say, onSwipe, swipeLabel, onDrag } = props;
-  const [drag, setDrag] = useState<number | null>(null);
+  const { items, onHome, say, onSwipe, swipeLabel } = props;
+  /** V71: Weg beim Wischen (px), null = kein Wischen */
+  const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   const [open, setOpen] = useState(false);
   // V70: Halbkreis bleibt beim Schließen kurz stehen, damit die Einträge zurück in den Knopf gleiten
   const [closing, setClosing] = useState(false);
@@ -114,9 +135,11 @@ export function PadFooter(props: {
   // Eintrag unter dem Finger, sonst der in Wischrichtung (V70: Richtung genügt, Eintrag wird größer)
   const itemAt = (x: number, y: number) => {
     const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-i]');
-    if (el && menu.current?.contains(el)) return Number(el.dataset.i);
+    if (el && menu.current?.contains(el)) return items[Number(el.dataset.i)]?.run ? Number(el.dataset.i) : -1;
     const r = btn.current?.getBoundingClientRect();
-    return r ? aimItem(x - (r.left + r.width / 2), y - (r.top + r.height / 2), undefined, hotRef.current) : -1;
+    const i = r ? aimItem(x - (r.left + r.width / 2), y - (r.top + r.height / 2), undefined, hotRef.current) : -1;
+    // V71: Plätze ohne Eintrag (noch nicht gebaut) wählen nichts
+    return items[i]?.run ? i : -1;
   };
   const move = (e: PointerEvent<HTMLButtonElement>) => {
     const s = start.current;
@@ -134,18 +157,15 @@ export function PadFooter(props: {
       });
       return;
     }
-    // waagerecht vor dem Halten → Wischen (Halbkreis öffnet dann nicht)
-    if (!s.swipe && Math.abs(dx) > MOVE_PX && Math.abs(dx) > Math.abs(dy)) {
+    // V71: Bewegung vor dem Halten (in jede Richtung) → Wischen (Halbkreis öffnet dann nicht)
+    if (!s.swipe && Math.hypot(dx, dy) > MOVE_PX) {
       s.swipe = true;
       window.clearTimeout(timer.current);
     }
     if (s.swipe) {
       // im Takt des Bildschirms, nicht bei jedem Zeiger-Ereignis
       cancelAnimationFrame(frame.current);
-      frame.current = requestAnimationFrame(() => {
-        setDrag(dx);
-        onDrag(dx);
-      });
+      frame.current = requestAnimationFrame(() => setDrag({ x: dx, y: dy }));
     }
   };
   const up = (e: PointerEvent<HTMLButtonElement>) => {
@@ -155,8 +175,8 @@ export function PadFooter(props: {
     if (!s) return;
     if (s.swipe) {
       endDrag();
-      const k = swipeKind(e.clientX - s.x);
-      if (k) onSwipe(k.kind, k.dir);
+      const d = swipeDir(e.clientX - s.x, e.clientY - s.y);
+      if (d) onSwipe(d);
       return;
     }
     if (open) {
@@ -171,7 +191,6 @@ export function PadFooter(props: {
   const endDrag = () => {
     cancelAnimationFrame(frame.current);
     setDrag(null);
-    onDrag(null);
   };
   const cancel = () => {
     if (start.current?.swipe) endDrag();
@@ -181,11 +200,8 @@ export function PadFooter(props: {
 
   // ---------------------------------------------------------------- Tastatur
   const keyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !open && !e.altKey && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      e.stopPropagation();
-      onSwipe(e.shiftKey ? 'sheet' : 'note', e.key === 'ArrowRight' ? 1 : -1);
-    } else if (e.key === 'ArrowUp') {
+    // V71: Formatieren per Tastatur geschieht in der Note (Leiste, Strg/⌘+B, Strg/⌘+Enter), nicht am Knopf
+    if (e.key === 'ArrowUp') {
       e.preventDefault();
       openMenu(true);
     } else if (e.key === ' ') {
@@ -222,12 +238,6 @@ export function PadFooter(props: {
       e.stopPropagation();
       // links = höherer Winkel = kleinerer Index
       setHot((h) => stepItem(items, h < 0 ? first() : h, e.key === 'ArrowLeft' ? -1 : 1));
-    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      // V70: Mitte des Halbkreises – runter = innerer Platz, hoch = oben in der Mitte
-      e.preventDefault();
-      e.stopPropagation();
-      const to = e.key === 'ArrowDown' ? ARC_INNER : ARC_MAIN;
-      if (items[to]?.run) setHot(to);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
@@ -245,29 +255,49 @@ export function PadFooter(props: {
     }
   };
 
-  const k = drag === null ? null : swipeKind(drag);
-  const side = drag === null ? 0 : drag < 0 ? -1 : 1;
+  const dir = drag === null ? null : swipeDir(drag.x, drag.y);
+  /** Lage und Farben des Pfeils: Knopfmitte im Fenster, Akzent so wie am Knopf (Pad-Färbung) */
+  const swipeAt = (): CSSProperties => {
+    const el = btn.current;
+    if (!el) return {};
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return {
+      left: r.left + r.width / 2,
+      top: r.top + r.height / 2,
+      '--accent-rgb': cs.getPropertyValue('--accent-rgb'),
+      '--on-accent': cs.getPropertyValue('--on-accent'),
+    } as CSSProperties;
+  };
   return (
     <footer className={`padfoot${open ? ' is-open' : ''}${drag !== null ? ' is-swiping' : ''}`}>
-      {/* Kerben links/rechts im Gehäuse: zeigen, dass man am Knopf wischen kann */}
-      <span className="padfoot__notch padfoot__notch--l" aria-hidden="true">‹</span>
-      <span className="padfoot__notch padfoot__notch--r" aria-hidden="true">›</span>
-      {drag !== null && (
-        <div className={`padfoot__rail${side < 0 ? ' is-left' : ' is-right'}`} aria-hidden="true">
-          <span className="padfoot__railgoal">
-            {k ? `${side < 0 ? '‹ ' : ''}${swipeLabel(k.kind, k.dir)}${side > 0 ? ' ›' : ''}` : side < 0 ? '‹' : '›'}
-          </span>
-          <span className="padfoot__raillegend">
-            <span className={k?.kind === 'note' ? 'is-on' : ''}>{FOOT_TEXT.swipeShort}</span>
-            <span className={k?.kind === 'sheet' ? 'is-on' : ''}>{FOOT_TEXT.swipeLong}</span>
-          </span>
-        </div>
-      )}
+      {/* V71: Erst beim Wischen erscheint der Pfeil in Wischrichtung und baut sich mit dem Weg auf; darüber das Ziel.
+          Im Dokument über allem (Portal), damit er an der Kante des Pads nicht abgeschnitten wird; Akzentfarbe vom Pad. */}
+      {drag !== null &&
+        createPortal(
+          <div className="padfoot__swipe" aria-hidden="true" style={swipeAt()}>
+            {dir && <Chevrons dir={dir} dist={Math.hypot(drag.x, drag.y)} />}
+            <span className="padfoot__swipegoal">{dir ? swipeLabel(dir) : FOOT_TEXT.swipeHint}</span>
+          </div>,
+          document.body,
+        )}
       {(open || closing) && (
         <div className={`padfoot__arc${closing && !open ? ' is-closing' : ''}`} role="menu" aria-label={FOOT_TEXT.menu} ref={menu} onKeyDown={menuKey} onKeyUp={menuKeyUp}>
           {items.map((it, i) => {
             const p = arcPos(i);
-            const label = it.run ? it.label : FOOT_TEXT.soon(it.label);
+            const label = it.label;
+            // V71 (Wunsch Enrico): Noch nicht gebaute Plätze bleiben als leere Kreise stehen – ohne Symbol und
+            // Beschriftung, nicht wählbar, für Bildschirmleser unsichtbar; mit der Maus wachsen sie trotzdem mit
+            if (!it.run)
+              return (
+                <span
+                  key={it.id}
+                  data-i={i}
+                  className="padfoot__item is-empty"
+                  style={{ transform: `translate(${p.x}px, ${p.y}px)`, '--i': i } as CSSProperties}
+                  aria-hidden="true"
+                />
+              );
             return (
               <button
                 key={it.id}
@@ -275,9 +305,8 @@ export function PadFooter(props: {
                 role="menuitem"
                 data-i={i}
                 tabIndex={i === hot ? 0 : -1}
-                className={`padfoot__item${i === hot ? ' is-hot' : ''}${ARC_ANGLES[i] === 90 ? ' is-main' : ''}`}
+                className={`padfoot__item${i === hot ? ' is-hot' : ''}`}
                 style={{ transform: `translate(${p.x}px, ${p.y}px)`, '--i': i } as CSSProperties}
-                aria-disabled={it.run ? undefined : 'true'}
                 title={label}
                 aria-label={label}
                 onClick={() => run(i)}

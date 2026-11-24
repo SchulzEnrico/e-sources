@@ -4755,3 +4755,23 @@ describe('F-215 V72: Erinnerung – Schnellwahlen und Anzeige', () => {
     expect(Rm.fromLocalInput('')).toBeUndefined();
   });
 });
+
+describe('F-215 V73: fällige Erinnerungen', () => {
+  const N = (id: string, remind?: { at: string; snooze?: string }, state = 'open') =>
+    ({ id, title: id, text: '', state, created: 1, changed: 1, trail: [], ...(remind ? { remind } : {}) }) as never;
+  const t = (h: number, m = 0) => new Date(2026, 10, 24, h, m).toISOString();
+  const now = Date.parse(t(12));
+  const since = Date.parse(t(11));
+
+  it('meldet erreichte Zeitpunkte, älteste zuerst; vor dem Öffnen fällig = verpasst', () => {
+    const d = Rm.dueReminders([N('a', { at: t(11, 30) }), N('b', { at: t(9) }), N('c', { at: t(13) }), N('d')], now, {}, since);
+    expect(d.map((x) => x.id)).toEqual(['b', 'a']);
+    expect(d.map((x) => x.missed)).toEqual([true, false]);
+  });
+  it('schon gemeldet, erledigt oder geschlummert → nicht; neuer Zeitpunkt meldet neu', () => {
+    const notes = [N('a', { at: t(10) }), N('b', { at: t(10) }, 'done'), N('c', { at: t(10), snooze: t(12, 30) })];
+    expect(Rm.dueReminders(notes, now, { a: t(10) }, since)).toEqual([]);
+    expect(Rm.dueReminders([N('a', { at: t(11) })], now, { a: t(10) }, since).map((x) => x.id)).toEqual(['a']);
+    expect(Rm.remindTime({ remind: { at: t(10), snooze: t(12, 30) } })).toBe(Date.parse(t(12, 30)));
+  });
+});

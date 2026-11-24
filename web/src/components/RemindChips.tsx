@@ -31,6 +31,24 @@ export function RemindChips(props: {
   useEffect(() => {
     if (menu) box.current?.querySelector<HTMLElement>('button, input')?.focus();
   }, [menu]);
+  // V73: Klick außerhalb schließt das Menü „Wann?“ (ohne Fokus zu verschieben)
+  useEffect(() => {
+    if (!menu) return;
+    const out = (e: PointerEvent) => {
+      const slot = box.current?.parentElement;
+      if (!slot || slot.contains(e.target as Node)) return;
+      // ein gewähltes Datum nicht verlieren: übernehmen wie beim Verlassen des Feldes, Fokus bleibt beim Klick
+      const v = dateIn.current?.value;
+      if (v && v !== toLocalInput(remind?.at)) {
+        const iso = fromLocalInput(v);
+        if (iso) (onRemind({ at: iso }), setSay(RT.set(remindLabel(iso))));
+      }
+      setMenu(false);
+      setPicking(false);
+    };
+    document.addEventListener('pointerdown', out, true);
+    return () => document.removeEventListener('pointerdown', out, true);
+  }, [menu, remind, onRemind]);
   useEffect(() => {
     if (!picking) return;
     const el = dateIn.current;
@@ -105,7 +123,7 @@ export function RemindChips(props: {
                   ref={dateIn}
                   type="datetime-local"
                   defaultValue={toLocalInput(remind?.at)}
-                  onKeyDown={(e) => e.key === 'Enter' && setWhen(fromLocalInput(e.currentTarget.value))}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), setWhen(fromLocalInput(e.currentTarget.value)))}
                   onBlur={(e) => e.currentTarget.value && setWhen(fromLocalInput(e.currentTarget.value))}
                 />
               </label>

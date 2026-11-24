@@ -1,5 +1,5 @@
 /** F-215 (V72, Variante A): Erinnerung – Schnellwahlen, Anzeige und Umrechnung (ohne React, testbar). */
-import type { Workspace } from './types';
+import type { Note, Workspace } from './types';
 import { REMIND_TEXT } from './terms';
 
 export interface RemindPick {
@@ -69,4 +69,65 @@ export function recentPlaces(ws: Workspace, max = 5): string[] {
     if (out.length >= max) break;
   }
   return out;
+}
+
+// ---------------------------------------------------------------- V73: fällige Erinnerungen (Meldung am Pad)
+
+/** Zeitpunkt, zu dem erinnert wird (geschlummert = der spätere) – ms oder undefined. */
+export function remindTime(n: Pick<Note, 'remind'>): number | undefined {
+  if (!n.remind) return undefined;
+  const at = Date.parse(n.remind.at);
+  const sn = n.remind.snooze ? Date.parse(n.remind.snooze) : NaN;
+  const t = Number.isNaN(sn) ? at : Math.max(at, sn);
+  return Number.isNaN(t) ? undefined : t;
+}
+
+export interface DueRemind {
+  id: string;
+  /** Zeitpunkt, für den gemeldet wird (ISO) – merkt „schon gemeldet“; neuer Zeitpunkt meldet neu. */
+  at: string;
+  /** schon vor dem Öffnen des Pads fällig gewesen → „Verpasst“ */
+  missed: boolean;
+}
+
+/**
+ * Fällige Erinnerungen der gezeigten Notes: Zeitpunkt erreicht, Note nicht erledigt/archiviert,
+ * für diesen Zeitpunkt noch nicht gemeldet (`seen`: Note-ID → gemeldeter Zeitpunkt).
+ * `since` = Öffnen des Pads (früher fällig = verpasst). Älteste zuerst.
+ */
+export function dueReminders(notes: readonly Note[], now: number, seen: Readonly<Record<string, string>>, since: number): DueRemind[] {
+  const out: (DueRemind & { t: number })[] = [];
+  for (const n of notes) {
+    if (n.state === 'done' || n.state === 'archived') continue;
+    const t = remindTime(n);
+    if (t === undefined || t > now) continue;
+    const at = new Date(t).toISOString();
+    if (seen[n.id] === at) continue;
+    out.push({ id: n.id, at, missed: t < since, t });
+  }
+  return out.sort((a, b) => a.t - b.t).map(({ t: _t, ...d }) => d);
+}
+
+const SEEN_KEY = 'esource.remind.seen.v1';
+let seenCache: Record<string, string> | null = null;
+/** „Schon gemeldet“ – je Browser (nicht abgeglichen), damit ein Neuladen nicht noch einmal meldet. */
+export function seenReminders(): Record<string, string> {
+  if (seenCache) return seenCache;
+  try {
+    const v = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '{}');
+    seenCache = v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, string>) : {};
+  } catch {
+    seenCache = {};
+  }
+  return seenCache;
+}
+export function markSeen(due: readonly DueRemind[]): void {
+  const s = { ...seenReminders() };
+  for (const d of due) s[d.id] = d.at;
+  seenCache = s;
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify(s));
+  } catch {
+    /* privat/voll – dann nur in dieser Sitzung */
+  }
 }

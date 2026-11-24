@@ -1156,4 +1156,15 @@ export const REMIND_TEXT = {
   cleared: 'Erinnerung entfernt',
   clearedPlace: 'Ort entfernt',
   past: 'vorbei',
+  // V73: Meldung am Pad
+  alarm: 'Erinnerung',
+  missed: 'Verpasst',
+  open: 'Öffnen',
+  dismiss: 'Erinnerung schließen',
+  allow: 'Auch als Mitteilung',
+  allowHint: 'Erinnerungen zusätzlich als Mitteilung deines Systems zeigen – der Browser fragt einmal nach der Erlaubnis',
+  allowed: 'Mitteilungen erlaubt',
+  denied: 'Mitteilungen sind im Browser abgelehnt – in den Einstellungen der Website änderbar',
+  say: (title: string, missed: boolean) => `${missed ? 'Verpasste Erinnerung' : 'Erinnerung'}: ${title}`,
+  more: (n: number) => `und ${n} weitere`,
 };

@@ -120,7 +120,8 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
       e.preventDefault();
       e.stopPropagation();
       save();
-    } else if (e.key === 'Escape' && !ask && !askClose && !(e.target as HTMLElement).closest('.nedit__tools')) {
+    } else if (e.key === 'Escape' && !ask && !askClose && !(e.target as HTMLElement).closest('.nedit__tools, .remind__menu, .remind__chip--input')) {
+      // V73: Esc in „Wann?“/„Wo?“ schließt nur dort (nicht die Note)
       e.preventDefault();
       e.stopPropagation();
       close();

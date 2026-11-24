@@ -24,6 +24,8 @@ const TPL_OF: Record<SwipeDir, NoteTpl | undefined> = { up: 'tpl-note', right: '
 import { recentIn, type RecentRef } from '../workspace/pads';
 import { Item, Menu } from './PanelFrame';
 import { Icon } from './Icon';
+import { RemindAlarm } from './RemindAlarm';
+import { remindLabel } from '../workspace/remind';
 import { useDisplay } from './SiteIcon';
 import { OPACITY_MIN, OPACITY_STEP, setPadOpacity } from '../workspace/display';
 import type { IconName } from '../workspace/icons';
@@ -603,6 +605,8 @@ function NoteBlock(props: {
 
   return (
     <div className={`nblock${open ? ' has-open' : ''}`}>
+      {/* V73: fällige Erinnerungen am Pad (nur solange es offen ist) */}
+      <RemindAlarm notes={notes} onOpen={pick} />
       <div className="nblock__side" ref={sideRef}>
         {!open && shown && (
           <p className="nblock__msg" role="status">
@@ -639,6 +643,8 @@ function NoteBlock(props: {
                     <span className="nblock__state">
                       {draft && <span className="nblock__draft">{DRAFT_TEXT.listDraft}</span>}
                       {NOTE_TEXT.states[No.stateOf(ws, n).state]}
+                      {/* V73: Erinnerung in der Liste sichtbar */}
+                      {raw.remind && <span className="nblock__when"> · {remindLabel(raw.remind.at)}</span>}
                     </span>
                   </button>
                 </li>

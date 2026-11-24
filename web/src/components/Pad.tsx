@@ -39,7 +39,7 @@ const explain = (t: string) => t.replace(/^[^=]*=\s*/, '');
 const STEP = 0.02;
 /** V68: Taste gedrückt halten = großer Schritt (statt eigener Tastenkombination – Alt+Strg/⌘+Pfeil wechselt im Browser den Tab). */
 const STEP_HOLD = 0.06;
-type BlockCmd = 'home' | 'new' | 'go';
+type BlockCmd = 'home' | 'new' | 'go' | 'search';
 type Cmd = { k: BlockCmd; n: number; id?: string };
 
 type Edge = 'n' | 's' | 'e' | 'w' | 'se';
@@ -84,8 +84,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     { id: 'recent', label: FOOT_TEXT.recent, icon: 'recent', run: () => setRecentOpen(true) },
     { id: 'new', label: FOOT_TEXT.newNote, icon: 'plus', run: isBlock ? () => send('new') : undefined },
     { id: 'voice', label: FOOT_TEXT.voice, icon: 'mic', run: isBlock ? () => voiceStart.current?.() : undefined },
-    { id: 'task', label: FOOT_TEXT.newTask, icon: 'task' },
-    { id: 'search', label: FOOT_TEXT.search, icon: 'search' },
+    { id: 'task', label: FOOT_TEXT.newTask, icon: 'task', run: () => newTask() },
+    { id: 'search', label: FOOT_TEXT.search, icon: 'search', run: () => (isBlock ? send('search') : say(FOOT_TEXT.searchNoBlock)) },
     { id: 'share', label: FOOT_TEXT.share, icon: 'share' },
   ];
   const home = () => {
@@ -119,6 +119,15 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
       else say(FOOT_TEXT.fmtNoEdit);
     };
     requestAnimationFrame(wait);
+  };
+  // F-215 Schritt 4 (V78): Neue Aufgabe – offene Notiz: neue leere Aufgabe an der Schreibmarke (nie zurück zu Text);
+  // ohne offene Notiz: neue To-do-Liste (Titel H1, darunter eine Aufgabe) wie Wischen nach rechts
+  const newTask = () => {
+    if (!isBlock) return say(FOOT_TEXT.taskNoBlock);
+    const now = editor();
+    if (!now) return swipe('right');
+    now.dispatchEvent(new CustomEvent(FMT_EVENT, { detail: 'task-new' satisfies FmtTool }));
+    say(FOOT_TEXT.taskAdded);
   };
   // F-215 Schritt 3 (V77): Sprachnotiz übernehmen – als Entwurf in die offene Notiz (an der Schreibmarke) oder neue Notiz
   const voiceStart = useRef<(() => void) | null>(null);
@@ -625,6 +634,32 @@ function NoteBlock(props: {
     .map((id) => No.noteById(ws, id))
     .filter((n): n is NonNullable<typeof n> => !!n);
   const open = props.picked && notes.some((n) => n.id === props.picked) ? props.picked : undefined;
+  // V78 (F-215 Schritt 4): Suche im Notizblock – Feld über der Liste, filtert nach Titel, Text, Tags
+  const [find, setFind] = useState<string | null>(null);
+  const findRef = useRef<HTMLInputElement>(null);
+  const shownNotes = find ? notes.filter((n) => No.noteMatches(No.shownNote(n), find)) : notes;
+  const closeFind = (toKnob = false) => {
+    setFind(null);
+    window.setTimeout(() => {
+      const knob = sideRef.current?.closest('.pad')?.querySelector<HTMLElement>('.padfoot__home');
+      (toKnob ? knob : listRef.current?.querySelector<HTMLElement>('button') ?? knob)?.focus({ preventScroll: true });
+    }, 0);
+  };
+  const findKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      return closeFind(true);
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      return listRef.current?.querySelector<HTMLElement>('button')?.focus();
+    }
+    if (e.key === 'Enter' && shownNotes[0]) {
+      e.preventDefault();
+      pick(shownNotes[0].id);
+    }
+  };
   const listRef = useRef<HTMLUListElement>(null);
   const reminders = useReminders(notes);
   // V68: Meldungen im Notizblock selbst (in der Note bzw. oben in der Liste), nicht unten am Rand
@@ -673,20 +708,46 @@ function NoteBlock(props: {
     done.current = props.cmd.n;
     if (props.cmd.k === 'new') return add();
     if (props.cmd.k === 'go') return props.cmd.id ? pick(props.cmd.id) : undefined;
+    if (props.cmd.k === 'search') {
+      setFind((f) => f ?? '');
+      return void window.setTimeout(() => findRef.current?.focus({ preventScroll: true }), 0);
+    }
     if (open) leave();
     onPick(null);
     window.setTimeout(() => (listRef.current?.querySelector<HTMLElement>('button') ?? sideRef.current?.querySelector<HTMLElement>('button'))?.focus(), 0);
   }, [props.cmd?.n]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className={`nblock${open ? ' has-open' : ''}`}>
+    <div className={`nblock${open ? ' has-open' : ''}${find !== null ? ' is-finding' : ''}`}>
       <div className="nblock__side" ref={sideRef}>
         <button type="button" className="nblock__new" onClick={add} title={explain(TERMS.note)}>
           <Icon name="plus" size={14} /> <span className="nblock__newtext">{PAD_TEXT.newNote}</span>
         </button>
-        {notes.length ? (
+        {find !== null && (
+          <div className="nblock__find" role="search">
+            <Icon name="search" size={13} />
+            <input
+              ref={findRef}
+              type="search"
+              value={find}
+              placeholder={FOOT_TEXT.findPh}
+              aria-label={FOOT_TEXT.find}
+              aria-describedby={`${sheetId}-findhint`}
+              title={FOOT_TEXT.findHint}
+              onChange={(e) => setFind(e.target.value)}
+              onKeyDown={findKey}
+            />
+            <button type="button" className="nblock__findx" aria-label={FOOT_TEXT.findClose} title={FOOT_TEXT.findClose} onClick={() => closeFind()}>
+              <Icon name="close" size={11} />
+            </button>
+            <span id={`${sheetId}-findhint`} className="sr-only">{FOOT_TEXT.findHint}</span>
+            <span className="sr-only" role="status">{find ? FOOT_TEXT.findCount(shownNotes.length, notes.length) : ''}</span>
+          </div>
+        )}
+        {find && !shownNotes.length && notes.length > 0 && <p className="nblock__empty">{FOOT_TEXT.findNone}</p>}
+        {shownNotes.length ? (
           <ul className="nblock__list" aria-label={PAD_TEXT.list} ref={listRef}>
-            {notes.map((raw) => {
+            {shownNotes.map((raw) => {
               const n = No.shownNote(raw);
               const t = No.titleOf(n) || NOTE_TEXT.untitled;
               const draft = No.hasDraft(raw);
@@ -714,7 +775,7 @@ function NoteBlock(props: {
               );
             })}
           </ul>
-        ) : (
+        ) : find ? null : (
           <p className="nblock__empty">{PAD_TEXT.empty}</p>
         )}
       </div>

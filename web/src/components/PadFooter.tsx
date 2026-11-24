@@ -554,6 +554,10 @@ export function PadFooter(props: {
                 <span className="padvoice__dot" aria-hidden="true" />
                 {vmode === 'locked' ? VOICE_TEXT.locked : VOICE_TEXT.rec}
               </p>
+              {/* V78 (Wunsch Enrico): Pegel des Mikrofons – schlägt mit der Lautstärke aus */}
+              <div className="padvoice__meter" aria-hidden="true" title={VOICE_TEXT.meter} ref={(n) => void (v.meterRef.current = n)}>
+                <span className="padvoice__meterfill" />
+              </div>
               <p className="padvoice__live" aria-hidden="true">
                 {v.final || v.interim ? (
                   <>

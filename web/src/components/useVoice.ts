@@ -6,7 +6,7 @@
  * Die reine Logik (Text zusammensetzen, Gesten, Ziel) liegt in workspace/voice.ts.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { VOICE_LANG, type VoiceAvail, joinSpeech, speechParts, voiceReady } from '../workspace/voice';
+import { VOICE_LANG, type VoiceAvail, joinSpeech, rmsOf, speechParts, voiceLevel, voiceReady } from '../workspace/voice';
 import { VOICE_TEXT } from '../workspace/terms';
 
 /** Schmale eigene Typen – TypeScript kennt SpeechRecognition (noch) nicht vollständig */
@@ -59,7 +59,59 @@ export interface VoiceState {
   note: string | null;
 }
 
+/**
+ * V78 (Wunsch Enrico): Pegel des Mikrofons. Eigener Mitschnitt über getUserMedia + AnalyserNode – nur zur
+ * Anzeige, der Ton wird nirgends gespeichert oder gesendet. Schreibt `--lvl` (0–1) direkt ins Element
+ * (kein Neuzeichnen von React bei 60 Bildern je Sekunde).
+ */
+function useLevel() {
+  const el = useRef<HTMLElement | null>(null);
+  const live = useRef<{ ctx: AudioContext; stream: MediaStream; raf: number } | null>(null);
+  const id = useRef(0);
+  const stopLevel = useCallback(() => {
+    id.current++;
+    const l = live.current;
+    live.current = null;
+    if (l) {
+      cancelAnimationFrame(l.raf);
+      l.stream.getTracks().forEach((t) => t.stop());
+      void l.ctx.close().catch(() => undefined);
+    }
+    el.current?.style.setProperty('--lvl', '0');
+  }, []);
+  const startLevel = useCallback(async () => {
+    stopLevel();
+    const my = id.current;
+    const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AC || !navigator.mediaDevices?.getUserMedia) return;
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch {
+      return; // ohne Freigabe kein Pegel – die Erkennung meldet den Fehler selbst
+    }
+    if (my !== id.current) return void stream.getTracks().forEach((t) => t.stop());
+    const ctx = new AC();
+    const an = ctx.createAnalyser();
+    an.fftSize = 1024;
+    ctx.createMediaStreamSource(stream).connect(an);
+    const buf = new Float32Array(an.fftSize);
+    let lvl = 0;
+    const tick = () => {
+      if (!live.current) return;
+      an.getFloatTimeDomainData(buf);
+      lvl = voiceLevel(rmsOf(buf), lvl);
+      el.current?.style.setProperty('--lvl', lvl.toFixed(3));
+      live.current.raf = requestAnimationFrame(tick);
+    };
+    live.current = { ctx, stream, raf: requestAnimationFrame(tick) };
+  }, [stopLevel]);
+  useEffect(() => stopLevel, [stopLevel]);
+  return { meterRef: el, startLevel, stopLevel };
+}
+
 export function useVoice() {
+  const { meterRef, startLevel, stopLevel } = useLevel();
   const [st, setSt] = useState<VoiceState>({ phase: 'idle', final: '', interim: '', note: null });
   const rec = useRef<SR | null>(null);
   /** Text aus früheren Sitzungen derselben Aufnahme – Chrome beendet die Erkennung bei Pausen von selbst */
@@ -91,6 +143,7 @@ export function useVoice() {
 
   const fail = (note: string) => {
     want.current = false;
+    stopLevel();
     drop();
     setSt({ phase: 'idle', final: '', interim: '', note });
   };
@@ -161,12 +214,14 @@ export function useVoice() {
     }
     setSt({ phase: 'rec', final: '', interim: '', note: null });
     begin(id);
+    void startLevel();
     return true;
   }, []);
 
   /** Aufnahme beenden und den erkannten Text liefern (wartet kurz auf die letzten festen Teile). */
   const stop = useCallback(async (): Promise<string> => {
     want.current = false;
+    stopLevel();
     run.current++;
     const r = rec.current;
     if (r) {
@@ -195,6 +250,7 @@ export function useVoice() {
   /** Aufnahme verwerfen */
   const cancel = useCallback(() => {
     want.current = false;
+    stopLevel();
     run.current++;
     drop();
     base.current = '';
@@ -204,5 +260,5 @@ export function useVoice() {
 
   const clearNote = useCallback(() => setSt((s) => (s.note ? { ...s, note: null } : s)), []);
 
-  return { ...st, start, stop, cancel, clearNote };
+  return { ...st, start, stop, cancel, clearNote, meterRef };
 }

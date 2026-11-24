@@ -4850,3 +4850,28 @@ describe('V76 Sprachnotiz', () => {
     expect(Vo.defaultTarget(false)).toBe('new');
   });
 });
+
+// ---------------------------------------------------------------- F-215 V78: Pegel und Suche im Notizblock
+describe('F-215 V78: Pegel des Mikrofons', () => {
+  it('Stille ist leer, laut ist voll, dazwischen stufenlos; fällt gedämpft', () => {
+    expect(Vo.voiceLevel(0)).toBe(0);
+    expect(Vo.voiceLevel(0.5)).toBe(1);
+    const mid = Vo.voiceLevel(0.01); // −40 dB
+    expect(mid).toBeGreaterThan(0.3);
+    expect(mid).toBeLessThan(0.5);
+    expect(Vo.voiceLevel(0, 0.9)).toBeGreaterThan(0.8); // fällt nur um 0,08 je Bild
+    expect(Vo.voiceLevel(0.5, 0.2)).toBe(1); // steigt sofort
+    expect(Vo.rmsOf([1, -1, 1, -1])).toBe(1);
+    expect(Vo.rmsOf([])).toBe(0);
+  });
+});
+describe('F-215 V78: Suche im Notizblock', () => {
+  const n = { title: '', text: '# Einkauf\n- [ ] Milch und Brot', tags: ['Haushalt'] };
+  it('findet über Titel, Text und Tags, alle Wörter, Groß/klein egal', () => {
+    expect(No.noteMatches(n, '')).toBe(true);
+    expect(No.noteMatches(n, 'einkauf')).toBe(true);
+    expect(No.noteMatches(n, 'brot milch')).toBe(true);
+    expect(No.noteMatches(n, '#haushalt')).toBe(true);
+    expect(No.noteMatches(n, 'milch käse')).toBe(false);
+  });
+});

@@ -261,7 +261,7 @@ export const INSERT_EVENT = 'esource:insert';
 export const UNINSERT_EVENT = 'esource:uninsert';
 export interface InsertDetail { text: string; after?: string }
 export interface UninsertDetail { after: string; ok?: boolean }
-export type FmtTool = 'task' | 'li' | 'bold' | 'h1' | 'h2' | 'h3' | NoteTpl;
+export type FmtTool = 'task' | 'li' | 'bold' | 'h1' | 'h2' | 'h3' | 'task-new' | NoteTpl;
 /** V71 (Wunsch Enrico): Vorlagen beim Anlegen per Wischen – alle beginnen mit einem Titel als H1 */
 export type NoteTpl = 'tpl-note' | 'tpl-todo' | 'tpl-list' | 'tpl-remind';
 // V75 (Wunsch Enrico): das Rad trägt die Beschriftung – „Überschrift H1“ … „Überschrift H6“
@@ -620,6 +620,26 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     apply(blocks, c);
   };
 
+  /** V78 (F-215 Schritt 4, „Neue Aufgabe“ im Halbkreis): legt immer eine neue, leere Aufgabe an – nie zurück zu Text.
+   *  Leere Zeile an der Schreibmarke wird zur Aufgabe, sonst kommt eine leere Aufgabe direkt darunter. */
+  const newTask = () => {
+    const el = root.current!;
+    restore();
+    const c = caretOf(el) ?? { i: Math.max(0, blockEls(el).length - 1), off: 0 };
+    remember();
+    const { blocks } = read(el);
+    if (!blocks.length) blocks.push({ k: 'p', text: '' });
+    const b = blocks[c.i];
+    if (b && plainLen(b) === 0 && b.k !== 'h') {
+      blocks[c.i] = { k: 'task', done: false, text: '' };
+      setSay(NOTE_TEXT.became(NOTE_TEXT.kinds.task));
+      return apply(blocks, { i: c.i, off: 0 });
+    }
+    blocks.splice(c.i + 1, 0, { k: 'task', done: false, text: '' });
+    setSay(NOTE_TEXT.became(NOTE_TEXT.kinds.task));
+    apply(blocks, { i: c.i + 1, off: 0 });
+  };
+
   /** Aufgabe an der Schreibmarke ab-/anhaken. */
   const toggleTask = (i: number) => {
     const el = root.current!;
@@ -715,6 +735,7 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
       return;
     }
     if (t === 'task' || t === 'li') return run(t);
+    if (t === 'task-new') return newTask();
     setKind('h', Number(t.slice(1)) as ND.HLevel);
   };
   useEffect(() => {

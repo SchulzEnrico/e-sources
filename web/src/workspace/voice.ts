@@ -63,3 +63,23 @@ export function voiceReady(a: VoiceAvail): 'go' | 'install' | 'wait' | 'fallback
 /** Ziel der Sprachnotiz: in die offene Note (an der Schreibmarke) oder neue Note */
 export type VoiceTarget = 'here' | 'new';
 export const defaultTarget = (noteOpen: boolean): VoiceTarget => (noteOpen ? 'here' : 'new');
+
+/**
+ * V78 (Wunsch Enrico): Pegel des Mikrofons als Leiste in der Anzeige.
+ * RMS eines Ausschnitts (0–1) → Anzeige 0–1: −60 dB = leer, −12 dB = voll; steigt sofort, fällt gedämpft
+ * (wie ein Aussteuerungsmesser), damit die Leiste ruhig wirkt.
+ */
+export const LEVEL_FLOOR_DB = -60;
+export const LEVEL_TOP_DB = -12;
+export function voiceLevel(rms: number, prev = 0, fall = 0.08): number {
+  const db = rms > 0 ? 20 * Math.log10(rms) : -Infinity;
+  const now = Math.min(1, Math.max(0, (db - LEVEL_FLOOR_DB) / (LEVEL_TOP_DB - LEVEL_FLOOR_DB)));
+  return now >= prev ? now : Math.max(now, prev - fall);
+}
+/** RMS eines Ausschnitts (Werte −1…1) */
+export function rmsOf(buf: ArrayLike<number>): number {
+  if (!buf.length) return 0;
+  let s = 0;
+  for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
+  return Math.sqrt(s / buf.length);
+}

@@ -1127,7 +1127,7 @@ export const DESK_MODE_TEXT = {
 export const FOOT_TEXT = {
   knobMoved: (v: number) => `Steuerknopf liegt jetzt ${v < 34 ? 'links' : v > 66 ? 'rechts' : 'in der Mitte'}.`,
   home: 'Home',
-  homeHint: 'Tippen: zur Liste · Halten oder Rechtsklick: Auswahl im Halbkreis (auf „Sprachnotiz“ kurz verweilen = Aufnahme beim Halten, ↑ feststellen, ← abbrechen) · Wischen in der offenen Notiz formatiert die Zeile: ← Liste, → Aufgabe, ↑ Überschrift H2, ↓ fett, noch einmal = wieder Text; ohne offene Notiz legt Wischen an: ↑ Neue Notiz, → Neue To-do-Liste, ← Neue Liste, ↓ Neue Erinnerung (Tastatur: Enter = Home, Pfeil hoch oder Leertaste halten = Auswahl, Alt+H = Home, Alt+M = Sprachnotiz; formatieren mit der Leiste in der Notiz)',
+  homeHint: 'Tippen: zur Liste · Halten oder Rechtsklick: Auswahl im Halbkreis (auf „Sprachnotiz“ kurz verweilen = Aufnahme beim Halten, ↑ feststellen, ← abbrechen; „Neue Aufgabe“ an der Schreibmarke; „Suche“ in diesem Notizblock) · Wischen in der offenen Notiz formatiert die Zeile: ← Liste, → Aufgabe, ↑ Überschrift H2, ↓ fett, noch einmal = wieder Text; ohne offene Notiz legt Wischen an: ↑ Neue Notiz, → Neue To-do-Liste, ← Neue Liste, ↓ Neue Erinnerung (Tastatur: Enter = Home, Pfeil hoch oder Leertaste halten = Auswahl, Alt+H = Home, Alt+M = Sprachnotiz; formatieren mit der Leiste in der Notiz)',
   menu: 'Auswahl am Home-Knopf',
   menuHint: 'Pfeil links/rechts wählen, Enter ausführen, Esc schließen',
   recent: 'Zuletzt genutzt',
@@ -1152,6 +1152,16 @@ export const FOOT_TEXT = {
   recentList: 'Zuletzt genutzt in diesem Pad',
   recentNone: 'In diesem Pad noch nichts anderes genutzt.',
   recentHint: 'Pfeil hoch/runter wählen, Enter öffnen, Esc schließen',
+  // V78 (Schritt 4): Neue Aufgabe und Suche im Notizblock
+  taskAdded: 'Neue Aufgabe angelegt – schreib los',
+  taskNoBlock: 'Neue Aufgabe geht in einem Notizblock',
+  searchNoBlock: 'Die Suche gilt den Notizen eines Notizblocks',
+  find: 'Notizen in diesem Notizblock durchsuchen',
+  findPh: 'Notizen durchsuchen …',
+  findHint: 'Sucht in Titel, Text und Tags. Pfeil runter = Treffer, Enter öffnet den ersten, Esc schließt die Suche.',
+  findClose: 'Suche schließen',
+  findCount: (n: number, all: number) => (n === all ? `${all} ${all === 1 ? 'Notiz' : 'Notizen'}` : n ? `${n} von ${all} ${all === 1 ? 'Notiz' : 'Notizen'} gefunden` : 'Keine Notiz gefunden'),
+  findNone: 'Keine Notiz passt – andere Wörter versuchen oder Esc.',
 };
 
 /** F-215 Schritt 3 (V77): Sprachnotiz – Anzeige am Knopf, Einschalten, Hinweise */
@@ -1171,6 +1181,7 @@ export const VOICE_TEXT = {
   cancelHint: '← Abbrechen',
   releaseHint: 'Loslassen übernimmt',
   listening: 'Sprich jetzt …',
+  meter: 'Pegel des Mikrofons',
   target: 'Ziel der Sprachnotiz',
   here: 'In diese Notiz',
   new: 'Neue Notiz',

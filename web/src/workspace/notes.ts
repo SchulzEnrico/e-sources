@@ -966,6 +966,17 @@ export const NOTE_SEARCH_MAX = 20;
 /** Treffer der Suche: eine Notiz oder eine Ansicht. */
 export type NoteHit = { kind: 'note'; note: Note; title: string; snippet: string } | { kind: 'view'; view: NoteView };
 
+/**
+ * V78 (F-215 Schritt 4, „Suche“ im Halbkreis): passt die Notiz zur Suche im Notizblock?
+ * Alle Wörter müssen vorkommen – in Titel, Text oder Tags (# davor erlaubt), Groß/klein egal. Leere Suche = alle.
+ */
+export function noteMatches(n: Pick<Note, 'title' | 'text' | 'tags'>, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).map((w) => w.replace(/^#/, '')).filter(Boolean);
+  if (!words.length) return true;
+  const hay = [titleOf(n), plainText(n.text), ...(n.tags ?? [])].join(' ').toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
 /** Text ohne Markdown-Zeichen (für Suche und Vorschau). */
 export function plainText(md: string): string {
   return md

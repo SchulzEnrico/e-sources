@@ -13,7 +13,7 @@ import type {
   NoteEvent,
   NoteEventKind,
   NoteLink,
-  NoteLinkKind,
+  NoteRel,
   NoteOrigin,
   NoteState,
   NoteView,
@@ -22,6 +22,7 @@ import type {
   Workspace,
 } from './types';
 import { TAB_MAX, newId } from './workspace';
+import { parseNoteExtras, parseSheetExtras, parseWip } from './noteObjects';
 
 /** Höchstens so viele Notizen je Ansicht (Unter-Notizen zählen nicht). */
 export const VIEW_MAX = 200;
@@ -207,15 +208,38 @@ export interface StateInfo {
   from?: string;
 }
 
-/** Frühester Beginn: „nicht beginnen vor“ und „fällig am“ der Vorgänger mit Art „bestimmt den Termin“. */
+/** Tag (JJJJ-MM-TT) um `days` Tage verschieben. */
+export function shiftDay(day: string, days: number): string {
+  if (!days) return day;
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Frühester Beginn: „nicht beginnen vor“ und die Vorgänger (V65, M3: jede Anordnungsbeziehung plant
+ * den Termin). EA: „fällig am“ des Vorgängers + Zeitabstand; AA: dessen „nicht beginnen vor“ +
+ * Zeitabstand. EE und AE begrenzen das Ende, nicht den Beginn (kommt mit dem Netzplan).
+ */
 export function earliestStart(ws: Workspace, n: Note): string | undefined {
   let best = n.notBefore;
   for (const l of n.after ?? []) {
-    if (l.kind !== 'date') continue;
     const p = noteById(ws, l.id);
-    if (p?.due && !isFinished(p.state) && (!best || p.due > best)) best = p.due;
+    if (!p || isFinished(p.state)) continue;
+    const base = l.rel === 'EA' ? p.due : l.rel === 'AA' ? p.notBefore : undefined;
+    if (!base) continue;
+    const day = shiftDay(base, l.lag ?? 0);
+    if (!best || day > best) best = day;
   }
   return best;
+}
+
+/** Hält `l` den Beginn des Nachfolgers auf? EA: bis der Vorgänger erledigt ist, AA: bis er begonnen hat. */
+function blocks(l: NoteLink, p: Note): boolean {
+  if (!l.wait) return false;
+  if (l.rel === 'EA') return !isFinished(p.state);
+  if (l.rel === 'AA') return p.state === 'open' || p.state === 'waiting';
+  return false; // EE/AE sperren erst das Abhaken (kommt mit Kanban)
 }
 
 /** Angezeigter Zustand: „offen“ wird von selbst zu „wartet“ bei offenem Vorgänger oder vor dem frühesten Beginn. */
@@ -223,10 +247,11 @@ export function stateOf(ws: Workspace, n: Note, today: string = dayOf()): StateI
   if (n.state === 'waiting') return { state: 'waiting', cause: 'hand', ...(n.waitReason ? { reason: n.waitReason } : {}) };
   if (n.state !== 'open') return { state: n.state };
   const blockers = (n.after ?? [])
-    .filter((l) => l.kind === 'done')
-    .map((l) => noteById(ws, l.id))
-    .filter((p): p is Note => !!p && !isFinished(p.state))
-    .map((p) => p.id);
+    .filter((l) => {
+      const p = noteById(ws, l.id);
+      return !!p && blocks(l, p);
+    })
+    .map((l) => l.id);
   if (blockers.length) return { state: 'waiting', cause: 'after', blockers };
   const from = earliestStart(ws, n);
   if (from && from > today) return { state: 'waiting', cause: from === n.notBefore ? 'notBefore' : 'date', from };
@@ -299,13 +324,28 @@ export function setParent(ws: Workspace, id: string, parent: string | undefined,
 // ---------- Vorgänger (Netzplan) ----------
 
 /** Nachfolger: Notizen, die `id` als Vorgänger haben. */
-export function successorsOf(ws: Workspace, id: string): { note: Note; kind: NoteLinkKind }[] {
-  const out: { note: Note; kind: NoteLinkKind }[] = [];
+export function successorsOf(ws: Workspace, id: string): { note: Note; link: NoteLink }[] {
+  const out: { note: Note; link: NoteLink }[] = [];
   for (const n of notesOf(ws)) {
     const l = n.after?.find((x) => x.id === id);
-    if (l) out.push({ note: n, kind: l.kind });
+    if (l) out.push({ note: n, link: l });
   }
   return out;
+}
+
+/** Wie ein Vorgänger eingetragen wird; fehlt die Art, gilt EA (Normalfolge). */
+export interface LinkSpec {
+  rel?: NoteRel;
+  lag?: number;
+  wait?: boolean;
+}
+
+export const NOTE_RELS: readonly NoteRel[] = ['EA', 'AA', 'EE', 'AE'];
+
+/** Vorgänger in gespeicherter Form (ohne leere Angaben). */
+export function linkOf(id: string, spec: LinkSpec = {}): NoteLink {
+  const lag = spec.lag && Number.isFinite(spec.lag) ? Math.round(spec.lag) : 0;
+  return { id, rel: spec.rel ?? 'EA', ...(lag ? { lag } : {}), ...(spec.wait ? { wait: true } : {}) };
 }
 
 /** Weg über Vorgänger von `from` zurück bis `to` (Breitensuche), sonst null. */
@@ -339,7 +379,7 @@ function predPath(ws: Workspace, from: string, to: string): string[] | null {
  * nur die Art. Kreise werden verhindert: `path` ist der Kreis in Reihenfolge „kommt vor“,
  * beginnend und endend mit `id` (z. B. [id, pred, …, id]).
  */
-export function addLink(ws: Workspace, id: string, pred: string, kind: NoteLinkKind, act: Act = {}): LinkResult {
+export function addLink(ws: Workspace, id: string, pred: string, spec: LinkSpec = {}, act: Act = {}): LinkResult {
   if (id === pred) return { ok: false, reason: 'self' };
   const n = noteById(ws, id);
   if (!n || !noteById(ws, pred)) return { ok: false, reason: 'missing' };
@@ -347,8 +387,9 @@ export function addLink(ws: Workspace, id: string, pred: string, kind: NoteLinkK
   const back = predPath(ws, pred, id);
   if (back) return { ok: false, reason: 'circle', path: [...back.reverse(), id] };
   const had = n.after?.find((l) => l.id === pred);
-  if (had?.kind === kind) return { ok: true, ws };
-  const after: NoteLink[] = had ? (n.after ?? []).map((l) => (l.id === pred ? { id: pred, kind } : l)) : [...(n.after ?? []), { id: pred, kind }];
+  const link = linkOf(pred, spec);
+  if (had && JSON.stringify(had) === JSON.stringify(link)) return { ok: true, ws };
+  const after: NoteLink[] = had ? (n.after ?? []).map((l) => (l.id === pred ? link : l)) : [...(n.after ?? []), link];
   return { ok: true, ws: note(ws, id, 'link', act, pred, (x) => ({ ...x, after })) };
 }
 
@@ -684,6 +725,15 @@ const isDay = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2
 const EVENT_KINDS = new Set<NoteEventKind>(['created', 'edited', 'state', 'parent', 'link', 'unlink', 'placed', 'moved', 'removed', 'delegated', 'forwarded', 'attached', 'restored']);
 const ORIGIN_VIA = new Set<NoteOrigin['via']>(['hand', 'quick', 'voice', 'slot', 'import']);
 
+/** Vorgänger lesen; bis v7 hieß die Art `kind` ('done' = EA + wartet, 'date' = EA). */
+function parseLink(l: unknown, self: string): NoteLink | null {
+  if (!isObj(l) || typeof l.id !== 'string' || !l.id || l.id === self) return null;
+  if (l.kind === 'done') return linkOf(l.id, { wait: true });
+  if (l.kind === 'date') return linkOf(l.id);
+  if (!NOTE_RELS.includes(l.rel as NoteRel)) return null;
+  return linkOf(l.id, { rel: l.rel as NoteRel, lag: isNum(l.lag) ? l.lag : 0, wait: l.wait === true });
+}
+
 function parseNote(v: unknown, catIds: Set<string>): Note | null {
   if (!isObj(v) || typeof v.id !== 'string' || !v.id) return null;
   const now = Date.now();
@@ -704,9 +754,7 @@ function parseNote(v: unknown, catIds: Set<string>): Note | null {
   if (n.state === 'waiting' && typeof v.waitReason === 'string' && v.waitReason.trim()) n.waitReason = v.waitReason;
   if (typeof v.parent === 'string' && v.parent !== n.id) n.parent = v.parent;
   if (Array.isArray(v.after)) {
-    const after = v.after
-      .filter((l): l is Record<string, unknown> => isObj(l) && typeof l.id === 'string' && l.id !== n.id && (l.kind === 'done' || l.kind === 'date'))
-      .map((l) => ({ id: l.id as string, kind: l.kind as NoteLinkKind }));
+    const after = v.after.map((l) => parseLink(l, n.id)).filter((l): l is NoteLink => !!l);
     if (after.length) n.after = after;
   }
   if (typeof v.category === 'string' && catIds.has(v.category)) n.category = v.category;
@@ -726,14 +774,18 @@ function parseNote(v: unknown, catIds: Set<string>): Note | null {
     if (attach.length) n.attach = attach;
   }
   if (isObj(v.delegated) && typeof v.delegated.to === 'string' && v.delegated.to.trim())
-    n.delegated = { to: v.delegated.to, ...(typeof v.delegated.view === 'string' ? { view: v.delegated.view } : {}) };
+    n.delegated = {
+      to: v.delegated.to,
+      ...(typeof v.delegated.person === 'string' && v.delegated.person ? { person: v.delegated.person } : {}),
+      ...(typeof v.delegated.view === 'string' ? { view: v.delegated.view } : {}),
+    };
   if (Array.isArray(v.forwarded)) {
     const fw = v.forwarded.filter((f): f is Record<string, unknown> => isObj(f) && isNum(f.at) && typeof f.to === 'string').map((f) => ({ at: f.at as number, to: f.to as string }));
     if (fw.length) n.forwarded = fw;
   }
   if (isDay(v.notBefore)) n.notBefore = v.notBefore;
   if (isDay(v.due)) n.due = v.due;
-  return n;
+  return { ...n, ...parseNoteExtras(v) };
 }
 
 /** Notizen prüfen: Doppelte Ids fallen weg, Bezüge auf Unbekanntes werden gelöst, Eltern-Kreise aufgebrochen. */
@@ -799,12 +851,15 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
       const cols = (Array.isArray(raw.cols) ? raw.cols : [])
         .filter((c): c is Record<string, unknown> => isObj(c) && typeof c.id === 'string' && !colIds.has(c.id) && !!colIds.add(c.id))
         .slice(0, COLUMN_MAX)
-        .map((c) => ({ id: c.id as string, name: typeof c.name === 'string' && c.name.trim() ? c.name : 'Spalte', ids: clean(c.ids, used) }));
+        .map((c) => {
+          const wip = parseWip(c.wip);
+          return { id: c.id as string, name: typeof c.name === 'string' && c.name.trim() ? c.name : 'Spalte', ids: clean(c.ids, used), ...(wip ? { wip } : {}) };
+        });
       view.cols = cols.length ? cols : [{ id: `${raw.id}-1`, name: KANBAN_START[0], ids: [] }];
     } else view.ids = clean(raw.ids, used);
     if (typeof raw.category === 'string' && catIds.has(raw.category)) view.category = raw.category;
     if (raw.review === true) view.review = true;
-    out.push(view);
+    out.push({ ...view, ...parseSheetExtras(raw) });
   }
   // Delegiert an ein Board, das es nicht mehr gibt → nur der Name bleibt (Aufrufer setzt das an den Notizen)
   return out;
@@ -812,7 +867,11 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
 
 /** Nach dem Laden: Board-Bezüge in „delegiert“ auf bekannte Ansichten beschränken. */
 export function fixDelegated(notes: Note[], viewIds: Set<string>): Note[] {
-  return notes.map((n) => (n.delegated?.view && !viewIds.has(n.delegated.view) ? { ...n, delegated: { to: n.delegated.to } } : n));
+  return notes.map((n) => {
+    if (!n.delegated?.view || viewIds.has(n.delegated.view)) return n;
+    const { view: _v, ...rest } = n.delegated;
+    return { ...n, delegated: rest };
+  });
 }
 
 // ---------- Slot-Datei (F-158) ----------
@@ -868,11 +927,21 @@ export function importNotes(
       if (c) out.category = c;
       else delete out.category;
     }
-    if (n.delegated?.view) out.delegated = viewIds.has(n.delegated.view) ? { to: n.delegated.to, view: viewIds.get(n.delegated.view)! } : { to: n.delegated.to };
+    if (n.delegated) {
+      // Personen der Datei gibt es hier nicht: nur der Name bleibt (wird beim Laden wieder zur Person)
+      const view = n.delegated.view ? viewIds.get(n.delegated.view) : undefined;
+      out.delegated = { to: n.delegated.to, ...(view ? { view } : {}) };
+    }
+    // Projekte und Personen gehören zur Arbeitsfläche der Datei
+    delete out.project;
+    delete out.assignee;
     return out;
   });
   const outViews: NoteView[] = views.map((v) => {
     const out: NoteView = { ...v, id: viewIds.get(v.id)!, ids: mapIds(v.ids) };
+    // Besitzer und Bereich zeigen auf die Arbeitsfläche der Datei
+    delete out.owner;
+    delete out.range;
     if (v.cols) out.cols = v.cols.map((c) => ({ ...c, id: makeId(), ids: mapIds(c.ids) }));
     if (v.category) {
       const c = catMap.get(v.category);

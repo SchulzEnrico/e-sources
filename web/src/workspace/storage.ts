@@ -1,6 +1,7 @@
 import { CATEGORY_ICONS } from './icons';
 import { parseFit, parseZoom } from './zoom';
-import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
+import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, DeskNotes, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
+import { cleanRefs, parseFocusViews, parsePadDesks, parsePads, parsePersons, parseProjects, personsFromDelegated } from './noteObjects';
 import { parseDeskLooks, parseLook } from './look';
 import { parseTint } from './tint';
 import { PAUSE_CHOICES, SHOWN_CHOICES } from './pause';
@@ -18,15 +19,17 @@ import type { DeskLayout, DeskLayouts } from './deskLayouts';
 
 /**
  * Stufe 1: Die Arbeitsfläche liegt nur im Browser (localStorage). Später kommt der Server dazu.
+ * v8: Notes & Tasks (F-206, V65) – Pads, Projekte, Personen, Anordnungsbeziehungen EA/AA/EE/AE;
+ * aus v7 werden Vorgänger umgeschrieben und „delegiert an“-Namen zu Personen (beim Lesen).
  * v7: Plätze heißen Areas (`areas` statt `places`) und haben Namen (F-128).
  * v6: dazu Lesezeichen und Kategorien (F-30 bis F-32). Ältere Stände werden beim ersten Laden
  * umgewandelt: v6 bekommt `areas`, v5 eine leere Sammlung; bei v4 bleiben Panels und Seiten, die
  * Anordnung entsteht neu.
  */
-const KEY = 'esource.workspace.v7';
+const KEY = 'esource.workspace.v8';
 /** F-27: Schlüssel, auf dessen Änderung andere Fenster hören (storage-Ereignis). */
 export const WORKSPACE_KEY = KEY;
-const OLD_KEYS = ['esource.workspace.v6', 'esource.workspace.v5', 'esource.workspace.v4'];
+const OLD_KEYS = ['esource.workspace.v7', 'esource.workspace.v6', 'esource.workspace.v5', 'esource.workspace.v4'];
 
 const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -189,6 +192,31 @@ function parseDeskLayouts(v: unknown, winIds: Set<string>): Record<string, DeskL
   return Object.keys(out).length ? out : undefined;
 }
 
+/** F-206 v8: Note Mode, Board-Layouts und Main Stage je Desk ('' = Main Desk). */
+function parseDeskNotes(v: unknown, winIds: Set<string>): Record<string, DeskNotes> | undefined {
+  if (!isObj(v)) return undefined;
+  const out: Record<string, DeskNotes> = {};
+  for (const [desk, d] of Object.entries(v)) {
+    if (!(desk === '' || winIds.has(desk)) || !isObj(d)) continue;
+    const dn: DeskNotes = {};
+    if (d.noteMode === true) dn.noteMode = true;
+    const board = parseDeskLayouts({ [desk]: d.board }, winIds)?.[desk];
+    if (board) dn.board = board;
+    const st = d.stage;
+    if (isObj(st) && typeof st.area === 'string' && st.area) {
+      dn.stage = {
+        area: st.area,
+        ...(st.fixed === true ? { fixed: true } : {}),
+        ...(st.allDesks === true ? { allDesks: true } : {}),
+        ...(isNum(st.minW) && (st.minW as number) > 0 ? { minW: st.minW as number } : {}),
+        ...(isNum(st.minH) && (st.minH as number) > 0 ? { minH: st.minH as number } : {}),
+      };
+    }
+    if (Object.keys(dn).length) out[desk] = dn;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 export function parseWorkspace(data: unknown): Workspace | null {
   if (!isObj(data) || !Array.isArray(data.panels)) return null;
   const panels = data.panels.map(parsePanel);
@@ -269,8 +297,22 @@ export function parseWorkspace(data: unknown): Workspace | null {
   // F-206: Notizen und Ansichten; Tabs auf Unbekanntes bleiben stehen (zeigen „Notiz fehlt“, kommt evtl. per Abgleich)
   const parsedNotes = parseNotes(data.notes, catIds);
   const noteViews = parseNoteViews(data.noteViews, new Set(parsedNotes.map((n) => n.id)), catIds);
-  const notes = fixDelegated(parsedNotes, new Set(noteViews.map((v) => v.id)));
+  // F-206 v8: Projekte, Personen, Pads; Bezüge der Notes nur auf Bekanntes
+  const projects = parseProjects(data.projects, new Set(scenarios.map((c) => c.id)));
+  const moved = personsFromDelegated(fixDelegated(parsedNotes, new Set(noteViews.map((v) => v.id))), parsePersons(data.persons));
+  const persons = moved.persons;
+  const notes = cleanRefs(moved.notes, new Set(projects.map((p) => p.id)), new Set(persons.map((p) => p.id)));
+  const pads = parsePads(data.pads, new Set(noteViews.map((v) => v.id)), winIds);
+  const padDesks = parsePadDesks(data.padDesks, new Set(pads.map((p) => p.id)), winIds);
+  const deskNotes = parseDeskNotes(data.deskNotes, winIds);
+  const focusViews = parseFocusViews(data.focusViews);
   return {
+    ...(pads.length ? { pads } : {}),
+    ...(padDesks ? { padDesks } : {}),
+    ...(projects.length ? { projects } : {}),
+    ...(persons.length ? { persons } : {}),
+    ...(deskNotes ? { deskNotes } : {}),
+    ...(focusViews ? { focusViews } : {}),
     ...(closed.length ? { closed } : {}),
     ...(notes.length ? { notes } : {}),
     ...(noteViews.length ? { noteViews } : {}),
@@ -375,7 +417,8 @@ export function storeImported(ws: Workspace): void {
 }
 
 /** Felder, die nur zu diesem Gerät gehören und beim Abgleich (F-169) nicht übernommen werden. */
-export const DEVICE_FIELDS = ['winSetup'] as const;
+/** F-206 v8: dazu Pad-Plätze und Dock je Desk (Datenmodell V65). */
+export const DEVICE_FIELDS = ['winSetup', 'padDesks'] as const;
 
 /** Stand ohne geräteeigene Felder (für Vergleiche beim Abgleich). */
 export function sharedPart(ws: Workspace): string {

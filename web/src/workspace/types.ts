@@ -251,6 +251,18 @@ export interface Workspace {
   notes?: Note[];
   /** F-206: Ansichten (Notizblock, To-do, Kanban, Eisenhower), die Notizen nur anordnen; fehlt = keine. */
   noteViews?: NoteView[];
+  /** F-206 (v8): Pads je Desk; fehlt = keine. */
+  pads?: Pad[];
+  /** F-206 (v8): Pad-Plätze und Dock je Desk – geräteeigen (DEVICE_FIELDS). */
+  padDesks?: Record<string, PadDesk>;
+  /** F-206 (v8): Projekte; fehlt = keine. */
+  projects?: Project[];
+  /** F-206 (v8): Personen, Teams, Rollen; fehlt = keine. */
+  persons?: Person[];
+  /** F-206 (v8): Note Mode, Board, Main Stage je Desk ('' = Main Desk). */
+  deskNotes?: Record<string, DeskNotes>;
+  /** F-206 (v8): gewählte Darstellungen des Projektfokus; fehlt = keine. */
+  focusViews?: FocusView[];
 }
 
 /**
@@ -259,13 +271,67 @@ export interface Workspace {
  */
 export type NoteState = 'open' | 'waiting' | 'doing' | 'review' | 'done' | 'archived';
 
-/** F-206: Art eines Vorgängers – „muss erledigt sein“ oder „bestimmt den Termin“ (Netzplan). */
-export type NoteLinkKind = 'done' | 'date';
+/**
+ * F-206 (Datenmodell V65, M3): Anordnungsbeziehung nach ICB4 – EA Normalfolge (Ende → Anfang),
+ * AA Anfangsfolge, EE Endfolge, AE Sprungfolge. Jede plant den Termin; „wartet darauf“ sperrt
+ * zusätzlich den Beginn des Nachfolgers. Bis v7: `kind: 'done'` = EA + wartet, `'date'` = EA.
+ */
+export type NoteRel = 'EA' | 'AA' | 'EE' | 'AE';
 
 export interface NoteLink {
   /** Id der Vorgänger-Notiz. */
   id: string;
-  kind: NoteLinkKind;
+  rel: NoteRel;
+  /** Zeitabstand in Tagen (auch negativ); fehlt = 0. */
+  lag?: number;
+  /** Nachfolger darf erst beginnen, wenn die Bedingung erfüllt ist; fehlt = nur Terminplanung. */
+  wait?: boolean;
+}
+
+/** F-206 (V65): Stelle in einer Quelle – alles optional, eine Angabe genügt. */
+export interface SourceSpot {
+  /** Zeitmarke in Sekunden (Video, Audio). */
+  time?: number;
+  /** Abschnitt: Anker (#…) oder Text. */
+  section?: string;
+  /** PDF-Seite (ab 1). */
+  page?: number;
+}
+
+/**
+ * F-206 (V65): Verbindung zu einer Source (n:m, nur an Note, Sheet bzw. Projekt gespeichert).
+ * Titel und Adresse als Kopie – bleibt die Source gelöscht, steht hier „Quelle gelöscht“.
+ */
+export interface SourceLink {
+  /** Id der Source (Bookmark). */
+  id: string;
+  title: string;
+  url: string;
+  at?: SourceSpot;
+}
+
+/** F-206 (V65, M1): Arten nach ICB4; fehlt = gewöhnliche Note (Gedanke, Task, Reminder). */
+export type NoteType = 'requirement' | 'risk' | 'stakeholder' | 'procurement' | 'change' | 'minutes';
+
+/** F-206 (V65): Plan- und Istwert (Aufwand in Stunden, Kosten in Euro). */
+export interface PlanActual {
+  plan?: number;
+  actual?: number;
+}
+
+/** F-206 (V65): Erinnerung einer Note (dann ein Reminder). */
+export interface NoteRemind {
+  /** Zeitpunkt (ISO 8601). */
+  at: string;
+  repeat?: 'day' | 'week' | 'month' | 'year';
+  /** Geschlummert bis (ISO 8601). */
+  snooze?: string;
+}
+
+/** F-206 (V65): Abnahmekriterium (Prüfliste). */
+export interface NoteCheck {
+  text: string;
+  ok?: boolean;
 }
 
 /** F-206: Eintrag der Spur (Zeitleiste einer Notiz). */
@@ -335,14 +401,34 @@ export interface Note {
   important?: boolean;
   urgent?: boolean;
   attach?: NoteAttachment[];
-  /** Delegiert an: freier Name oder Board (Id einer Ansicht). */
-  delegated?: { to: string; view?: string };
+  /**
+   * Delegiert an: Name (Anzeige) und Person (Id aus Workspace.persons, ab v8) oder Board (Id einer
+   * Ansicht).
+   */
+  delegated?: { to: string; person?: string; view?: string };
   /** Weitergeleitet (neueste zuletzt). */
   forwarded?: { at: number; to: string }[];
   /** „nicht beginnen vor“ (Datum JJJJ-MM-TT). */
   notBefore?: string;
   /** „fällig am“ (Datum JJJJ-MM-TT). */
   due?: string;
+  /** V65: Art nach ICB4 (M1). */
+  type?: NoteType;
+  /** V65: Projekt (Id aus Workspace.projects). */
+  project?: string;
+  /** V65: zuständig (Id aus Workspace.persons). */
+  assignee?: string;
+  /** V65: Aufwand in Stunden (Punkte rechnet das Projekt um). */
+  effort?: PlanActual;
+  /** V65: Kosten in Euro. */
+  cost?: PlanActual;
+  /** V65: Meilenstein (Dauer 0). */
+  milestone?: boolean;
+  remind?: NoteRemind;
+  /** V65: Abnahmekriterien. */
+  accept?: NoteCheck[];
+  /** V65: verknüpfte Sources mit Stelle. */
+  sources?: SourceLink[];
   created: number;
   changed: number;
 }
@@ -354,6 +440,20 @@ export interface NoteColumn {
   id: string;
   name: string;
   ids: string[];
+  /** V65: WIP-Limit (höchstens so viele Karten); fehlt = ohne. */
+  wip?: number;
+}
+
+/** V65: Besitzer eines Sheets. */
+export interface SheetOwner {
+  kind: 'person' | 'project' | 'scope';
+  id: string;
+}
+
+/** V65: Bereich eines Übersichts-Sheets; `id` fehlt nur bei „all“. */
+export interface SheetRange {
+  kind: 'project' | 'scope' | 'space' | 'all';
+  id?: string;
 }
 
 /** F-206: Ansicht – ordnet Notizen nur an (eine Notiz kann in mehreren Ansichten liegen). */
@@ -368,7 +468,108 @@ export interface NoteView {
   cols?: NoteColumn[];
   /** Regel „Abnahme nötig“: erledigt → „in Prüfung“, bis bestätigt. */
   review?: boolean;
+  /** V65 (Sheet): Besitzer. */
+  owner?: SheetOwner;
+  /** V65: Bereich für Übersichten. */
+  range?: SheetRange;
+  /** V65: Planungs-Check an. */
+  check?: boolean;
+  /** V65: verknüpfte Sources. */
+  sources?: SourceLink[];
 }
+
+/** F-206 (V65): Pad – schwebendes Fenster über einem Desk mit bis zu PAD_SHEETS_MAX Sheets. */
+export interface Pad {
+  id: string;
+  /** Desk ('' = Main Desk, sonst Id aus Workspace.windows). */
+  desk: string;
+  /** Sheets (Ids aus Workspace.noteViews) in Reihenfolge; ein Sheet liegt höchstens in einem Pad. */
+  sheets: string[];
+  /** Sichtbares Sheet. */
+  active: string;
+  /** Im Dock statt schwebend. */
+  docked?: boolean;
+}
+
+/** V65: Platz eines Pads auf diesem Gerät (Anteile der Desk-Fläche, 0…1). */
+export interface PadPlace {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** V65: Pad-Plätze und Dock je Desk – nur auf diesem Gerät (DEVICE_FIELDS). */
+export interface PadDesk {
+  places: Record<string, PadPlace>;
+  /** Dock-Ort: Rand und Lage am Rand (0…1). */
+  dock?: { edge: 'left' | 'right' | 'top' | 'bottom'; at: number };
+  /** Dock ganz weggeschaltet. */
+  dockOff?: boolean;
+}
+
+/** F-206 (V65, M5): Projekt in einem Scope, mit Teilprojekten. */
+export interface Project {
+  id: string;
+  name: string;
+  /** Scope (Id aus Workspace.scenarios). */
+  scope?: string;
+  /** Übergeordnetes Projekt. */
+  parent?: string;
+  /** PSP: Präfix der Codes und Gliederungsart. */
+  psp?: { prefix?: string; style?: 'num' | 'alpha' | 'mixed' };
+  /** Steckbrief. */
+  brief?: { goal?: string; approach?: string; org?: string };
+  /** JJJJ-MM-TT */
+  start?: string;
+  end?: string;
+  /** Budget in Euro. */
+  budget?: number;
+  /** 1 (hoch) bis 5 (niedrig). */
+  priority?: number;
+  state?: 'idea' | 'planned' | 'running' | 'paused' | 'done' | 'stopped';
+  /** M6: Aufwand in Punkten zeigen, 1 Punkt = so viele Stunden; fehlt = Stunden. */
+  points?: number;
+  sources?: SourceLink[];
+  created: number;
+  changed: number;
+}
+
+/** V65: Befugnisse einer Person (AKV). */
+export type PersonRight = 'release' | 'spend' | 'decide' | 'accept';
+
+/** F-206 (V65, M4): Person, Team oder Rolle – lokal in der Arbeitsfläche, später mit Konto. */
+export interface Person {
+  id: string;
+  name: string;
+  kind: 'person' | 'team' | 'role';
+  /** Team: Mitglieder (Ids). */
+  members?: string[];
+  /** Kapazität in Stunden je Woche. */
+  capacity?: number;
+  /** Task-Limits: gesamt und je Projekt. */
+  limit?: { total?: number; perProject?: number };
+  rights?: PersonRight[];
+  /** Vertretung: wer (Id), von/bis (JJJJ-MM-TT). */
+  stand?: { by: string; from?: string; to?: string }[];
+  /** Das eigene Profil. */
+  me?: boolean;
+  /** Später: Konto-Id (F-81). */
+  account?: string;
+}
+
+/** F-206 (V65): Note-Einstellungen eines Desks (Board, Main Stage). */
+export interface DeskNotes {
+  /** Note Mode: Desk ist ein Board. */
+  noteMode?: boolean;
+  /** Board-Layouts (wie deskLayouts). */
+  board?: DeskLayouts;
+  /** F-207 Main Stage: Slot (Area-Id) und Verhalten. */
+  stage?: { area: string; fixed?: boolean; allDesks?: boolean; minW?: number; minH?: number };
+}
+
+/** V65: Darstellungen des Projektfokus (kombinierbar). */
+export type FocusView = 'line' | 'week' | 'ring' | 'grid';
 
 /** F-24: ein geschlossenes Portal (mit Tabs und Verlauf) oder ein geschlossener Tab. */
 export type Closed =

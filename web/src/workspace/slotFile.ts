@@ -15,7 +15,11 @@ import { importNotes, notesForPanels, parseNoteViews, parseNotes } from './notes
 import { STACK_MAX, TAB_MAX, addArea, canAddArea, newId, renameArea, setArrangement, slotNameId, viewOf } from './workspace';
 
 export const SLOT_FORMAT = 'e-sources-slot';
-export const SLOT_VERSION = 1;
+/**
+ * Version 2: Notes mit Anordnungsbeziehungen EA/AA/EE/AE und neuen Feldern (F-206 v8, V66) – eine
+ * ältere App lehnt die Datei ab, statt Vorgänger still zu verlieren. Version 1 wird gelesen.
+ */
+export const SLOT_VERSION = 2;
 
 /** Kategorie, wie sie in der Datei steht (Id gilt nur innerhalb der Datei). */
 export interface SlotCategory {

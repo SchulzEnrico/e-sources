@@ -653,7 +653,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (r.ok) expect(W.panelUrl(r.file.workspace.panels[0])).toBe('https://a.de');
-    expect(X.FILE_VERSION).toBe(5);
+    expect(X.FILE_VERSION).toBe(6);
   });
 
   it('Bereich und Szenario bleiben erhalten (F-116, vorbereitet)', () => {
@@ -3720,7 +3720,7 @@ describe('F-206 Schritt 1: Notizen und Ansichten (Datenmodell)', () => {
     let a: string, b: string;
     ({ ws, id: a } = mk(ws, { title: 'A' }));
     ({ ws, id: b } = mk(ws, { title: 'B' }));
-    const r = No.addLink(ws, b, a, 'done', act);
+    const r = No.addLink(ws, b, a, { wait: true }, act);
     expect(r.ok).toBe(true);
     ws = (r as { ws: Workspace }).ws;
     expect(No.stateOf(ws, No.noteById(ws, b)!, '2026-11-23')).toEqual({ state: 'waiting', cause: 'after', blockers: [a] });
@@ -3741,12 +3741,12 @@ describe('F-206 Schritt 1: Notizen und Ansichten (Datenmodell)', () => {
     let a: string, b: string;
     ({ ws, id: a } = mk(ws, { due: '2026-12-10' }));
     ({ ws, id: b } = mk(ws, { notBefore: '2026-12-01' }));
-    ws = (No.addLink(ws, b, a, 'date') as { ws: Workspace }).ws;
+    ws = (No.addLink(ws, b, a, {}) as { ws: Workspace }).ws;
     expect(No.earliestStart(ws, No.noteById(ws, b)!)).toBe('2026-12-10');
     expect(No.stateOf(ws, No.noteById(ws, b)!, '2026-12-05')).toEqual({ state: 'waiting', cause: 'date', from: '2026-12-10' });
     // Art ändern statt doppelt eintragen
-    ws = (No.addLink(ws, b, a, 'done') as { ws: Workspace }).ws;
-    expect(No.noteById(ws, b)!.after).toEqual([{ id: a, kind: 'done' }]);
+    ws = (No.addLink(ws, b, a, { wait: true }) as { ws: Workspace }).ws;
+    expect(No.noteById(ws, b)!.after).toEqual([{ id: a, rel: 'EA', wait: true }]);
     ws = No.removeLink(ws, b, a);
     expect(No.noteById(ws, b)!.after).toBeUndefined();
   });
@@ -3760,14 +3760,14 @@ describe('F-206 Schritt 1: Notizen und Ansichten (Datenmodell)', () => {
       ids.push(id);
     }
     const [a, b, c] = ids;
-    ws = (No.addLink(ws, b, a, 'done') as { ws: Workspace }).ws; // A vor B
-    ws = (No.addLink(ws, c, b, 'done') as { ws: Workspace }).ws; // B vor C
-    const r = No.addLink(ws, a, c, 'done'); // C vor A → Kreis
+    ws = (No.addLink(ws, b, a, { wait: true }) as { ws: Workspace }).ws; // A vor B
+    ws = (No.addLink(ws, c, b, { wait: true }) as { ws: Workspace }).ws; // B vor C
+    const r = No.addLink(ws, a, c, { wait: true }); // C vor A → Kreis
     expect(r.ok).toBe(false);
     expect(!r.ok && r.reason).toBe('circle');
     expect(!r.ok && r.path).toEqual([a, b, c, a]);
-    expect(No.addLink(ws, a, a, 'done').ok).toBe(false);
-    expect(No.addLink(ws, a, 'fehlt', 'done').ok).toBe(false);
+    expect(No.addLink(ws, a, a, { wait: true }).ok).toBe(false);
+    expect(No.addLink(ws, a, 'fehlt', { wait: true }).ok).toBe(false);
   });
 
   it('Unter-Notizen: genau eine Eltern-Notiz, Fortschritt, nächste drei offene, keine Kreise', () => {
@@ -3923,7 +3923,7 @@ describe('F-206 Schritt 1: Notizen und Ansichten (Datenmodell)', () => {
     ({ ws, id: p } = mk(ws, { title: 'P' }));
     ({ ws, id: k } = mk(ws, { title: 'K', parent: p }));
     ({ ws, id: o } = mk(ws, { title: 'O', attach: [{ kind: 'note', ref: p }] }));
-    ws = (No.addLink(ws, o, k, 'done') as { ws: Workspace }).ws;
+    ws = (No.addLink(ws, o, k, { wait: true }) as { ws: Workspace }).ws;
     ({ ws, id: v } = No.createView(ws, 'todo', ''));
     ws = (No.placeNote(ws, p, { view: v }) as { ws: Workspace }).ws;
     ws = (No.placeNote(ws, o, { view: v }) as { ws: Workspace }).ws;
@@ -3991,7 +3991,7 @@ describe('F-206 Schritt 1: Notizen und Ansichten (Datenmodell)', () => {
     let a: string, b: string, v: string;
     ({ ws, id: a } = mk(ws, { title: 'A', tags: ['x'], due: '2026-12-01' }));
     ({ ws, id: b } = mk(ws, { title: 'B', parent: a }));
-    ws = (No.addLink(ws, b, a, 'date') as { ws: Workspace }).ws;
+    ws = (No.addLink(ws, b, a, {}) as { ws: Workspace }).ws;
     ({ ws, id: v } = No.createView(ws, 'kanban', 'Board'));
     ws = (No.placeNote(ws, a, { view: v }) as { ws: Workspace }).ws;
     const panel = ws.panels[0];
@@ -4029,7 +4029,7 @@ describe('F-206 Schritt 1: Notizen und Ansichten (Datenmodell)', () => {
     ({ ws, id: sub } = mk(ws, { title: 'A1', parent: a }));
     ({ ws, id: other } = mk(ws, { title: 'nicht dabei' }));
     ({ ws, id: inView } = mk(ws, { title: 'im Board' }));
-    ws = (No.addLink(ws, a, other, 'done') as { ws: Workspace }).ws;
+    ws = (No.addLink(ws, a, other, { wait: true }) as { ws: Workspace }).ws;
     ({ ws, id: v } = No.createView(ws, 'kanban', 'Board'));
     ws = (No.placeNote(ws, inView, { view: v }) as { ws: Workspace }).ws;
     const panel = ws.panels[0];
@@ -4276,5 +4276,142 @@ describe('F-206 Notiz-Eingabe: Markdown ↔ Blöcke', () => {
   });
   it('Titel ohne Schutzzeichen', () => {
     expect(No.titleOf({ title: '', text: '\\- a \\*b\\*' })).toBe('- a b');
+  });
+});
+
+describe('F-206 Datenmodell v8 (V66)', () => {
+  const raw = (extra: Record<string, unknown>) => JSON.parse(JSON.stringify({ ...W.defaultWorkspace(), ...extra }));
+  const note = (id: string, more: Record<string, unknown> = {}) => ({ id, title: id, text: '', state: 'open', trail: [], created: 1, changed: 1, ...more });
+
+  it('Umstieg aus v7: Vorgänger „muss erledigt sein“ = EA + wartet, „bestimmt den Termin“ = EA', () => {
+    const ws = parseWorkspace(raw({ notes: [note('a'), note('b', { after: [{ id: 'a', kind: 'done' }] }), note('c', { after: [{ id: 'a', kind: 'date' }] })] }))!;
+    expect(No.noteById(ws, 'b')!.after).toEqual([{ id: 'a', rel: 'EA', wait: true }]);
+    expect(No.noteById(ws, 'c')!.after).toEqual([{ id: 'a', rel: 'EA' }]);
+    // zweites Laden ändert nichts mehr
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))!.notes).toEqual(ws.notes);
+  });
+
+  it('Anordnungsbeziehungen: Art, Zeitabstand und „wartet darauf“ überstehen Speichern; Unbekanntes fällt weg', () => {
+    const ws = parseWorkspace(raw({ notes: [note('a'), note('b', { after: [{ id: 'a', rel: 'AE', lag: -2.4, wait: true }, { id: 'a', rel: 'XY' }] })] }))!;
+    expect(No.noteById(ws, 'b')!.after).toEqual([{ id: 'a', rel: 'AE', lag: -2, wait: true }]);
+  });
+
+  it('jede Beziehung plant den Termin: EA mit Zeitabstand, AA nach Beginn des Vorgängers', () => {
+    let ws = parseWorkspace(raw({ notes: [note('a', { due: '2026-12-10', notBefore: '2026-12-03' }), note('b')] }))!;
+    ws = (No.addLink(ws, 'b', 'a', { lag: 2 }) as { ws: Workspace }).ws;
+    expect(No.earliestStart(ws, No.noteById(ws, 'b')!)).toBe('2026-12-12');
+    expect(No.stateOf(ws, No.noteById(ws, 'b')!, '2026-12-01')).toEqual({ state: 'waiting', cause: 'date', from: '2026-12-12' });
+    ws = (No.addLink(ws, 'b', 'a', { rel: 'AA', wait: true }) as { ws: Workspace }).ws;
+    expect(No.noteById(ws, 'b')!.after).toEqual([{ id: 'a', rel: 'AA', wait: true }]);
+    expect(No.stateOf(ws, No.noteById(ws, 'b')!, '2026-12-05')).toEqual({ state: 'waiting', cause: 'after', blockers: ['a'] });
+    ws = No.setState(ws, 'a', 'doing');
+    expect(No.stateOf(ws, No.noteById(ws, 'b')!, '2026-12-05')).toEqual({ state: 'open' });
+    // EE sperrt den Beginn nicht
+    ws = (No.addLink(ws, 'b', 'a', { rel: 'EE', wait: true }) as { ws: Workspace }).ws;
+    ws = No.setState(ws, 'a', 'open');
+    expect(No.stateOf(ws, No.noteById(ws, 'b')!, '2026-12-05').state).toBe('open');
+    expect(No.shiftDay('2026-12-31', 1)).toBe('2027-01-01');
+  });
+
+  it('„delegiert an“ wird zur Person – gleicher Name = dieselbe Person, auf jedem Gerät dieselbe Id', () => {
+    const data = raw({ notes: [note('a', { delegated: { to: 'Maike' } }), note('b', { delegated: { to: ' maike ' } }), note('c', { delegated: { to: 'Tom' } })] });
+    const ws = parseWorkspace(data)!;
+    expect(ws.persons!.map((p) => p.name)).toEqual(['Maike', 'Tom']);
+    const maike = ws.persons![0].id;
+    expect(No.noteById(ws, 'a')!.delegated).toEqual({ to: 'Maike', person: maike });
+    expect(No.noteById(ws, 'b')!.delegated!.person).toBe(maike);
+    expect(parseWorkspace(data)!.persons).toEqual(ws.persons);
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))!.persons).toEqual(ws.persons);
+  });
+
+  it('neue Felder an Notes überstehen Speichern; Bezüge auf fehlende Projekte und Personen fallen weg', () => {
+    const full = note('a', {
+      type: 'risk', project: 'p1', assignee: 'u1', effort: { plan: 4, actual: 1.5 }, cost: { plan: 200 }, milestone: true,
+      remind: { at: '2026-12-01T09:00:00.000Z', repeat: 'week' }, accept: [{ text: 'getestet', ok: true }, { text: ' ' }],
+      sources: [{ id: 's1', title: 'Video', url: 'https://example.org/v', at: { time: 95 } }, { id: 's1', title: 'Video', url: 'https://example.org/v', at: { time: 95 } }],
+    });
+    const ws = parseWorkspace(raw({ notes: [full, note('b', { project: 'fehlt', assignee: 'fehlt', type: 'quatsch' })], projects: [{ id: 'p1', name: 'Umzug' }], persons: [{ id: 'u1', name: 'Enrico', me: true }] }))!;
+    const a = No.noteById(ws, 'a')!;
+    expect(a.type).toBe('risk');
+    expect(a.project).toBe('p1');
+    expect(a.assignee).toBe('u1');
+    expect(a.effort).toEqual({ plan: 4, actual: 1.5 });
+    expect(a.accept).toEqual([{ text: 'getestet', ok: true }]);
+    expect(a.sources).toEqual([{ id: 's1', title: 'Video', url: 'https://example.org/v', at: { time: 95 } }]);
+    const b = No.noteById(ws, 'b')!;
+    expect(b.project).toBeUndefined();
+    expect(b.assignee).toBeUndefined();
+    expect(b.type).toBeUndefined();
+    expect(parseWorkspace(JSON.parse(JSON.stringify(ws)))!).toEqual(ws);
+  });
+
+  it('Projekte: Scope nur bekannt, Teilprojekte ohne Kreise', () => {
+    const base = W.defaultWorkspace();
+    const ws = parseWorkspace(raw({
+      spheres: [{ id: 'sp', name: 'Firma' }], scenarios: [{ id: 'sc', name: 'Kunden', space: 'sp' }],
+      projects: [
+        { id: 'p1', name: 'A', scope: 'sc', parent: 'p2', priority: 9 },
+        { id: 'p2', name: 'B', scope: 'weg', parent: 'p1', state: 'running', points: 4 },
+        { id: 'p1', name: 'doppelt' },
+      ],
+    }))!;
+    expect(base.projects).toBeUndefined();
+    expect(ws.projects!.map((p) => p.id)).toEqual(['p1', 'p2']);
+    expect(ws.projects![0].scope).toBe('sc');
+    expect(ws.projects![0].priority).toBeUndefined();
+    expect(ws.projects![1].scope).toBeUndefined();
+    expect(ws.projects!.filter((p) => p.parent)).toHaveLength(1);
+  });
+
+  it('Pads: jedes Sheet höchstens in einem Pad, bis 9 Sheets, nur bekannte Desks', () => {
+    const views = Array.from({ length: 11 }, (_, i) => ({ id: `v${i}`, kind: 'block', name: `S${i}`, ids: [] }));
+    const ws = parseWorkspace(raw({
+      noteViews: views,
+      pads: [
+        { id: 'p1', desk: '', sheets: views.map((v) => v.id), active: 'v10' },
+        { id: 'p2', desk: 'weg', sheets: ['v0', 'v9', 'fehlt'], active: 'v0', docked: true },
+        { id: 'p3', desk: '', sheets: ['v1'] },
+      ],
+      padDesks: { '': { places: { p1: { x: 0.1, y: 0.1, w: 0.3, h: 0.4 }, p3: { x: 2, y: 0, w: 1, h: 1 } }, dock: { edge: 'right', at: 0.5 } } },
+    }))!;
+    expect(ws.pads).toEqual([
+      { id: 'p1', desk: '', sheets: ['v0', 'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7', 'v8'], active: 'v0' },
+      { id: 'p2', desk: '', sheets: ['v9'], active: 'v9', docked: true },
+    ]);
+    expect(ws.padDesks).toEqual({ '': { places: { p1: { x: 0.1, y: 0.1, w: 0.3, h: 0.4 } }, dock: { edge: 'right', at: 0.5 } } });
+  });
+
+  it('Pad-Plätze gehören zum Gerät (DEVICE_FIELDS) und zählen nicht als Änderung', () => {
+    const ws = parseWorkspace(raw({ noteViews: [{ id: 'v', kind: 'block', name: 'S', ids: [] }], pads: [{ id: 'p', desk: '', sheets: ['v'], active: 'v' }] }))!;
+    const here: Workspace = { ...ws, padDesks: { '': { places: { p: { x: 0, y: 0, w: 0.5, h: 0.5 } } } } };
+    const there: Workspace = { ...ws, padDesks: { '': { places: { p: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } } } } };
+    expect(onlyDeviceChanged(JSON.stringify(here), there)).toBe(true);
+    expect(keepDeviceFields(there, here).padDesks).toEqual(here.padDesks);
+  });
+
+  it('Sheets, Spalten und Desk-Einstellungen: neue Felder bleiben erhalten', () => {
+    const ws = parseWorkspace(raw({
+      noteViews: [{ id: 'k', kind: 'kanban', name: 'Board', cols: [{ id: 'c1', name: 'Offen', ids: [], wip: 3.7 }, { id: 'c2', name: 'Fertig', ids: [], wip: 0 }], owner: { kind: 'project', id: 'p1' }, range: { kind: 'all' }, check: true }],
+      deskNotes: { '': { noteMode: true, stage: { area: 'a1', fixed: true } }, weg: { noteMode: true } },
+      focusViews: ['week', 'quatsch', 'line'],
+    }))!;
+    const k = No.viewById(ws, 'k')!;
+    expect(k.cols!.map((c) => c.wip)).toEqual([3, undefined]);
+    expect(k.owner).toEqual({ kind: 'project', id: 'p1' });
+    expect(k.range).toEqual({ kind: 'all' });
+    expect(k.check).toBe(true);
+    expect(ws.deskNotes).toEqual({ '': { noteMode: true, stage: { area: 'a1', fixed: true } } });
+    expect(ws.focusViews).toEqual(['line', 'week']);
+  });
+
+  it('Slot-Datei: Version 2; Projekte, Personen und Besitzer bleiben in der Herkunft', () => {
+    expect(SF.SLOT_VERSION).toBe(2);
+    const ws0 = parseWorkspace(raw({ projects: [{ id: 'p1', name: 'A' }], persons: [{ id: 'u1', name: 'Tom' }], notes: [note('a', { project: 'p1', assignee: 'u1', delegated: { to: 'Tom', person: 'u1' } })] }))!;
+    const n = No.noteById(ws0, 'a')!;
+    const out = No.importNotes(W.defaultWorkspace(), [n], [], new Map(), () => 'neu');
+    const moved = out.ws.notes!.at(-1)!;
+    expect(moved.project).toBeUndefined();
+    expect(moved.assignee).toBeUndefined();
+    expect(moved.delegated).toEqual({ to: 'Tom' });
   });
 });

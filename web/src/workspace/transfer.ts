@@ -10,12 +10,13 @@ import type { Workspace } from './types';
  */
 export const FILE_FORMAT = 'e-sources-arbeitsflaeche';
 /**
+ * Version 6: Notes & Tasks v8 (F-206, V66) – Pads, Projekte, Personen, Anordnungsbeziehungen.
  * Version 5: Notizen und Ansichten (F-206, V62–V64) – ältere Apps kennen sie nicht und lehnen den
  * Stand ab, statt ihn ohne Notizen zu überschreiben (V65). Version 4: Areas mit Namen (F-128, V09).
  * Version 3 (Lesezeichen, V08), 2 (Panels mit Tabs, V07) und 1 werden beim Import umgewandelt.
  * Bei jeder Änderung am Datenmodell, die eine ältere App verlieren würde, hochzählen.
  */
-export const FILE_VERSION = 5;
+export const FILE_VERSION = 6;
 export const FILE_NAME = 'e-sources-arbeitsflaeche.json';
 
 export interface TransferFile {

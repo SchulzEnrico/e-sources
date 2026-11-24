@@ -124,6 +124,8 @@ export const ICONS = {
   play: { d: ['M5 3.2 12.6 8 5 12.8z'], fill: true },
   stop: { d: ['M4.5 4.5h7v7h-7z'], fill: true },
   download: { d: ['M8 2v8', 'M5 7l3 3 3-3', 'M2.5 11v2.5h11V11'] },
+  // V80 (F-215 B5): Bild im Text
+  image: { d: ['M2 3h12v10H2z', 'M2 11l3.5-3.5 3 3 2-2L14 12', 'M10.5 5.8h.01'], w: 1.4 },
   share: { d: ['M8 1.8v8.4', 'M5.2 4.6 8 1.8l2.8 2.8', 'M5 7H3.5v7h9V7H11'] },
   recent: { d: [ring(8, 8, 6), 'M8 4.6V8l2.4 1.6'] },
   copy: { d: ['M5.5 5.5h8v8h-8z', 'M3.5 10.5h-1v-8h8v1'] },
@@ -183,7 +185,7 @@ export type IconName = keyof typeof ICONS;
 
 /** Symbol je Hilfe-Eintrag (HELP, F-156) – gleiche Ids. Fehlt ein Eintrag, meldet das der Test. */
 export const HELP_ICON: Record<string, IconName> = {
-  note: 'note', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', findNote: 'note',
+  note: 'note', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', findNote: 'note',
   devMode: 'dev',
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',

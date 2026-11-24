@@ -1285,3 +1285,17 @@ export function imageRefs(ws: Workspace): Set<string> {
 }
 /** Enthält die (gezeigte) Notiz ein Bild? (B5: Symbol in der Liste) */
 export const hasImage = (n: Pick<Note, 'text'>) => ND.imgRefs(n.text).length > 0;
+
+/** V80 (F-215 S1/S2): Text zum Teilen – Bild-Zeilen fallen weg (Bilder gehen als Dateien mit), Markdown bleibt.
+ *  `clip` für die Zwischenablage: mit Titel, wenn der Titel nicht schon die erste Zeile ist. */
+export function shareText(n: Pick<Note, 'title' | 'text'>): { title: string; text: string; clip: string } {
+  const title = titleOf(n);
+  const text = n.text
+    .split('\n')
+    .filter((l) => !IMG_ONLY.test(l))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  const first = titleOf({ title: '', text });
+  return { title, text, clip: !title || first === title ? text : text ? `${title}\n\n${text}` : title };
+}

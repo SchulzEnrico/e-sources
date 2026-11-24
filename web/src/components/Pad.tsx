@@ -20,7 +20,11 @@ import { clipsChanged, putClip } from '../workspace/audioStore';
 import { deviceLabel } from '../workspace/transfer';
 import type { VoiceTarget } from '../workspace/voice';
 import type { SwipeDir } from '../workspace/footArc';
-import { FMT_EVENT, type FmtTool, INSERT_EVENT, type InsertDetail, type NoteTpl, UNINSERT_EVENT, type UninsertDetail } from './NoteEditor';
+import { FMT_EVENT, type FmtTool, IMG_EVENT, type ImgDetail, INSERT_EVENT, type InsertDetail, type NoteTpl, UNINSERT_EVENT, type UninsertDetail } from './NoteEditor';
+import { getClip } from '../workspace/audioStore';
+import { getPic, picFileName } from '../workspace/imageStore';
+import { audioFileName } from '../workspace/voice';
+import * as ND from '../workspace/noteDoc';
 
 /** V71: Wischrichtung → Werkzeug im Editor */
 const FMT_OF: Record<SwipeDir, FmtTool> = { left: 'li', right: 'task', up: 'h2', down: 'bold' };
@@ -90,7 +94,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     { id: 'voice', label: FOOT_TEXT.voice, icon: 'mic', run: isBlock ? () => voiceStart.current?.() : undefined },
     { id: 'task', label: FOOT_TEXT.newTask, icon: 'task', run: () => newTask() },
     { id: 'search', label: FOOT_TEXT.search, icon: 'search', run: () => (isBlock ? send('search') : say(FOOT_TEXT.searchNoBlock)) },
-    { id: 'share', label: FOOT_TEXT.share, icon: 'share' },
+    { id: 'share', label: FOOT_TEXT.share, icon: 'share', run: () => setShareOpen(true) },
   ];
   const home = () => {
     if (isBlock) send('home');
@@ -274,6 +278,124 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   useEffect(() => {
     if (recentOpen) window.setTimeout(() => self.current?.querySelector<HTMLElement>('.padfoot__recent button')?.focus(), 0);
   }, [recentOpen]);
+
+  // ---------------------------------------------------------------- V80 (F-215 S1–S4): Bild & Teilen
+  const [shareOpen, setShareOpen] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
+  const hintT = useRef(0);
+  /** Hinweis am Ort über dem Knopf (2 s) und für Bildschirmleser */
+  const tellHere = (t: string) => {
+    say(t);
+    window.clearTimeout(hintT.current);
+    setHint(t);
+    hintT.current = window.setTimeout(() => setHint(null), NOTICE_MS);
+  };
+  useEffect(() => () => window.clearTimeout(hintT.current), []);
+  const camRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  /** Bilder in die offene Notiz – ohne offene Notiz in eine neue (S4) */
+  const addPics = async (files: File[]) => {
+    if (!files.length) return;
+    if (!isBlock) return tellHere(FOOT_TEXT.picNoBlock);
+    let el = editor();
+    if (!el) {
+      send('new');
+      el = await nextEditor(null);
+    }
+    if (!el) return tellHere(FOOT_TEXT.fmtNoEdit);
+    const d: ImgDetail = { files };
+    el.dispatchEvent(new CustomEvent(IMG_EVENT, { detail: d }));
+    const n = await (d.done ?? Promise.resolve(0));
+    if (n) say(NOTE_TEXT.imgAdded(n));
+  };
+  const onFiles = (e: { currentTarget: HTMLInputElement }) => {
+    const files = Array.from(e.currentTarget.files ?? []);
+    e.currentTarget.value = '';
+    void addPics(files);
+  };
+  /** Inhalt zum Teilen – schon beim Öffnen der Liste vorbereitet, damit das Teilen-Menü direkt nach dem Antippen kommt
+   *  (Safari erlaubt es nur unmittelbar nach einer Bedienung) */
+  type Payload = { id: string; title: string; text: string; clip: string; files: File[] };
+  const payload = useRef<Payload | null>(null);
+  const buildShare = async (): Promise<Payload | null> => {
+    const id = curRef.current;
+    const raw = id ? No.noteById(wsRef.current, id) : undefined;
+    if (!id || !raw) return null;
+    const n = No.shownNote(raw);
+    const t = No.shareText(n);
+    const files: File[] = [];
+    const names = new Set<string>();
+    const add = (blob: Blob, name: string, type: string) => {
+      let nm = name;
+      for (let k = 2; names.has(nm); k++) nm = name.replace(/(\.[a-z0-9]+)$/, `-${k}$1`);
+      names.add(nm);
+      files.push(new File([blob], nm, { type }));
+    };
+    if (typeof File === 'function') {
+      for (const a of No.audioOf(raw)) {
+        const c = await getClip(a.ref);
+        if (c) add(c.blob, audioFileName(a.at ?? new Date(c.at).toISOString(), c.mime), c.mime);
+      }
+      for (const r of ND.imgRefs(n.text)) {
+        const pic = await getPic(r);
+        if (pic) add(pic.blob, picFileName(pic.at, pic.mime), pic.mime);
+      }
+    }
+    return { id, ...t, files };
+  };
+  useEffect(() => {
+    if (!shareOpen) return;
+    payload.current = null;
+    let live = true;
+    void buildShare().then((p) => live && (payload.current = p));
+    window.setTimeout(() => self.current?.querySelector<HTMLElement>('.padfoot__share button')?.focus(), 0);
+    return () => {
+      live = false;
+    };
+  }, [shareOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Teilen (S1/S2): Teilen-Menü mit Text und Dateien, sonst nur Text (Hinweis), ohne Teilen-Menü Zwischenablage.
+   *  Hinweis nur, wenn etwas nicht geht. */
+  const shareNote = async () => {
+    setShareOpen(false);
+    if (!isBlock || !curRef.current) return tellHere(FOOT_TEXT.shareNeedNote);
+    const p = payload.current ?? (await buildShare());
+    if (!p) return tellHere(FOOT_TEXT.shareNeedNote);
+    const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+    const done = (to: string) => dispatch({ type: 'noteForward', id: p.id, to, by });
+    if (typeof nav.share === 'function') {
+      const withFiles = p.files.length > 0 && !!nav.canShare?.({ files: p.files });
+      try {
+        await nav.share(withFiles ? { title: p.title, text: p.text, files: p.files } : { title: p.title, text: p.text });
+        done(FOOT_TEXT.shareTo);
+        if (p.files.length && !withFiles) tellHere(FOOT_TEXT.shareNoFiles);
+      } catch (e) {
+        if ((e as Error)?.name !== 'AbortError') tellHere(FOOT_TEXT.shareFailed);
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(p.clip);
+      done(FOOT_TEXT.shareClip);
+      tellHere(p.files.length ? FOOT_TEXT.shareCopiedNoFiles : FOOT_TEXT.shareCopied);
+    } catch {
+      tellHere(FOOT_TEXT.shareFailed);
+    }
+  };
+  const shareKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const items = [...e.currentTarget.querySelectorAll<HTMLElement>('button')];
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      e.stopPropagation();
+      items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      setShareOpen(false);
+      toKnob();
+    }
+  };
 
   const raise = () => {
     if (!top) dispatch({ type: 'padRaise', id: pad.id });
@@ -613,6 +735,43 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           )}
         </div>
       )}
+      {shareOpen && (
+        <div
+          className="padfoot__recent padfoot__share"
+          role="menu"
+          aria-label={FOOT_TEXT.shareList}
+          title={FOOT_TEXT.shareListHint}
+          onKeyDown={shareKey}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setShareOpen(false);
+          }}
+        >
+          <p className="padfoot__recenthead" aria-hidden="true">
+            <Icon name="share" size={13} /> {FOOT_TEXT.shareList}
+          </p>
+          {coarse && (
+            <button type="button" role="menuitem" className="padfoot__recentitem" onClick={() => (setShareOpen(false), camRef.current?.click())}>
+              <Icon name="image" size={14} />
+              <span>{FOOT_TEXT.photo}</span>
+            </button>
+          )}
+          <button type="button" role="menuitem" className="padfoot__recentitem" onClick={() => (setShareOpen(false), fileRef.current?.click())}>
+            <Icon name="image" size={14} />
+            <span>{FOOT_TEXT.pickPic}</span>
+          </button>
+          <button type="button" role="menuitem" className="padfoot__recentitem" onClick={() => void shareNote()}>
+            <Icon name="share" size={14} />
+            <span>{FOOT_TEXT.shareNote}</span>
+          </button>
+        </div>
+      )}
+      <input ref={camRef} type="file" accept="image/*" capture="environment" hidden tabIndex={-1} onChange={onFiles} />
+      <input ref={fileRef} type="file" accept="image/*" multiple hidden tabIndex={-1} onChange={onFiles} />
+      {hint && (
+        <p className="padfoot__hint" role="status">
+          {hint}
+        </p>
+      )}
       <PadFooter items={footItems} onHome={home} say={say} onSwipe={swipe} swipeLabel={swipeLabel} voice={voice} knob={{ bottom: focusIn ? kbBottom : null, opacity: display.knobOpacity, x: display.knobX, onX: setKnobX }} />
       {(['n', 's', 'e', 'w', 'se'] as Edge[]).map((edge) => (
         <div key={edge} className={`pad__grip pad__grip--${edge}`} aria-hidden="true" title={PAD_TEXT.resize} onPointerDown={(e) => gesture(e, edge)} />
@@ -810,6 +969,7 @@ function NoteBlock(props: {
               const tone = No.hasAudio(raw);
               const spoken = tone || No.isVoiceNote(raw);
               const mark = tone ? AUDIO_TEXT.listTone : spoken ? AUDIO_TEXT.listVoice : '';
+              const pic = No.hasImage(n);
               return (
                 <li key={n.id}>
                   <button
@@ -828,8 +988,15 @@ function NoteBlock(props: {
                           <Icon name={tone ? 'micWave' : 'mic'} size={13} />
                         </span>
                       )}
+                      {/* V80 (B5): Bild im Text – kleines Symbol vor dem Titel, keine eigene Farbe */}
+                      {pic && (
+                        <span className="nblock__pic" aria-hidden="true">
+                          <Icon name="image" size={13} />
+                        </span>
+                      )}
                       {t}
                       {mark && <span className="sr-only">, {tone && No.isVoiceNote(raw) ? `${AUDIO_TEXT.listVoice} ${mark}` : mark}</span>}
+                      {pic && <span className="sr-only">, {NOTE_TEXT.imgListMark}</span>}
                     </span>
                     <span className="nblock__state">
                       {draft && <span className="nblock__draft">{DRAFT_TEXT.listDraft}</span>}

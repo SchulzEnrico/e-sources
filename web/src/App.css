@@ -7366,3 +7366,41 @@ h3.cases__name { font-size: 1.05em; }
 .nedit__img img { display: block; max-width: 100%; max-height: 60vh; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
 .nedit__img.is-away img { display: none; }
 .nedit__img figcaption { font-size: 13px; opacity: 0.7; padding: 10px 12px; border: 1px dashed rgba(var(--hi), 0.35); border-radius: 8px; }
+
+/* V80 (F-215 B1–B5): Bild im Text – auswählen, Meldung am Ort, groß ansehen, Symbol in der Liste */
+.nedit-wrap { position: relative; }
+.nedit__img { cursor: zoom-in; border-radius: 10px; outline: 2px solid transparent; outline-offset: 3px; transition: outline-color 0.15s; }
+.nedit__img.is-picked { outline-color: var(--accent); }
+.nedit__img.is-away { cursor: default; }
+.nedit.is-drop { outline: 2px dashed rgba(var(--hi), 0.5); outline-offset: -4px; }
+.nedit__notice {
+  position: absolute; left: 12px; right: 12px; z-index: 5;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  width: fit-content; max-width: calc(100% - 24px);
+  padding: 6px 8px 6px 12px; border-radius: 10px; font-size: 13px;
+  background: rgba(20, 22, 28, 0.92); color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.picview {
+  position: absolute; inset: 0; z-index: 60;
+  display: flex; flex-direction: column;
+  background: rgba(8, 9, 12, 0.9); color: #fff;
+  border-radius: inherit;
+}
+.picview.is-page { position: fixed; border-radius: 0; }
+.picview__bar { display: flex; align-items: center; gap: 6px; padding: 8px; }
+.picview__alt { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; }
+.picview__alt input { flex: 1; min-width: 0; min-height: 32px; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; }
+.picview__bar .remind__x { color: #fff; }
+.picview__stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 8px; touch-action: none; }
+.picview__stage img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; user-select: none; }
+.nblock__pic { display: inline-flex; vertical-align: -2px; margin-right: 4px; opacity: 0.75; }
+@media (forced-colors: active) { .nedit__img.is-picked { outline-color: Highlight; } .picview { background: Canvas; color: CanvasText; } }
+
+/* V80 (F-215 S2/S4): Hinweis am Ort über dem Steuerknopf */
+.padfoot__hint {
+  position: absolute; left: 50%; bottom: 54px; z-index: 7; translate: -50% 0;
+  width: max-content; max-width: calc(100% - 24px); margin: 0;
+  padding: 6px 12px; border-radius: 10px; font-size: 13px; text-align: center;
+  background: rgba(20, 22, 28, 0.92); color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}

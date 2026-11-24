@@ -10,7 +10,10 @@
  */
 import { type FormEvent, type KeyboardEvent as RKeyboardEvent, type MouseEvent as RMouseEvent, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import * as ND from '../workspace/noteDoc';
-import { getPic } from '../workspace/imageStore';
+import { getPic, putPic, shrinkImage } from '../workspace/imageStore';
+import { newId } from '../workspace/workspace';
+import { NOTICE_MS } from '../workspace/flash';
+import { PicView } from './PicView';
 import { NOTE_TEXT } from '../workspace/terms';
 import { Icon } from './Icon';
 import { Wheel } from './RemindPicker';
@@ -78,6 +81,7 @@ function imgEl(b: Block): HTMLElement {
   el.dataset.alt = b.text;
   el.contentEditable = 'false';
   el.className = 'nedit__img';
+  el.title = NOTE_TEXT.imgOpenHint;
   const img = document.createElement('img');
   img.alt = b.text || NOTE_TEXT.imgAlt;
   img.draggable = false;
@@ -287,8 +291,28 @@ function place(root: HTMLElement, c: Caret) {
   sel?.addRange(r);
 }
 
+/** V80: Schreibmarke an einer Bildschirmstelle (Ziehen und Loslassen) – auf einem Bild: dieses Bild */
+function caretAtPoint(root: HTMLElement, x: number, y: number): Caret | null {
+  const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-b]');
+  if (hit && hit.dataset.k === 'img' && root.contains(hit)) return { i: blockEls(root).indexOf(hit), off: 0 };
+  const d = document as Document & { caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null };
+  const r = document.createRange();
+  const pos = d.caretPositionFromPoint?.(x, y);
+  if (pos) r.setStart(pos.offsetNode, pos.offset);
+  else {
+    const cr = document.caretRangeFromPoint?.(x, y);
+    if (!cr) return null;
+    r.setStart(cr.startContainer, cr.startOffset);
+  }
+  if (!root.contains(r.startContainer)) return null;
+  const sel = document.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(r);
+  return caretOf(root);
+}
+
 const plainLen = (b: Block) => (b.k === 'img' ? 0 : b.k === 'code' ? b.text.length : ND.plainOf(ND.parseInline(b.text)).length);
-const asPara = (b: Block): Block[] => (b.k === 'code' ? b.text.split('\n').map((l) => ({ k: 'p', text: ND.escInline(l) })) : [{ k: 'p', text: b.text }]);
+const asPara = (b: Block): Block[] => (b.k === 'img' ? [b] : b.k === 'code' ? b.text.split('\n').map((l) => ({ k: 'p', text: ND.escInline(l) })) : [{ k: 'p', text: b.text }]);
 
 // ---------- Leiste ----------
 
@@ -301,6 +325,10 @@ export const INSERT_EVENT = 'esource:insert';
 export const UNINSERT_EVENT = 'esource:uninsert';
 export interface InsertDetail { text: string; after?: string }
 export interface UninsertDetail { after: string; ok?: boolean }
+/** V80 (F-215 B1/B2): Bilder einfügen – an der Schreibmarke (sonst am Ende); detail.done = Zahl der eingefügten Bilder */
+export const IMG_EVENT = 'esource:img';
+export interface ImgDetail { files: Blob[]; done?: Promise<number> }
+const isPic = (f: Blob) => /^image\//.test(f.type);
 export type FmtTool = 'task' | 'li' | 'bold' | 'h1' | 'h2' | 'h3' | 'task-new' | NoteTpl;
 /** V71 (Wunsch Enrico): Vorlagen beim Anlegen per Wischen – alle beginnen mit einem Titel als H1 */
 export type NoteTpl = 'tpl-note' | 'tpl-todo' | 'tpl-list' | 'tpl-remind';
@@ -336,6 +364,13 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
   // V74 (Wunsch Enrico): Stufe der Überschrift per Drehrad im Knopf (H1–H6), Aussehen wie die Uhrzeit-Räder
   const [hLevel, setHLevel] = useState<ND.HLevel>(1);
   const uid = useId();
+  // V80 (F-215 B1–B4): ausgewähltes Bild (Rahmen), Meldung am Ort, Bild groß
+  const pickRef = useRef<HTMLElement | null>(null);
+  const [notice, setNotice] = useState<{ text: string; top: number; after?: string } | null>(null);
+  const noticeT = useRef(0);
+  const [view, setView] = useState<string | null>(null);
+  const wrap = useRef<HTMLDivElement>(null);
+  const picFns = useRef<{ pick: (f: HTMLElement | null) => void; drop: (f: HTMLElement) => void; add: (files: Blob[], at: Caret | null) => Promise<number> }>({ pick: () => {}, drop: () => {}, add: async () => 0 });
 
   /** Stand merken, bevor sich etwas ändert (Tippen: nur nach einer Pause). */
   const remember = useCallback((typing = false) => {
@@ -400,6 +435,10 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
       const c = caretOf(el);
       lastCaret.current = c;
       const b = c ? blockEls(el)[c.i] : undefined;
+      // V80: Schreibmarke landet am Bild (Pfeil hoch/runter) – Bild auswählen
+      const n = sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode?.parentElement;
+      const fig = n?.closest<HTMLElement>('figure[data-k="img"]');
+      if (fig && el.contains(fig)) picFns.current.pick(fig);
       setCur({ k: (b?.dataset.k as ND.BlockKind) ?? null, bold: document.queryCommandState?.('bold') ?? false, lv: b?.dataset.k === 'h' ? Number(b.dataset.level) || 1 : 0 });
     };
     document.addEventListener('selectionchange', onSel);
@@ -435,6 +474,11 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     const b = blocks[c.i];
     const bel = blockEls(el)[c.i];
     if (!b || !bel) return;
+    if (b.k === 'img') {
+      // V80: Enter am Bild – neuer Absatz darunter
+      blocks.splice(c.i + 1, 0, { k: 'p', text: '' });
+      return apply(blocks, { i: c.i + 1, off: 0 });
+    }
     const listy = b.k === 'li' || b.k === 'ol' || b.k === 'task' || b.k === 'quote';
     if (b.k === 'code') {
       // Enter am Ende nach leerer Zeile verlässt den Codeblock
@@ -478,12 +522,23 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
   // ----- Rückschritt am Zeilenanfang / Entfernen am Zeilenende -----
   const joinBack = useCallback((): boolean => {
     const el = root.current!;
+    // V80: ausgewähltes Bild – Rücktaste löscht es
+    if (pickRef.current) {
+      picFns.current.drop(pickRef.current);
+      return true;
+    }
     const sel = document.getSelection();
     const c = caretOf(el);
     if (!c || !sel?.isCollapsed || c.off !== 0) return false;
     const { blocks } = read(el);
     const b = blocks[c.i];
     if (!b) return false;
+    // V80: Rücktaste am Anfang eines Absatzes nach einem Bild – erst das Bild auswählen
+    if (b.k === 'p' && blocks[c.i - 1]?.k === 'img') {
+      picFns.current.pick(blockEls(el)[c.i - 1]);
+      return true;
+    }
+    if (b.k === 'img') return true;
     remember();
     if (b.k !== 'p') {
       // aus Aufgabe, Liste, Überschrift … wird wieder Text
@@ -502,6 +557,10 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
 
   const joinForward = useCallback((): boolean => {
     const el = root.current!;
+    if (pickRef.current) {
+      picFns.current.drop(pickRef.current);
+      return true;
+    }
     const sel = document.getSelection();
     const c = caretOf(el);
     if (!c || !sel?.isCollapsed) return false;
@@ -510,6 +569,11 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     const nx = blocks[c.i + 1];
     if (!b || c.off !== plainLen(b)) return false;
     if (!nx) return true;
+    // V80: Entf am Ende vor einem Bild – erst das Bild auswählen
+    if (nx.k === 'img' || b.k === 'img') {
+      if (nx.k === 'img') picFns.current.pick(blockEls(el)[c.i + 1]);
+      return true;
+    }
     remember();
     const tail = nx.k === 'code' ? ND.escInline(nx.text.replace(/\n/g, ' ')) : nx.text;
     blocks.splice(c.i, 2, b.k === 'code' ? { k: 'code', text: b.text + ND.plainOf(ND.parseInline(tail)) } : { ...b, text: b.text + tail });
@@ -586,15 +650,37 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     };
     const onPaste = (e: ClipboardEvent) => {
       e.preventDefault();
+      // V80 (B2): Bild aus der Zwischenablage (Strg/⌘+V) – Bildschirmfoto, kopiertes Bild
+      const files = Array.from(e.clipboardData?.files ?? []).filter(isPic);
+      if (files.length) return void picFns.current.add(files, caretOf(el));
       paste(e.clipboardData?.getData('text/plain') ?? '');
     };
-    const onDrop = (e: DragEvent) => e.preventDefault();
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files');
+    const onOver = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = 'copy';
+      el.classList.add('is-drop');
+    };
+    const onLeave = () => el.classList.remove('is-drop');
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      el.classList.remove('is-drop');
+      // V80 (B2): Bild ins Pad ziehen – eingefügt dort, wo es losgelassen wurde
+      const files = Array.from(e.dataTransfer?.files ?? []).filter(isPic);
+      if (!files.length) return;
+      void picFns.current.add(files, caretAtPoint(el, e.clientX, e.clientY));
+    };
     el.addEventListener('beforeinput', before);
     el.addEventListener('paste', onPaste);
+    el.addEventListener('dragover', onOver);
+    el.addEventListener('dragleave', onLeave);
     el.addEventListener('drop', onDrop);
     return () => {
       el.removeEventListener('beforeinput', before);
       el.removeEventListener('paste', onPaste);
+      el.removeEventListener('dragover', onOver);
+      el.removeEventListener('dragleave', onLeave);
       el.removeEventListener('drop', onDrop);
     };
   }, [enter, joinBack, joinForward, undo, paste, remember]);
@@ -649,8 +735,12 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     if (!blocks.length) blocks.push({ k: 'p', text: '' });
     const pick = blocks.slice(c.i, to + 1);
     // V71: Überschrift zählt nur als „schon so“, wenn auch die Stufe stimmt (sonst Stufe wechseln)
-    const all = pick.every((b) => b.k === k && (k !== 'h' || (b.level ?? 1) === level));
+    // V80: Bilder bleiben Bilder (zählen weder für „schon so“ noch werden sie umgestellt)
+    const txt = pick.filter((b) => b.k !== 'img');
+    if (!txt.length) return;
+    const all = txt.every((b) => b.k === k && (k !== 'h' || (b.level ?? 1) === level));
     const out = pick.flatMap((b): Block[] => {
+      if (b.k === 'img') return [b];
       if (all) return [{ k: 'p', text: b.text }];
       const base = b.k === 'code' ? asPara(b) : [b];
       return base.map((x) => ({ k, text: x.text, ...(k === 'task' ? { done: x.k === 'task' ? x.done : false } : {}), ...(k === 'h' ? { level } : {}) }));
@@ -670,7 +760,7 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     const { blocks } = read(el);
     if (!blocks.length) blocks.push({ k: 'p', text: '' });
     const b = blocks[c.i];
-    if (b && plainLen(b) === 0 && b.k !== 'h') {
+    if (b && plainLen(b) === 0 && b.k !== 'h' && b.k !== 'img') {
       blocks[c.i] = { k: 'task', done: false, text: '' };
       setSay(NOTE_TEXT.became(NOTE_TEXT.kinds.task));
       return apply(blocks, { i: c.i, off: 0 });
@@ -744,7 +834,7 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     if (t.startsWith('tpl-')) {
       // nur in einer noch leeren Note: Titel H1, darunter je nach Vorlage eine Aufgabe bzw. ein Listenpunkt
       const el = root.current!;
-      if (read(el).blocks.some((x) => x.text.trim())) return;
+      if (read(el).blocks.some((x) => x.text.trim() || x.k === 'img')) return;
       remember();
       const blocks: Block[] = [{ k: 'h', level: 1, text: '' }];
       if (t === 'tpl-todo') blocks.push({ k: 'task', done: false, text: '' });
@@ -762,7 +852,7 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
       const sel = document.getSelection();
       if (sel && (!sel.rangeCount || sel.isCollapsed)) {
         const b = blockEls(el)[caretOf(el)?.i ?? 0];
-        if (b?.textContent) {
+        if (b?.textContent && b.dataset.k !== 'img') {
           const r = document.createRange();
           r.selectNodeContents(b);
           sel.removeAllRanges();
@@ -845,8 +935,218 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     };
   }, []);
 
+  // ---------- V80 (F-215 B1–B4): Bilder im Text ----------
+
+  /** Meldung am Ort (2 s, F-214/V79) – oben an der Stelle `top` im Textfeld */
+  const tell = (text: string, top: number, after?: string) => {
+    window.clearTimeout(noticeT.current);
+    setNotice({ text, top, after });
+    noticeT.current = window.setTimeout(() => setNotice(null), NOTICE_MS);
+  };
+  useEffect(() => () => window.clearTimeout(noticeT.current), []);
+  const topOf = (n: Element | null | undefined) => {
+    const w = wrap.current;
+    if (!w || !n) return 0;
+    return Math.max(0, n.getBoundingClientRect().top - w.getBoundingClientRect().top);
+  };
+
+  /** Bild auswählen (Rahmen) bzw. Auswahl aufheben; die Schreibmarke bleibt im Textfeld (Tastatur geht weiter) */
+  const pickPic = (f: HTMLElement | null) => {
+    if (pickRef.current === f) return;
+    pickRef.current?.classList.remove('is-picked');
+    pickRef.current = f;
+    if (!f) return;
+    f.classList.add('is-picked');
+    f.scrollIntoView({ block: 'nearest' });
+    setSay(`${f.dataset.alt || NOTE_TEXT.imgAlt}: ${NOTE_TEXT.imgPicked}`);
+  };
+
+  /** Bild löschen – „Bild gelöscht · Rückgängig“ am Ort. Das Bild selbst bleibt im Speicher (Rückgängig, Abgleich),
+   *  ohne Verweis räumt `sweepPics` es später weg. */
+  const dropPic = (f: HTMLElement) => {
+    const el = root.current!;
+    const i = blockEls(el).indexOf(f);
+    if (i < 0) return;
+    const top = topOf(f);
+    pickRef.current = null;
+    remember();
+    const { blocks } = read(el);
+    blocks.splice(i, 1);
+    if (!blocks.length) blocks.push({ k: 'p', text: '' });
+    const j = Math.min(i, blocks.length - 1);
+    // Schreibmarke an den Anfang des Blocks danach bzw. ans Ende des letzten
+    el.focus({ preventScroll: true });
+    apply(blocks, i < blocks.length ? { i: j, off: 0 } : { i: j, off: plainLen(blocks[j]) });
+    setSay(NOTE_TEXT.imgRemoved);
+    tell(NOTE_TEXT.imgRemoved, top, last.current ?? '');
+  };
+
+  /** Bilder einfügen: Bild-Block nach dem Block der Schreibmarke (leerer Absatz wird ersetzt, am Zeilenanfang davor),
+   *  danach immer ein Absatz mit der Schreibmarke – Rückgängig wie jede Änderung */
+  const insertPics = (refs: string[], at: Caret | null) => {
+    const el = root.current!;
+    remember();
+    const { blocks } = read(el);
+    if (!blocks.length) blocks.push({ k: 'p', text: '' });
+    const end = { i: blocks.length - 1, off: plainLen(blocks[blocks.length - 1]) };
+    const c = at && at.i >= 0 && at.i < blocks.length ? at : end;
+    const b = blocks[c.i];
+    const imgs: Block[] = refs.map((ref) => ({ k: 'img', text: '', ref }));
+    let caret: Caret;
+    if (b.k === 'p' && plainLen(b) === 0) {
+      blocks.splice(c.i, 1, ...imgs);
+      caret = { i: c.i + imgs.length, off: 0 };
+    } else if (b.k !== 'img' && c.off === 0 && plainLen(b) > 0) {
+      blocks.splice(c.i, 0, ...imgs);
+      return finishInsert(blocks, { i: c.i + imgs.length, off: 0 }, refs.length);
+    } else {
+      blocks.splice(c.i + 1, 0, ...imgs);
+      caret = { i: c.i + 1 + imgs.length, off: 0 };
+    }
+    const nx = blocks[caret.i];
+    if (!nx || nx.k !== 'p' || plainLen(nx) > 0) blocks.splice(caret.i, 0, { k: 'p', text: '' });
+    finishInsert(blocks, caret, refs.length);
+  };
+  const finishInsert = (blocks: Block[], caret: Caret, n: number) => {
+    const el = root.current!;
+    el.focus({ preventScroll: true });
+    apply(blocks, caret);
+    setSay(NOTE_TEXT.imgAdded(n));
+    blockEls(el)[caret.i]?.scrollIntoView({ block: 'nearest' });
+  };
+
+  /** Dateien (Kamera, Auswahl, Zwischenablage, Ziehen) verkleinern (B3), speichern und einfügen */
+  const addFiles = async (files: Blob[], at: Caret | null): Promise<number> => {
+    const refs: string[] = [];
+    for (const f of files.filter(isPic)) {
+      const sm = await shrinkImage(f);
+      if (!sm) continue;
+      const id = newId();
+      if (await putPic({ id, blob: sm.blob, mime: sm.mime, w: sm.w, h: sm.h, at: Date.now() })) refs.push(id);
+    }
+    const el = root.current;
+    if (!el) return refs.length;
+    if (!refs.length) {
+      if (files.length) {
+        setSay(NOTE_TEXT.imgFailed);
+        tell(NOTE_TEXT.imgFailed, at ? topOf(blockEls(el)[at.i]) : 0);
+      }
+      return 0;
+    }
+    insertPics(refs, at);
+    return refs.length;
+  };
+  picFns.current = { pick: pickPic, drop: dropPic, add: addFiles };
+
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<ImgDetail>).detail;
+      const had = document.activeElement === el || (saved.current && el.contains(saved.current.startContainer));
+      d.done = picFns.current.add(d.files, had ? lastCaret.current : null);
+    };
+    el.addEventListener(IMG_EVENT, on);
+    return () => el.removeEventListener(IMG_EVENT, on);
+  }, []);
+
+  /** Beschreibung (alt) eines Bildes ändern – aus der großen Ansicht */
+  const setAlt = (ref: string, alt: string) => {
+    const el = root.current;
+    const f = el?.querySelector<HTMLElement>(`figure[data-ref="${CSS.escape(ref)}"]`);
+    if (!el || !f) return;
+    remember(true);
+    f.dataset.alt = alt;
+    const img = f.querySelector('img');
+    if (img) img.alt = alt || NOTE_TEXT.imgAlt;
+    emit(read(el).blocks);
+  };
+  const figOf = (ref: string | null) => (ref ? root.current?.querySelector<HTMLElement>(`figure[data-ref="${CSS.escape(ref)}"]`) ?? null : null);
+  const openView = (f: HTMLElement) => {
+    if (f.classList.contains('is-away') || !f.dataset.ref) return;
+    pickPic(f);
+    setView(f.dataset.ref);
+  };
+  const closeView = () => {
+    const f = figOf(view);
+    setView(null);
+    // Fokus zurück: ins Textfeld, das Bild bleibt ausgewählt
+    root.current?.focus({ preventScroll: true });
+    if (f) {
+      pickRef.current = null;
+      pickPic(f);
+    }
+  };
+
+  /** Pfeiltasten über ein ausgewähltes Bild hinweg: davor ans Ende, danach an den Anfang */
+  const leavePic = (f: HTMLElement, back: boolean) => {
+    const el = root.current!;
+    const els = blockEls(el);
+    const i = els.indexOf(f);
+    const j = back ? i - 1 : i + 1;
+    const t = els[j];
+    if (!t) return false;
+    pickPic(null);
+    if (t.dataset.k === 'img') {
+      pickPic(t);
+      return true;
+    }
+    const b = readBlock(t);
+    place(el, { i: j, off: back ? plainLen(b) : 0 });
+    return true;
+  };
+
   const onKeyDown = (e: RKeyboardEvent<HTMLDivElement>) => {
     if (e.nativeEvent.isComposing) return;
+    const pk = pickRef.current;
+    if (pk) {
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        return dropPic(pk);
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        return openView(pk);
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        pickPic(null);
+        return setSay('');
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (!leavePic(pk, e.key === 'ArrowLeft' || e.key === 'ArrowUp')) {
+          // kein Text dahinter: Absatz anlegen (vor dem ersten bzw. nach dem letzten Bild)
+          const el = root.current!;
+          const i = blockEls(el).indexOf(pk);
+          const back = e.key === 'ArrowLeft' || e.key === 'ArrowUp';
+          pickPic(null);
+          remember();
+          const { blocks } = read(el);
+          blocks.splice(back ? i : i + 1, 0, { k: 'p', text: '' });
+          apply(blocks, { i: back ? i : i + 1, off: 0 });
+        }
+        return;
+      }
+      if (e.key === 'Tab' || e.key === 'Shift' || e.key === 'Meta' || e.key === 'Control' || e.key === 'Alt') return;
+      pickPic(null);
+    } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+      // V80: Pfeil links am Zeilenanfang nach einem Bild bzw. rechts am Zeilenende davor – Bild auswählen
+      const el = root.current!;
+      const sel = document.getSelection();
+      const c = caretOf(el);
+      if (c && sel?.isCollapsed) {
+        const els = blockEls(el);
+        const b = els[c.i];
+        const left = e.key === 'ArrowLeft';
+        const nb = els[left ? c.i - 1 : c.i + 1];
+        if (b && nb?.dataset.k === 'img' && (left ? c.off === 0 : c.off === plainLen(readBlock(b)))) {
+          e.preventDefault();
+          return pickPic(nb);
+        }
+      }
+    }
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key === 'Enter') {
       e.preventDefault();
@@ -865,6 +1165,13 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
 
   const onClick = (e: RMouseEvent<HTMLDivElement>) => {
     const t = e.target as HTMLElement;
+    // V80 (B4): Bild antippen = groß
+    const fig = t.closest<HTMLElement>('figure[data-k="img"]');
+    if (fig && root.current?.contains(fig)) {
+      e.preventDefault();
+      return openView(fig);
+    }
+    pickPic(null);
     if (t instanceof HTMLInputElement && t.type === 'checkbox') {
       // der Browser hat schon umgeschaltet – nur übernehmen
       remember();
@@ -894,7 +1201,7 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
   const pressed = (t: Tool) => (t === 'bold' ? cur.bold : cur.k === t || (t === 'li' && cur.k === 'ol'));
 
   return (
-    <div className="nedit-wrap">
+    <div className="nedit-wrap" ref={wrap}>
       <div className="nedit__tools" role="toolbar" aria-label={NOTE_TEXT.toolbar} onKeyDown={onToolKey}>
         {TOOLS.map((t, i) => (
           <button
@@ -950,6 +1257,43 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
         onKeyDown={onKeyDown}
         onClick={onClick}
       />
+      {notice && (
+        <div className="nedit__notice" role="status" style={{ top: notice.top }}>
+          {notice.text}
+          {notice.after !== undefined && (
+            <button
+              type="button"
+              className="audio__undo"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => {
+                window.clearTimeout(noticeT.current);
+                setNotice(null);
+                if ((last.current ?? '') === notice.after) {
+                  undo(true);
+                  setSay(NOTE_TEXT.imgBack);
+                }
+              }}
+            >
+              {NOTE_TEXT.imgUndo}
+            </button>
+          )}
+        </div>
+      )}
+      {view && root.current && (
+        <PicView
+          picRef={view}
+          alt={figOf(view)?.dataset.alt ?? ''}
+          host={root.current.closest<HTMLElement>('.pad')}
+          onAlt={(a) => setAlt(view, a)}
+          onClose={closeView}
+          onDelete={() => {
+            const f = figOf(view);
+            setView(null);
+            root.current?.focus({ preventScroll: true });
+            if (f) dropPic(f);
+          }}
+        />
+      )}
       {/* V74 (Wunsch Enrico): Hinweis nicht mehr sichtbar unter dem Textfeld – bleibt für Bildschirmleser */}
       <p className="sr-only" id={`${uid}-hint`}>
         {NOTE_TEXT.editHint}

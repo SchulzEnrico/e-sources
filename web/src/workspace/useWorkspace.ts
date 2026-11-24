@@ -177,6 +177,7 @@ export type Action =
   /** F-206: im Tab eine neue Notiz bzw. Ansicht anlegen (Tab zeigt nur darauf). */
   | { type: 'tabNote'; id: string; tab: string; kind: 'note' | NoteViewKind; by?: string; noteId?: string }
   | { type: 'noteEdit'; id: string; patch: No.NotePatch; by?: string }
+  | { type: 'noteForward'; id: string; to: string; by?: string }
   | { type: 'noteState'; id: string; state: NoteState; reason?: string; by?: string }
   | { type: 'noteDelete'; id: string; keepChildren?: boolean }
   | { type: 'noteRestore'; undo: No.NoteUndo; by?: string }
@@ -298,6 +299,8 @@ function step(ws: Workspace, a: Action): Workspace {
     }
     case 'noteEdit':
       return No.updateNote(ws, a.id, a.patch, { by: a.by });
+    case 'noteForward':
+      return No.markForwarded(ws, a.id, a.to, { by: a.by });
     case 'noteState':
       return No.setState(ws, a.id, a.state, { by: a.by }, a.reason);
     case 'noteDraft':

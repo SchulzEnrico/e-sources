@@ -4949,4 +4949,23 @@ describe('F-215 V79: Bild im Text (B1–B3)', () => {
     expect(IS.fitSize(800, 600)).toEqual({ w: 800, h: 600 });
     expect(IS.fitSize(0, 10)).toEqual({ w: 0, h: 0 });
   });
+  it('V80: Text zum Teilen ohne Bild-Zeilen, Titel für die Zwischenablage (S1/S2)', () => {
+    const a = No.shareText({ title: '', text: '# Einkauf\n![](es-img:p1)\n\n\n\n- Milch' });
+    expect(a.title).toBe('Einkauf');
+    expect(a.text).toBe('# Einkauf\n\n- Milch');
+    expect(a.clip).toBe(a.text);
+    const b = No.shareText({ title: 'Urlaub', text: 'Koffer packen' });
+    expect(b.clip).toBe('Urlaub\n\nKoffer packen');
+  });
+  it('V80: Dateiname zum Sichern eines Bildes (B4)', () => {
+    const at = new Date(2026, 10, 24, 21, 4).getTime();
+    expect(IS.picFileName(at, 'image/jpeg')).toBe('Bild-2026-11-24-2104.jpg');
+    expect(IS.picFileName(at, 'image/png')).toBe('Bild-2026-11-24-2104.png');
+  });
+  it('V80: Bild zwischen Absätzen bleibt beim Speichern und Lesen ein Bild', () => {
+    const md = ND.serializeDoc([{ k: 'p', text: 'Vorher' }, { k: 'img', text: 'Hund', ref: 'p-1' }, { k: 'p', text: 'Nachher' }]);
+    const back = ND.parseDoc(md);
+    expect(back.map((b) => b.k)).toEqual(['p', 'img', 'p']);
+    expect(back[1]).toMatchObject({ ref: 'p-1', text: 'Hund' });
+  });
 });

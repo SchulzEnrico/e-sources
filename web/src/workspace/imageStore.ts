@@ -30,6 +30,14 @@ export function fitSize(w: number, h: number, max = IMG_MAX_PX): { w: number; h:
   return { w: Math.max(1, Math.round(w * f)), h: Math.max(1, Math.round(h * f)) };
 }
 
+/** V80 (B4): Dateiname zum Sichern: Bild-2026-11-24-2104.jpg */
+export function picFileName(at: number, mime: string): string {
+  const d = new Date(at);
+  const p = (n: number) => String(n).padStart(2, '0');
+  const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+  return `Bild-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.${ext}`;
+}
+
 let opening: Promise<IDBDatabase> | null = null;
 function db(): Promise<IDBDatabase> {
   if (opening) return opening;

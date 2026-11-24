@@ -17,6 +17,9 @@ import type { Workspace } from './types';
 export const GIST_DESC = 'E-Sources Abgleich';
 /** Vorausgefüllte GitHub-Seite für einen neuen Schlüssel mit nur dem Recht „gist“. */
 export const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=E-Sources%20Abgleich';
+/** V65: Text, wenn im Gist ein Stand einer neueren App-Version liegt. */
+export const GIST_NEWER =
+  'Ein anderes Gerät nutzt schon eine neuere E-Sources-Version. Bitte diese Seite neu laden – bis dahin sendet dieses Gerät nichts, damit dort nichts verloren geht.';
 export const SIGNUP_URL = 'https://github.com/signup';
 const API = 'https://api.github.com';
 const KEY = 'esource.gist.v1';
@@ -139,6 +142,8 @@ export async function fetchRemote(c: GistConfig): Promise<TransferFile | null> {
   }
   const r = readTransferFile(text);
   if (r.ok) return r.file;
+  // V65: Ein anderes Gerät hat schon eine neuere App – dieses sendet nichts, sonst gingen dort neue Daten verloren
+  if (r.newer) throw new GistError(GIST_NEWER);
   throw new GistError(`Der Stand auf GitHub ist nicht lesbar: ${r.error}`);
 }
 

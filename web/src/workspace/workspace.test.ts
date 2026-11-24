@@ -558,7 +558,9 @@ describe('F-121 Abgleich per JSON-Datei', () => {
     expect(X.readTransferFile('kein json').ok).toBe(false);
     expect(X.readTransferFile(JSON.stringify({ format: 'anderes' })).ok).toBe(false);
     const neuer = { ...X.toTransferFile(ws, 'Mac'), version: X.FILE_VERSION + 1 };
-    expect(X.readTransferFile(JSON.stringify(neuer)).ok).toBe(false);
+    const rn = X.readTransferFile(JSON.stringify(neuer));
+    expect(rn.ok).toBe(false);
+    if (!rn.ok) expect(rn.newer).toBe(true);
     const kaputt = { ...X.toTransferFile(ws, 'Mac'), workspace: { panels: 'x' } };
     expect(X.readTransferFile(JSON.stringify(kaputt)).ok).toBe(false);
   });
@@ -651,7 +653,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (r.ok) expect(W.panelUrl(r.file.workspace.panels[0])).toBe('https://a.de');
-    expect(X.FILE_VERSION).toBe(4);
+    expect(X.FILE_VERSION).toBe(5);
   });
 
   it('Bereich und Szenario bleiben erhalten (F-116, vorbereitet)', () => {

@@ -10,10 +10,12 @@ import type { Workspace } from './types';
  */
 export const FILE_FORMAT = 'e-sources-arbeitsflaeche';
 /**
- * Version 4: Areas mit Namen (F-128, V09). Version 3 (Lesezeichen, V08), 2 (Panels mit Tabs, V07)
- * und 1 werden beim Import umgewandelt.
+ * Version 5: Notizen und Ansichten (F-206, V62–V64) – ältere Apps kennen sie nicht und lehnen den
+ * Stand ab, statt ihn ohne Notizen zu überschreiben (V65). Version 4: Areas mit Namen (F-128, V09).
+ * Version 3 (Lesezeichen, V08), 2 (Panels mit Tabs, V07) und 1 werden beim Import umgewandelt.
+ * Bei jeder Änderung am Datenmodell, die eine ältere App verlieren würde, hochzählen.
  */
-export const FILE_VERSION = 4;
+export const FILE_VERSION = 5;
 export const FILE_NAME = 'e-sources-arbeitsflaeche.json';
 
 export interface TransferFile {
@@ -30,7 +32,8 @@ export function toTransferFile(ws: Workspace, device: string, now = new Date()):
   return { format: FILE_FORMAT, version: FILE_VERSION, savedAt: now.toISOString(), device, workspace: ws };
 }
 
-export type ReadResult = { ok: true; file: TransferFile } | { ok: false; error: string };
+/** `newer`: Stand aus einer neueren App-Version – nie überschreiben, erst neu laden. */
+export type ReadResult = { ok: true; file: TransferFile } | { ok: false; error: string; newer?: true };
 
 /** Liest den Inhalt einer exportierten Datei und prüft ihn. */
 export function readTransferFile(text: string, now = new Date()): ReadResult {
@@ -44,7 +47,7 @@ export function readTransferFile(text: string, now = new Date()): ReadResult {
   const d = data as Record<string, unknown>;
   if (d.format !== FILE_FORMAT) return { ok: false, error: 'Das ist keine Sicherungsdatei von E-Sources.' };
   if (typeof d.version !== 'number' || d.version > FILE_VERSION)
-    return { ok: false, error: 'Die Datei stammt aus einer neueren E-Sources-Version. Bitte E-Sources neu laden.' };
+    return { ok: false, newer: true, error: 'Die Datei stammt aus einer neueren E-Sources-Version. Bitte E-Sources neu laden.' };
   const savedAt = typeof d.savedAt === 'string' && !Number.isNaN(Date.parse(d.savedAt)) ? d.savedAt : null;
   if (!savedAt) return { ok: false, error: 'In der Datei fehlt der Speicherzeitpunkt.' };
   const ws = parseWorkspace(d.workspace);

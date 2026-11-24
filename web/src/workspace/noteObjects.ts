@@ -322,7 +322,12 @@ export function parsePadDesks(v: unknown, padIds: ReadonlySet<string>, deskIds: 
     }
     const pd: PadDesk = { places };
     if (isObj(d.dock) && EDGES.includes(d.dock.edge as NonNullable<PadDesk['dock']>['edge']) && share(d.dock.at))
-      pd.dock = { edge: d.dock.edge as NonNullable<PadDesk['dock']>['edge'], at: d.dock.at };
+      pd.dock = {
+        edge: d.dock.edge as NonNullable<PadDesk['dock']>['edge'],
+        at: d.dock.at,
+        ...(typeof d.dock.w === 'number' && Number.isFinite(d.dock.w) && d.dock.w > 0 ? { w: Math.round(d.dock.w) } : {}),
+        ...(d.dock.folded === true ? { folded: true } : {}),
+      };
     if (d.dockOff === true) pd.dockOff = true;
     if (Object.keys(places).length || pd.dock || pd.dockOff) out[desk] = pd;
   }

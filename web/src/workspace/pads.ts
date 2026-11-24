@@ -5,7 +5,7 @@
  * Notizblock und Lageplan“ (P1–P9). Reine Funktionen.
  */
 import type { FRect } from './tree';
-import type { NoteView, Pad, PadPlace, Workspace } from './types';
+import type { NoteView, Pad, PadDesk, PadPlace, Workspace } from './types';
 import { createView, deleteView, idsIn, noteById, placeNote, viewById, viewsOf } from './notes';
 import { PAD_SHEETS_MAX } from './noteObjects';
 import { newId } from './workspace';
@@ -310,4 +310,102 @@ export function recentIn(ws: Workspace, padId: string, now: { note?: string; she
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------- F-206 Schritt 4 (V81): Dock
+// Entscheidungen: Claude Doc „F-206 V81 – Dock (Schritt 4) mit Steuerknopf (K5)“, D1–D12.
+/** D4: Breite des Docks in px – ab Werk 360, 260 bis halbe Desk-Breite. */
+export const DOCK_W = { min: 260, start: 360 } as const;
+/** D1: eingeklappt zur Lasche. */
+export const DOCK_TAB_W = 40;
+
+/** Pads im Dock dieses Desks (Reihenfolge = Stapel, zuletzt = gezeigt). */
+export const dockedOn = (ws: Workspace, desk: string): Pad[] => padsOn(ws, desk).filter((p) => p.docked);
+/** D1: Das Dock zeigt ein Pad – das zuletzt nach oben geholte. */
+export const dockFront = (ws: Workspace, desk: string): Pad | undefined => dockedOn(ws, desk).at(-1);
+
+export interface DockState {
+  edge: 'right';
+  w: number;
+  folded: boolean;
+  off: boolean;
+}
+
+/** Zustand des Docks auf diesem Gerät (D3: vorerst immer rechts). */
+export function dockOf(ws: Workspace, desk: string): DockState {
+  const d = ws.padDesks?.[desk];
+  return { edge: 'right', w: d?.dock?.w ?? DOCK_W.start, folded: d?.dock?.folded === true, off: d?.dockOff === true };
+}
+
+/** D4: Breite in die Grenzen rücken (260 px bis halbe Desk-Breite; ist der Desk zu schmal, gilt die Hälfte). */
+export function clampDockW(w: number, deskW: number): number {
+  const max = Math.max(DOCK_TAB_W, Math.floor(deskW / 2));
+  return Math.round(Math.min(max, Math.max(Math.min(DOCK_W.min, max), w)));
+}
+
+/** D2: Streifen, den das Dock vom Desk nimmt (px): weg/leer 0, eingeklappt 40, sonst die Breite. */
+export function dockBand(ws: Workspace, desk: string, deskW: number): number {
+  const s = dockOf(ws, desk);
+  if (s.off || !dockedOn(ws, desk).length || deskW <= 0) return 0;
+  return s.folded ? Math.min(DOCK_TAB_W, deskW) : clampDockW(s.w, deskW);
+}
+
+function patchDesk(ws: Workspace, desk: string, fn: (d: PadDesk) => PadDesk): Workspace {
+  const d = fn(ws.padDesks?.[desk] ?? { places: {} });
+  return { ...ws, padDesks: { ...ws.padDesks, [desk]: d } };
+}
+
+/** Breite bzw. eingeklappt setzen (geräteeigen). */
+export function setDock(ws: Workspace, desk: string, patch: { w?: number; folded?: boolean }): Workspace {
+  return patchDesk(ws, desk, (d) => {
+    const cur = d.dock ?? { edge: 'right' as const, at: 0 };
+    const next = { ...cur, ...(patch.w !== undefined ? { w: Math.round(patch.w) } : {}) };
+    if (patch.folded !== undefined) {
+      if (patch.folded) next.folded = true;
+      else delete next.folded;
+    }
+    return { ...d, dock: next };
+  });
+}
+
+/** D8: Dock ein- bzw. wegschalten (die Pads bleiben im Dock). */
+export function setDockOff(ws: Workspace, desk: string, off: boolean): Workspace {
+  return patchDesk(ws, desk, (d) => {
+    const { dockOff: _o, ...rest } = d;
+    return off ? { ...rest, dockOff: true } : rest;
+  });
+}
+
+/**
+ * D5/D6: Pad ins Dock bzw. heraus. Der Platz auf dem Desk bleibt gespeichert – so kommt ein gelöstes
+ * Pad an seinen letzten Platz zurück. Ins Dock: das Pad wird gezeigt, das Dock eingeschaltet und
+ * ausgeklappt. Heraus: es kommt nach oben.
+ */
+export function dockPad(ws: Workspace, padId: string, on: boolean): Workspace {
+  const p = padById(ws, padId);
+  if (!p || !!p.docked === on) return ws;
+  let next = patchPad(ws, padId, (x) => {
+    const { docked: _d, ...rest } = x;
+    return on ? { ...rest, docked: true } : rest;
+  });
+  next = raisePad(next, padId);
+  if (on) next = setDock(setDockOff(next, p.desk, false), p.desk, { folded: false });
+  return next;
+}
+
+/** D5/D6: alle Pads eines Desks ins Dock bzw. alle verteilen. Ins Dock: das bisher oberste bleibt vorn. */
+export function dockAll(ws: Workspace, desk: string, on: boolean): Workspace {
+  const list = padsOn(ws, desk).filter((p) => !!p.docked !== on);
+  if (!list.length) return ws;
+  const ids = new Set(list.map((p) => p.id));
+  let next = withPads(
+    ws,
+    padsOf(ws).map((p) => {
+      if (!ids.has(p.id)) return p;
+      const { docked: _d, ...rest } = p;
+      return on ? { ...rest, docked: true } : rest;
+    }),
+  );
+  if (on) next = setDock(setDockOff(next, desk, false), desk, { folded: false });
+  return next;
 }

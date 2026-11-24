@@ -4464,6 +4464,53 @@ describe('F-206 Schritt 3: Pads (Logik, V66)', () => {
     expect(Pd.recentIn(ws, r.pad, { sheet: r.sheet })).toEqual([{ kind: 'note', id: 'b', sheet: r.sheet }]);
   });
 
+  it('F-206 V81: Dock – ins Dock und zurück an den letzten Platz, alle ins Dock, Breite, Lasche, weg', () => {
+    let ws = start();
+    const r = Pd.openNoteInPad(ws, '', 'a', { makeId: make }) as { ws: Workspace; pad: string; sheet: string };
+    ws = Pd.setPlace(r.ws, '', r.pad, { x: 0.1, y: 0.2, w: 0.3, h: 0.4 });
+    const v2 = No.createView(ws, 'block', 'Zweiter Block', { makeId: make });
+    const two = Pd.createPad(v2.ws, '', [v2.id], { id: 'p2' });
+    ws = two.ws;
+    expect(Pd.dockedOn(ws, '')).toEqual([]);
+    expect(Pd.dockBand(ws, '', 1200)).toBe(0);
+    ws = Pd.dockPad(ws, r.pad, true);
+    expect(Pd.dockedOn(ws, '').map((p) => p.id)).toEqual([r.pad]);
+    expect(Pd.dockFront(ws, '')!.id).toBe(r.pad);
+    expect(Pd.dockBand(ws, '', 1200)).toBe(Pd.DOCK_W.start);
+    expect(Pd.dockPad(ws, r.pad, true)).toBe(ws); // schon drin
+    // D6: heraus – der alte Platz ist noch da
+    const out = Pd.dockPad(ws, r.pad, false);
+    expect(Pd.padById(out, r.pad)!.docked).toBeUndefined();
+    expect(Pd.placeOf(out, '', r.pad)).toEqual({ x: 0.1, y: 0.2, w: 0.3, h: 0.4 });
+    expect(Pd.topPad(out, '')!.id).toBe(r.pad);
+    // D5: alle ins Dock, dann alle verteilen
+    ws = Pd.dockAll(ws, '', true);
+    expect(Pd.dockedOn(ws, '')).toHaveLength(2);
+    ws = Pd.dockAll(ws, '', false);
+    expect(Pd.dockedOn(ws, '')).toEqual([]);
+    ws = Pd.dockPad(ws, r.pad, true);
+    // D4: Breite 260 px bis halbe Desk-Breite
+    expect(Pd.clampDockW(100, 1200)).toBe(260);
+    expect(Pd.clampDockW(900, 1200)).toBe(600);
+    expect(Pd.clampDockW(300, 400)).toBe(200);
+    ws = Pd.setDock(ws, '', { w: 420 });
+    expect(Pd.dockBand(ws, '', 1200)).toBe(420);
+    // D1/D8: eingeklappt 40 px, weg 0 – Pads bleiben im Dock
+    ws = Pd.setDock(ws, '', { folded: true });
+    expect(Pd.dockBand(ws, '', 1200)).toBe(Pd.DOCK_TAB_W);
+    ws = Pd.setDockOff(ws, '', true);
+    expect(Pd.dockBand(ws, '', 1200)).toBe(0);
+    expect(Pd.dockOf(ws, '')).toEqual({ edge: 'right', w: 420, folded: true, off: true });
+    // ins Dock schaltet ein und klappt auf
+    ws = Pd.dockPad(ws, 'p2', true);
+    expect(Pd.dockOf(ws, '')).toEqual({ edge: 'right', w: 420, folded: false, off: false });
+    expect(Pd.dockFront(ws, '')!.id).toBe('p2');
+    // Speicher: Breite und Lasche überstehen das Einlesen, Unsinn fällt weg
+    const back = parseWorkspace(JSON.parse(JSON.stringify(Pd.setDock(ws, '', { folded: true }))));
+    expect(back?.padDesks?.['']?.dock).toEqual({ edge: 'right', at: 0, w: 420, folded: true });
+    expect(back?.pads?.filter((p) => p.docked)).toHaveLength(2);
+  });
+
   it('V67: Pad geschlossen – Note öffnet ihren eigenen Notizblock wieder statt eines neuen', () => {
     let ws = start();
     const r1 = Pd.openNoteInPad(ws, '', 'a', { makeId: make }) as { ws: Workspace; pad: string; sheet: string };

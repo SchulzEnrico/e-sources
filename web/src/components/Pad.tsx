@@ -11,7 +11,7 @@ import * as No from '../workspace/notes';
 import { PAD_MIN } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
 import { NOTICE_MS } from '../workspace/flash';
-import { AUDIO_TEXT, DRAFT_TEXT, FOOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { AUDIO_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab, freshNotes } from './NoteTab';
 import { type FootItem, PadFooter, type VoiceProps } from './PadFooter';
@@ -37,7 +37,7 @@ import { Icon } from './Icon';
 import { RemindAlarm, useReminders } from './RemindAlarm';
 import { remindLabel } from '../workspace/remind';
 import { useDisplay } from './SiteIcon';
-import { KNOB_OP_MIN, OPACITY_MIN, OPACITY_STEP, setKnobOpacity, setKnobX, setPadOpacity, setVoice } from '../workspace/display';
+import { KNOB_OP_MIN, OPACITY_MIN, OPACITY_STEP, setDockOpacity, setKnobOpacity, setKnobX, setPadOpacity, setVoice } from '../workspace/display';
 import type { IconName } from '../workspace/icons';
 
 const KIND_ICON: Record<NoteViewKind, IconName> = { block: 'note', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix' };
@@ -68,11 +68,13 @@ export interface PadProps {
   onPick: (sheet: string, note: string | null) => void;
   notify: (text: string) => void;
   say: (text: string) => void;
+  /** F-206 Schritt 4 (V81): Pad im Dock – füllt die Leiste, ohne Ziehen/Größe und ohne Steuerknopf (K5 zurückgestellt). */
+  dock?: { onWidth: (dx: number, repeat: boolean) => void; onFold: () => void };
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say }: PadProps) {
+export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say, dock }: PadProps) {
   const [live, setLive] = useState<PadPlace | null>(null);
   const [renaming, setRenaming] = useState(false);
   const display = useDisplay();
@@ -460,6 +462,11 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.startsWith('Arrow') && !typing(e.target)) {
       e.preventDefault();
       e.stopPropagation();
+      // V81 (D11): im Dock ändert Alt + Pfeil links/rechts die Breite (das Dock wächst nach links)
+      if (dock) {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') dock.onWidth(e.key === 'ArrowLeft' ? 1 : -1, e.repeat);
+        return;
+      }
       const step = e.repeat ? STEP_HOLD : STEP;
       const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
       const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
@@ -479,7 +486,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyM') {
       e.preventDefault();
       e.stopPropagation();
-      if (isBlock) voiceStart.current?.();
+      if (dock) say(DOCK_TEXT.noKnob);
+      else if (isBlock) voiceStart.current?.();
       else say(VOICE_TEXT.noBlock);
       return;
     }
@@ -540,7 +548,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     focusAway();
   };
 
-  const style: CSSProperties = {
+  const style: CSSProperties = dock ? {} : {
     left: box.gap + p.x * box.w,
     top: box.gap + p.y * box.h,
     width: Math.max(0, p.w * box.w - box.gap),
@@ -548,14 +556,22 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     zIndex: z,
   };
   const titleId = `pad-${pad.id}-t`;
+  const toDock = (on: boolean) => {
+    const name = sheet?.name ?? TERMS.pad.split(' =')[0];
+    dispatch({ type: 'padDock', id: pad.id, on });
+    // Meldung nur für Bildschirmleser – man sieht das Pad an seinen neuen Ort wandern (Meldungen am Ort)
+    say(on ? DOCK_TEXT.docked(name) : DOCK_TEXT.undocked(name));
+    // Fokus folgt dem Pad an seinen neuen Ort
+    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${pad.id}"] .pad__tab.is-on`)?.focus(), 60);
+  };
 
   return (
     <section
       ref={self}
-      className={`pad${top ? ' is-top' : ''}${live ? ' is-moving' : ''}${curNote ? ' has-note' : ''}`}
+      className={`pad${dock ? ' pad--docked' : ''}${top ? ' is-top' : ''}${live ? ' is-moving' : ''}${curNote ? ' has-note' : ''}`}
       style={style}
       role="region"
-      aria-label={PAD_TEXT.region(sheet?.name ?? TERMS.pad.split(' =')[0], where)}
+      aria-label={dock ? DOCK_TEXT.region(sheet?.name ?? TERMS.pad.split(' =')[0]) : PAD_TEXT.region(sheet?.name ?? TERMS.pad.split(' =')[0], where)}
       data-pad-id={pad.id}
       onPointerDownCapture={raise}
       onFocusCapture={() => (raise(), setFocusIn(true))}
@@ -566,19 +582,20 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     >
       <header
         className="pad__head"
-        title={PAD_TEXT.move}
+        title={dock ? DOCK_TEXT.width : PAD_TEXT.move}
         onPointerDown={(e) => {
-          if ((e.target as HTMLElement).closest('button, input, [role="tab"], .menu')) return;
+          if (dock || (e.target as HTMLElement).closest('button, input, [role="tab"], .menu')) return;
           gesture(e, null);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Escape' && !renaming && !(e.target as HTMLElement).closest('.menu__list')) {
             e.stopPropagation();
-            closePad();
+            if (dock) dock.onFold();
+            else closePad();
           }
         }}
       >
-        <Icon name="pad" size={14} className="icon pad__icon" />
+        <Icon name={dock ? 'dock' : 'pad'} size={14} className="icon pad__icon" />
         <div className="pad__tabs" role="tablist" aria-label={PAD_TEXT.tabs} ref={tabsRef}>
           {pad.sheets.map((id, i) => {
             const v = No.viewById(ws, id);
@@ -632,7 +649,11 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
             );
           })}
         </div>
-        <OpacityInline value={display.padOpacity} onChange={setPadOpacity} />
+        {dock ? (
+          <OpacityInline value={display.dockOpacity} onChange={setDockOpacity} label={PAD_TEXT.opacityDock} hint={PAD_TEXT.opacityDockHint} />
+        ) : (
+          <OpacityInline value={display.padOpacity} onChange={setPadOpacity} />
+        )}
         <span id={titleId} className="sr-only">
           {sheet?.name}
         </span>
@@ -670,9 +691,15 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               <Item icon="close" hint={PAD_TEXT.closeSheetHint} disabled={!sheet} onClick={() => (close(), closeSheet())}>
                 {PAD_TEXT.closeSheet}
               </Item>
-              <Item icon="slot" disabled title={PAD_TEXT.menuPlaceHint} onClick={() => undefined}>
-                {PAD_TEXT.menuPlace}
+              {/* V81 (D5/D6): ins Dock bzw. heraus an den letzten Platz */}
+              <Item icon="dock" hint={dock ? DOCK_TEXT.undockHint : DOCK_TEXT.toDockHint} onClick={() => (close(), toDock(!dock))}>
+                {dock ? DOCK_TEXT.undock : DOCK_TEXT.toDock}
               </Item>
+              {!dock && (
+                <Item icon="slot" disabled title={PAD_TEXT.menuPlaceHint} onClick={() => undefined}>
+                  {PAD_TEXT.menuPlace}
+                </Item>
+              )}
               <Item icon="close" hint={PAD_TEXT.closePadHint} onClick={() => (close(), closePad())}>
                 {PAD_TEXT.closePad}
               </Item>
@@ -680,16 +707,26 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               <Item icon="mic" checked={display.voice} hint={VOICE_TEXT.settingHint} onClick={() => setVoice(!display.voice)}>
                 {VOICE_TEXT.setting}
               </Item>
-              <OpacitySlider label={PAD_TEXT.opacityPads} hint={PAD_TEXT.opacityHint} value={display.padOpacity} onChange={setPadOpacity} />
+              {dock ? (
+                <OpacitySlider label={PAD_TEXT.opacityDock} hint={PAD_TEXT.opacityDockHint} value={display.dockOpacity} onChange={setDockOpacity} />
+              ) : (
+                <OpacitySlider label={PAD_TEXT.opacityPads} hint={PAD_TEXT.opacityHint} value={display.padOpacity} onChange={setPadOpacity} />
+              )}
               {/* V75 (F-215 A2): Steuerknopf über der Bildschirmtastatur – je Gerät */}
               <OpacitySlider label={PAD_TEXT.knobOpacity} hint={PAD_TEXT.knobOpacityHint} value={display.knobOpacity} min={KNOB_OP_MIN} onChange={setKnobOpacity} />
               <OpacitySlider label={PAD_TEXT.knobX} hint={PAD_TEXT.knobXHint} value={display.knobX} min={0} step={1} valueText={PAD_TEXT.knobXValue} onChange={setKnobX} />
             </>
           )}
         </Menu>
-        <button type="button" className="pad__close" onClick={closePad} title={`${PAD_TEXT.closePad} (Esc im Kopf) – ${PAD_TEXT.closePadHint}`} aria-label={PAD_TEXT.closePad}>
-          <Icon name="close" size={14} />
-        </button>
+        {dock ? (
+          <button type="button" className="pad__close" onClick={dock.onFold} title={DOCK_TEXT.foldTitle} aria-label={DOCK_TEXT.fold}>
+            <Icon name="dockFold" size={14} />
+          </button>
+        ) : (
+          <button type="button" className="pad__close" onClick={closePad} title={`${PAD_TEXT.closePad} (Esc im Kopf) – ${PAD_TEXT.closePadHint}`} aria-label={PAD_TEXT.closePad}>
+            <Icon name="close" size={14} />
+          </button>
+        )}
       </header>
       <div
         className="pad__body"
@@ -772,8 +809,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           {hint}
         </p>
       )}
-      <PadFooter items={footItems} onHome={home} say={say} onSwipe={swipe} swipeLabel={swipeLabel} voice={voice} knob={{ bottom: focusIn ? kbBottom : null, opacity: display.knobOpacity, x: display.knobX, onX: setKnobX }} />
-      {(['n', 's', 'e', 'w', 'se'] as Edge[]).map((edge) => (
+      {!dock && <PadFooter items={footItems} onHome={home} say={say} onSwipe={swipe} swipeLabel={swipeLabel} voice={voice} knob={{ bottom: focusIn ? kbBottom : null, opacity: display.knobOpacity, x: display.knobX, onX: setKnobX }} />}
+      {!dock && (['n', 's', 'e', 'w', 'se'] as Edge[]).map((edge) => (
         <div key={edge} className={`pad__grip pad__grip--${edge}`} aria-hidden="true" title={PAD_TEXT.resize} onPointerDown={(e) => gesture(e, edge)} />
       ))}
     </section>

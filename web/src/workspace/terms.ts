@@ -1127,7 +1127,41 @@ export const PAD_TEXT = {
   knobXValue: (v: number) => (v < 34 ? `links (${v} %)` : v > 66 ? `rechts (${v} %)` : `Mitte (${v} %)`),
   opacityHint: 'Gilt für alle Pads in diesem Browser. Darüberfahren, Klicken oder Fokus macht ein Pad immer ganz undurchsichtig.',
   opacityHintShort: 'gilt für alle Pads; beim Einstellen siehst du die Wirkung, sonst ist ein Pad unter Maus und Fokus ganz deckend',
-  opacityDockHint: 'Das Dock kommt mit dem nächsten Bauschritt; seine Deckkraft lässt sich schon jetzt getrennt einstellen.',
+  opacityDockHint: 'Gilt für das Dock in diesem Browser. Darüberfahren, Klicken oder Fokus macht es ganz undurchsichtig; der Rahmen bleibt immer sichtbar.',
+};
+
+/** F-206 Schritt 4 (V81): Dock – Leiste am rechten Rand mit einem Pad, einklappbar zur Lasche (D1–D12). */
+export const DOCK_TEXT = {
+  name: 'Dock',
+  region: (pad: string) => `Dock: ${pad} – rechts`,
+  pads: 'Pads im Dock',
+  padName: (sheet: string) => sheet || 'Pad',
+  toDock: 'Ins Dock',
+  toDockHint: 'Legt dieses Pad in die Leiste am rechten Rand. Die Slots rücken zur Seite, nichts wird verdeckt.',
+  undock: 'Aus dem Dock lösen',
+  undockHint: 'Das Pad schwebt wieder an seinem letzten Platz über dem Desk.',
+  allIn: 'Alle Pads ins Dock',
+  allOut: 'Alle Pads verteilen',
+  allOutHint: 'Holt alle Pads aus dem Dock an ihre letzten Plätze.',
+  on: 'Dock zeigen',
+  off: 'Dock wegschalten',
+  offHint: 'Die Pads bleiben im Dock; die Slots bekommen die ganze Breite.',
+  fold: 'Dock einklappen',
+  unfold: 'Dock ausklappen',
+  foldTitle: 'Dock einklappen (Esc im Kopf) – bleibt als schmale Lasche am Rand',
+  tabTitle: (pad: string) => `${pad} – im Dock öffnen`,
+  width: 'Breite ziehen · Alt/⌥ + Pfeil links/rechts im Dock-Kopf',
+  widthSaid: (w: number) => `Dock ist jetzt ${w} Pixel breit.`,
+  docked: (pad: string) => `„${pad}“ liegt jetzt im Dock.`,
+  undocked: (pad: string) => `„${pad}“ schwebt wieder über dem Desk.`,
+  allDocked: (n: number) => `${n === 1 ? 'Ein Pad liegt' : `${n} Pads liegen`} jetzt im Dock.`,
+  allUndocked: 'Alle Pads schweben wieder über dem Desk.',
+  isOff: (n: number) => `Dock weggeschaltet – ${n === 1 ? 'ein Pad liegt' : `${n} Pads liegen`} darin. NewPad › Dock zeigen.`,
+  isOn: 'Dock ist wieder da.',
+  folded: 'Dock eingeklappt.',
+  unfolded: 'Dock ausgeklappt.',
+  noKnob: 'Im Dock gibt es den Steuerknopf nicht – Neues über „Neue Notiz“ im Notizblock.',
+  notesMode: 'Im Notizen-Modus gibt es kein Dock – das Pad füllt den Desk.',
 };
 
 /** V75 (F-215): Umschalter Desk Mode / Note Mode je Desk */

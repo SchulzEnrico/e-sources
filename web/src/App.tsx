@@ -7,7 +7,7 @@ import logoUrl from './assets/e-sources-logo.svg';
 import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, MenuHead, PanelFrame } from './components/PanelFrame';
 import { OpacitySlider, Pad as PadView } from './components/Pad';
-import { PAD_START, padsOn, placeOf, zonePlace } from './workspace/pads';
+import { DOCK_TAB_W, PAD_START, clampDockW, dockFront, dockOf, dockedOn, padsOn, placeOf, zonePlace } from './workspace/pads';
 import {
   type Lines,
   type Orientation,
@@ -49,10 +49,10 @@ import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
 import { ColorPicker } from './components/ColorPicker';
 import { importSlot, isSlotFile, readSlotFile, slotFileName, slotToFile } from './workspace/slotFile';
-import { type NoteHit, tabShowing, titleOf as noteTitleOf } from './workspace/notes';
+import { type NoteHit, tabShowing, titleOf as noteTitleOf, viewById } from './workspace/notes';
 import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { DESK_MODE_TEXT } from './workspace/terms';
+import { DESK_MODE_TEXT, DOCK_TEXT } from './workspace/terms';
 import { type DeskMode, PHONE_MQ, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
 import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
@@ -1105,15 +1105,17 @@ function DeskApp(props: DeskProps) {
     sayLive(text);
     if (m === 'notes') setPadsHidden(false);
   };
+  // V81 (D12): im Notizen-Modus gibt es kein Dock – dort zählen alle Pads, auch die aus dem Dock
+  const allPads = padsOn(ws, win);
   useEffect(() => {
-    if (notesMode && deskPads.length === 0) dispatch({ type: 'padNew', desk: win, id: newId(), sheet: newId(), place: padHome() });
-  }, [notesMode, deskPads.length, win]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (notesMode && allPads.length === 0) dispatch({ type: 'padNew', desk: win, id: newId(), sheet: newId(), place: padHome() });
+  }, [notesMode, allPads.length, win]); // eslint-disable-line react-hooks/exhaustive-deps
   const FULL = { x: 0, y: 0, w: 1, h: 1 };
   const padOrder = [...deskPads].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const padLayer =
-    !notesOff && (!padsHidden || notesMode) && deskPads.length > 0 ? (
+    !notesOff && (notesMode ? allPads.length > 0 : !padsHidden && deskPads.length > 0) ? (
       <div className={`padlayer${notesMode ? ' is-notes' : ''}`}>
-        {(notesMode ? deskPads.slice(-1) : padOrder).map((p) => {
+        {(notesMode ? allPads.slice(-1) : padOrder).map((p) => {
           const z = deskPads.indexOf(p);
           return (
             <PadView
@@ -1135,6 +1137,141 @@ function DeskApp(props: DeskProps) {
         })}
       </div>
     ) : null;
+
+  // ---------------------------------------------------------------- F-206 Schritt 4 (V81): Dock
+  // D1: Leiste am rechten Rand (D3), ein Pad sichtbar, Reiter je Pad, einklappbar zur Lasche.
+  // D2: Das Dock steht neben der Desk-Fläche – Slots und schwebende Pads rücken in die Restfläche.
+  const dockedAll = dockedOn(ws, win);
+  const docked = notesOff || notesMode ? [] : dockedAll;
+  const dockSt = dockOf(ws, win);
+  /** D8: Zahl am NewPad-Knopf – ausgeblendete Pads und Pads im weggeschalteten Dock. */
+  const padsAway = (padsHidden ? deskPads.length : 0) + (dockSt.off ? dockedAll.length : 0);
+  const dockFrontPad = dockFront(ws, win);
+  const dockShown = docked.length > 0 && !dockSt.off;
+  const [dockLive, setDockLive] = useState<number | null>(null);
+  const dockWidth = clampDockW(dockLive ?? dockSt.w, area.vw);
+  const padName = (p: PadT) => DOCK_TEXT.padName(viewById(ws, p.active)?.name ?? '');
+  const setFold = (folded: boolean) => {
+    dispatch({ type: 'dockSet', desk: win, folded });
+    const t = folded ? DOCK_TEXT.folded : DOCK_TEXT.unfolded;
+    sayLive(t);
+    window.setTimeout(() => document.querySelector<HTMLElement>(folded ? '.dock__open' : '.dock .pad__tab.is-on')?.focus(), 60);
+  };
+  const dockStep = (dir: number, repeat: boolean) => {
+    const w = clampDockW(dockSt.w + dir * (repeat ? 60 : 20), area.vw);
+    dispatch({ type: 'dockSet', desk: win, w });
+    sayLive(DOCK_TEXT.widthSaid(w));
+  };
+  const dockGrip = (e: ReactPointerEvent) => {
+    e.preventDefault();
+    const x0 = e.clientX;
+    const w0 = dockWidth;
+    let w = w0;
+    const move = (ev: PointerEvent) => {
+      w = clampDockW(w0 + (x0 - ev.clientX), area.vw);
+      setDockLive(w);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setDockLive(null);
+      if (w !== w0) dispatch({ type: 'dockSet', desk: win, w });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const dockEl =
+    dockShown && dockFrontPad ? (
+      <aside
+        className={`dock${dockSt.folded ? ' is-folded' : ''}${dockLive !== null ? ' is-sizing' : ''}`}
+        style={{ width: dockSt.folded ? DOCK_TAB_W : dockWidth }}
+        aria-label={DOCK_TEXT.name}
+      >
+        {dockSt.folded ? (
+          <div className="dock__tab">
+            <button type="button" className="dock__open" onClick={() => setFold(false)} aria-label={DOCK_TEXT.unfold} title={DOCK_TEXT.unfold}>
+              <Icon name="dockOpen" size={14} />
+            </button>
+            {docked.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`dock__mono${p === dockFrontPad ? ' is-on' : ''}`}
+                title={DOCK_TEXT.tabTitle(padName(p))}
+                aria-label={DOCK_TEXT.tabTitle(padName(p))}
+                onClick={() => {
+                  dispatch({ type: 'padRaise', id: p.id });
+                  setFold(false);
+                }}
+              >
+                {padName(p).trim().charAt(0).toUpperCase() || '·'}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="dock__grip" aria-hidden="true" title={DOCK_TEXT.width} onPointerDown={dockGrip} />
+            {docked.length > 1 && (
+              <div className="dock__pads" role="tablist" aria-label={DOCK_TEXT.pads}>
+                {docked.map((p, i) => {
+                  const on = p === dockFrontPad;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={on}
+                      tabIndex={on ? 0 : -1}
+                      className={`dock__padtab${on ? ' is-on' : ''}`}
+                      title={DOCK_TEXT.tabTitle(padName(p))}
+                      onClick={() => dispatch({ type: 'padRaise', id: p.id })}
+                      onKeyDown={(e) => {
+                        const n = docked.length;
+                        const j = e.key === 'ArrowRight' ? (i + 1) % n : e.key === 'ArrowLeft' ? (i - 1 + n) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1;
+                        if (j < 0 || e.altKey) return;
+                        e.preventDefault();
+                        dispatch({ type: 'padRaise', id: docked[j].id });
+                        window.setTimeout(() => document.querySelector<HTMLElement>('.dock__padtab.is-on')?.focus(), 0);
+                      }}
+                    >
+                      <Icon name="pad" size={12} />
+                      <span>{padName(p)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <PadView
+              key={dockFrontPad.id}
+              ws={ws}
+              dispatch={dispatch}
+              pad={dockFrontPad}
+              desk={win}
+              place={FULL}
+              box={{ w: dockWidth, h: area.height, gap: 0 }}
+              top
+              z={1}
+              picked={padPick}
+              onPick={pickInPad}
+              notify={notify}
+              say={sayLive}
+              dock={{ onWidth: dockStep, onFold: () => setFold(true) }}
+            />
+          </>
+        )}
+      </aside>
+    ) : null;
+  const toggleDock = () => {
+    const off = !dockSt.off;
+    dispatch({ type: 'dockOff', desk: win, off });
+    // sichtbar: Dock verschwindet bzw. kommt, die Zahl am NewPad-Knopf; Meldung nur für Bildschirmleser
+    sayLive(off ? DOCK_TEXT.isOff(dockedAll.length) : DOCK_TEXT.isOn);
+  };
+  const dockAllPads = (on: boolean) => {
+    const n = (on ? deskPads : dockedAll).length;
+    dispatch({ type: 'padDockAll', desk: win, on });
+    sayLive(on ? DOCK_TEXT.allDocked(n) : DOCK_TEXT.allUndocked);
+  };
 
   // ---------------------------------------------------------------- F-171 Stufe 2 Tour „Farben“
 
@@ -2410,6 +2547,15 @@ function DeskApp(props: DeskProps) {
         return newNoteHere('kanban');
       case 'newEisenhower':
         return newNoteHere('eisenhower');
+      case 'dock':
+        // V81 (D8): aus der Suche – Dock ein- bzw. wegschalten; ohne Pads im Dock das oberste Pad hineinlegen
+        if (notesMode) return notify(DOCK_TEXT.notesMode);
+        if (dockedAll.length) return toggleDock();
+        if (deskPads.length) {
+          dispatch({ type: 'padDock', id: deskPads[deskPads.length - 1].id, on: true });
+          return sayLive(DOCK_TEXT.docked(padName(deskPads[deskPads.length - 1])));
+        }
+        return setHelpAt({ at: null });
       case 'syncDesks':
         return setSyncOpen(true);
       case 'tourSync':
@@ -2877,8 +3023,8 @@ function DeskApp(props: DeskProps) {
         {/* V76 (Enrico): Notizen auf dem Telefon vorerst ausgeblendet – erst alle Funktionen, die Mobilansicht später */}
         {!notesOff && (
         <Menu
-          icon={<span className="tb-add tb-newpad"><Icon name="newPad" size={15} className="icon tb-plus" /><span className="tb-label"> {PAD_TEXT.newPad}</span>{padsHidden && deskPads.length > 0 && <span className="tb-newpad__n" aria-hidden="true">{deskPads.length}</span>}</span>}
-          label={`${PAD_TEXT.newPadLabel} – ${TERMS.pad}${padsHidden && deskPads.length ? ` – ${PAD_TEXT.hidden(deskPads.length)}` : ''}`}
+          icon={<span className="tb-add tb-newpad"><Icon name="newPad" size={15} className="icon tb-plus" /><span className="tb-label"> {PAD_TEXT.newPad}</span>{padsAway > 0 && <span className="tb-newpad__n" aria-hidden="true">{padsAway}</span>}</span>}
+          label={`${PAD_TEXT.newPadLabel} – ${TERMS.pad}${padsHidden && deskPads.length ? ` – ${PAD_TEXT.hidden(deskPads.length)}` : ''}${dockSt.off && dockedAll.length ? ` – ${DOCK_TEXT.isOff(dockedAll.length)}` : ''}`}
         >
           {(close) => (
             <>
@@ -2890,6 +3036,16 @@ function DeskApp(props: DeskProps) {
               </Item>
               <Item icon="show" disabled={!deskPads.length} checked={!padsHidden && deskPads.length > 0} onClick={() => (close(), togglePads())}>
                 {padsHidden ? PAD_TEXT.show(deskPads.length) : PAD_TEXT.hide}
+              </Item>
+              {/* F-206 Schritt 4 (V81, D5/D6/D8): Dock */}
+              <Item icon="dock" disabled={!deskPads.length || notesMode} hint={DOCK_TEXT.toDockHint} onClick={() => (close(), dockAllPads(true))}>
+                {DOCK_TEXT.allIn}
+              </Item>
+              <Item icon="spread" disabled={!dockedAll.length || notesMode} hint={DOCK_TEXT.allOutHint} onClick={() => (close(), dockAllPads(false))}>
+                {DOCK_TEXT.allOut}
+              </Item>
+              <Item icon="dock" disabled={!dockedAll.length || notesMode} checked={!dockSt.off && dockedAll.length > 0} hint={notesMode ? DOCK_TEXT.notesMode : DOCK_TEXT.offHint} onClick={() => (close(), toggleDock())}>
+                {dockSt.off ? DOCK_TEXT.on : DOCK_TEXT.off}
               </Item>
               <OpacitySlider label={PAD_TEXT.opacityPads} hint={PAD_TEXT.opacityHint} value={display.padOpacity} onChange={setPadOpacity} />
               <OpacitySlider label={PAD_TEXT.opacityDock} hint={PAD_TEXT.opacityDockHint} value={display.dockOpacity} onChange={setDockOpacity} />
@@ -3615,10 +3771,13 @@ function DeskApp(props: DeskProps) {
           </button>
         </div>
       )}
-      <main className={`area${notesMode ? ' is-notes' : ''}`} ref={areaRef}>
-        {content}
-        {padLayer}
-      </main>
+      <div className="deskrow">
+        <main className={`area${notesMode ? ' is-notes' : ''}`} ref={areaRef}>
+          {content}
+          {padLayer}
+        </main>
+        {dockEl}
+      </div>
       {ask && (
         <div className="notice" role="alertdialog" aria-modal="true" aria-labelledby="ask-text" onClick={() => closeAsk()} onKeyDown={(e) => e.key === 'Escape' && closeAsk()}>
           <div className="notice__box" onClick={(e) => e.stopPropagation()}>

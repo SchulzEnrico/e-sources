@@ -534,8 +534,8 @@ export interface PadPlace {
 /** V65: Pad-Plätze und Dock je Desk – nur auf diesem Gerät (DEVICE_FIELDS). */
 export interface PadDesk {
   places: Record<string, PadPlace>;
-  /** Dock-Ort: Rand und Lage am Rand (0…1). */
-  dock?: { edge: 'left' | 'right' | 'top' | 'bottom'; at: number };
+  /** Dock-Ort: Rand und Lage am Rand (0…1); V81: Breite in px (D4) und eingeklappt zur Lasche (D1/D8). */
+  dock?: { edge: 'left' | 'right' | 'top' | 'bottom'; at: number; w?: number; folded?: boolean };
   /** Dock ganz weggeschaltet. */
   dockOff?: boolean;
 }

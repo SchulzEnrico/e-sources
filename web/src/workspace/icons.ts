@@ -34,6 +34,10 @@ export const ICONS = {
   kanban: { d: ['M2 2.5h3.5v11H2z', 'M6.25 2.5h3.5v7h-3.5z', 'M10.5 2.5H14v4.5h-3.5z'] },
   matrix: { d: ['M2 2h12v12H2z', 'M8 2v12', 'M2 8h12'] },
   // F-206 Schritt 3: Pad = schwebendes Fenster über dem Desk
+  // F-206 Schritt 4 (V81): Dock = Leiste am rechten Rand, einklappen zur Lasche
+  dock: { d: ['M1.5 2.5h13v11h-13z', 'M10 2.5v11', 'M11.8 5h1', 'M11.8 7h1'] },
+  dockFold: { d: ['M10 2.5v11', 'M5 5l3 3-3 3'] },
+  dockOpen: { d: ['M6 2.5v11', 'M11 5L8 8l3 3'] },
   pad: { d: ['M1.5 1.5h9v8h-9z', 'M5.5 5.5h9v9h-9z', 'M5.5 8h9'] },
   newPad: { d: ['M1.5 1.5h9v8h-9z', 'M5.5 5.5h9v9h-9z', 'M10 9.5v3.5', 'M8.25 11.25h3.5'] },
   // V68: Deckkraft (halb gefüllter Kreis)
@@ -185,7 +189,7 @@ export type IconName = keyof typeof ICONS;
 
 /** Symbol je Hilfe-Eintrag (HELP, F-156) – gleiche Ids. Fehlt ein Eintrag, meldet das der Test. */
 export const HELP_ICON: Record<string, IconName> = {
-  note: 'note', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', findNote: 'note',
+  note: 'note', dock: 'dock', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', findNote: 'note',
   devMode: 'dev',
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',

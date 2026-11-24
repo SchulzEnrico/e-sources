@@ -185,6 +185,11 @@ export type Action =
   | { type: 'padNew'; desk: string; id: string; sheet: string; place?: PadPlace }
   | { type: 'padPlace'; desk: string; id: string; place: PadPlace }
   | { type: 'padRaise'; id: string }
+  /** F-206 Schritt 4 (V81): Dock – Pad hinein/heraus, alle, Breite/Lasche, ein/aus (geräteeigen außer `docked`). */
+  | { type: 'padDock'; id: string; on: boolean }
+  | { type: 'padDockAll'; desk: string; on: boolean }
+  | { type: 'dockSet'; desk: string; w?: number; folded?: boolean }
+  | { type: 'dockOff'; desk: string; off: boolean }
   | { type: 'padShow'; id: string; sheet: string }
   | { type: 'padRecent'; id: string; note?: string; sheet?: string }
   | { type: 'padAddSheet'; id: string; kind: NoteViewKind; sheet: string }
@@ -323,6 +328,14 @@ function step(ws: Workspace, a: Action): Workspace {
       return Pd.setPlace(ws, a.desk, a.id, a.place);
     case 'padRaise':
       return Pd.raisePad(ws, a.id);
+    case 'padDock':
+      return Pd.dockPad(ws, a.id, a.on);
+    case 'padDockAll':
+      return Pd.dockAll(ws, a.desk, a.on);
+    case 'dockSet':
+      return Pd.setDock(ws, a.desk, { w: a.w, folded: a.folded });
+    case 'dockOff':
+      return Pd.setDockOff(ws, a.desk, a.off);
     case 'padShow':
       return Pd.showSheet(ws, a.id, a.sheet);
     case 'padRecent':

@@ -489,6 +489,8 @@ export interface Pad {
   active: string;
   /** Im Dock statt schwebend. */
   docked?: boolean;
+  /** Umstieg aus Notiz-Tabs: Portal, über dessen Slot das Pad zuerst liegt (bis ein Platz gesetzt ist). */
+  from?: string;
 }
 
 /** V65: Platz eines Pads auf diesem Gerät (Anteile der Desk-Fläche, 0…1). */

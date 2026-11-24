@@ -298,6 +298,7 @@ export function parsePads(v: unknown, sheetIds: ReadonlySet<string>, deskIds: Re
       sheets,
       active: typeof r.active === 'string' && sheets.includes(r.active) ? r.active : sheets[0],
       ...(r.docked === true ? { docked: true } : {}),
+      ...(typeof r.from === 'string' && r.from ? { from: r.from } : {}),
     });
   }
   return out;

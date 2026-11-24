@@ -49,6 +49,7 @@ import * as Web from './websearch';
 import * as Snd from './send';
 import * as Rc from './recent';
 import * as No from './notes';
+import * as Pd from './pads';
 import * as ND from './noteDoc';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
@@ -4413,5 +4414,102 @@ describe('F-206 Datenmodell v8 (V66)', () => {
     expect(moved.project).toBeUndefined();
     expect(moved.assignee).toBeUndefined();
     expect(moved.delegated).toEqual({ to: 'Tom' });
+  });
+});
+
+describe('F-206 Schritt 3: Pads (Logik, V66)', () => {
+  let n = 0;
+  const make = () => `id${++n}`;
+  const start = () => {
+    n = 0;
+    let ws = W.defaultWorkspace();
+    const a = No.createNote(ws, { title: 'A' }, { id: 'a' });
+    ws = No.createNote(a.ws, { title: 'B' }, { id: 'b' }).ws;
+    return ws;
+  };
+
+  it('Note öffnen: ohne Pad neues Pad mit Notizblock, danach in denselben Notizblock, offen = dorthin', () => {
+    let ws = start();
+    const r1 = Pd.openNoteInPad(ws, '', 'a', { makeId: make });
+    expect(r1.result).toBe('opened');
+    ws = r1.ws;
+    const r = r1 as { pad: string; sheet: string };
+    expect(No.viewById(ws, r.sheet)!.kind).toBe('block');
+    expect(No.viewById(ws, r.sheet)!.name).toBe('Notizblock');
+    const r2 = Pd.openNoteInPad(ws, '', 'b', { makeId: make }) as { result: string; ws: Workspace; pad: string; sheet: string };
+    expect(r2.pad).toBe(r.pad);
+    expect(r2.sheet).toBe(r.sheet);
+    ws = r2.ws;
+    expect(No.viewById(ws, r.sheet)!.ids).toEqual(['a', 'b']);
+    expect(Pd.openNoteInPad(ws, '', 'a').result).toBe('shown');
+    expect(Pd.padsOf(ws)).toHaveLength(1);
+  });
+
+  it('Sheet öffnen: Reiter im obersten Pad, bis 9; dann neues Pad; jedes Sheet nur an einem Ort', () => {
+    let ws = start();
+    ws = (Pd.openNoteInPad(ws, '', 'a', { makeId: make }) as { ws: Workspace }).ws;
+    const pad = Pd.padsOf(ws)[0].id;
+    const ids: string[] = [];
+    for (let i = 0; i < 9; i++) {
+      const v = No.createView(ws, 'todo', `T${i}`, { makeId: make });
+      ws = v.ws;
+      ids.push(v.id);
+    }
+    for (const id of ids.slice(0, 8)) ws = (Pd.openSheetInPad(ws, '', id) as { ws: Workspace }).ws;
+    expect(Pd.padById(ws, pad)!.sheets).toHaveLength(9);
+    const last = Pd.openSheetInPad(ws, '', ids[8], { makeId: make }) as { ws: Workspace; pad: string };
+    expect(last.pad).not.toBe(pad);
+    ws = last.ws;
+    // „Hierher holen“: Sheet aus dem ersten Pad ins zweite
+    const moved = Pd.addSheet(ws, last.pad, ids[0]);
+    expect(moved.ok).toBe(true);
+    ws = (moved as { ws: Workspace }).ws;
+    expect(Pd.padWith(ws, ids[0])!.id).toBe(last.pad);
+    expect(Pd.padById(ws, pad)!.sheets).toHaveLength(8);
+  });
+
+  it('Schließen löscht nur leere Sheets; leeres Pad verschwindet samt Platz', () => {
+    let ws = start();
+    ws = (Pd.openNoteInPad(ws, '', 'a', { makeId: make }) as { ws: Workspace }).ws;
+    const pad = Pd.padsOf(ws)[0];
+    const empty = No.createView(ws, 'todo', 'leer', { makeId: make });
+    ws = (Pd.addSheet(empty.ws, pad.id, empty.id) as { ws: Workspace }).ws;
+    ws = Pd.setPlace(ws, '', pad.id, { x: 0.9, y: 0, w: 0.5, h: 0.5 });
+    expect(Pd.placeOf(ws, '', pad.id)).toEqual({ x: 0.5, y: 0, w: 0.5, h: 0.5 });
+    ws = Pd.closePad(ws, pad.id);
+    expect(Pd.padsOf(ws)).toHaveLength(0);
+    expect(ws.padDesks).toBeUndefined();
+    expect(No.viewById(ws, empty.id)).toBeUndefined();
+    expect(No.viewById(ws, pad.sheets[0])!.ids).toEqual(['a']);
+  });
+
+  it('Lageplan: Zonen eines Slots', () => {
+    const slot = { x: 0.5, y: 0, w: 0.5, h: 1 };
+    expect(Pd.zonePlace(slot, 'right')).toEqual({ x: 0.75, y: 0, w: 0.25, h: 1 });
+    expect(Pd.zonePlace(slot, 'bottom')).toEqual({ x: 0.5, y: 0.5, w: 0.5, h: 0.5 });
+    expect(Pd.zonePlace(slot, 'full')).toEqual(slot);
+  });
+
+  it('Umstieg: Notiz- und Sheet-Tabs werden ein Pad je Portal; leeres Portal behält einen leeren Tab', () => {
+    let ws = start();
+    const v = No.createView(ws, 'kanban', 'Board', { makeId: make });
+    ws = v.ws;
+    const p = ws.panels[0];
+    ws = { ...ws, panels: [{ ...p, tabs: [{ id: 't1', note: 'a' }, { id: 't2', view: v.id }, { id: 't3', note: 'b' }], activeTab: 't2' }, ...ws.panels.slice(1)] };
+    const m = Pd.migrateNoteTabs(ws, { makeId: make });
+    expect(m.pads).toBe(1);
+    const pad = Pd.padsOf(m.ws)[0];
+    expect(pad.from).toBe(p.id);
+    expect(pad.sheets).toHaveLength(2);
+    const block = No.viewById(m.ws, pad.sheets[0])!;
+    expect(block.name).toBe(`Notizblock (${p.name})`);
+    expect(block.ids).toEqual(['a', 'b']);
+    expect(pad.sheets[1]).toBe(v.id);
+    expect(m.ws.panels[0].tabs).toEqual([{ id: 't1' }]);
+    expect(m.ws.panels[0].activeTab).toBe('t1');
+    // bleibt nach Speichern erhalten
+    expect(parseWorkspace(JSON.parse(JSON.stringify(m.ws)))!.pads).toEqual(m.ws.pads);
+    // zweiter Lauf ändert nichts
+    expect(Pd.migrateNoteTabs(m.ws).pads).toBe(0);
   });
 });

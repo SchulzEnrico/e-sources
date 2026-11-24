@@ -14,6 +14,7 @@ import { NOTE_TEXT } from '../workspace/terms';
 import { Icon } from './Icon';
 import { Wheel } from './RemindPicker';
 import type { IconName } from '../workspace/icons';
+import { joinSpeech } from '../workspace/voice';
 
 type Block = ND.Block;
 interface Caret {
@@ -254,6 +255,12 @@ const asPara = (b: Block): Block[] => (b.k === 'code' ? b.text.split('\n').map((
 type Tool = 'task' | 'li' | 'h' | 'bold';
 /** V71 (F-215): Formatieren von außen, z. B. per Wischen am Knopf der Fußleiste – Ereignis am Editor-Element */
 export const FMT_EVENT = 'esource:fmt';
+/** V77 (F-215 Schritt 3): Sprachnotiz – Text an der Schreibmarke einfügen (detail.after = Stand danach) bzw. das
+ *  Einfügen zurücknehmen, solange seither nichts geändert wurde (detail.ok = geklappt) */
+export const INSERT_EVENT = 'esource:insert';
+export const UNINSERT_EVENT = 'esource:uninsert';
+export interface InsertDetail { text: string; after?: string }
+export interface UninsertDetail { after: string; ok?: boolean }
 export type FmtTool = 'task' | 'li' | 'bold' | 'h1' | 'h2' | 'h3' | NoteTpl;
 /** V71 (Wunsch Enrico): Vorlagen beim Anlegen per Wischen – alle beginnen mit einem Titel als H1 */
 export type NoteTpl = 'tpl-note' | 'tpl-todo' | 'tpl-list' | 'tpl-remind';
@@ -716,6 +723,62 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     const on = (e: Event) => fmtRef.current((e as CustomEvent<FmtTool>).detail);
     el.addEventListener(FMT_EVENT, on);
     return () => el.removeEventListener(FMT_EVENT, on);
+  }, []);
+
+  // V77: Sprachnotiz übernehmen – an der Schreibmarke (sonst am Ende), Leerzeichen und Satzanfang wie beim Sprechen
+  const insRef = useRef<(d: InsertDetail) => void>(() => {});
+  insRef.current = (d) => {
+    const el = root.current!;
+    const had = saved.current && el.contains(saved.current.startContainer);
+    restore();
+    const sel = document.getSelection();
+    if (!sel) return;
+    if (!had || !sel.rangeCount || !el.contains(sel.anchorNode)) {
+      const bs = blockEls(el);
+      const b = bs[bs.length - 1];
+      const r = document.createRange();
+      if (b) {
+        r.selectNodeContents(b);
+        r.collapse(false);
+      } else r.setStart(el, el.childNodes.length);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+    const c = caretOf(el);
+    const bel = c ? blockEls(el)[c.i] : null;
+    let prev = '';
+    if (bel && sel.rangeCount) {
+      const r = document.createRange();
+      r.selectNodeContents(bel);
+      r.setEnd(sel.getRangeAt(0).startContainer, sel.getRangeAt(0).startOffset);
+      prev = clean(r.toString());
+    }
+    const joined = joinSpeech(prev, d.text);
+    let piece = joined.slice(prev.replace(/\s+$/, '').length);
+    if (/\s$/.test(prev)) piece = piece.replace(/^\s+/, '');
+    if (!piece) return;
+    remember();
+    document.execCommand('insertText', false, piece);
+    d.after = last.current ?? '';
+  };
+  // V77: „Als neue Notiz lösen“ – nur, wenn seither nichts geändert wurde
+  const unRef = useRef<(d: UninsertDetail) => void>(() => {});
+  unRef.current = (d) => {
+    if ((last.current ?? '') !== d.after) return;
+    undo(true);
+    d.ok = true;
+  };
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const ins = (e: Event) => insRef.current((e as CustomEvent<InsertDetail>).detail);
+    const un = (e: Event) => unRef.current((e as CustomEvent<UninsertDetail>).detail);
+    el.addEventListener(INSERT_EVENT, ins);
+    el.addEventListener(UNINSERT_EVENT, un);
+    return () => {
+      el.removeEventListener(INSERT_EVENT, ins);
+      el.removeEventListener(UNINSERT_EVENT, un);
+    };
   }, []);
 
   const onKeyDown = (e: RKeyboardEvent<HTMLDivElement>) => {

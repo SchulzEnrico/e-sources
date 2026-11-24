@@ -10,12 +10,13 @@ import type { NoteViewKind, Pad as PadT, PadPlace, Workspace } from '../workspac
 import * as No from '../workspace/notes';
 import { PAD_MIN } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
-import { DRAFT_TEXT, FOOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
+import { DRAFT_TEXT, FOOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab, freshNotes } from './NoteTab';
-import { type FootItem, PadFooter } from './PadFooter';
+import { type FootItem, PadFooter, type VoiceProps } from './PadFooter';
+import type { VoiceTarget } from '../workspace/voice';
 import type { SwipeDir } from '../workspace/footArc';
-import { FMT_EVENT, type FmtTool, type NoteTpl } from './NoteEditor';
+import { FMT_EVENT, type FmtTool, INSERT_EVENT, type InsertDetail, type NoteTpl, UNINSERT_EVENT, type UninsertDetail } from './NoteEditor';
 
 /** V71: Wischrichtung → Werkzeug im Editor */
 const FMT_OF: Record<SwipeDir, FmtTool> = { left: 'li', right: 'task', up: 'h2', down: 'bold' };
@@ -28,7 +29,7 @@ import { Icon } from './Icon';
 import { RemindAlarm, useReminders } from './RemindAlarm';
 import { remindLabel } from '../workspace/remind';
 import { useDisplay } from './SiteIcon';
-import { KNOB_OP_MIN, OPACITY_MIN, OPACITY_STEP, setKnobOpacity, setKnobX, setPadOpacity } from '../workspace/display';
+import { KNOB_OP_MIN, OPACITY_MIN, OPACITY_STEP, setKnobOpacity, setKnobX, setPadOpacity, setVoice } from '../workspace/display';
 import type { IconName } from '../workspace/icons';
 
 const KIND_ICON: Record<NoteViewKind, IconName> = { block: 'note', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix' };
@@ -82,7 +83,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   const footItems: FootItem[] = [
     { id: 'recent', label: FOOT_TEXT.recent, icon: 'recent', run: () => setRecentOpen(true) },
     { id: 'new', label: FOOT_TEXT.newNote, icon: 'plus', run: isBlock ? () => send('new') : undefined },
-    { id: 'voice', label: FOOT_TEXT.voice, icon: 'mic' },
+    { id: 'voice', label: FOOT_TEXT.voice, icon: 'mic', run: isBlock ? () => voiceStart.current?.() : undefined },
     { id: 'task', label: FOOT_TEXT.newTask, icon: 'task' },
     { id: 'search', label: FOOT_TEXT.search, icon: 'search' },
     { id: 'share', label: FOOT_TEXT.share, icon: 'share' },
@@ -119,6 +120,55 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     };
     requestAnimationFrame(wait);
   };
+  // F-215 Schritt 3 (V77): Sprachnotiz übernehmen – als Entwurf in die offene Notiz (an der Schreibmarke) oder neue Notiz
+  const voiceStart = useRef<(() => void) | null>(null);
+  /** Auf den Editor einer (neuen) Notiz warten – wie beim Wischen, höchstens ~1 s */
+  const nextEditor = (was: HTMLElement | null | undefined) =>
+    new Promise<HTMLElement | null>((done) => {
+      let tries = 60;
+      const wait = () => {
+        const el = editor();
+        if (el && el !== was) return done(el);
+        if (--tries > 0) requestAnimationFrame(wait);
+        else done(null);
+      };
+      requestAnimationFrame(wait);
+    });
+  const insertInto = (el: HTMLElement, text: string) => {
+    const d: InsertDetail = { text };
+    el.dispatchEvent(new CustomEvent(INSERT_EVENT, { detail: d }));
+    return d.after;
+  };
+  const toNewNote = async (text: string) => {
+    const was = editor();
+    send('new');
+    const el = await nextEditor(was);
+    if (!el) return false;
+    insertInto(el, text);
+    return true;
+  };
+  const voiceCommit = async (text: string, target: VoiceTarget) => {
+    if (!isBlock) {
+      say(VOICE_TEXT.noBlock);
+      return null;
+    }
+    const el = editor();
+    if (target === 'new' || !el) {
+      if (!(await toNewNote(text))) say(FOOT_TEXT.fmtNoEdit);
+      return null;
+    }
+    const after = insertInto(el, text);
+    if (after === undefined) return null;
+    // „Als neue Notiz lösen“: Einfügen zurücknehmen (nur ohne spätere Änderung), dann als neue Notiz anlegen
+    return async () => {
+      const now = editor();
+      if (!now) return false;
+      const d: UninsertDetail = { after };
+      now.dispatchEvent(new CustomEvent(UNINSERT_EVENT, { detail: d }));
+      return d.ok ? toNewNote(text) : false;
+    };
+  };
+  const voice: VoiceProps = { on: display.voice, onEnable: () => setVoice(true), noteOpen: () => !!editor(), commit: voiceCommit, startRef: voiceStart };
   // F-215 (V70): Zuletzt genutzt – Pad merkt sich geöffnete Sheets und Notes (gespeichert, je Pad)
   const [recentOpen, setRecentOpen] = useState(false);
   useEffect(() => {
@@ -238,6 +288,14 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
       e.preventDefault();
       e.stopPropagation();
       home();
+      return;
+    }
+    // F-215 Schritt 3 (V77): Alt + M = Sprachnotiz, festgestellt (fängt auch „µ“ auf dem Mac ab)
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyM') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isBlock) voiceStart.current?.();
+      else say(VOICE_TEXT.noBlock);
       return;
     }
     // Strg + 1…9: Sheet wählen
@@ -433,6 +491,10 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               <Item icon="close" hint={PAD_TEXT.closePadHint} onClick={() => (close(), closePad())}>
                 {PAD_TEXT.closePad}
               </Item>
+              {/* V77: Sprachnotiz je Gerät – ab Werk aus, nur lokal */}
+              <Item icon="mic" checked={display.voice} hint={VOICE_TEXT.settingHint} onClick={() => setVoice(!display.voice)}>
+                {VOICE_TEXT.setting}
+              </Item>
               <OpacitySlider label={PAD_TEXT.opacityPads} hint={PAD_TEXT.opacityHint} value={display.padOpacity} onChange={setPadOpacity} />
               {/* V75 (F-215 A2): Steuerknopf über der Bildschirmtastatur – je Gerät */}
               <OpacitySlider label={PAD_TEXT.knobOpacity} hint={PAD_TEXT.knobOpacityHint} value={display.knobOpacity} min={KNOB_OP_MIN} onChange={setKnobOpacity} />
@@ -488,7 +550,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           )}
         </div>
       )}
-      <PadFooter items={footItems} onHome={home} say={say} onSwipe={swipe} swipeLabel={swipeLabel} knob={{ bottom: focusIn ? kbBottom : null, opacity: display.knobOpacity, x: display.knobX, onX: setKnobX }} />
+      <PadFooter items={footItems} onHome={home} say={say} onSwipe={swipe} swipeLabel={swipeLabel} voice={voice} knob={{ bottom: focusIn ? kbBottom : null, opacity: display.knobOpacity, x: display.knobX, onX: setKnobX }} />
       {(['n', 's', 'e', 'w', 'se'] as Edge[]).map((edge) => (
         <div key={edge} className={`pad__grip pad__grip--${edge}`} aria-hidden="true" title={PAD_TEXT.resize} onPointerDown={(e) => gesture(e, edge)} />
       ))}

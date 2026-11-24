@@ -1127,7 +1127,7 @@ export const DESK_MODE_TEXT = {
 export const FOOT_TEXT = {
   knobMoved: (v: number) => `Steuerknopf liegt jetzt ${v < 34 ? 'links' : v > 66 ? 'rechts' : 'in der Mitte'}.`,
   home: 'Home',
-  homeHint: 'Tippen: zur Liste · Halten oder Rechtsklick: Auswahl im Halbkreis · Wischen in der offenen Notiz formatiert die Zeile: ← Liste, → Aufgabe, ↑ Überschrift H2, ↓ fett, noch einmal = wieder Text; ohne offene Notiz legt Wischen an: ↑ Neue Notiz, → Neue To-do-Liste, ← Neue Liste, ↓ Neue Erinnerung (Tastatur: Enter = Home, Pfeil hoch oder Leertaste halten = Auswahl, Alt+H = Home; formatieren mit der Leiste in der Notiz)',
+  homeHint: 'Tippen: zur Liste · Halten oder Rechtsklick: Auswahl im Halbkreis (auf „Sprachnotiz“ kurz verweilen = Aufnahme beim Halten, ↑ feststellen, ← abbrechen) · Wischen in der offenen Notiz formatiert die Zeile: ← Liste, → Aufgabe, ↑ Überschrift H2, ↓ fett, noch einmal = wieder Text; ohne offene Notiz legt Wischen an: ↑ Neue Notiz, → Neue To-do-Liste, ← Neue Liste, ↓ Neue Erinnerung (Tastatur: Enter = Home, Pfeil hoch oder Leertaste halten = Auswahl, Alt+H = Home, Alt+M = Sprachnotiz; formatieren mit der Leiste in der Notiz)',
   menu: 'Auswahl am Home-Knopf',
   menuHint: 'Pfeil links/rechts wählen, Enter ausführen, Esc schließen',
   recent: 'Zuletzt genutzt',
@@ -1152,6 +1152,43 @@ export const FOOT_TEXT = {
   recentList: 'Zuletzt genutzt in diesem Pad',
   recentNone: 'In diesem Pad noch nichts anderes genutzt.',
   recentHint: 'Pfeil hoch/runter wählen, Enter öffnen, Esc schließen',
+};
+
+/** F-215 Schritt 3 (V77): Sprachnotiz – Anzeige am Knopf, Einschalten, Hinweise */
+export const VOICE_TEXT = {
+  ask: 'Sprache einschalten? Läuft nur lokal auf diesem Gerät, kein Ton verlässt es.',
+  enable: 'Einschalten',
+  notNow: 'Nicht jetzt',
+  enabled: 'Sprache eingeschaltet',
+  setting: 'Sprachnotiz (nur lokal)',
+  settingHint: 'Spracherkennung auf diesem Gerät – kein Ton verlässt es. Ab Werk aus, gilt je Gerät.',
+  rec: 'Aufnahme läuft',
+  locked: 'Aufnahme festgestellt',
+  canceled: 'Aufnahme abgebrochen',
+  done: 'Fertig',
+  cancel: 'Abbrechen',
+  lockHint: '↑ Feststellen',
+  cancelHint: '← Abbrechen',
+  releaseHint: 'Loslassen übernimmt',
+  listening: 'Sprich jetzt …',
+  target: 'Ziel der Sprachnotiz',
+  here: 'In diese Notiz',
+  new: 'Neue Notiz',
+  taken: 'Text übernommen',
+  takenNew: 'Text als neue Notiz übernommen',
+  nothing: 'Nichts erkannt – nichts übernommen',
+  split: 'Als neue Notiz lösen',
+  splitHint: 'Text aus dieser Notiz nehmen und als eigene neue Notiz anlegen',
+  splitDone: 'Als neue Notiz gelöst',
+  splitGone: 'Die Notiz wurde seither geändert – Lösen geht nicht mehr',
+  install: 'Sprachpaket wird geladen – das geschieht einmal, danach läuft alles lokal.',
+  installed: 'Sprachpaket geladen – jetzt noch einmal starten.',
+  wait: 'Sprachpaket wird gerade geladen – gleich noch einmal versuchen.',
+  fallback: 'Sprache ist in diesem Browser nicht lokal verfügbar. Tipp: Diktat des Systems (macOS: zweimal Fn)',
+  denied: 'Mikrofon ist für diese Seite nicht freigegeben – in den Website-Einstellungen des Browsers änderbar.',
+  failed: 'Spracherkennung hat abgebrochen – bitte noch einmal versuchen.',
+  noBlock: 'Sprachnotiz geht in einem Notizblock',
+  close: 'Hinweis schließen',
 };
 
 /** F-215 (V72, Variante A): Erinnerung – Chips „Wann?“ und „Wo?“ über der Note */

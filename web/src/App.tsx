@@ -90,6 +90,9 @@ import { Icon } from './components/Icon';
 import { SyncDialog } from './components/Sync';
 import { restoreBackup, useGistState, useGistSync } from './workspace/useGistSync';
 import { FLASH_EVENT, type FlashRequest } from './workspace/flash';
+import { sweepClips } from './workspace/audioStore';
+import { sweepPics } from './workspace/imageStore';
+import { audioRefs, imageRefs } from './workspace/notes';
 
 /** Knopf im Hinweis unten (F-162, F-163). */
 interface FlashAction {
@@ -3656,6 +3659,13 @@ const HINT_SHORT = 2000;
 export default function App(props: { sent?: string }) {
   const [ws, dispatch] = useWorkspace();
   useGistSync(ws, dispatch);
+  // F-215 (V79, T8): Töne ohne Notiz endgültig entfernen – einmal nach dem Start, wenn der Abgleich durch ist
+  const wsNow = useRef(ws);
+  wsNow.current = ws;
+  useEffect(() => {
+    const t = window.setTimeout(() => (void sweepClips(audioRefs(wsNow.current)), void sweepPics(imageRefs(wsNow.current))), 30000);
+    return () => window.clearTimeout(t);
+  }, []);
   const [desk, setDesk] = useState<{ win: string; switched: boolean; said: string; focus?: string }>(() => ({ win: winFromSearch(window.location.search), switched: false, said: '' }));
   const [parked, setParked] = useState(false);
   const onSwitch = useCallback((target: string, said = '', focus?: string) => {

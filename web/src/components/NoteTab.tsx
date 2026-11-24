@@ -11,6 +11,7 @@ import { DRAFT_TEXT, NOTE_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
 import { flash } from '../workspace/flash';
 import { NoteEditor } from './NoteEditor';
 import { RemindChips } from './RemindChips';
+import { AudioChips } from './AudioChips';
 import { recentPlaces } from '../workspace/remind';
 import { Icon } from './Icon';
 import type { IconName } from '../workspace/icons';
@@ -235,6 +236,22 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
         places={recentPlaces(ws)}
         onRemind={(remind) => edit({ remind })}
         onPlace={(place) => edit({ place })}
+      />
+      {/* F-215 (V79): Tonaufnahmen der Sprachnotiz – je Aufnahme ein Chip über dem Text (T3, T4); Ton gehört
+          nicht zum Entwurf, Löschen wirkt sofort, mit „Rückgängig“ am Ort */}
+      <AudioChips
+        clips={No.audioOf(raw ?? n)}
+        onRemove={(ref) => raw && dispatch({ type: 'noteEdit', id: raw.id, patch: { attach: No.dropAudio(raw, ref) }, by })}
+        onUndo={(a, index) => {
+          const cur = No.noteById(ws, noteId);
+          if (!cur) return;
+          const list = [...(cur.attach ?? [])];
+          const audios = list.filter((x) => x.kind === 'audio');
+          const before = audios[index];
+          const at = before ? list.indexOf(before) : list.length;
+          list.splice(at, 0, a);
+          dispatch({ type: 'noteEdit', id: cur.id, patch: { attach: list }, by });
+        }}
       />
       <NoteEditor key={n.id} text={n.text} label={NOTE_TEXT.text} autoFocus={!n.text && !n.title && (freshNotes.delete(n.id) || !coarsePointer())} onChange={(text) => edit({ text })} />
       {/* V74 (Wunsch Enrico): unter dem Textfeld nur noch der Zustand (Leiste unten); angelegt/geändert/von

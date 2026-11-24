@@ -10,10 +10,14 @@ import type { NoteViewKind, Pad as PadT, PadPlace, Workspace } from '../workspac
 import * as No from '../workspace/notes';
 import { PAD_MIN } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
-import { DRAFT_TEXT, FOOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { NOTICE_MS } from '../workspace/flash';
+import { AUDIO_TEXT, DRAFT_TEXT, FOOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab, freshNotes } from './NoteTab';
 import { type FootItem, PadFooter, type VoiceProps } from './PadFooter';
+import type { AudioTake } from './useVoice';
+import { clipsChanged, putClip } from '../workspace/audioStore';
+import { deviceLabel } from '../workspace/transfer';
 import type { VoiceTarget } from '../workspace/voice';
 import type { SwipeDir } from '../workspace/footArc';
 import { FMT_EVENT, type FmtTool, INSERT_EVENT, type InsertDetail, type NoteTpl, UNINSERT_EVENT, type UninsertDetail } from './NoteEditor';
@@ -148,33 +152,83 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     el.dispatchEvent(new CustomEvent(INSERT_EVENT, { detail: d }));
     return d.after;
   };
+  // V79: neueste Arbeitsfläche und offene Notiz für spätere Schritte (Lösen, Ton anhängen nach dem Warten)
+  const wsRef = useRef(ws);
+  wsRef.current = ws;
+  const curRef = useRef(curNote);
+  curRef.current = curNote;
+  const by = ws.profile?.name || undefined;
+  /** Id der Notiz, deren Editor gerade offen ist (nach dem Anlegen erst im nächsten Bild bekannt) */
+  const openNoteId = () =>
+    new Promise<string | undefined>((done) => requestAnimationFrame(() => done(curRef.current)));
+  /** V79 (T1): Ton auf diesem Gerät speichern und an die Notiz hängen (am Ende, T4) */
+  const attachAudio = async (noteId: string | undefined, take: AudioTake | null) => {
+    if (!noteId || !take) return null;
+    const ref = newId();
+    const atMs = Date.now() - Math.round(take.dur * 1000);
+    if (!(await putClip({ id: ref, blob: take.blob, mime: take.mime, dur: take.dur, at: atMs }))) {
+      notify(VOICE_TEXT.saveFail);
+      return null;
+    }
+    const n = No.noteById(wsRef.current, noteId);
+    if (!n) return null;
+    const a = { kind: 'audio' as const, ref, dur: Math.round(take.dur * 10) / 10, at: new Date(atMs).toISOString(), dev: deviceLabel(navigator.userAgent, navigator.maxTouchPoints > 1), mime: take.mime };
+    dispatch({ type: 'noteEdit', id: noteId, patch: { attach: No.addAudio(n, a) }, by });
+    clipsChanged();
+    return a;
+  };
+  /** Neue Notiz aus der Sprache: Herkunft „Sprachnotiz“ (T10); nur Ton = Tonnotiz mit Titel (T6) */
   const toNewNote = async (text: string) => {
     const was = editor();
     send('new');
     const el = await nextEditor(was);
-    if (!el) return false;
-    insertInto(el, text);
-    return true;
+    if (!el) return undefined;
+    if (text) insertInto(el, text);
+    const id = await openNoteId();
+    if (id) {
+      dispatch({ type: 'noteEdit', id, patch: { origin: { via: 'voice', at: new Date().toISOString(), ...(by ? { by } : {}) } }, by });
+      if (!text) dispatch({ type: 'noteDraft', id, patch: { title: `${VOICE_TEXT.toneTitle} ${remindLabel(new Date().toISOString())}` }, by });
+    }
+    return id;
   };
-  const voiceCommit = async (text: string, target: VoiceTarget) => {
+  const voiceCommit = async (text: string, target: VoiceTarget, audio: AudioTake | null) => {
     if (!isBlock) {
       say(VOICE_TEXT.noBlock);
       return null;
     }
     const el = editor();
     if (target === 'new' || !el) {
-      if (!(await toNewNote(text))) say(FOOT_TEXT.fmtNoEdit);
+      const id = await toNewNote(text);
+      if (!id) say(FOOT_TEXT.fmtNoEdit);
+      else await attachAudio(id, audio);
       return null;
     }
-    const after = insertInto(el, text);
+    const here = curRef.current;
+    const after = text ? insertInto(el, text) : '';
     if (after === undefined) return null;
-    // „Als neue Notiz lösen“: Einfügen zurücknehmen (nur ohne spätere Änderung), dann als neue Notiz anlegen
+    const clip = await attachAudio(here, audio);
+    // „Als neue Notiz lösen“: Einfügen zurücknehmen (nur ohne spätere Änderung), dann als neue Notiz anlegen;
+    // V79 (T9): der Ton wandert mit
     return async () => {
       const now = editor();
       if (!now) return false;
-      const d: UninsertDetail = { after };
-      now.dispatchEvent(new CustomEvent(UNINSERT_EVENT, { detail: d }));
-      return d.ok ? toNewNote(text) : false;
+      if (text) {
+        const d: UninsertDetail = { after };
+        now.dispatchEvent(new CustomEvent(UNINSERT_EVENT, { detail: d }));
+        if (!d.ok) return false;
+      }
+      if (clip && here) {
+        const old = No.noteById(wsRef.current, here);
+        if (old) dispatch({ type: 'noteEdit', id: here, patch: { attach: No.dropAudio(old, clip.ref) }, by });
+      }
+      const id = await toNewNote(text);
+      if (!id) return false;
+      if (clip) {
+        const n = No.noteById(wsRef.current, id);
+        dispatch({ type: 'noteEdit', id, patch: { attach: No.addAudio(n ?? {}, clip) }, by });
+        clipsChanged();
+      }
+      return true;
     };
   };
   const voice: VoiceProps = { on: display.voice, onEnable: () => setVoice(true), noteOpen: () => !!editor(), commit: voiceCommit, startRef: voiceStart };
@@ -668,7 +722,8 @@ function NoteBlock(props: {
   const notice = (m: Notice) => {
     window.clearTimeout(timer.current);
     setMsg(m);
-    timer.current = window.setTimeout(() => setMsg(null), m.ms ?? 5000);
+    // V79 (Wunsch Enrico): alle Meldungen im Notizblock höchstens 2 Sekunden
+    timer.current = window.setTimeout(() => setMsg(null), Math.min(m.ms ?? NOTICE_MS, NOTICE_MS));
   };
   useEffect(() => () => window.clearTimeout(timer.current), []);
   const runUndo = msg?.undo ? () => (setMsg(null), msg.undo!()) : undefined;
@@ -751,19 +806,31 @@ function NoteBlock(props: {
               const n = No.shownNote(raw);
               const t = No.titleOf(n) || NOTE_TEXT.untitled;
               const draft = No.hasDraft(raw);
+              // V79 (T10/T11): Sprachnotiz bzw. Notiz mit Ton – eigener Farbton und Symbol, nie Farbe allein
+              const tone = No.hasAudio(raw);
+              const spoken = tone || No.isVoiceNote(raw);
+              const mark = tone ? AUDIO_TEXT.listTone : spoken ? AUDIO_TEXT.listVoice : '';
               return (
                 <li key={n.id}>
                   <button
                     type="button"
                     data-note={n.id}
-                    className={`nblock__item${n.id === open ? ' is-on' : ''}${No.isFinished(n.state) ? ' is-done' : ''}${draft ? ' is-draft' : ''}`}
+                    className={`nblock__item${n.id === open ? ' is-on' : ''}${No.isFinished(n.state) ? ' is-done' : ''}${draft ? ' is-draft' : ''}${spoken ? ' is-voice' : ''}${tone ? ' has-tone' : ''}`}
                     aria-current={n.id === open ? 'true' : undefined}
-                    title={t}
+                    title={mark ? `${t} – ${tone && No.isVoiceNote(raw) ? `${AUDIO_TEXT.listVoice} ${mark}` : mark}` : t}
                     onClick={() => pick(n.id)}
                   >
                     {/* V69: Kürzel für die schmale Randleiste (Liste verschwindet nie ganz) */}
                     <span className="nblock__mono" aria-hidden="true">{t.trim().charAt(0).toUpperCase() || '·'}</span>
-                    <span className="nblock__title">{t}</span>
+                    <span className="nblock__title">
+                      {spoken && (
+                        <span className="nblock__voice" aria-hidden="true">
+                          <Icon name={tone ? 'micWave' : 'mic'} size={13} />
+                        </span>
+                      )}
+                      {t}
+                      {mark && <span className="sr-only">, {tone && No.isVoiceNote(raw) ? `${AUDIO_TEXT.listVoice} ${mark}` : mark}</span>}
+                    </span>
                     <span className="nblock__state">
                       {draft && <span className="nblock__draft">{DRAFT_TEXT.listDraft}</span>}
                       {NOTE_TEXT.states[No.stateOf(ws, n).state]}

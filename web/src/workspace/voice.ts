@@ -83,3 +83,41 @@ export function rmsOf(buf: ArrayLike<number>): number {
   for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
   return Math.sqrt(s / buf.length);
 }
+
+/**
+ * F-215 (V79, Entscheidungen Enrico T1–T11): Tonaufnahme zur Sprachnotiz – immer mit aufgenommen (T2), höchstens
+ * 15 Minuten (T5), liegt nur auf diesem Gerät (T1, IndexedDB). In Safari/Firefox ohne lokale Erkennung: Tonnotiz (T6).
+ */
+export const AUDIO_MAX_MS = 15 * 60 * 1000;
+/** Bitrate der Aufnahme (Sprache) – etwa 250 KB je Minute */
+export const AUDIO_BPS = 32000;
+
+/** Bevorzugtes Format, das der Browser aufnehmen kann (Chrome/Firefox: WebM/Opus, Safari: MP4/AAC); '' = Standard */
+export function audioMime(can: (t: string) => boolean): string {
+  for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/ogg;codecs=opus']) {
+    try {
+      if (can(t)) return t;
+    } catch {
+      /* nächstes Format */
+    }
+  }
+  return '';
+}
+
+/** Länge als m:ss bzw. h:mm:ss */
+export function fmtDur(sec: number): string {
+  const s = Math.max(0, Math.round(sec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${r}` : `${m}:${r}`;
+}
+
+/** Dateiname für „Als Datei sichern“: Sprachnotiz 2026-11-24 19-50.webm */
+export function audioFileName(atIso: string, mime: string): string {
+  const d = new Date(atIso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  const stamp = Number.isNaN(d.getTime()) ? 'Aufnahme' : `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}-${p(d.getMinutes())}`;
+  const ext = /mp4|aac|m4a/.test(mime) ? 'm4a' : /ogg/.test(mime) ? 'ogg' : 'webm';
+  return `Sprachnotiz ${stamp}.${ext}`;
+}

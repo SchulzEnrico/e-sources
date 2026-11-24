@@ -7301,3 +7301,68 @@ h3.cases__name { font-size: 1.05em; }
   .padvoice__meter { border: 1px solid CanvasText; } .padvoice__meterfill { background: Highlight; forced-color-adjust: none; }
   .pad .padvoice .padvoice__seg.is-on, .pad .padvoice .padvoice__btn.is-main { background: Highlight; color: HighlightText; }
 }
+
+/* ---------------------------------------------------------------- F-215 (V79): Tonaufnahme
+   T10/T11 – nach Prüfung Enrico (V79: „Das Rot gefällt mir nicht“): Sprachnotizen viel dunkler im Grau, nur das
+   Symbol in gedämpftem Rot. Farbe nie allein (NF-03): Symbol + Text für Bildschirmleser. */
+.nblock__item { --voice-rgb: 178 58 62; }
+.pad .nblock__item.is-voice {
+  background: linear-gradient(145deg, rgba(0, 0, 0, 0.24), rgba(0, 0, 0, 0.36)); /* V79 (Enrico): etwas heller, damit die Kante unten rechts sichtbar bleibt */
+}
+.pad .nblock__item.is-voice:hover {
+  background: linear-gradient(145deg, rgba(0, 0, 0, 0.17), rgba(0, 0, 0, 0.29));
+}
+.pad .nblock__item.is-voice.is-on {
+  /* V79 (Enrico: „wenn sie aktiv ist, weiterhin grau“): aktiv wie jede andere Notiz – Akzentfarbe */
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0.36));
+}
+.nblock__voice {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 5px;
+  color: rgb(var(--voice-rgb));
+}
+.nblock__voice .icon { display: inline-block; }
+/* schmale Randleiste: Kürzel im selben gedämpften Rot */
+.nblock__item.is-voice .nblock__mono { color: rgb(var(--voice-rgb)); }
+@media (forced-colors: active) {
+  .nblock__voice { color: Highlight; }
+}
+
+/* Chips der Tonaufnahmen über dem Text (T3, T4) – dunkel, nur das Abspielzeichen in gedämpftem Rot */
+.audio { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 0 0 6px; align-items: center; }
+.audio__slot { display: inline-flex; align-items: center; gap: 0; }
+.audio__chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 4px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(var(--hi), 0.14);
+  background: rgba(0, 0, 0, 0.32);
+  color: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.audio__chip .icon { color: rgb(178, 58, 62); }
+.audio__chip:hover { background: rgba(0, 0, 0, 0.24); }
+.audio__chip.is-on { background: rgba(0, 0, 0, 0.44); border-color: rgba(178, 58, 62, 0.7); }
+.audio__chip:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 2px; }
+.audio__chip:disabled { opacity: 0.6; }
+.audio__at { opacity: 0.7; font-size: 13px; }
+.audio__chip.is-away { border-style: dashed; border-color: rgba(var(--hi), 0.3); background: transparent; opacity: 0.6; cursor: default; }
+.audio__chip.is-away .icon { color: inherit; }
+.audio__gone { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.audio__undo { min-height: 32px; padding: 2px 10px; border-radius: 16px; }
+@media (forced-colors: active) {
+  .audio__chip { border: 1px solid ButtonText; }
+  .audio__chip.is-on { outline: 2px solid Highlight; }
+}
+
+/* Anzeige der Aufnahme: „● Ton wird gespeichert“ (T2) */
+.padvoice__tape { margin-left: auto; font-weight: 500; font-size: 12px; color: #ff8a8e; white-space: nowrap; }
+@media (forced-colors: active) { .padvoice__tape { color: CanvasText; } }
+
+/* F-215 (V79, B1): Bild im Text der Notiz – nicht bearbeitbarer Block, volle Breite, abgerundet */
+.nedit__img { margin: 6px 0; user-select: none; }
+.nedit__img img { display: block; max-width: 100%; max-height: 60vh; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+.nedit__img.is-away img { display: none; }
+.nedit__img figcaption { font-size: 13px; opacity: 0.7; padding: 10px 12px; border: 1px dashed rgba(var(--hi), 0.35); border-radius: 8px; }

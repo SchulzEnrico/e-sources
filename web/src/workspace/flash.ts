@@ -13,3 +13,6 @@ export interface FlashRequest {
 export function flash(r: FlashRequest): void {
   window.dispatchEvent(new CustomEvent<FlashRequest>(FLASH_EVENT, { detail: r }));
 }
+
+/** V79 (Wunsch Enrico): Meldungen am Ort – z. B. „gelöscht · Rückgängig“ – stehen nur 2 Sekunden. */
+export const NOTICE_MS = 2000;

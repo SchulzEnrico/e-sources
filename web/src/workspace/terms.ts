@@ -971,6 +971,9 @@ export const SYNC_TEXT = {
 
 /** F-206: Texte rund um Notizen (Notiz im Tab). */
 export const NOTE_TEXT = {
+  // V79 (F-215 B1): Bild im Text
+  imgAlt: 'Bild',
+  imgAway: 'Bild liegt auf einem anderen Gerät',
   states: { open: 'offen', waiting: 'wartet', doing: 'in Arbeit', review: 'in Prüfung', done: 'erledigt', archived: 'archiviert' } as Record<string, string>,
   newNote: 'Neue Notiz',
   untitled: 'Neue Notiz', // V76 (Enrico): statt „Notiz ohne Titel“
@@ -1166,12 +1169,12 @@ export const FOOT_TEXT = {
 
 /** F-215 Schritt 3 (V77): Sprachnotiz – Anzeige am Knopf, Einschalten, Hinweise */
 export const VOICE_TEXT = {
-  ask: 'Sprache einschalten? Läuft nur lokal auf diesem Gerät, kein Ton verlässt es.',
+  ask: 'Sprache einschalten? Läuft nur lokal auf diesem Gerät – Text und Ton bleiben hier.',
   enable: 'Einschalten',
   notNow: 'Nicht jetzt',
   enabled: 'Sprache eingeschaltet',
   setting: 'Sprachnotiz (nur lokal)',
-  settingHint: 'Spracherkennung auf diesem Gerät – kein Ton verlässt es. Ab Werk aus, gilt je Gerät.',
+  settingHint: 'Spracherkennung auf diesem Gerät; der Ton wird mit gespeichert und bleibt auf diesem Gerät. Ab Werk aus, gilt je Gerät.',
   rec: 'Aufnahme läuft',
   locked: 'Aufnahme festgestellt',
   canceled: 'Aufnahme abgebrochen',
@@ -1200,6 +1203,36 @@ export const VOICE_TEXT = {
   failed: 'Spracherkennung hat abgebrochen – bitte noch einmal versuchen.',
   noBlock: 'Sprachnotiz geht in einem Notizblock',
   close: 'Hinweis schließen',
+  // V79 (Claude Doc Tonaufnahme, T1–T11)
+  taping: '● Ton wird gespeichert',
+  toneRec: 'Tonnotiz läuft',
+  toneOnly: 'Nur Ton – Text gibt es nur in Chrome/Edge',
+  takenTone: 'Text und Ton übernommen',
+  takenNewTone: 'Text und Ton als neue Notiz übernommen',
+  toneHere: 'Ton an diese Notiz gehängt',
+  toneNew: 'Tonnotiz angelegt',
+  toneTitle: 'Tonnotiz',
+  limit: '15 Minuten erreicht – Aufnahme beendet.',
+  saveFail: 'Ton konnte auf diesem Gerät nicht gespeichert werden – der Text ist übernommen.',
+};
+
+/** F-215 (V79): Tonaufnahme an der Notiz – Chips über dem Text */
+export const AUDIO_TEXT = {
+  group: 'Tonaufnahmen',
+  play: (d: string, at: string) => `Ton abspielen (${d}, aufgenommen ${at})`,
+  stop: 'Wiedergabe anhalten',
+  save: 'Als Datei sichern',
+  saveHint: 'Ton als Datei auf diesem Gerät sichern (z. B. in „Dateien“ oder iCloud)',
+  remove: 'Ton löschen',
+  removed: 'Ton gelöscht',
+  undo: 'Rückgängig',
+  elsewhere: (dev: string) => `Ton liegt auf ‚${dev}‘`,
+  elsewhereHint: 'Der Ton liegt nur auf dem Gerät, auf dem er aufgenommen wurde. Abgleich folgt mit dem eigenen Server.',
+  missing: 'Ton fehlt auf diesem Gerät',
+  failed: 'Ton lässt sich nicht abspielen',
+  playing: 'Spielt …',
+  listVoice: 'Sprachnotiz',
+  listTone: 'mit Ton',
 };
 
 /** F-215 (V72, Variante A): Erinnerung – Chips „Wann?“ und „Wo?“ über der Note */

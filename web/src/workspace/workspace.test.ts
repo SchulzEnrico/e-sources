@@ -4875,3 +4875,78 @@ describe('F-215 V78: Suche im Notizblock', () => {
     expect(No.noteMatches(n, 'milch käse')).toBe(false);
   });
 });
+import * as AS from './audioStore';
+describe('F-215 V79: Tonaufnahme an der Notiz', () => {
+  const clip = (ref: string) => ({ kind: 'audio' as const, ref, dur: 42, at: '2026-11-24T18:50:00.000Z', dev: 'Mac', mime: 'audio/webm' });
+  it('hängt Töne in der Reihenfolge der Aufnahme an und entfernt sie (T4, T5)', () => {
+    const n = { attach: [{ kind: 'note' as const, ref: 'x' }] };
+    const one = No.addAudio(n, clip('a1'));
+    const two = No.addAudio({ attach: one }, clip('a2'));
+    expect(No.audioOf({ attach: two }).map((a) => a.ref)).toEqual(['a1', 'a2']);
+    expect(No.hasAudio({ attach: two })).toBe(true);
+    expect(No.dropAudio({ attach: two }, 'a1')!.map((a) => a.ref)).toEqual(['x', 'a2']);
+    expect(No.dropAudio({ attach: [clip('a1')] }, 'a1')).toBeUndefined();
+    expect(No.hasAudio({})).toBe(false);
+  });
+  it('Verweise bleiben beim Speichern erhalten, Herkunft „Sprachnotiz“ (T10)', () => {
+    let ws = No.createNote(W.defaultWorkspace(), { text: 'Gesprochen' }, { id: 'n1', now: 1 }).ws;
+    ws = No.updateNote(ws, 'n1', { attach: [clip('a1')], origin: { via: 'voice', at: '2026-11-24T18:50:00.000Z' } });
+    const back = No.parseNotes(JSON.parse(JSON.stringify(ws.notes)), new Set());
+    expect(back[0].attach).toEqual([clip('a1')]);
+    expect(No.isVoiceNote(back[0])).toBe(true);
+    expect([...No.audioRefs({ ...ws, notes: back })]).toEqual(['a1']);
+  });
+  it('Gerätespeicher: nur Töne ohne Notiz und älter als ein Tag fallen weg (T8)', () => {
+    const now = 10 * AS.SWEEP_AGE_MS;
+    const clips = [
+      { id: 'alt-mit', at: 0 },
+      { id: 'alt-ohne', at: 0 },
+      { id: 'neu-ohne', at: now - 1000 },
+    ];
+    expect(AS.sweepable(clips, new Set(['alt-mit']), now)).toEqual(['alt-ohne']);
+  });
+  it('Länge, Dateiname und Format', () => {
+    expect(Vo.fmtDur(0)).toBe('0:00');
+    expect(Vo.fmtDur(42.4)).toBe('0:42');
+    expect(Vo.fmtDur(15 * 60)).toBe('15:00');
+    expect(Vo.fmtDur(3725)).toBe('1:02:05');
+    expect(Vo.audioFileName('2026-11-24T18:50:00', 'audio/webm;codecs=opus')).toBe('Sprachnotiz 2026-11-24 18-50.webm');
+    expect(Vo.audioFileName('2026-11-24T18:50:00', 'audio/mp4')).toMatch(/\.m4a$/);
+    expect(Vo.audioMime((t) => t === 'audio/mp4')).toBe('audio/mp4');
+    expect(Vo.audioMime(() => false)).toBe('');
+    expect(Vo.AUDIO_MAX_MS).toBe(15 * 60 * 1000);
+  });
+});
+import * as IS from './imageStore';
+describe('F-215 V79: Bild im Text (B1–B3)', () => {
+  it('Bild-Zeile wird Block und zurück, Beschreibung geschützt', () => {
+    const md = '# Ausflug\n![Strand am Abend](es-img:p1)\nSchön war es';
+    const bs = ND.parseDoc(md);
+    expect(bs[1]).toEqual({ k: 'img', text: 'Strand am Abend', ref: 'p1' });
+    expect(ND.serializeDoc(bs)).toBe(md);
+    expect(ND.imgLine('p2', 'a]b')).toBe('![a\\]b](es-img:p2)');
+    expect(ND.parseLine(ND.imgLine('p2', 'a]b'))).toEqual({ k: 'img', text: 'a]b', ref: 'p2' });
+    expect(ND.imgRefs(md)).toEqual(['p1']);
+  });
+  it('getippter Text, der wie ein Bild aussieht, bleibt Text', () => {
+    const t = '![x](es-img:abc)';
+    const md = ND.serializeDoc([{ k: 'p', text: t }]);
+    expect(md).toBe('\\' + t);
+    expect(ND.parseDoc(md)[0]).toEqual({ k: 'p', text: t });
+    expect(ND.imgRefs(md)).toEqual([]);
+  });
+  it('Titel und Suche übergehen Bild-Zeilen; Verweise auch aus Entwürfen', () => {
+    expect(No.titleOf({ title: '', text: '![](es-img:p1)\nUrlaub' })).toBe('Urlaub');
+    expect(No.noteMatches({ title: '', text: '![](es-img:p1)', tags: [] }, 'es-img')).toBe(false);
+    let ws = No.createNote(W.defaultWorkspace(), { text: '![](es-img:p1)' }, { id: 'n1', now: 1 }).ws;
+    ws = No.setDraft(ws, 'n1', { text: '![](es-img:p1)\n![](es-img:p2)' });
+    expect([...No.imageRefs(ws)].sort()).toEqual(['p1', 'p2']);
+    expect(No.hasImage({ text: '![](es-img:p1)' })).toBe(true);
+  });
+  it('verkleinert auf 1600 px lange Kante, nie größer', () => {
+    expect(IS.fitSize(4032, 3024)).toEqual({ w: 1600, h: 1200 });
+    expect(IS.fitSize(1000, 3000)).toEqual({ w: 533, h: 1600 });
+    expect(IS.fitSize(800, 600)).toEqual({ w: 800, h: 600 });
+    expect(IS.fitSize(0, 10)).toEqual({ w: 0, h: 0 });
+  });
+});

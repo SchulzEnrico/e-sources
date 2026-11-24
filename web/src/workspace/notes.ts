@@ -24,6 +24,7 @@ import type {
   Workspace,
 } from './types';
 import { TAB_MAX, newId } from './workspace';
+import * as ND from './noteDoc';
 import { parseNoteExtras, parseSheetExtras, parseWip } from './noteObjects';
 
 /** Höchstens so viele Notizen je Ansicht (Unter-Notizen zählen nicht). */
@@ -64,12 +65,15 @@ export function dayOf(now: number = Date.now()): string {
 }
 
 /** Titel oder Vorschlag aus der ersten Zeile mit Inhalt (ohne Markdown-Zeichen am Anfang). */
+/** V79: Bild-Zeile (`![…](es-img:…)`) zählt weder für Titel noch für die Suche */
+const IMG_ONLY = /^!\[(?:[^\]\\]|\\.)*\]\(es-img:[A-Za-z0-9_-]+\)\s*$/;
+
 export function titleOf(n: Pick<Note, 'title' | 'text'>): string {
   const own = n.title.trim();
   if (own) return own;
   const line = n.text
     .split('\n')
-    .map((l) => l.replace(/^\s*(#{1,6}\s+|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+|>\s*)/, '').replace(/\\(.)/g, '$1').replace(/[*_`~]/g, '').trim())
+    .map((l) => l.replace(IMG_ONLY, '').replace(/^\s*(#{1,6}\s+|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+|>\s*)/, '').replace(/\\(.)/g, '$1').replace(/[*_`~]/g, '').trim())
     .find((l) => l.length > 0);
   if (!line) return '';
   return line.length > TITLE_MAX ? `${line.slice(0, TITLE_MAX - 1).trimEnd()}…` : line;
@@ -140,7 +144,7 @@ export function createNote(ws: Workspace, init: NoteInit = {}, act: Act & { id?:
 
 /** Felder, die sich frei ändern lassen (Zustand, Eltern und Vorgänger haben eigene Funktionen). */
 export type NotePatch = Partial<
-  Pick<Note, 'title' | 'text' | 'category' | 'tags' | 'important' | 'urgent' | 'notBefore' | 'due' | 'waitReason' | 'attach' | 'delegated' | 'remind' | 'place'>
+  Pick<Note, 'title' | 'text' | 'category' | 'tags' | 'important' | 'urgent' | 'notBefore' | 'due' | 'waitReason' | 'attach' | 'delegated' | 'remind' | 'place' | 'origin'>
 >;
 
 /** Notiz ändern; `undefined` im Patch entfernt das Feld. */
@@ -771,8 +775,16 @@ function parseNote(v: unknown, catIds: Set<string>): Note | null {
   if (v.urgent === true) n.urgent = true;
   if (Array.isArray(v.attach)) {
     const attach = v.attach
-      .filter((a): a is Record<string, unknown> => isObj(a) && (a.kind === 'file' || a.kind === 'note' || a.kind === 'source') && typeof a.ref === 'string')
-      .map((a) => ({ kind: a.kind as NoteAttachment['kind'], ref: a.ref as string, ...(typeof a.name === 'string' ? { name: a.name } : {}) }));
+      .filter((a): a is Record<string, unknown> => isObj(a) && (a.kind === 'file' || a.kind === 'note' || a.kind === 'source' || a.kind === 'audio') && typeof a.ref === 'string')
+      .map((a) => ({
+        kind: a.kind as NoteAttachment['kind'],
+        ref: a.ref as string,
+        ...(typeof a.name === 'string' ? { name: a.name } : {}),
+        ...(a.kind === 'audio' && isNum(a.dur) && a.dur >= 0 ? { dur: a.dur } : {}),
+        ...(a.kind === 'audio' && typeof a.at === 'string' ? { at: a.at } : {}),
+        ...(a.kind === 'audio' && typeof a.dev === 'string' ? { dev: a.dev } : {}),
+        ...(a.kind === 'audio' && typeof a.mime === 'string' ? { mime: a.mime } : {}),
+      }));
     if (attach.length) n.attach = attach;
   }
   if (isObj(v.delegated) && typeof v.delegated.to === 'string' && v.delegated.to.trim())
@@ -981,7 +993,7 @@ export function noteMatches(n: Pick<Note, 'title' | 'text' | 'tags'>, query: str
 export function plainText(md: string): string {
   return md
     .split('\n')
-    .map((l) => l.replace(/^\s*(#{1,6}\s+|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+|>\s*|```.*)/, '').replace(/\\(.)/g, '$1').replace(/[*_`~]/g, '').trim())
+    .map((l) => l.replace(IMG_ONLY, '').replace(/^\s*(#{1,6}\s+|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+|>\s*|```.*)/, '').replace(/\\(.)/g, '$1').replace(/[*_`~]/g, '').trim())
     .filter(Boolean)
     .join(' ');
 }
@@ -1232,3 +1244,44 @@ function parseDraft(v: unknown): NoteDraft | undefined {
   if (!Object.keys(fields).length) return undefined;
   return { fields, at: v.at as number, ...(typeof v.by === 'string' ? { by: v.by } : {}) };
 }
+
+// ---------- F-215 (V79): Tonaufnahme an der Notiz ----------
+
+/** Tonaufnahmen einer Notiz in der Reihenfolge der Aufnahme (T4). */
+export function audioOf(n: Pick<Note, 'attach'>): NoteAttachment[] {
+  return (n.attach ?? []).filter((a) => a.kind === 'audio');
+}
+/** Enthält die Notiz eine Tonaufnahme? (T10: eigene Farbe des Chips in der Liste) */
+export const hasAudio = (n: Pick<Note, 'attach'>) => (n.attach ?? []).some((a) => a.kind === 'audio');
+/** Wurde die Notiz gesprochen angelegt? (T10: Herkunft) */
+export const isVoiceNote = (n: Pick<Note, 'origin'>) => n.origin?.via === 'voice';
+/** Alle Ton-Schlüssel, auf die eine Notiz der Library zeigt – der Rest im Gerätespeicher darf weg (T8). */
+export function audioRefs(ws: Workspace): Set<string> {
+  const out = new Set<string>();
+  for (const n of notesOf(ws)) for (const a of audioOf(n)) out.add(a.ref);
+  return out;
+}
+/** Tonaufnahme anhängen (am Ende, T4). */
+export function addAudio(n: Pick<Note, 'attach'>, a: NoteAttachment): NoteAttachment[] {
+  return [...(n.attach ?? []).filter((x) => !(x.kind === 'audio' && x.ref === a.ref)), { ...a, kind: 'audio' }];
+}
+/** Tonaufnahme entfernen; leer = undefined (Feld fällt weg). */
+export function dropAudio(n: Pick<Note, 'attach'>, ref: string): NoteAttachment[] | undefined {
+  const out = (n.attach ?? []).filter((x) => !(x.kind === 'audio' && x.ref === ref));
+  return out.length ? out : undefined;
+}
+
+// ---------- F-215 (V79): Bilder im Text ----------
+
+/** Alle Bild-Schlüssel der Library – auch in Entwürfen (dort landen neue Bilder zuerst). */
+export function imageRefs(ws: Workspace): Set<string> {
+  const out = new Set<string>();
+  for (const n of notesOf(ws)) {
+    for (const r of ND.imgRefs(n.text)) out.add(r);
+    const d = n.draft?.fields.text;
+    if (typeof d === 'string') for (const r of ND.imgRefs(d)) out.add(r);
+  }
+  return out;
+}
+/** Enthält die (gezeigte) Notiz ein Bild? (B5: Symbol in der Liste) */
+export const hasImage = (n: Pick<Note, 'text'>) => ND.imgRefs(n.text).length > 0;

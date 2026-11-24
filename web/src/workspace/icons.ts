@@ -119,6 +119,11 @@ export const ICONS = {
   home: { d: ['M2 7.5 8 2.5l6 5', 'M3.5 6.5V13.5h9V6.5', 'M6.5 13.5V10h3v3.5'] },
   // F-215 (V69): Halbkreis am Home-Knopf
   mic: { d: ['M6 2.5h4v6.5a2 2 0 0 1-4 0z', 'M3.8 8.2a4.2 4.2 0 0 0 8.4 0', 'M8 12.5v2', 'M6 14.5h4'] },
+  // V79 (F-215 T10): Mikrofon mit Welle = Notiz mit Tonaufnahme; Abspielen/Anhalten; Als Datei sichern
+  micWave: { d: ['M3.6 2.5h3.2v6a1.6 1.6 0 0 1-3.2 0z', 'M1.8 7.8a3.4 3.4 0 0 0 6.8 0', 'M5.2 11.2v2.3', 'M3.6 13.5h3.2', 'M10.6 5.6a3.4 3.4 0 0 1 0 4.8', 'M12.6 3.8a6 6 0 0 1 0 8.4'] },
+  play: { d: ['M5 3.2 12.6 8 5 12.8z'], fill: true },
+  stop: { d: ['M4.5 4.5h7v7h-7z'], fill: true },
+  download: { d: ['M8 2v8', 'M5 7l3 3 3-3', 'M2.5 11v2.5h11V11'] },
   share: { d: ['M8 1.8v8.4', 'M5.2 4.6 8 1.8l2.8 2.8', 'M5 7H3.5v7h9V7H11'] },
   recent: { d: [ring(8, 8, 6), 'M8 4.6V8l2.4 1.6'] },
   copy: { d: ['M5.5 5.5h8v8h-8z', 'M3.5 10.5h-1v-8h8v1'] },

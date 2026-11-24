@@ -360,12 +360,22 @@ export interface NoteEvent {
   detail?: string;
 }
 
-/** F-206: Anhang – Datei (liegt nur auf dem Gerät), andere Notiz oder Source. */
+/** F-206: Anhang – Datei (liegt nur auf dem Gerät), andere Notiz oder Source.
+ *  F-215 (V79, Entscheidung T1): `audio` = Tonaufnahme einer Sprachnotiz; der Ton liegt nur auf dem Gerät, auf dem
+ *  er aufgenommen wurde (IndexedDB, Schlüssel `ref`), abgeglichen wird nur dieser Verweis. */
 export interface NoteAttachment {
-  kind: 'file' | 'note' | 'source';
-  /** Id der Notiz bzw. Source; bei Dateien eine Id im Gerätespeicher. */
+  kind: 'file' | 'note' | 'source' | 'audio';
+  /** Id der Notiz bzw. Source; bei Dateien und Ton eine Id im Gerätespeicher. */
   ref: string;
   name?: string;
+  /** Ton: Länge in Sekunden. */
+  dur?: number;
+  /** Ton: aufgenommen am (ISO 8601). */
+  at?: string;
+  /** Ton: Gerät, auf dem er liegt (z. B. „Mac · Chrome“). */
+  dev?: string;
+  /** Ton: Format (z. B. audio/webm). */
+  mime?: string;
 }
 
 /** F-206: Wie eine Notiz entstand (wie BookmarkOrigin). */

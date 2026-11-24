@@ -10,6 +10,7 @@
  */
 import { type FormEvent, type KeyboardEvent as RKeyboardEvent, type MouseEvent as RMouseEvent, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import * as ND from '../workspace/noteDoc';
+import { getPic } from '../workspace/imageStore';
 import { NOTE_TEXT } from '../workspace/terms';
 import { Icon } from './Icon';
 import { Wheel } from './RemindPicker';
@@ -55,9 +56,47 @@ function spanNodes(spans: ND.Span[]): Node[] {
   });
 }
 
-const TAG: Record<ND.BlockKind, string> = { p: 'p', h: 'h3', li: 'li', ol: 'li', task: 'li', quote: 'blockquote', code: 'pre' };
+const TAG: Record<ND.BlockKind, string> = { p: 'p', h: 'h3', li: 'li', ol: 'li', task: 'li', quote: 'blockquote', code: 'pre', img: 'figure' };
+
+/** V79 (F-215 B1): Bilder im Text – Adressen der Bilder aus dem Gerätespeicher, je Schlüssel einmal erzeugt */
+const picUrls = new Map<string, Promise<string | null>>();
+const picUrl = (ref: string) => {
+  let p = picUrls.get(ref);
+  if (!p) {
+    p = getPic(ref).then((x) => (x ? URL.createObjectURL(x.blob) : null));
+    picUrls.set(ref, p);
+  }
+  return p;
+};
+
+/** Bild-Block: nicht bearbeitbar, Schreibmarke davor und danach (Absätze); fehlt das Bild hier, ein Hinweis */
+function imgEl(b: Block): HTMLElement {
+  const el = document.createElement('figure');
+  el.setAttribute('data-b', '');
+  el.dataset.k = 'img';
+  el.dataset.ref = b.ref ?? '';
+  el.dataset.alt = b.text;
+  el.contentEditable = 'false';
+  el.className = 'nedit__img';
+  const img = document.createElement('img');
+  img.alt = b.text || NOTE_TEXT.imgAlt;
+  img.draggable = false;
+  el.append(img);
+  if (b.ref)
+    void picUrl(b.ref).then((u) => {
+      if (u) img.src = u;
+      else {
+        el.classList.add('is-away');
+        const cap = document.createElement('figcaption');
+        cap.textContent = NOTE_TEXT.imgAway;
+        el.append(cap);
+      }
+    });
+  return el;
+}
 
 function blockEl(b: Block): HTMLElement {
+  if (b.k === 'img') return imgEl(b);
   // V74: H1–H6 – Tags h3–h6 (h6 auch für Stufe 5 und 6), Größe und Stufe hängen an data-level
   const el = document.createElement(b.k === 'h' ? `h${Math.min(6, 2 + (b.level ?? 1))}` : TAG[b.k]);
   el.setAttribute('data-b', '');
@@ -150,6 +189,7 @@ function codeText(el: HTMLElement): string {
 function readBlock(el: HTMLElement): Block {
   const k = (el.dataset.k as ND.BlockKind) || 'p';
   if (k === 'code') return { k, text: codeText(el) };
+  if (k === 'img') return { k, text: el.dataset.alt ?? '', ref: el.dataset.ref || undefined };
   const b: Block = { k, text: inlineOf(el) };
   if (k === 'h') b.level = (Number(el.dataset.level) || 1) as ND.HLevel;
   if (k === 'task') b.done = !!el.querySelector<HTMLInputElement>('input[type=checkbox]')?.checked;
@@ -247,7 +287,7 @@ function place(root: HTMLElement, c: Caret) {
   sel?.addRange(r);
 }
 
-const plainLen = (b: Block) => (b.k === 'code' ? b.text.length : ND.plainOf(ND.parseInline(b.text)).length);
+const plainLen = (b: Block) => (b.k === 'img' ? 0 : b.k === 'code' ? b.text.length : ND.plainOf(ND.parseInline(b.text)).length);
 const asPara = (b: Block): Block[] => (b.k === 'code' ? b.text.split('\n').map((l) => ({ k: 'p', text: ND.escInline(l) })) : [{ k: 'p', text: b.text }]);
 
 // ---------- Leiste ----------
@@ -738,7 +778,10 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     if (t === 'task-new') return newTask();
     setKind('h', Number(t.slice(1)) as ND.HLevel);
   };
-  useEffect(() => {
+  // V79 (Fehler V78 „Kästchen/Aufzählungspunkt fehlen beim Anlegen per Wischen“): Anmeldung im Layout-Effekt –
+  // ein normaler useEffect lief je nach Browser erst nach dem requestAnimationFrame, mit dem das Pad die Vorlage
+  // schickt; die Vorlage ging dann verloren
+  useLayoutEffect(() => {
     const el = root.current;
     if (!el) return;
     const on = (e: Event) => fmtRef.current((e as CustomEvent<FmtTool>).detail);
@@ -789,7 +832,7 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
     undo(true);
     d.ok = true;
   };
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = root.current;
     if (!el) return;
     const ins = (e: Event) => insRef.current((e as CustomEvent<InsertDetail>).detail);

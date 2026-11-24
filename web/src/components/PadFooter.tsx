@@ -16,7 +16,7 @@ import { type CSSProperties, type KeyboardEvent, type MutableRefObject, type Poi
 import { createPortal } from 'react-dom';
 import { FOOT_TEXT, VOICE_TEXT } from '../workspace/terms';
 import { VOICE_DWELL_MS, type VoiceTarget, defaultTarget, voiceGesture, voiceProgress } from '../workspace/voice';
-import { useVoice } from './useVoice';
+import { type AudioTake, useVoice } from './useVoice';
 import type { IconName } from '../workspace/icons';
 import { Icon } from './Icon';
 import { aimItem, nearness, arcPos, firstItem, stepItem, type SwipeDir, swipeDir } from '../workspace/footArc';
@@ -54,13 +54,14 @@ export interface VoiceProps {
   on: boolean;
   onEnable: () => void;
   noteOpen: () => boolean;
-  commit: (text: string, target: VoiceTarget) => Promise<(() => Promise<boolean>) | null>;
+  /** V79: dazu der aufgenommene Ton (immer mit aufgenommen, T2); `null` = keiner */
+  commit: (text: string, target: VoiceTarget, audio: AudioTake | null) => Promise<(() => Promise<boolean>) | null>;
   /** Start von außen (Alt+M) – festgestellt */
   startRef: MutableRefObject<(() => void) | null>;
 }
 type VMode = 'ask' | 'hold' | 'locked' | null;
 /** Wie lange (ms) „Text übernommen“ mit „Als neue Notiz lösen“ stehen bleibt */
-const DONE_MS = 8000;
+const DONE_MS = 2000; // V79 (Wunsch Enrico): Meldungen am Ort nur 2 Sekunden (vorher 8)
 
 const HOLD_MS = 400;
 const CLOSE_MS = 160;
@@ -159,27 +160,36 @@ export function PadFooter(props: {
       if (!ok && vmodeRef.current !== 'ask') setVmode(null);
     });
   };
-  const finishVoice = async () => {
+  const finishVoice = async (atLimit = false) => {
     const vp = props.voice;
     setVmode(null);
-    const text = (await v.stop()).trim();
+    const got = await v.stop();
+    const text = got.text.trim();
+    const audio = got.audio;
     if (!vp) return;
-    if (!text) {
+    if (!text && !audio) {
       say(VOICE_TEXT.nothing);
-      return showDone(VOICE_TEXT.nothing, undefined, 3000);
+      return showDone(VOICE_TEXT.nothing, undefined, DONE_MS);
     }
     const t = targetRef.current;
-    const split = await vp.commit(text, t);
-    const msg = t === 'new' || !split ? VOICE_TEXT.takenNew : VOICE_TEXT.taken;
-    say(msg);
-    showDone(t === 'here' && split ? VOICE_TEXT.taken : msg, t === 'here' ? split ?? undefined : undefined);
-    if (split && t === 'here') focusBar('[data-v="split"]');
+    const split = await vp.commit(text, t, audio);
+    // V79: Meldung nennt, was übernommen wurde (Text, Ton oder beides)
+    const here = t === 'here' && !!split;
+    const msg = !text ? (here ? VOICE_TEXT.toneHere : VOICE_TEXT.toneNew) : here ? (audio ? VOICE_TEXT.takenTone : VOICE_TEXT.taken) : audio ? VOICE_TEXT.takenNewTone : VOICE_TEXT.takenNew;
+    const full = atLimit ? `${VOICE_TEXT.limit} ${msg}` : msg;
+    say(full);
+    showDone(full, here ? split ?? undefined : undefined, DONE_MS);
+    if (here) focusBar('[data-v="split"]');
   };
+  // V79 (T5): nach 15 Minuten hält die Aufnahme von selbst an und übernimmt (Meldung am Ort)
+  useEffect(() => {
+    if (v.limit && vmodeRef.current && vmodeRef.current !== 'ask') void finishVoice(true);
+  }, [v.limit]); // eslint-disable-line react-hooks/exhaustive-deps
   const cancelVoice = () => {
     v.cancel();
     setVmode(null);
     say(VOICE_TEXT.canceled);
-    showDone(VOICE_TEXT.canceled, undefined, 2500);
+    showDone(VOICE_TEXT.canceled, undefined, DONE_MS);
   };
   const runSplit = async () => {
     const f = done?.split;
@@ -188,7 +198,7 @@ export function PadFooter(props: {
     if (!f) return;
     const ok = await f();
     say(ok ? VOICE_TEXT.splitDone : VOICE_TEXT.splitGone);
-    showDone(ok ? VOICE_TEXT.splitDone : VOICE_TEXT.splitGone, undefined, 3000);
+    showDone(ok ? VOICE_TEXT.splitDone : VOICE_TEXT.splitGone, undefined, DONE_MS);
   };
   if (props.voice) props.voice.startRef.current = () => (vmodeRef.current ? undefined : startVoice('locked', true));
   // Esc bricht ab (vor der Note, die Esc sonst zum Schließen nimmt)
@@ -552,7 +562,9 @@ export function PadFooter(props: {
             <>
               <p className="padvoice__state" role="status">
                 <span className="padvoice__dot" aria-hidden="true" />
-                {vmode === 'locked' ? VOICE_TEXT.locked : VOICE_TEXT.rec}
+                {v.audioOnly ? VOICE_TEXT.toneRec : vmode === 'locked' ? VOICE_TEXT.locked : VOICE_TEXT.rec}
+                {/* V79 (T2): Ton wird immer mit aufgenommen – sichtbar, solange er läuft */}
+                {v.taping && <span className="padvoice__tape">{VOICE_TEXT.taping}</span>}
               </p>
               {/* V78 (Wunsch Enrico): Pegel des Mikrofons – schlägt mit der Lautstärke aus */}
               <div className="padvoice__meter" aria-hidden="true" title={VOICE_TEXT.meter} ref={(n) => void (v.meterRef.current = n)}>
@@ -564,7 +576,7 @@ export function PadFooter(props: {
                     {v.final} <i>{v.interim}</i>
                   </>
                 ) : (
-                  <i>{v.phase === 'prep' ? '…' : VOICE_TEXT.listening}</i>
+                  <i>{v.phase === 'prep' ? '…' : v.audioOnly ? VOICE_TEXT.toneOnly : VOICE_TEXT.listening}</i>
                 )}
               </p>
               {props.voice?.noteOpen() && (

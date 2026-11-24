@@ -5,7 +5,7 @@
  * Keine DOM-Zugriffe – der Editor (NoteEditor.tsx) baut daraus seine Elemente selbst, nie per innerHTML.
  */
 
-export type BlockKind = 'p' | 'h' | 'li' | 'ol' | 'task' | 'quote' | 'code';
+export type BlockKind = 'p' | 'h' | 'li' | 'ol' | 'task' | 'quote' | 'code' | 'img';
 
 export interface Block {
   k: BlockKind;
@@ -15,6 +15,8 @@ export interface Block {
   done?: boolean;
   /** Überschrift 1–6 (V74, Wunsch Enrico; vorher 1–3). */
   level?: HLevel;
+  /** V79 (F-215 B1): Bild im Text – Schlüssel im Gerätespeicher (imageStore); `text` = Beschreibung (alt). */
+  ref?: string;
 }
 export type HLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -22,16 +24,35 @@ const LIST = /^\s*[-*+]\s+/;
 const NUM = /^\s*\d+[.)]\s+/;
 const TASK = /^\s*[-*+]\s+\[([ xX])\]\s?/;
 
+/**
+ * V79 (F-215, Entscheidung B1 „Bild im Text“): ein Bild steht als eigene Zeile im Markdown,
+ * `![Beschreibung](es-img:<Schlüssel>)`. Das Bild selbst liegt nur auf dem Gerät (imageStore), wie der Ton.
+ */
+export const IMG_SCHEME = 'es-img:';
+const IMG = /^!\[((?:[^\]\\]|\\.)*)\]\(es-img:([A-Za-z0-9_-]+)\)\s*$/;
+/** Markdown einer Bild-Zeile */
+export const imgLine = (ref: string, alt = '') => `![${alt.replace(/[\\\]]/g, (c) => `\\${c}`).replace(/\n/g, ' ')}](${IMG_SCHEME}${ref})`;
+/** Alle Bild-Schlüssel eines Markdown-Texts (Reihenfolge wie im Text) */
+export function imgRefs(md: string): string[] {
+  const out: string[] = [];
+  for (const l of md.split('\n')) {
+    const m = IMG.exec(l);
+    if (m) out.push(m[2]);
+  }
+  return out;
+}
+
 /** Eine Markdown-Zeile → Block (ohne Codeblock). */
 export function parseLine(line: string): Block {
   let m: RegExpExecArray | null;
+  if ((m = IMG.exec(line))) return { k: 'img', text: m[1].replace(/\\(.)/g, '$1'), ref: m[2] };
   if ((m = TASK.exec(line))) return { k: 'task', text: line.slice(m[0].length), done: m[1] !== ' ' };
   if ((m = /^(#{1,6})\s+/.exec(line))) return { k: 'h', text: line.slice(m[0].length), level: Math.min(6, m[1].length) as HLevel };
   if ((m = LIST.exec(line))) return { k: 'li', text: line.slice(m[0].length) };
   if ((m = NUM.exec(line))) return { k: 'ol', text: line.slice(m[0].length) };
   if ((m = /^>\s?/.exec(line))) return { k: 'quote', text: line.slice(m[0].length) };
   // „\“ vorn schützt Text, der sonst wie ein Zeichen oben aussähe
-  return { k: 'p', text: /^\\[-*+#>\d]/.test(line) ? line.slice(1) : line };
+  return { k: 'p', text: /^\\[-*+#>\d!]/.test(line) ? line.slice(1) : line };
 }
 
 /** Markdown → Blöcke. Leere Zeilen werden leere Absätze (nichts geht verloren). */
@@ -52,7 +73,7 @@ export function parseDoc(md: string): Block[] {
 }
 
 /** Absatz-Text, der als Zeichen gelesen würde, bekommt ein „\“ davor. */
-const guard = (t: string) => (/^(\s*([-*+]\s|\d+[.)]\s|#{1,6}\s|>)|```)/.test(t) ? `\\${t}` : t);
+const guard = (t: string) => (/^(\s*([-*+]\s|\d+[.)]\s|#{1,6}\s|>)|```)/.test(t) || IMG.test(t) ? `\\${t}` : t);
 
 /** Blöcke → Markdown. Nummerierte Listen werden je Lauf neu gezählt. */
 export function serializeDoc(blocks: Block[]): string {
@@ -72,6 +93,8 @@ export function serializeDoc(blocks: Block[]): string {
         return `> ${b.text}`;
       case 'code':
         return `\`\`\`\n${b.text}\n\`\`\``;
+      case 'img':
+        return b.ref ? imgLine(b.ref, b.text) : '';
       default:
         return guard(b.text);
     }

@@ -36,6 +36,8 @@ export const ICONS = {
   // F-206 Schritt 3: Pad = schwebendes Fenster über dem Desk
   pad: { d: ['M1.5 1.5h9v8h-9z', 'M5.5 5.5h9v9h-9z', 'M5.5 8h9'] },
   newPad: { d: ['M1.5 1.5h9v8h-9z', 'M5.5 5.5h9v9h-9z', 'M10 9.5v3.5', 'M8.25 11.25h3.5'] },
+  // V68: Deckkraft (halb gefüllter Kreis)
+  contrast: { d: ['M8 2a6 6 0 1 0 0 12a6 6 0 1 0 0-12z', 'M8 2v12', 'M8 4.5h4', 'M8 7h5.6', 'M8 9.5h5.6', 'M8 12h4'] },
   // F-206 Notiz-Leiste
   task: { d: ['M2.5 3.5h4v4h-4z', 'M3.4 5.5l.9.9 1.4-1.6', 'M9 5.5h5', 'M2.5 10h4v4h-4z', 'M9 12h5'] },
   list: { d: ['M6 4h8', 'M6 8h8', 'M6 12h8', 'M2.5 4h.01', 'M2.5 8h.01', 'M2.5 12h.01'], w: 1.6 },

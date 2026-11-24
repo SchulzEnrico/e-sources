@@ -9,6 +9,8 @@
 import type {
   Note,
   NoteAttachment,
+  NoteDraft,
+  NoteDraftField,
   NoteColumn,
   NoteEvent,
   NoteEventKind,
@@ -785,6 +787,9 @@ function parseNote(v: unknown, catIds: Set<string>): Note | null {
   }
   if (isDay(v.notBefore)) n.notBefore = v.notBefore;
   if (isDay(v.due)) n.due = v.due;
+  const draft = parseDraft(v.draft);
+  if (draft) n.draft = draft;
+  if (v.unsaved === true) n.unsaved = true;
   return { ...n, ...parseNoteExtras(v) };
 }
 
@@ -1077,4 +1082,135 @@ export function leaveTab(ws: Workspace, panelId: string, tabId: string): Workspa
   const v = viewById(cleared, t.view!);
   const elsewhere = cleared.panels.some((p) => p.tabs.some((x) => !x.url && x.view === t.view));
   return v && !elsewhere && countIn(cleared, v) === 0 ? (deleteView(cleared, v.id)?.ws ?? cleared) : cleared;
+}
+
+
+// ---------- F-213 (V68): Entwurf bis „Speichern“ (Option C, Entscheidungs-Doc F-213) ----------
+
+export const DRAFT_FIELDS: readonly NoteDraftField[] = ['title', 'text', 'state', 'waitReason', 'important', 'urgent', 'notBefore', 'due'];
+export type DraftPatch = NoteDraft['fields'];
+
+/** Wert vergleichbar machen: leer, false und null zählen als „nicht gesetzt“ (Titel/Text: leerer Text). */
+function norm(k: NoteDraftField, v: unknown): unknown {
+  if (k === 'title' || k === 'text') return typeof v === 'string' ? v : '';
+  if (v === null || v === undefined || v === '' || v === false) return undefined;
+  return v;
+}
+
+/** Hat die Note einen Entwurf (oder wurde sie nie gespeichert)? */
+export const hasDraft = (n: Note): boolean => !!n.unsaved || !!(n.draft && Object.keys(n.draft.fields).length);
+
+/** Die Note so, wie der Entwurf sie zeigt (ohne Entwurf: unverändert). */
+export function shownNote(n: Note): Note {
+  if (!n.draft) return n;
+  const out: Note = { ...n };
+  for (const k of Object.keys(n.draft.fields) as NoteDraftField[]) {
+    const v = norm(k, n.draft.fields[k]);
+    if (v === undefined) delete (out as unknown as Record<string, unknown>)[k];
+    else (out as unknown as Record<string, unknown>)[k] = v;
+  }
+  if (out.state !== 'waiting') delete out.waitReason;
+  return out;
+}
+
+/** Entwurf ändern; Felder, die wieder dem gespeicherten Stand entsprechen, fallen aus dem Entwurf. */
+export function setDraft(ws: Workspace, id: string, patch: DraftPatch, act: Act = {}): Workspace {
+  const n = noteById(ws, id);
+  if (!n) return ws;
+  const fields: DraftPatch = { ...n.draft?.fields };
+  for (const k of Object.keys(patch) as NoteDraftField[]) {
+    const v = patch[k];
+    if (norm(k, v) === norm(k, n[k])) delete fields[k];
+    else (fields as Record<string, unknown>)[k] = v === undefined ? null : v;
+  }
+  return withNotes(
+    ws,
+    notesOf(ws).map((x) => {
+      if (x.id !== id) return x;
+      const out: Note = { ...x };
+      if (Object.keys(fields).length) out.draft = { fields, at: act.now ?? Date.now(), ...(act.by ? { by: act.by } : {}) };
+      else delete out.draft;
+      return out;
+    }),
+  );
+}
+
+/** Entwurf übernehmen (Zustand über setState, damit Spur und Regeln stimmen); danach gilt die Note als gespeichert. */
+export function saveDraft(ws: Workspace, id: string, act: Act = {}): Workspace {
+  const n = noteById(ws, id);
+  if (!n || !hasDraft(n)) return ws;
+  const f = n.draft?.fields ?? {};
+  const patch: NotePatch = {};
+  for (const k of ['title', 'text', 'important', 'urgent', 'notBefore', 'due'] as const) {
+    if (!(k in f)) continue;
+    const v = norm(k, f[k]);
+    (patch as Record<string, unknown>)[k] = v;
+  }
+  let out = Object.keys(patch).length ? updateNote(ws, id, patch, act) : ws;
+  const state = 'state' in f ? (norm('state', f.state) as NoteState | undefined) : undefined;
+  const reason = 'waitReason' in f ? ((norm('waitReason', f.waitReason) as string | undefined) ?? '') : undefined;
+  if (state && state !== n.state) out = setState(out, id, state, act, reason);
+  else if (reason !== undefined && (state ?? n.state) === 'waiting') out = setState(out, id, 'waiting', act, reason);
+  return withNotes(
+    out,
+    notesOf(out).map((x) => {
+      if (x.id !== id) return x;
+      const y: Note = { ...x };
+      delete y.draft;
+      delete y.unsaved;
+      return y;
+    }),
+  );
+}
+
+export type DraftUndo = { kind: 'draft'; id: string; draft?: NoteDraft } | { kind: 'note'; undo: NoteUndo };
+
+/** Entwurf verwerfen: gespeicherter Stand bleibt; eine nie gespeicherte Note verschwindet ganz (S4). */
+export function discardDraft(ws: Workspace, id: string): { ws: Workspace; undo: DraftUndo } | null {
+  const n = noteById(ws, id);
+  if (!n || !hasDraft(n)) return null;
+  if (n.unsaved) {
+    const r = deleteNote(ws, id, { keepChildren: true });
+    return r ? { ws: r.ws, undo: { kind: 'note', undo: r.undo } } : null;
+  }
+  const notes = notesOf(ws).map((x) => {
+    if (x.id !== id) return x;
+    const y: Note = { ...x };
+    delete y.draft;
+    return y;
+  });
+  return { ws: withNotes(ws, notes), undo: { kind: 'draft', id, draft: n.draft } };
+}
+
+/** „Rückgängig“ nach dem Verwerfen. */
+export function undoDiscard(ws: Workspace, undo: DraftUndo, act: Act = {}): Workspace {
+  if (undo.kind === 'note') return restoreNotes(ws, undo.undo, act);
+  return withNotes(
+    ws,
+    notesOf(ws).map((x) => (x.id === undo.id && undo.draft ? { ...x, draft: undo.draft } : x)),
+  );
+}
+
+/** Ein leerer, nie gespeicherter Entwurf (beim Schließen still entfernen). */
+export function isEmptyDraft(ws: Workspace, n: Note): boolean {
+  return !!n.unsaved && isEmptyNote(ws, shownNote(n));
+}
+
+function parseDraft(v: unknown): NoteDraft | undefined {
+  if (!isObj(v) || !isObj(v.fields) || !isNum(v.at)) return undefined;
+  const fields: DraftPatch = {};
+  const f = v.fields as Record<string, unknown>;
+  for (const k of DRAFT_FIELDS) {
+    if (!(k in f)) continue;
+    const x = f[k];
+    const ok =
+      x === null ||
+      ((k === 'title' || k === 'text' || k === 'waitReason') && typeof x === 'string') ||
+      (k === 'state' && NOTE_STATES.includes(x as NoteState)) ||
+      ((k === 'important' || k === 'urgent') && typeof x === 'boolean') ||
+      ((k === 'notBefore' || k === 'due') && isDay(x));
+    if (ok) (fields as Record<string, unknown>)[k] = x;
+  }
+  if (!Object.keys(fields).length) return undefined;
+  return { fields, at: v.at as number, ...(typeof v.by === 'string' ? { by: v.by } : {}) };
 }

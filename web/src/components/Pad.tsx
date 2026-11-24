@@ -9,7 +9,7 @@ import type { NoteViewKind, Pad as PadT, PadPlace, Workspace } from '../workspac
 import * as No from '../workspace/notes';
 import { PAD_MIN } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
-import { NOTE_TEXT, PAD_TEXT, TERMS } from '../workspace/terms';
+import { DRAFT_TEXT, NOTE_TEXT, PAD_TEXT, TERMS } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { NoteTab } from './NoteTab';
 import { Item, Menu } from './PanelFrame';
@@ -23,6 +23,8 @@ const KINDS: NoteViewKind[] = ['block', 'todo', 'kanban', 'eisenhower'];
 const explain = (t: string) => t.replace(/^[^=]*=\s*/, '');
 /** Schritt der Tastatur (Anteil der Desk-Fläche). */
 const STEP = 0.02;
+/** V68: Taste gedrückt halten = großer Schritt (statt eigener Tastenkombination – Alt+Strg/⌘+Pfeil wechselt im Browser den Tab). */
+const STEP_HOLD = 0.06;
 
 type Edge = 'n' | 's' | 'e' | 'w' | 'se';
 
@@ -119,8 +121,9 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.startsWith('Arrow') && !typing(e.target)) {
       e.preventDefault();
       e.stopPropagation();
-      const dx = e.key === 'ArrowLeft' ? -STEP : e.key === 'ArrowRight' ? STEP : 0;
-      const dy = e.key === 'ArrowUp' ? -STEP : e.key === 'ArrowDown' ? STEP : 0;
+      const step = e.repeat ? STEP_HOLD : STEP;
+      const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+      const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
       const next = fit(e.shiftKey ? { ...p, w: p.w + dx, h: p.h + dy } : { ...p, x: p.x + dx, y: p.y + dy });
       commit(next);
       say(e.shiftKey ? PAD_TEXT.sized(Math.round(next.w * box.w), Math.round(next.h * box.h)) : PAD_TEXT.moved(PAD_TEXT.where(next.x + next.w / 2, next.y + next.h / 2)));
@@ -272,6 +275,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
             );
           })}
         </div>
+        <OpacityInline value={display.padOpacity} onChange={setPadOpacity} />
         <span id={titleId} className="sr-only">
           {sheet?.name}
         </span>
@@ -373,6 +377,25 @@ export function OpacitySlider(props: { label: string; hint: string; value: numbe
   );
 }
 
+/** V68 (Wunsch Enrico): Regler direkt im Pad-Kopf – sichtbar ohne Menü; in schmalen Pads nur im ⋮. */
+export function OpacityInline(props: { value: number; onChange: (v: number) => void; label?: string; hint?: string }) {
+  return (
+    <label className="pad__op" title={`${props.label ?? PAD_TEXT.opacityPads}: ${PAD_TEXT.opacityValue(props.value)} – ${props.hint ?? PAD_TEXT.opacityHintShort}`}>
+      <Icon name="contrast" size={13} />
+      <input
+        type="range"
+        min={OPACITY_MIN}
+        max={100}
+        step={OPACITY_STEP}
+        value={props.value}
+        aria-label={props.label ?? PAD_TEXT.opacityPads}
+        aria-valuetext={PAD_TEXT.opacityValue(props.value)}
+        onChange={(e) => props.onChange(Number(e.target.value))}
+      />
+    </label>
+  );
+}
+
 // ---------------------------------------------------------------- Notizblock: Liste + geöffnete Note
 
 function NoteBlock(props: {
@@ -397,12 +420,23 @@ function NoteBlock(props: {
   }, [props.picked, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const add = () => {
+    leave();
     const id = newId();
     dispatch({ type: 'padNote', id: padId, sheet: sheetId, note: id, by: ws.profile?.name || undefined });
     onPick(id);
   };
+  // F-213 (S8): beim Wechsel bleibt ein Entwurf still erhalten; nur eine leere neue Note fällt weg
+  const leave = () => {
+    const cur = open ? No.noteById(ws, open) : undefined;
+    if (cur && No.isEmptyDraft(ws, cur)) dispatch({ type: 'noteDiscard', id: cur.id });
+  };
+  const pick = (id: string) => {
+    if (id !== open) leave();
+    onPick(id);
+  };
   const back = () => {
     const was = open;
+    leave();
     onPick(null);
     window.setTimeout(() => listRef.current?.querySelector<HTMLElement>(`[data-note="${was}"]`)?.focus() ?? listRef.current?.querySelector<HTMLElement>('button')?.focus(), 0);
   };
@@ -415,19 +449,24 @@ function NoteBlock(props: {
         </button>
         {notes.length ? (
           <ul className="nblock__list" aria-label={PAD_TEXT.list} ref={listRef}>
-            {notes.map((n) => {
+            {notes.map((raw) => {
+              const n = No.shownNote(raw);
               const t = No.titleOf(n) || NOTE_TEXT.untitled;
+              const draft = No.hasDraft(raw);
               return (
                 <li key={n.id}>
                   <button
                     type="button"
                     data-note={n.id}
-                    className={`nblock__item${n.id === open ? ' is-on' : ''}${No.isFinished(n.state) ? ' is-done' : ''}`}
+                    className={`nblock__item${n.id === open ? ' is-on' : ''}${No.isFinished(n.state) ? ' is-done' : ''}${draft ? ' is-draft' : ''}`}
                     aria-current={n.id === open ? 'true' : undefined}
-                    onClick={() => onPick(n.id)}
+                    onClick={() => pick(n.id)}
                   >
                     <span className="nblock__title">{t}</span>
-                    <span className="nblock__state">{NOTE_TEXT.states[No.stateOf(ws, n).state]}</span>
+                    <span className="nblock__state">
+                      {draft && <span className="nblock__draft">{DRAFT_TEXT.listDraft}</span>}
+                      {NOTE_TEXT.states[No.stateOf(ws, n).state]}
+                    </span>
                   </button>
                 </li>
               );
@@ -443,7 +482,7 @@ function NoteBlock(props: {
             <button type="button" className="nblock__back" onClick={back}>
               <Icon name="back" size={14} /> {PAD_TEXT.toList}
             </button>
-            <NoteTab ws={ws} noteId={open} dispatch={dispatch} />
+            <NoteTab ws={ws} noteId={open} dispatch={dispatch} draft={{ onClose: back, say: props.say }} />
           </>
         ) : (
           <p className="nblock__pick">{PAD_TEXT.pick}</p>

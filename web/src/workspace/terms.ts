@@ -1033,6 +1033,29 @@ export const NOTE_TEXT = {
 };
 
 /** F-206 Schritt 3 (V67): Pads mit Sheets. */
+/** F-213 (V68): Entwurf bis „Speichern“ im Notizblock (Entscheidungs-Doc F-213, Option C). */
+export const DRAFT_TEXT = {
+  group: 'Note speichern oder verwerfen',
+  save: 'Speichern',
+  discard: 'Verwerfen',
+  close: 'Schließen',
+  saveHint: 'Änderungen übernehmen (Strg/⌘ + Enter)',
+  discardHint: 'Änderungen verwerfen – zurück zum gespeicherten Stand',
+  discardNewHint: 'Neue Note verwerfen – sie wurde noch nie gespeichert',
+  closeHint: 'Zurück zur Liste (Esc) – fragt nach, wenn etwas nicht gespeichert ist',
+  badge: 'Entwurf',
+  clean: 'Gespeichert',
+  since: (t: string) => `Entwurf seit ${t} – noch nicht gespeichert`,
+  neverSaved: 'Neu – noch nicht gespeichert',
+  saved: 'Note gespeichert.',
+  discarded: 'Änderungen verworfen.',
+  discardedNew: 'Neue Note verworfen.',
+  archivedDraft: 'Im Entwurf als „archiviert“ markiert – Speichern übernimmt es.',
+  askTitle: 'Änderungen nicht gespeichert',
+  askHint: 'Speichern übernimmt den Entwurf, Verwerfen kehrt zum gespeicherten Stand zurück.',
+  listDraft: 'Entwurf',
+};
+
 export const PAD_TEXT = {
   newPad: 'NewPad',
   newPadLabel: 'Neues Pad anlegen',
@@ -1059,7 +1082,7 @@ export const PAD_TEXT = {
   closePad: 'Pad schließen',
   closePadHint: 'Schließen löscht nichts – Sheets und Notes bleiben in der Library.',
   closed: 'Pad geschlossen – die Notes bleiben in der Library.',
-  move: 'Ziehen zum Verschieben · Alt/⌥ + Pfeile verschieben, mit Umschalt die Größe',
+  move: 'Ziehen zum Verschieben · Alt/⌥ + Pfeile verschieben (gedrückt halten = schneller), mit Umschalt die Größe',
   resize: 'Größe ändern',
   moved: (where: string) => `Pad liegt jetzt ${where}.`,
   sized: (w: number, h: number) => `Pad ist jetzt ${w} × ${h} Pixel groß.`,
@@ -1076,5 +1099,6 @@ export const PAD_TEXT = {
   opacityDock: 'Deckkraft des Docks',
   opacityValue: (v: number) => `${v} %`,
   opacityHint: 'Gilt für alle Pads in diesem Browser. Darüberfahren, Klicken oder Fokus macht ein Pad immer ganz undurchsichtig.',
+  opacityHintShort: 'gilt für alle Pads; beim Einstellen siehst du die Wirkung, sonst ist ein Pad unter Maus und Fokus ganz deckend',
   opacityDockHint: 'Das Dock kommt mit dem nächsten Bauschritt; seine Deckkraft lässt sich schon jetzt getrennt einstellen.',
 };

@@ -3,11 +3,11 @@
  * liegen in Workspace.notes. Geschrieben wird direkt formatiert (NoteEditor), gespeichert als Markdown.
  * Ansichten (To-do, Kanban, Eisenhower) zeigen hier vorerst nur einen Platzhalter.
  */
-import { type Dispatch, useEffect, useId, useRef, useState } from 'react';
+import { type Dispatch, type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { NoteState, NoteViewKind, Workspace } from '../workspace/types';
 import * as No from '../workspace/notes';
-import { NOTE_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
+import { DRAFT_TEXT, NOTE_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
 import { flash } from '../workspace/flash';
 import { NoteEditor } from './NoteEditor';
 import { Icon } from './Icon';
@@ -31,21 +31,89 @@ interface NoteProps {
   ws: Workspace;
   noteId: string;
   dispatch: Dispatch<Action>;
+  /**
+   * F-213 (V68): Entwurf bis „Speichern“ (im Pad). Ohne diese Angabe speichert die Note wie bisher sofort
+   * (alter Notiz-Tab bis zum Umstieg).
+   */
+  draft?: { onClose: () => void; say: (text: string) => void };
 }
 
-export function NoteTab({ ws, noteId, dispatch }: NoteProps) {
-  const n = No.noteById(ws, noteId);
+export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
+  const raw = No.noteById(ws, noteId);
   const by = ws.profile?.name || undefined;
   const [ask, setAsk] = useState(0);
+  const [askClose, setAskClose] = useState(false);
   const delBtn = useRef<HTMLButtonElement>(null);
   const askFirst = useRef<HTMLButtonElement>(null);
+  const closeFirst = useRef<HTMLButtonElement>(null);
+  const closeBtn = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (ask) askFirst.current?.focus();
   }, [ask]);
-  if (!n) return <p className="win__placeholder win__placeholder--small">{NOTE_TEXT.missing}</p>;
+  useEffect(() => {
+    if (askClose) closeFirst.current?.focus();
+  }, [askClose]);
+  if (!raw) return <p className="win__placeholder win__placeholder--small">{NOTE_TEXT.missing}</p>;
+  // im Entwurfsmodus zeigt die Note den Entwurf
+  const n = draft ? No.shownNote(raw) : raw;
+  const dirty = !!draft && No.hasDraft(raw);
   const info = No.stateOf(ws, n);
   const title = No.titleOf(n);
-  const edit = (patch: No.NotePatch) => dispatch({ type: 'noteEdit', id: n.id, patch, by });
+  const edit = (patch: No.NotePatch & No.DraftPatch) =>
+    draft ? dispatch({ type: 'noteDraft', id: n.id, patch: patch as No.DraftPatch, by }) : dispatch({ type: 'noteEdit', id: n.id, patch, by });
+  const changeState = (state: NoteState, reason?: string) =>
+    draft
+      ? dispatch({ type: 'noteDraft', id: n.id, patch: reason === undefined ? { state } : { state, waitReason: reason }, by })
+      : dispatch({ type: 'noteState', id: n.id, state, by, ...(reason === undefined ? {} : { reason }) });
+
+  // ---------- F-213: Speichern, Verwerfen, Schließen
+  const save = () => {
+    if (!draft || !dirty) return;
+    dispatch({ type: 'noteSave', id: n.id, by });
+    flash({ text: DRAFT_TEXT.saved, ms: 3000 });
+    draft.say(DRAFT_TEXT.saved);
+  };
+  const discard = (then?: () => void) => {
+    if (!draft) return;
+    const r = No.discardDraft(ws, n.id);
+    if (!r) return then?.();
+    const wasNew = !!raw.unsaved;
+    dispatch({ type: 'noteDiscard', id: n.id });
+    const text = wasNew ? DRAFT_TEXT.discardedNew : DRAFT_TEXT.discarded;
+    draft.say(text);
+    flash({
+      text,
+      ms: 10000,
+      action: { label: PAUSE_TEXT.undo, run: () => dispatch({ type: 'noteUndoDiscard', undo: r.undo, by }) },
+    });
+    if (wasNew) draft.onClose();
+    else then?.();
+  };
+  const close = () => {
+    if (!draft) return;
+    if (No.isEmptyDraft(ws, raw)) {
+      dispatch({ type: 'noteDiscard', id: n.id });
+      return draft.onClose();
+    }
+    if (dirty) return setAskClose(true);
+    draft.onClose();
+  };
+  const cancelClose = () => {
+    setAskClose(false);
+    closeBtn.current?.focus();
+  };
+  const onRootKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (!draft) return;
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.altKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      save();
+    } else if (e.key === 'Escape' && !ask && !askClose && !(e.target as HTMLElement).closest('.nedit__tools')) {
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    }
+  };
   const auto =
     info.cause === 'after' ? NOTE_TEXT.autoAfter(info.blockers?.length ?? 0) : info.cause === 'notBefore' || info.cause === 'date' ? NOTE_TEXT.autoFrom(dayDe(info.from!)) : '';
 
@@ -80,17 +148,17 @@ export function NoteTab({ ws, noteId, dispatch }: NoteProps) {
   };
   const archive = () => {
     setAsk(0);
-    dispatch({ type: 'noteState', id: n.id, state: 'archived', by });
-    flash({ text: NOTE_TEXT.archived, ms: 5000 });
+    changeState('archived');
+    flash({ text: draft ? DRAFT_TEXT.archivedDraft : NOTE_TEXT.archived, ms: 5000 });
     delBtn.current?.focus();
   };
 
   return (
-    <div className="note" role="region" aria-label={`Notiz: ${title || NOTE_TEXT.untitled}`}>
+    <div className={`note${draft ? ' note--draft' : ''}`} role="region" aria-label={`Notiz: ${title || NOTE_TEXT.untitled}${dirty ? ` (${DRAFT_TEXT.badge})` : ''}`} onKeyDown={onRootKey}>
       <div className="note__bar">
         <label className="note__opt">
           <span title={explain(TERMS.noteState)}>{NOTE_TEXT.state}</span>
-          <select value={n.state} onChange={(e) => dispatch({ type: 'noteState', id: n.id, state: e.target.value as NoteState, by })}>
+          <select value={n.state} onChange={(e) => changeState(e.target.value as NoteState)}>
             {STATES.map((s) => (
               <option key={s} value={s}>
                 {NOTE_TEXT.states[s]}
@@ -104,7 +172,7 @@ export function NoteTab({ ws, noteId, dispatch }: NoteProps) {
             <input
               type="text"
               defaultValue={n.waitReason ?? ''}
-              onBlur={(e) => e.target.value.trim() !== (n.waitReason ?? '') && dispatch({ type: 'noteState', id: n.id, state: 'waiting', reason: e.target.value, by })}
+              onBlur={(e) => e.target.value.trim() !== (n.waitReason ?? '') && changeState('waiting', e.target.value)}
             />
           </label>
         )}
@@ -153,9 +221,54 @@ export function NoteTab({ ws, noteId, dispatch }: NoteProps) {
       )}
       <NoteEditor key={n.id} text={n.text} label={NOTE_TEXT.text} autoFocus={!n.text && !n.title} onChange={(text) => edit({ text })} />
       <p className="note__meta">
-        {NOTE_TEXT.created(when(n.created))} · {NOTE_TEXT.changed(when(n.changed))}
+        {raw.unsaved ? DRAFT_TEXT.neverSaved : `${NOTE_TEXT.created(when(n.created))} · ${NOTE_TEXT.changed(when(n.changed))}`}
         {n.origin?.by ? ` · ${n.origin.by}` : ''}
       </p>
+      {draft && (
+        <div className="note__actions" role="group" aria-label={DRAFT_TEXT.group}>
+          <span className={`note__status${dirty ? ' is-draft' : ''}`} role="status">
+            {dirty ? (raw.draft ? DRAFT_TEXT.since(when(raw.draft.at)) : DRAFT_TEXT.badge) : DRAFT_TEXT.clean}
+          </span>
+          <button type="button" className="note__save" disabled={!dirty} onClick={save} title={DRAFT_TEXT.saveHint}>
+            <Icon name="check" size={14} /> {DRAFT_TEXT.save}
+          </button>
+          <button type="button" disabled={!dirty} onClick={() => discard()} title={raw.unsaved ? DRAFT_TEXT.discardNewHint : DRAFT_TEXT.discardHint}>
+            <Icon name="back" size={14} /> {DRAFT_TEXT.discard}
+          </button>
+          <button ref={closeBtn} type="button" onClick={close} title={DRAFT_TEXT.closeHint}>
+            <Icon name="close" size={14} /> {DRAFT_TEXT.close}
+          </button>
+        </div>
+      )}
+      {askClose && (
+        <div className="note__ask" role="alertdialog" aria-labelledby="note-close-t" aria-describedby="note-close-d" onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), cancelClose())}>
+          <strong id="note-close-t">{DRAFT_TEXT.askTitle}</strong>
+          <span id="note-close-d" className="note__hint">{DRAFT_TEXT.askHint}</span>
+          <button
+            ref={closeFirst}
+            type="button"
+            onClick={() => {
+              save();
+              setAskClose(false);
+              draft?.onClose();
+            }}
+          >
+            {DRAFT_TEXT.save}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAskClose(false);
+              discard(() => draft?.onClose());
+            }}
+          >
+            {DRAFT_TEXT.discard}
+          </button>
+          <button type="button" onClick={cancelClose}>
+            {NOTE_TEXT.cancel}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -429,8 +429,24 @@ export interface Note {
   accept?: NoteCheck[];
   /** V65: verknüpfte Sources mit Stelle. */
   sources?: SourceLink[];
+  /**
+   * F-213 (V68): Entwurf – Änderungen, die erst „Speichern“ übernimmt. Liegt an der Note in der Library
+   * (mit Gist-Abgleich), damit er später als „vorläufig“ im Projektfokus erscheinen kann (S10).
+   */
+  draft?: NoteDraft;
+  /** F-213: Note wurde noch nie gespeichert (neu im Pad); „Verwerfen“ entfernt sie ganz. */
+  unsaved?: boolean;
   created: number;
   changed: number;
+}
+
+/** F-213 (V68): Felder, die ein Entwurf ändern kann (S9: alles in der Note). */
+export type NoteDraftField = 'title' | 'text' | 'state' | 'waitReason' | 'important' | 'urgent' | 'notBefore' | 'due';
+/** F-213: Entwurf; `null` = Feld beim Speichern entfernen. */
+export interface NoteDraft {
+  fields: { [K in NoteDraftField]?: Note[K] | null };
+  at: number;
+  by?: string;
 }
 
 /** F-206: Arten von Ansichten; Scrum kommt später. */

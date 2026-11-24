@@ -4527,3 +4527,79 @@ describe('F-206 Schritt 3: Pads (Logik, V66)', () => {
     expect(Pd.migrateNoteTabs(m.ws).pads).toBe(0);
   });
 });
+
+describe('F-213 Entwurf bis Speichern (V68)', () => {
+  const start = () => {
+    let ws = W.defaultWorkspace();
+    ws = No.createNote(ws, { title: 'Alt', text: 'gespeichert' }, { id: 'a' }).ws;
+    return ws;
+  };
+
+  it('Entwurf ändert den gespeicherten Stand nicht; Rücknahme auf den alten Wert löscht ihn', () => {
+    let ws = start();
+    ws = No.setDraft(ws, 'a', { text: 'neu', important: true });
+    const n = No.noteById(ws, 'a')!;
+    expect(n.text).toBe('gespeichert');
+    expect(No.hasDraft(n)).toBe(true);
+    expect(No.shownNote(n).text).toBe('neu');
+    expect(No.shownNote(n).important).toBe(true);
+    ws = No.setDraft(ws, 'a', { text: 'gespeichert', important: false });
+    expect(No.noteById(ws, 'a')!.draft).toBeUndefined();
+  });
+
+  it('Speichern übernimmt alles, auch Zustand mit Grund und entfernte Felder', () => {
+    let ws = start();
+    ws = No.updateNote(ws, 'a', { due: '2026-12-01' });
+    ws = No.setDraft(ws, 'a', { text: 'fertig', state: 'waiting', waitReason: 'Rückruf', due: undefined });
+    expect(No.noteById(ws, 'a')!.due).toBe('2026-12-01');
+    ws = No.saveDraft(ws, 'a');
+    const n = No.noteById(ws, 'a')!;
+    expect(n.text).toBe('fertig');
+    expect(n.state).toBe('waiting');
+    expect(n.waitReason).toBe('Rückruf');
+    expect(n.due).toBeUndefined();
+    expect(n.draft).toBeUndefined();
+  });
+
+  it('Verwerfen: gespeicherter Stand bleibt, Rückgängig holt den Entwurf zurück', () => {
+    let ws = start();
+    ws = No.setDraft(ws, 'a', { text: 'weg' });
+    const r = No.discardDraft(ws, 'a')!;
+    expect(No.noteById(r.ws, 'a')!.draft).toBeUndefined();
+    expect(No.noteById(r.ws, 'a')!.text).toBe('gespeichert');
+    ws = No.undoDiscard(r.ws, r.undo);
+    expect(No.shownNote(No.noteById(ws, 'a')!).text).toBe('weg');
+  });
+
+  it('Neue Note ist Entwurf: Verwerfen entfernt sie ganz, leer zählt als leerer Entwurf, Speichern macht sie gültig', () => {
+    let ws = W.defaultWorkspace();
+    ws = No.createNote(ws, { unsaved: true }, { id: 'n' }).ws;
+    expect(No.isEmptyDraft(ws, No.noteById(ws, 'n')!)).toBe(true);
+    ws = No.setDraft(ws, 'n', { text: 'Idee' });
+    expect(No.isEmptyDraft(ws, No.noteById(ws, 'n')!)).toBe(false);
+    // Suche findet nur Gespeichertes
+    expect(No.searchNotes(ws, 'Idee')).toHaveLength(0);
+    const r = No.discardDraft(ws, 'n')!;
+    expect(No.noteById(r.ws, 'n')).toBeUndefined();
+    expect(No.noteById(No.undoDiscard(r.ws, r.undo), 'n')).toBeDefined();
+    ws = No.saveDraft(ws, 'n');
+    const n = No.noteById(ws, 'n')!;
+    expect(n.unsaved).toBeUndefined();
+    expect(n.text).toBe('Idee');
+    expect(No.searchNotes(ws, 'Idee')).toHaveLength(1);
+  });
+
+  it('Entwurf übersteht Speichern und Laden (liegt in der Library, S10)', () => {
+    let ws = start();
+    ws = No.createNote(ws, { unsaved: true }, { id: 'n' }).ws;
+    ws = No.setDraft(ws, 'n', { text: 'vorläufig', state: 'doing', notBefore: '2026-12-02' }, { by: 'Enrico' });
+    ws = No.setDraft(ws, 'a', { title: 'Neu' });
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    const n = No.noteById(back, 'n')!;
+    expect(n.unsaved).toBe(true);
+    expect(n.draft!.fields.text).toBe('vorläufig');
+    expect(n.draft!.fields.state).toBe('doing');
+    expect(n.draft!.by).toBe('Enrico');
+    expect(No.shownNote(No.noteById(back, 'a')!).title).toBe('Neu');
+  });
+});

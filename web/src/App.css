@@ -5837,21 +5837,45 @@ h3.cases__name { font-size: 1.05em; }
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: linear-gradient(145deg, var(--neu-top), var(--neu-bottom));
   border: 1px solid rgba(var(--tint), 0.18);
   border-radius: var(--radius);
   box-shadow: 0 16px 40px rgba(var(--lo), 0.7);
   overflow: hidden;
+  container: pad / inline-size;
 }
+/* V68: Hintergrund als eigene Ebene – so wird nur Fläche und Inhalt durchsichtig, Rahmen und Akzent bleiben voll sichtbar */
+.pad::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(145deg, var(--neu-top), var(--neu-bottom));
+  pointer-events: none;
+}
+/* V68 (Wunsch Enrico): aktives Pad = Akzentrahmen + Kopf in Akzentfarbe (statt ganz deckend) */
 .pad.is-top {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent), 0 18px 44px rgba(var(--lo), 0.75);
 }
-.pad.is-moving { opacity: 1; }
-/* V67 (Wunsch Enrico): einstellbare Deckkraft; Hover, Fokus und Ziehen = undurchsichtig */
-.pad { opacity: var(--pad-opacity, 1); transition: opacity 0.15s ease; }
-.pad:hover, .pad:focus-within, .pad.is-moving { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .pad { transition: none; } }
+.pad.is-top > .pad__head {
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.32), rgba(var(--accent-rgb), 0.12)), rgba(var(--glass), 0.6);
+  box-shadow: inset 0 -1px 0 rgba(var(--accent-rgb), 0.55), inset 0 1px 0 rgba(var(--hi), 0.12);
+}
+.pad.is-top .pad__icon { color: var(--accent); opacity: 1; }
+.pad:not(.is-top) .pad__tab.is-on { border-bottom-color: rgba(var(--tint), 0.3); }
+/* V67/V68 (Wunsch Enrico): einstellbare Deckkraft für Fläche und Inhalt; Hover, Fokus und Ziehen = undurchsichtig */
+.pad::before, .pad > * { opacity: var(--pad-opacity, 1); transition: opacity 0.15s ease; }
+.pad:is(:hover, :focus-within, .is-moving)::before, .pad:is(:hover, :focus-within, .is-moving) > * { opacity: 1; }
+/* beim Einstellen am Regler die Wirkung zeigen (Kopf mit dem Regler bleibt deckend) */
+.pad:has(.pad__op input:is(:focus, :active), .menu__range input:is(:focus, :active))::before,
+.pad:has(.pad__op input:is(:focus, :active), .menu__range input:is(:focus, :active)) > .pad__body { opacity: var(--pad-opacity, 1); }
+@media (prefers-reduced-motion: reduce) { .pad::before, .pad > * { transition: none; } }
+/* V68: Regler direkt im Kopf; in schmalen Pads nur im ⋮ */
+.pad__op { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 0 4px; cursor: default; color: var(--text-dim, var(--text)); }
+.pad__op .icon { display: inline-block; flex: none; }
+.pad__op input { width: 64px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+@container pad (max-width: 380px) { .pad__op { display: none; } }
 .pad:focus-within { outline: none; }
 .pad__head {
   display: flex;
@@ -5988,7 +6012,8 @@ h3.cases__name { font-size: 1.05em; }
   background: rgba(var(--accent-rgb), 0.25);
 }
 @media (forced-colors: active) {
-  .pad { border: 1px solid CanvasText; opacity: 1; }
+  .pad { border: 1px solid CanvasText; background: Canvas; }
+  .pad::before, .pad > * { opacity: 1 !important; }
   .pad.is-top { border: 2px solid Highlight; }
   .nblock__item.is-on { border-color: Highlight; }
 }
@@ -6000,3 +6025,127 @@ h3.cases__name { font-size: 1.05em; }
 .menu__range-row input { flex: 1; accent-color: var(--accent); }
 .menu__range-row output { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
 .menu__range-hint { font-size: 12px; opacity: 0.7; max-width: 260px; }
+
+/* V68 (Wunsch Enrico): Deckkraft-Regler in der Akzentfarbe des Anwenders – selbst gestaltet, damit es in allen Browsern (auch Safari) gleich aussieht */
+.pad__op input[type='range'],
+.menu__range-row input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  background: transparent;
+}
+.pad__op input[type='range']::-webkit-slider-runnable-track,
+.menu__range-row input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(var(--accent-rgb), 0.25), var(--accent));
+}
+.pad__op input[type='range']::-moz-range-track,
+.menu__range-row input[type='range']::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(var(--accent-rgb), 0.25), var(--accent));
+}
+.pad__op input[type='range']::-webkit-slider-thumb,
+.menu__range-row input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--neu-top, #fff);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.6);
+}
+.pad__op input[type='range']::-moz-range-thumb,
+.menu__range-row input[type='range']::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--neu-top, #fff);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.6);
+}
+.pad__op input[type='range']:focus-visible,
+.menu__range-row input[type='range']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.pad__op:hover { color: var(--accent); }
+@media (forced-colors: active) {
+  .pad__op input[type='range'],
+  .menu__range-row input[type='range'] { -webkit-appearance: auto; appearance: auto; }
+}
+
+/* V68 (Wunsch Enrico): Notizfläche im Pad versenkt (eingedrückt im Rahmen), Schrift leicht erhaben */
+.pad__body {
+  margin: 0 6px 6px;
+  border-radius: calc(var(--radius) - 4px);
+  background: rgba(var(--lo), 0.22);
+}
+/* Schatten als Deckschicht, damit ihn die Flächen darin (Liste, Editor) nicht verdecken */
+.pad__body::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  box-shadow: var(--pressed);
+  pointer-events: none;
+}
+.pad__body,
+.pad__body :is(input, textarea, [contenteditable]) {
+  text-shadow: var(--pad-emboss);
+}
+:root { --pad-emboss: -1px -1px 0 rgba(var(--hi), 0.07), 1px 1px 2px rgba(var(--lo), 0.75); }
+/* helle Themes: Prägedruck (heller Schein unten) statt dunklem Schatten */
+:root:is([data-theme='light'], [data-theme='aqua'], [data-theme='snowleopard'], [data-theme='winxp']) { --pad-emboss: 0 1px 0 rgba(255, 255, 255, 0.85), 0 -1px 0 rgba(var(--lo), 0.12); }
+/* Pixel-Themes: Schrift bleibt scharf */
+:root:is([data-theme='terminal'], [data-theme='amiga'], [data-theme='atari']) { --pad-emboss: none; }
+/* Grip unten rechts sitzt jetzt im Rand neben der versenkten Fläche */
+.pad__grip--se { width: 12px; height: 12px; }
+@media (forced-colors: active) {
+  .pad__body { background: Canvas; }
+  .pad__body::after { box-shadow: none; border: 1px solid CanvasText; }
+  .pad__body, .pad__body :is(input, textarea, [contenteditable]) { text-shadow: none; }
+}
+
+/* F-213 (V68): Speichern, Verwerfen, Schließen im Notizblock (Entwurf bis „Speichern“) */
+.note__actions {
+  position: sticky;
+  bottom: -10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 -14px -10px;
+  padding: 8px 14px;
+  border-top: 1px solid rgba(var(--tint), 0.12);
+  background: rgba(var(--glass), 0.85);
+  z-index: 1;
+}
+.note__actions button { display: inline-flex; align-items: center; gap: 5px; }
+.note__actions .icon { display: inline-block; }
+.note__status { flex: 1 1 10em; font-size: 12px; color: var(--muted); }
+.note__status.is-draft { color: var(--accent); font-weight: 600; }
+.note__save:not(:disabled) {
+  background: rgba(var(--accent-rgb), 0.16);
+  color: var(--strong, var(--text));
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.nblock__draft {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--accent);
+  border: 1px solid rgba(var(--accent-rgb), 0.55);
+}
+.nblock__item.is-draft .nblock__title { font-style: italic; }
+@media (forced-colors: active) {
+  .note__save:not(:disabled) { background: ButtonText; color: ButtonFace; }
+  .nblock__draft { border-color: CanvasText; color: CanvasText; }
+}

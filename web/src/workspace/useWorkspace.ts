@@ -191,6 +191,11 @@ export type Action =
   | { type: 'padClose'; id: string }
   | { type: 'padRenameSheet'; sheet: string; name: string }
   | { type: 'padNote'; id: string; sheet: string; note: string; by?: string }
+  // F-213 (V68): Entwurf bis „Speichern“
+  | { type: 'noteDraft'; id: string; patch: No.DraftPatch; by?: string }
+  | { type: 'noteSave'; id: string; by?: string }
+  | { type: 'noteDiscard'; id: string }
+  | { type: 'noteUndoDiscard'; undo: No.DraftUndo; by?: string }
   | { type: 'padOpen'; desk: string; ref: No.NoteRef; ids: string[] }
   | { type: 'padCreate'; desk: string; kind: 'note' | NoteViewKind; ids: string[]; by?: string };
 
@@ -201,7 +206,7 @@ export type Action =
 export function padOpenResult(ws: Workspace, a: { desk: string; ref?: No.NoteRef; create?: 'note' | NoteViewKind; ids: string[]; by?: string }): Pd.OpenInPadResult & { id?: string } {
   const make = idSeq(a.ids);
   if (a.create) {
-    const made = a.create === 'note' ? No.createNote(ws, {}, { by: a.by, id: make() }) : No.createView(ws, a.create, No.defaultViewName(ws, a.create), { id: make() });
+    const made = a.create === 'note' ? No.createNote(ws, { unsaved: true }, { by: a.by, id: make() }) : No.createView(ws, a.create, No.defaultViewName(ws, a.create), { id: make() });
     const r = a.create === 'note' ? Pd.openNoteInPad(made.ws, a.desk, made.id, { makeId: make }) : Pd.openSheetInPad(made.ws, a.desk, made.id, { makeId: make });
     return { ...r, id: made.id };
   }
@@ -294,6 +299,14 @@ function step(ws: Workspace, a: Action): Workspace {
       return No.updateNote(ws, a.id, a.patch, { by: a.by });
     case 'noteState':
       return No.setState(ws, a.id, a.state, { by: a.by }, a.reason);
+    case 'noteDraft':
+      return No.setDraft(ws, a.id, a.patch, { by: a.by });
+    case 'noteSave':
+      return No.saveDraft(ws, a.id, { by: a.by });
+    case 'noteDiscard':
+      return No.discardDraft(ws, a.id)?.ws ?? ws;
+    case 'noteUndoDiscard':
+      return No.undoDiscard(ws, a.undo, { by: a.by });
     case 'noteDelete':
       return No.deleteNote(ws, a.id, { keepChildren: a.keepChildren })?.ws ?? ws;
     case 'noteRestore':
@@ -322,7 +335,8 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'padRenameSheet':
       return a.name.trim() ? No.updateView(ws, a.sheet, { name: a.name.trim() }) : ws;
     case 'padNote': {
-      const made = No.createNote(ws, {}, { by: a.by, id: a.note });
+      // F-213: neue Note im Pad ist Entwurf, bis sie gespeichert wird
+      const made = No.createNote(ws, { unsaved: true }, { by: a.by, id: a.note });
       const r = No.placeNote(made.ws, a.note, { view: a.sheet });
       return r.ok ? Pd.raisePad(r.ws, a.id) : ws;
     }

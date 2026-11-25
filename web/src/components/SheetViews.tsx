@@ -9,6 +9,7 @@ import { type Dispatch, type KeyboardEvent, type ReactNode, useEffect, useRef, u
 import type { Action } from '../workspace/useWorkspace';
 import type { Note, NoteView, Workspace } from '../workspace/types';
 import * as No from '../workspace/notes';
+import * as NS from '../workspace/noteSources';
 import * as Sh from '../workspace/sheets';
 import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
 import { noticeLater } from '../workspace/flash';
@@ -158,6 +159,9 @@ export function Signs({ ws, n }: { ws: Workspace; n: Note }) {
   if (n.delegated) out.push(<span key="g" className="sign">{SHEET_TEXT.delegated(n.delegated.to)}</span>);
   const cl = Sh.checklistOf(n);
   if (cl) out.push(<span key="c" className="sign" title={SHEET_TEXT.progress(cl.done, cl.all)}><Icon name="check" size={11} /> {cl.done}/{cl.all}</span>);
+  // V93 (Q10): Büroklammer + Zahl, wenn die Notiz Quellen hat (wie Trello-Anhänge)
+  const src = n.sources?.length ?? 0;
+  if (src) out.push(<span key="s" className="sign" title={NS.SOURCE_LINK_TEXT.clip(src)} aria-label={NS.SOURCE_LINK_TEXT.clip(src)}><Icon name="clip" size={11} /> {src}</span>);
   const p = No.progress(ws, n.id);
   if (p.total) out.push(<span key="p" className="sign" title={SHEET_TEXT.sub(p.done, p.total)}>{p.done}/{p.total}</span>);
   return out.length ? <span className="sheet__signs">{out}</span> : null;

@@ -127,6 +127,11 @@ export const ICONS = {
   stackOn: { d: ['M5 5h9v9H5z', 'M2.5 11.5V2.5h9', 'M9.5 7.5v4', 'M7.5 9.5h4'] },
   move: { d: ['M2 8h10', 'M9 5l3 3-3 3', 'M14 3v10'] },
   detach: { d: ['M2 6V2h4', 'M2 2l5 5', 'M9 2.5h4.5v11h-11V9'] },
+  // V93 (Q10): Büroklammer = Quellen an Karten und Zeilen (wie Trello-Anhänge)
+  clip: { d: ['M10.5 4.5 5.6 9.4a1.6 1.6 0 0 0 2.3 2.3l5-5a3 3 0 0 0-4.3-4.3l-5 5a4.4 4.4 0 0 0 6.2 6.2l4.2-4.2'] },
+  // V93: Pfeile für Zurück/Vor im Portal (statt Schriftzeichen ← →, die in runden Knöpfen nicht mittig sitzen)
+  arrowLeft: { d: ['M13 8H3', 'M7 4 3 8l4 4'], w: 1.7 },
+  arrowRight: { d: ['M3 8h10', 'M9 4l4 4-4 4'], w: 1.7 },
   home: { d: ['M2 7.5 8 2.5l6 5', 'M3.5 6.5V13.5h9V6.5', 'M6.5 13.5V10h3v3.5'] },
   // F-215 (V69): Halbkreis am Home-Knopf
   mic: { d: ['M6 2.5h4v6.5a2 2 0 0 1-4 0z', 'M3.8 8.2a4.2 4.2 0 0 0 8.4 0', 'M8 12.5v2', 'M6 14.5h4'] },

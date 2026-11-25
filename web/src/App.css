@@ -8327,3 +8327,412 @@ h3.cases__name { font-size: 1.05em; }
 .design__retro input { margin: 0; accent-color: var(--accent); }
 .design__retro.is-on { border-color: rgb(var(--accent-rgb)); background: rgba(var(--accent-rgb), 0.12); }
 .design__retro:focus-within { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 1px; }
+
+/* V93 (Enrico zum Glasknopf: „Die Seiten dürfen rund sein und der Rahmen darf wie schwarzes Chrom aussehen“):
+   Pillenform (Seiten ganz rund), Rahmen aus schwarzem Chrom – dunkler Metallverlauf mit hellem Grat oben und
+   dunklem Spiegel in der Mitte (Rahmen als Hintergrund der Kante: Glas = padding-box, Chrom = border-box). */
+.mwheel__dial,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background:
+    radial-gradient(120% 90% at 50% 120%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 60%) padding-box,
+    linear-gradient(180deg, #2a2c2f 0%, #111214 48%, #000 52%, #050506 100%) padding-box,
+    linear-gradient(180deg, #8a9098 0%, #3b3f45 22%, #08090a 50%, #26292d 72%, #6c727a 100%) border-box;
+  box-shadow:
+    0 0 0 1px #000,                       /* schwarze Fuge außen */
+    0 4px 6px -2px rgba(0, 0, 0, 0.75),   /* Schatten darunter */
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+.mwheel__dial::before,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap::before {
+  left: 6px;
+  right: 6px;
+  top: 1px;
+  border-radius: 999px 999px 40% 40% / 999px 999px 60% 60%;
+}
+/* Glanzpunkt etwas nach innen, damit er auf dem Glas sitzt und nicht in der Rundung */
+.mwheel__dial::after,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap::after { top: 3px; right: 9px; }
+.mwheel__dial { padding: 0 13px 0 10px; }
+.nedit__hbtn .nedit__hwheel .rpick__val { padding: 0 13px 0 10px; }
+/* Hover/Fokus: schwarzer Chrom bleibt, außen glüht die Akzentfarbe */
+.mwheel:is(:hover, :focus-visible) .mwheel__dial {
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb), 0.95),
+    0 0 12px rgba(var(--accent-rgb), 0.55),
+    0 4px 6px -2px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+@media (forced-colors: active) {
+  .mwheel__dial, .nedit__hbtn .nedit__hwheel .rpick__wheelwrap { border-color: CanvasText; }
+}
+
+/* V93 (Enrico): Smartphone-Hinweis statt der App – siehe components/MobileGate.tsx */
+.mgate {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 18px calc(24px + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(90% 60% at 50% 0%, rgba(var(--accent-rgb, 200, 64, 31), 0.16), transparent 70%),
+    var(--bg, #0c0c0f);
+  color: #e6e9ec;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.mgate__card {
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+  padding: 26px 22px 18px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #1c1d21, #131317);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+.mgate__logo { display: block; margin: 0 auto 10px; border-radius: 16px; }
+.mgate h1 { font-size: 22px; line-height: 1.25; margin: 6px 0 10px; outline: none; }
+.mgate h1:focus-visible { outline: 2px solid rgb(var(--accent-rgb, 200, 64, 31)); outline-offset: 4px; border-radius: 6px; }
+.mgate p { margin: 0 0 10px; color: #b9bec4; }
+.mgate .mgate__lead { color: #e6e9ec; font-weight: 600; }
+/* Bildchen: Telefon durchgestrichen → Bildschirm mit drei Slots */
+.mgate__screens { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 4px 0 8px; color: #8d939a; }
+.mgate__phone { position: relative; width: 20px; height: 34px; border: 2px solid #6c727a; border-radius: 5px; }
+.mgate__x::before, .mgate__x::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 30px; height: 2px;
+  background: rgb(var(--accent-rgb, 200, 64, 31)); translate: -50% -50%; rotate: 45deg;
+}
+.mgate__x::after { rotate: -45deg; }
+.mgate__arrow { font-size: 18px; }
+.mgate__desk {
+  display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; gap: 3px;
+  width: 64px; height: 40px; padding: 3px; border: 2px solid #c2c8ce; border-radius: 5px;
+}
+.mgate__desk span { background: rgba(var(--accent-rgb, 200, 64, 31), 0.55); border-radius: 2px; }
+.mgate__desk span:first-child { grid-row: 1 / 3; }
+.mgate__pass {
+  display: block; width: 100%; min-height: 48px; margin: 16px 0 4px; padding: 10px 16px;
+  font: inherit; font-weight: 600; color: #fff; border: 0; border-radius: 999px;
+  background: linear-gradient(180deg, rgba(var(--accent-rgb, 200, 64, 31), 1), rgba(var(--accent-rgb, 200, 64, 31), 0.75));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 6px 14px rgba(0, 0, 0, 0.5);
+}
+.mgate__pass:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.mgate .mgate__note { min-height: 1.5em; font-size: 14px; color: #e6e9ec; margin: 4px 0 8px; }
+@media (forced-colors: active) {
+  .mgate__pass { border: 2px solid ButtonText; }
+}
+
+/* ---------------------------------------------------------------- V93 F-219 Desk-Design wie Notizen
+   Vorschau an einem Slot gezeigt, von Enrico freigegeben („Ja mach weiter“) und auf alle Portale übertragen.
+   Wie die Pads: feiner Rahmen statt Lichtkante, aktiv = Akzentrahmen + Kopf in Akzentfarbe (kein Schein),
+   Kopf-Knöpfe Schließen/⋮/+ im Clay-Stil, gewählter Reiter erhaben. Ampel (F-26) an den Reitern bleibt. */
+.win { box-shadow: 0 16px 40px rgba(var(--lo), 0.7); }
+.win:not(.win--framed)::before { background: rgba(var(--tint), 0.18); padding: 1px; opacity: 1; }
+.win.win--active { box-shadow: 0 18px 44px rgba(var(--lo), 0.75); }
+.win.win--active:not(.win--framed)::before { background: rgba(var(--accent-rgb), 0.85); }
+.win > .win__bar { gap: 6px; padding: 5px 8px; border-bottom: 0; }
+.win.win--active > .win__bar {
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.32), rgba(var(--accent-rgb), 0.12)), rgba(var(--glass), 0.6);
+  box-shadow: inset 0 -1px 0 rgba(var(--accent-rgb), 0.55), inset 0 1px 0 rgba(var(--hi), 0.12);
+}
+.win > .win__bar > .win__close,
+.win > .win__bar > .menu > button,
+.win > .win__bar > .win__stack-add {
+  min-width: 26px;
+  min-height: 22px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 999px; /* V93: rund (Enrico) */
+  background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 14%, rgba(var(--hi), 0.14)), color-mix(in srgb, rgb(var(--accent-rgb)) 6%, rgba(var(--lo), 0.2)));
+  box-shadow: inset 2px 2px 4px rgba(var(--hi), 0.2), inset -3px -3px 6px rgba(var(--lo), 0.5), 3px 4px 9px rgba(0, 0, 0, 0.4);
+  transition: box-shadow 0.18s ease, scale 0.18s ease;
+}
+.win > .win__bar > .win__close:hover,
+.win > .win__bar > .menu > button:hover,
+.win > .win__bar > .win__stack-add:hover {
+  background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 45%, rgba(var(--hi), 0.2)), color-mix(in srgb, rgb(var(--accent-rgb)) 26%, rgba(var(--lo), 0.2)));
+  color: #fff;
+  scale: 1.06;
+  box-shadow: inset 2px 2px 4px rgba(var(--hi), 0.28), inset -3px -3px 6px rgba(var(--lo), 0.45), 0 0 0 1px rgba(var(--accent-rgb), 0.8), 0 0 10px rgba(var(--accent-rgb), 0.45), 3px 4px 9px rgba(0, 0, 0, 0.4);
+}
+.win > .win__bar > .win__close:active,
+.win > .win__bar > .menu > button[aria-expanded='true'],
+.win > .win__bar > .win__stack-add:active {
+  scale: 0.97;
+  box-shadow: inset 3px 4px 8px rgba(0, 0, 0, 0.45), inset -2px -2px 4px rgba(var(--hi), 0.1);
+}
+.win > .tabs { padding-top: 4px; }
+.win .tab { border-radius: 7px 7px 0 0; }
+.win .tab--on {
+  background: rgba(var(--tint), 0.08);
+  box-shadow: inset 0 var(--load-line) 0 color-mix(in srgb, var(--tabload, #333) 55%, var(--bg)), inset 1px 1px 1px rgba(var(--hi), 0.1), inset -1px 0 0 rgba(var(--tint), 0.16), inset 1px 0 0 rgba(var(--tint), 0.16);
+}
+@media (prefers-reduced-motion: reduce) { .win > .win__bar > * { transition: none; scale: none !important; } }
+@media (forced-colors: active) {
+  .win > .win__bar > .win__close, .win > .win__bar > .menu > button, .win > .win__bar > .win__stack-add { box-shadow: none; border: 1px solid ButtonText; }
+}
+/* Zustände mit eigenem Rahmen bleiben vorn: Tausch (Quelle/Ziel) und Hinweis am Portal (F-114) */
+.win.win--swap-source { box-shadow: 0 0 0 2px var(--warn), 0 0 20px rgba(224, 176, 96, 0.35); }
+.win.win--swap-target:hover { box-shadow: 0 0 0 1px var(--warn); }
+.win.win--alert { box-shadow: 0 0 0 2px rgb(255, 59, 48), 0 0 26px rgba(255, 59, 48, 0.45), 0 14px 32px rgba(var(--lo), 0.6); }
+
+/* V93 (F-219, Punkt aus V91): Im Cockpit „Layouts“ stehen jetzt drei Gruppen untereinander (Desk-Layouts,
+   Notizen-Layouts, Board-Vorlagen) – die Überschrift im Band ist wieder sichtbar (V83 hatte sie nur für
+   Bildschirmleser, als es eine Gruppe gab). Gestaltet wie die Band-Beschriftung, Werkzeuge rechts. */
+.lc__band > .icon, .lc__band > .lc__head-title { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+.lc__band > .icon { flex: none; color: rgb(var(--accent-rgb)); }
+.lc__band > .lc__head-title { margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text); }
+.lc__band > .lc__head-tools { margin-left: auto; }
+
+/* V93 (Enrico: „Die Farbe des Deskdesigns sollte aber annähernd so dunkel bleiben wie vorher“): Kopf des aktiven
+   Portals nur mit einem Hauch Akzent, Clay-Knöpfe dunkler – Form wie bei den Pads, Helligkeit wie vorher. */
+:root:not([data-theme='light']) .win.win--active > .win__bar {
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.13), rgba(var(--accent-rgb), 0.03)), rgba(var(--glass), 0.6);
+  box-shadow: inset 0 -1px 0 rgba(var(--accent-rgb), 0.45), inset 0 1px 0 rgba(var(--hi), 0.08);
+}
+:root:not([data-theme='light']) .win > .win__bar > :is(.win__close, .win__stack-add),
+:root:not([data-theme='light']) .win > .win__bar > .menu > button {
+  background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 6%, rgba(var(--hi), 0.06)), color-mix(in srgb, rgb(var(--accent-rgb)) 3%, rgba(var(--lo), 0.35)));
+  box-shadow: inset 1px 1px 2px rgba(var(--hi), 0.12), inset -2px -2px 4px rgba(var(--lo), 0.55), 2px 3px 6px rgba(0, 0, 0, 0.45);
+}
+:root:not([data-theme='light']) .win .tab--on {
+  background: rgba(var(--tint), 0.05);
+}
+
+/* V93 (Enrico: „Mach mal die Buttons weitestgehend rund“): Knöpfe in Kopfleiste, Pad-Kopf und Portal-Kopf als
+   Pille bzw. Kreis – passend zu den Glasknöpfen. Reiter (oben rund, unten offen) und Felder behalten ihre Form. */
+.toolbar button:not(.tb-win),
+.pad .pad__head button:not(.pad__tab),
+.win > .win__bar button,
+.win > .tabs > .tabs__add,
+.tab__close {
+  border-radius: 999px;
+}
+/* V93 (Enrico: „Auch die im Desk Mode“): alle Knöpfe auf der Desk-Fläche (Portale, Stapel-Leiste, Hinweise am
+   Portal, leere Slots, Teiler-Knöpfe) rund – außer Reitern, Stapel-Einträgen und Dock-Reitern (Listen-/Reiterform). */
+main button:not(.pad *, .tab, .stack__row, .dock__tab, [role='tab'], [role='option'], [role='menuitem']) {
+  border-radius: 999px;
+}
+.tab .tab__keep { border-radius: 999px; }
+
+/* V93 (Enrico: „Padding innen besser anpassen, dass er rund wird“ – + im Portal, Zahnrad im Header – „Bringe auch mehr
+   Haptik in das Design“). 1) Knöpfe nur mit Symbol sind echte Kreise (Breite = Höhe, Symbol mittig).
+   2) Alle Knöpfe in Kopfleiste, Pad-Kopf und Portal-Kopf bekommen dieselbe greifbare Form: gewölbt (Licht oben links,
+   helle Oberkante, dunkle Unterkante, Schlagschatten), Hover = Akzentring + Leuchten, gedrückt = sinkt ein (1 px tiefer,
+   Schatten innen). NF-08: überall derselbe Knopf. */
+:root .toolbar button:is([aria-label='Einstellungen'], [aria-label^='Desk wechseln'], .tb-design, .tb-help, .tb-distribute, .tb-launcher) {
+  --knob: 30px;
+}
+:root .win > .win__bar :is(.win__close, .win__nav button, .win__coll, .win__devbtn, .win__max, .win__stack-add, .menu > button, .win__zoombtn:not(:has(.win__zoomval))) {
+  --knob: 24px;
+}
+:root .pad .pad__head :is(.pad__menu:not(:has(.pad__add)), .pad__close, button[aria-label^='Vollbild']) {
+  --knob: 28px;
+}
+:root .toolbar button:is([aria-label='Einstellungen'], [aria-label^='Desk wechseln'], .tb-design, .tb-help, .tb-distribute, .tb-launcher),
+:root .win > .win__bar :is(.win__close, .win__nav button, .win__coll, .win__devbtn, .win__max, .win__stack-add, .menu > button, .win__zoombtn:not(:has(.win__zoomval))),
+:root .pad .pad__head :is(.pad__menu:not(:has(.pad__add)), .pad__close, button[aria-label^='Vollbild']) {
+  width: var(--knob);
+  height: var(--knob);
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+}
+
+/* Haptik – eine Form für alle Kopf-Knöpfe */
+:root :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)) {
+  border: 0;
+  border-radius: 999px;
+  background:
+    radial-gradient(120% 90% at 32% 18%, rgba(var(--hi), 0.13), rgba(var(--hi), 0) 60%),
+    linear-gradient(180deg, #2b2c31 0%, #1a1b1f 55%, #121316 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(0, 0, 0, 0.75),
+    0 2px 4px rgba(0, 0, 0, 0.55),
+    0 4px 8px -2px rgba(0, 0, 0, 0.45);
+  transition: box-shadow 0.15s ease, translate 0.08s ease, background 0.15s ease, color 0.15s ease;
+  scale: none;
+  filter: none;
+}
+:root :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)):hover:not(:disabled) {
+  color: #fff;
+  filter: none;
+  scale: none;
+  background:
+    radial-gradient(120% 90% at 32% 18%, rgba(var(--hi), 0.18), rgba(var(--hi), 0) 60%),
+    linear-gradient(180deg, color-mix(in srgb, rgb(var(--accent-rgb)) 22%, #2e2f34) 0%, color-mix(in srgb, rgb(var(--accent-rgb)) 12%, #16171a) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(var(--accent-rgb), 0.85),
+    0 0 10px rgba(var(--accent-rgb), 0.45),
+    0 2px 4px rgba(0, 0, 0, 0.55);
+}
+:root :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)):is(:active, [aria-expanded='true']):not(:disabled) {
+  translate: 0 1px;
+  background: linear-gradient(180deg, #121316 0%, #1b1c20 100%);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.75),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.75),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+}
+:root :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)):focus-visible {
+  outline: 2px solid rgb(var(--accent-rgb));
+  outline-offset: 2px;
+}
+:root :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)):disabled {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+/* Hell: dieselbe Wölbung mit hellem Material */
+:root[data-theme='light'] :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)) {
+  background:
+    radial-gradient(120% 90% at 32% 18%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #ffffff 0%, #eceef2 60%, #dcdfe5 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -2px 3px rgba(60, 64, 80, 0.14),
+    0 0 0 1px rgba(60, 64, 80, 0.22),
+    0 2px 4px rgba(60, 64, 80, 0.2);
+}
+:root[data-theme='light'] :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)):is(:active, [aria-expanded='true']):not(:disabled) {
+  background: linear-gradient(180deg, #dcdfe5, #eceef2);
+  box-shadow: inset 0 2px 4px rgba(60, 64, 80, 0.3), 0 0 0 1px rgba(60, 64, 80, 0.22);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root :is(.toolbar button, .win > .win__bar button) { transition: none; translate: none !important; }
+}
+@media (forced-colors: active) {
+  :root :is(.toolbar button, .win > .win__bar button) { border: 1px solid ButtonText; box-shadow: none; }
+}
+
+/* V93 (Enrico: „Die Icons sitzen nicht gut und sind teilweise auch nur klein in den Buttons. Mach das Design noch
+   besser neumorph“): Symbole in runden Knöpfen einheitlich groß (≈ 56 % des Knopfs) und genau mittig; Zurück/Vor/
+   Neu laden/Startseite sind jetzt SVG statt Schriftzeichen. Neumorph: Knopf aus demselben Material wie die Fläche,
+   geformt nur durch Licht oben links und Schatten unten rechts (kein schwarzer Ring); gedrückt = in die Fläche
+   eingesenkt; Hover = Symbol in Akzentfarbe hell, feiner Akzentring. */
+:root .toolbar button:is([aria-label='Einstellungen'], [aria-label^='Desk wechseln'], .tb-design, .tb-help, .tb-distribute, .tb-launcher),
+:root .win > .win__bar :is(.win__close, .win__nav button, .win__coll, .win__devbtn, .win__max, .win__stack-add, .menu > button, .win__zoombtn:not(:has(.win__zoomval))),
+:root .pad .pad__head :is(.pad__menu:not(:has(.pad__add)), .pad__close, button[aria-label^='Vollbild']) {
+  line-height: 1;
+  font-size: calc(var(--knob) * 0.52);
+  font-weight: 700;
+}
+:root .toolbar button:is([aria-label='Einstellungen'], [aria-label^='Desk wechseln'], .tb-design, .tb-help, .tb-distribute, .tb-launcher) svg,
+:root .win > .win__bar :is(.win__close, .win__nav button, .win__coll, .win__devbtn, .win__max, .win__stack-add, .menu > button, .win__zoombtn:not(:has(.win__zoomval))) svg,
+:root .pad .pad__head :is(.pad__menu:not(:has(.pad__add)), .pad__close, button[aria-label^='Vollbild']) svg {
+  display: block;
+  width: calc(var(--knob) * 0.56);
+  height: calc(var(--knob) * 0.56);
+  margin: 0;
+  grid-area: 1 / 1;
+}
+:root .win__nav .win__spin { display: grid; place-items: center; grid-area: 1 / 1; }
+:root .win__nav .win__spin svg { width: calc(var(--knob) * 0.56); height: calc(var(--knob) * 0.56); }
+
+:root:not([data-theme='light']) :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)) {
+  background: linear-gradient(145deg, #212226 0%, #17181b 100%);
+  box-shadow:
+    -3px -3px 6px rgba(255, 255, 255, 0.045),
+    3px 3px 7px rgba(0, 0, 0, 0.78),
+    inset 1px 1px 1px rgba(255, 255, 255, 0.07),
+    inset -1px -1px 1px rgba(0, 0, 0, 0.35);
+}
+:root:not([data-theme='light']) :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)):hover:not(:disabled) {
+  color: color-mix(in srgb, rgb(var(--accent-rgb)) 35%, #ffffff);
+  background: linear-gradient(145deg, #25262b 0%, #191a1d 100%);
+  box-shadow:
+    -3px -3px 6px rgba(255, 255, 255, 0.05),
+    3px 3px 7px rgba(0, 0, 0, 0.8),
+    inset 1px 1px 1px rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(var(--accent-rgb), 0.7),
+    0 0 9px rgba(var(--accent-rgb), 0.35);
+}
+:root:not([data-theme='light']) :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)):is(:active, [aria-expanded='true']):not(:disabled) {
+  background: linear-gradient(145deg, #141518 0%, #1c1d21 100%);
+  box-shadow:
+    inset 3px 3px 6px rgba(0, 0, 0, 0.8),
+    inset -2px -2px 5px rgba(255, 255, 255, 0.05);
+}
+:root[data-theme='light'] :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)) {
+  background: linear-gradient(145deg, #f7f8fa 0%, #e3e6eb 100%);
+  box-shadow:
+    -3px -3px 6px rgba(255, 255, 255, 0.95),
+    3px 3px 7px rgba(60, 64, 80, 0.25),
+    inset 1px 1px 1px rgba(255, 255, 255, 0.9);
+}
+:root[data-theme='light'] :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)):hover:not(:disabled) {
+  color: color-mix(in srgb, rgb(var(--accent-rgb)) 80%, #000000);
+  background: linear-gradient(145deg, #fafbfc 0%, #e6e9ee 100%);
+  box-shadow: -3px -3px 6px rgba(255, 255, 255, 0.95), 3px 3px 7px rgba(60, 64, 80, 0.25), 0 0 0 1px rgba(var(--accent-rgb), 0.7);
+}
+:root[data-theme='light'] :is(.toolbar button:not(.tb-win, .focus-meter), .win > .win__bar button:not(.win__star)):is(:active, [aria-expanded='true']):not(:disabled) {
+  background: linear-gradient(145deg, #e1e4e9, #f1f3f6);
+  box-shadow: inset 3px 3px 6px rgba(60, 64, 80, 0.25), inset -3px -3px 6px rgba(255, 255, 255, 0.9);
+}
+
+/* ---------------------------------------------------------------- V93 F-206 Schritt 6: Notiz ↔ Quelle */
+.srcs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 6px; position: relative; }
+.srcs__head { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.srcs__head .icon { display: inline-block; }
+.srcs__list { display: contents; list-style: none; margin: 0; padding: 0; }
+.srcs__item { display: inline-flex; align-items: center; gap: 2px; position: relative; }
+.srcs__chip, .srcs__edit {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 26em;
+  min-height: 32px; padding: 3px 12px; border-radius: 999px;
+  border: 1px solid rgba(var(--hi), 0.12); background: rgba(0, 0, 0, 0.28); color: inherit; font-size: 13px;
+  box-shadow: inset 1px 1px 1px rgba(var(--hi), 0.06), 2px 2px 5px rgba(0, 0, 0, 0.35);
+}
+.srcs__chip:hover { border-color: rgba(var(--accent-rgb), 0.7); }
+.srcs__chip:focus-visible, .srcs__mini:focus-visible, .srcs__add:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 2px; }
+.srcs__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.srcs__spot { flex: none; font-variant-numeric: tabular-nums; padding: 0 6px; border-radius: 999px; background: rgba(var(--accent-rgb), 0.22); font-size: 12px; }
+.srcs__spotin { width: 13em; font: inherit; font-size: 12px; padding: 2px 6px; border-radius: 999px; }
+.srcs__mini { min-height: 26px; min-width: 26px; padding: 0 8px; border-radius: 999px; font-size: 12px; background: transparent; box-shadow: none; border: 0; color: var(--muted); }
+.srcs__icon { padding: 0; display: inline-grid; place-items: center; opacity: 0; }
+.srcs__item:is(:hover, :focus-within) .srcs__icon, .srcs__icon:focus-visible { opacity: 1; }
+@media (hover: none) { .srcs__icon { opacity: 1; } }
+.srcs__item.is-gone .srcs__chip { opacity: 0.6; border-style: dashed; }
+.srcs__add { min-height: 28px; padding: 2px 12px; border-radius: 999px; font-size: 13px; background: transparent; box-shadow: none; border: 1px dashed rgba(var(--hi), 0.22); color: var(--muted); }
+.srcs.is-empty .srcs__add { min-height: 24px; font-size: 12px; opacity: 0.75; }
+.srcs__add:hover { color: var(--text); border-color: rgba(var(--accent-rgb), 0.7); }
+.srcs__gone { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.srcpick {
+  position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: min(420px, 80vw);
+  padding: 8px; border-radius: 12px; background: var(--panel); border: 1px solid rgba(var(--accent-rgb), 0.5);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+}
+.srcpick__in { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; padding: 6px 10px; border-radius: 8px; }
+.srcpick__list { list-style: none; margin: 6px 0 0; padding: 0; max-height: 280px; overflow: auto; }
+.srcpick__group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 6px 8px 2px; }
+.srcpick__opt { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: var(--cur-hand); font-size: 13px; }
+.srcpick__opt.is-on { background: rgba(var(--accent-rgb), 0.2); box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.7); }
+.srcpick__title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srcpick__where { flex: none; color: var(--muted); font-size: 12px; }
+.srcpick__none, .srcpick__hint { font-size: 12px; color: var(--muted); padding: 6px 8px; margin: 0; }
+:root[data-theme='light'] .srcs__chip, :root[data-theme='light'] .srcs__edit { background: rgba(255, 255, 255, 0.7); border-color: rgba(60, 64, 80, 0.2); box-shadow: 1px 1px 3px rgba(60, 64, 80, 0.15); }
+@media (forced-colors: active) { .srcs__chip, .srcs__add { border: 1px solid ButtonText; } .srcpick__opt.is-on { outline: 2px solid Highlight; } }
+/* V93 (Q4): Notizen zu dieser Seite im Portal-Kopf – Symbol + Zahl als kleine Pille */
+:root .win > .win__bar .menu > button.win__notes { width: auto; min-width: 24px; height: 24px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+:root .win > .win__bar .menu > button.win__notes svg { width: 13px; height: 13px; }
+.win__notes-n { font-variant-numeric: tabular-nums; }
+/* V93 (Q6): „n Notizen“ an Sources in der Library – Liste am Ort */
+.srcnotes { position: relative; display: inline-flex; flex: none; }
+.srcnotes__btn { display: inline-flex; align-items: center; gap: 3px; min-height: 22px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.srcnotes__btn .icon, .srcnotes__list .icon { display: inline-block; }
+.srcnotes__list { position: absolute; z-index: 40; right: 0; top: calc(100% + 4px); min-width: 220px; max-width: 320px; list-style: none; margin: 0; padding: 6px; border-radius: 10px; background: var(--panel); border: 1px solid rgba(var(--accent-rgb), 0.5); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55); }
+.srcnotes__list button { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 5px 8px; border-radius: 7px; background: transparent; box-shadow: none; border: 0; font-size: 13px; }
+.srcnotes__list button:is(:hover, :focus-visible) { background: rgba(var(--accent-rgb), 0.2); outline: none; }
+.srcnotes__new { color: var(--muted); border-top: 1px solid var(--line) !important; border-radius: 0 0 7px 7px !important; margin-top: 4px; }
+/* V93 (Q2 c): Ziehen – Ablagestellen deutlich zeigen */
+.srcs.is-over { outline: 2px dashed rgb(var(--accent-rgb)); outline-offset: 4px; border-radius: 12px; background: rgba(var(--accent-rgb), 0.08); }
+.srcs__drop { flex-basis: 100%; font-size: 12px; font-weight: 600; color: rgb(var(--accent-rgb)); }
+.win.win--noteover { box-shadow: 0 0 0 2px rgb(var(--accent-rgb)), 0 0 24px rgba(var(--accent-rgb), 0.5); }
+.win.win--noteover::after { content: 'Loslassen = Notiz mit dieser Seite verknüpfen'; position: absolute; inset: auto 10px 10px; z-index: 9; padding: 8px 12px; border-radius: 10px; background: rgba(var(--glass), 0.96); border: 1px solid rgb(var(--accent-rgb)); font-size: 13px; text-align: center; pointer-events: none; }

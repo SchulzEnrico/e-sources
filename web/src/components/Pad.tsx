@@ -7,6 +7,8 @@ import { type CSSProperties, type Dispatch, type KeyboardEvent, type PointerEven
 import { useKeyboard } from './useKeyboard';
 import type { Action } from '../workspace/useWorkspace';
 import type { NoteViewKind, Pad as PadT, PadPlace, Workspace } from '../workspace/types';
+import { DRAG_NOTE } from './SourceChips';
+import * as NS from '../workspace/noteSources';
 import * as No from '../workspace/notes';
 import * as Sh from '../workspace/sheets';
 import { PAD_MIN, type PadUndo, padUndoOf } from '../workspace/pads';
@@ -1061,6 +1063,12 @@ function NoteBlock(props: {
     const id = newId();
     freshNotes.add(id); // V75 (T5): neue Note – Tastatur darf sofort aufgehen
     dispatch({ type: 'padNote', id: padId, sheet: sheetId, note: id, by: ws.profile?.name || undefined });
+    // F-206 Schritt 6 (V93, Q2 a): im Desk-Modus mit der Seite im aktiven Portal verknüpft – abwählbar über × am Chip
+    const page = document.querySelector('.padlayer.is-notes') ? null : NS.activePage(ws);
+    if (page) {
+      dispatch({ type: 'noteLink', id, url: page.url, title: page.title, sid: newId(), by: ws.profile?.name || undefined });
+      props.say(NS.SOURCE_LINK_TEXT.autoLinked(page.title));
+    }
     onPick(id);
   };
   // F-213 (S8): beim Wechsel bleibt ein Entwurf still erhalten; nur eine leere neue Note fällt weg
@@ -1139,6 +1147,12 @@ function NoteBlock(props: {
                   <button
                     type="button"
                     data-note={n.id}
+                    draggable
+                    onDragStart={(e) => {
+                      // V93 (Q2 c): Notiz auf ein Portal ziehen = mit dessen Seite verknüpfen
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData(DRAG_NOTE, n.id);
+                    }}
                     className={`nblock__item${n.id === open ? ' is-on' : ''}${No.isFinished(n.state) ? ' is-done' : ''}${draft ? ' is-draft' : ''}${spoken ? ' is-voice' : ''}${tone ? ' has-tone' : ''}`}
                     aria-current={n.id === open ? 'true' : undefined}
                     title={mark ? `${t} – ${tone && No.isVoiceNote(raw) ? `${AUDIO_TEXT.listVoice} ${mark}` : mark}` : t}

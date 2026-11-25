@@ -14,6 +14,7 @@ import { flash } from '../workspace/flash';
 import { NoteEditor } from './NoteEditor';
 import { RemindChips } from './RemindChips';
 import { AudioChips } from './AudioChips';
+import { SourceChips } from './SourceChips';
 import { recentPlaces } from '../workspace/remind';
 import { Icon } from './Icon';
 import type { IconName } from '../workspace/icons';
@@ -289,6 +290,8 @@ export function NoteTab({ ws, noteId, dispatch, draft, sheet }: NoteProps) {
           dispatch({ type: 'noteEdit', id: cur.id, patch: { attach: list }, by });
         }}
       />
+      {/* F-206 Schritt 6 (V93, Q1): Quellen der Notiz – wirken sofort, nicht Teil des Entwurfs */}
+      <SourceChips ws={ws} note={raw} dispatch={dispatch} by={by} />
       <NoteEditor key={n.id} text={n.text} label={NOTE_TEXT.text} autoFocus={!n.text && !n.title && (freshNotes.delete(n.id) || !coarsePointer())} onChange={(text) => edit({ text })} />
       {/* V74 (Wunsch Enrico): unter dem Textfeld nur noch der Zustand (Leiste unten); angelegt/geändert/von
           stehen im Tooltip des Zustands und für Bildschirmleser darin */}

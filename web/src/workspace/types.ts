@@ -167,7 +167,7 @@ export interface Bookmark {
 }
 
 /** F-185: Wie eine Source in die Library kam. */
-export type OriginVia = 'hand' | 'launcher' | 'import' | 'sample' | 'workspace';
+export type OriginVia = 'hand' | 'launcher' | 'import' | 'sample' | 'workspace' | 'note';
 
 export interface BookmarkOrigin {
   via: OriginVia;

@@ -25,12 +25,13 @@ import { type ImportPlan, applyImport } from './browserBookmarks';
 import { sortAll, sortInto } from './sortHelp';
 import { setCategoryIcon, setCategoryTint, setPanelCategory, setPanelNewCategory } from './category';
 import * as Cs from './cases';
+import * as NS from './noteSources';
 import * as No from './notes';
 import * as Pd from './pads';
 import * as NT from './noteTree';
 import * as NL from './notesLayouts';
 import * as RS from './ruleSet';
-import type { BoardTemplate, ColState, NoteState, NoteView, NoteViewKind, PadPlace } from './types';
+import type { BoardTemplate, ColState, NoteState, NoteView, NoteViewKind, PadPlace, SourceLink, SourceSpot } from './types';
 import * as BT from './boardTemplates';
 import * as Sh from './sheets';
 import { type RuleUndo, deleteRule, restoreRule, setRuleOn, setSiteCategory } from './rules';
@@ -186,6 +187,13 @@ export type Action =
   /** F-206: im Tab eine neue Notiz bzw. Ansicht anlegen (Tab zeigt nur darauf). */
   | { type: 'tabNote'; id: string; tab: string; kind: 'note' | NoteViewKind; by?: string; noteId?: string }
   | { type: 'noteEdit'; id: string; patch: No.NotePatch; by?: string }
+  // F-206 Schritt 6 (V93): Notiz ↔ Quelle – `sid` = Id für eine neu anzulegende Source (Reducer bleibt rein)
+  | { type: 'noteLink'; id: string; url: string; title: string; at?: SourceSpot; sid: string; by?: string }
+  | { type: 'noteUnlink'; id: string; index: number; by?: string }
+  | { type: 'noteRelink'; id: string; index: number; link: SourceLink; by?: string }
+  | { type: 'noteSpot'; id: string; index: number; at?: SourceSpot; by?: string }
+  | { type: 'sourceRevive'; link: SourceLink }
+  | { type: 'noteForPage'; note: string; url: string; title: string; sid: string; by?: string }
   | { type: 'noteForward'; id: string; to: string; by?: string }
   | { type: 'noteState'; id: string; state: NoteState; reason?: string; by?: string }
   | { type: 'noteDelete'; id: string; keepChildren?: boolean }
@@ -364,6 +372,21 @@ function step(ws: Workspace, a: Action): Workspace {
     }
     case 'noteEdit':
       return No.updateNote(ws, a.id, a.patch, { by: a.by });
+    case 'noteLink':
+      return NS.linkSource(ws, a.id, { url: a.url, title: a.title, ...(a.at ? { at: a.at } : {}) }, () => a.sid, { by: a.by }).ws;
+    case 'noteUnlink':
+      return NS.unlinkSource(ws, a.id, a.index, { by: a.by }).ws;
+    case 'noteRelink':
+      return NS.restoreLink(ws, a.id, a.index, a.link, { by: a.by });
+    case 'noteSpot':
+      return NS.setLinkSpot(ws, a.id, a.index, a.at, { by: a.by });
+    case 'sourceRevive':
+      return NS.reviveSource(ws, a.link);
+    case 'noteForPage': {
+      // V93 (Q4): „+ Neue Notiz zu dieser Seite“ – Notiz mit Verbindung; öffnet die App danach im Pad
+      const made = No.createNote(ws, {}, { by: a.by, id: a.note });
+      return NS.linkSource(made.ws, a.note, { url: a.url, title: a.title }, () => a.sid, { by: a.by }).ws;
+    }
     case 'noteForward':
       return No.markForwarded(ws, a.id, a.to, { by: a.by });
     case 'noteState':
@@ -421,8 +444,12 @@ function step(ws: Workspace, a: Action): Workspace {
       return No.setDraft(ws, a.id, a.patch, { by: a.by });
     case 'noteSave':
       return No.saveDraft(ws, a.id, { by: a.by });
-    case 'noteDiscard':
-      return No.discardDraft(ws, a.id)?.ws ?? ws;
+    case 'noteDiscard': {
+      // V93: Sources, die nur für diese neue Notiz angelegt wurden (auf aktiver Seite verknüpft), fallen mit weg
+      const n = No.noteById(ws, a.id);
+      const out = No.discardDraft(ws, a.id)?.ws ?? ws;
+      return n?.unsaved && n.sources?.length ? NS.pruneNoteSources(out, n.sources.map((l) => l.id)) : out;
+    }
     case 'noteUndoDiscard':
       return No.undoDiscard(ws, a.undo, { by: a.by });
     case 'noteDelete':

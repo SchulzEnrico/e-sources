@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { ZOOM_DEFAULT, fitFor, fitStart, frameWidth, nearestStep, shownZoom, zoomOf, zoomStep } from './workspace/zoom';
+import * as NS from './workspace/noteSources';
+import { NOTE_FOR_PAGE_EVENT, OPEN_NOTE_EVENT, OPEN_SOURCE_EVENT, type OpenSourceDetail } from './components/SourceChips';
 import './App.css';
 import { usePause } from './workspace/usePause';
 import { PAUSE_CHOICES, SHOWN_CHOICES, keepTabOf, keptBySource, keptSources, pauseMinutes, shownMinutes, tabKey } from './workspace/pause';
@@ -33,7 +35,7 @@ import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { type Action, padOpenResult, useWorkspace } from './workspace/useWorkspace';
 import type { Workspace } from './workspace/types';
-import { type SearchHit, NO_CATEGORY, addSamples, bookmarkOf, openBookmark, openElsewhere, originOf } from './workspace/bookmarks';
+import { type SearchHit, NO_CATEGORY, addSamples, bookmarkOf, openBookmark, openElsewhere, originOf, sameUrl, sameUrlKey } from './workspace/bookmarks';
 import { Launcher, LauncherIcon } from './components/Launcher';
 import { type How, type LauncherState, HOW_IN, launcherCount, loadLauncher, openOutside, saveLauncher } from './workspace/launcher';
 import { Search } from './components/Search';
@@ -2060,6 +2062,63 @@ function DeskApp(props: DeskProps) {
     setActive(id);
     if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
   };
+
+  /**
+   * F-206 Schritt 6 (V93, Q5): Quelle aus einer Notiz öffnen – ist die Seite schon in einem Portal offen, dorthin
+   * (Stelle wird in diesem Tab angesprungen), sonst als neuer Tab im aktiven Portal. Main Stage folgt mit F-207.
+   */
+  const openSourceUrl = (url: string, title: string) => {
+    if (isBlocked(ws, url)) return launch(url, title, launcher.how);
+    const key = sameUrlKey(NS.urlWithoutSpot(url));
+    for (const p of ws.panels)
+      for (const t of p.tabs)
+        if (t.url && sameUrlKey(NS.urlWithoutSpot(t.url)) === key) {
+          showPanel(p.id, t.id);
+          if (!sameUrl(t.url, url)) dispatch({ type: 'setUrl', id: p.id, url });
+          return;
+        }
+    const id = currentPanel();
+    if (!id) return notify('Lege zuerst einen Slot an, dann lässt sich die Quelle öffnen.');
+    openHitIn(id, url, ws.panels.find((x) => x.id === id)?.name ?? '');
+  };
+  const openSourceRef = useRef(openSourceUrl);
+  openSourceRef.current = openSourceUrl;
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<OpenSourceDetail>).detail;
+      if (d?.url) openSourceRef.current(d.url, d.title);
+    };
+    window.addEventListener(OPEN_SOURCE_EVENT, on);
+    return () => window.removeEventListener(OPEN_SOURCE_EVENT, on);
+  }, []);
+  // V93 (Q4/Q6): Notiz aus Portal-Kopf bzw. Library im Pad öffnen; neue Notiz zu einer Seite anlegen und öffnen
+  const [openWhenReady, setOpenWhenReady] = useState<string | null>(null);
+  const openNoteRef = useRef<(id: string) => void>(() => {});
+  openNoteRef.current = (id: string) => {
+    const note = (ws.notes ?? []).find((n) => n.id === id);
+    if (!note) return setOpenWhenReady(id);
+    openNoteHit({ kind: 'note', note, title: noteTitleOf(note), snippet: '' });
+  };
+  useEffect(() => {
+    if (openWhenReady && (ws.notes ?? []).some((n) => n.id === openWhenReady)) {
+      setOpenWhenReady(null);
+      openNoteRef.current(openWhenReady);
+    }
+  }, [ws, openWhenReady]);
+  useEffect(() => {
+    const onOpen = (e: Event) => openNoteRef.current((e as CustomEvent<string>).detail);
+    const onNew = (e: Event) => {
+      const d = (e as CustomEvent<OpenSourceDetail>).detail;
+      const note = newId();
+      dispatch({ type: 'noteForPage', note, url: d.url, title: d.title, sid: newId(), by: ws.profile?.name || undefined });
+      setOpenWhenReady(note);
+    };
+    window.addEventListener(OPEN_NOTE_EVENT, onOpen);
+    window.addEventListener(NOTE_FOR_PAGE_EVENT, onNew);
+    return () => (window.removeEventListener(OPEN_NOTE_EVENT, onOpen), window.removeEventListener(NOTE_FOR_PAGE_EVENT, onNew));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // V93 (Q2 a): aktives Portal für „neue Notiz auf aktiver Seite verknüpft“
+  useEffect(() => NS.setActivePanel(active ?? null), [active]);
 
   // F-179: aktives Portal je Desk merken (nur im Browser, nicht im Testmodus)
   useEffect(() => {

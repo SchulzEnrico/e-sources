@@ -1,3 +1,4 @@
+import { SourceNotes, setDragUrl } from './SourceChips';
 import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
 import { SiteIcon, useDisplay } from './SiteIcon';
@@ -462,6 +463,7 @@ export function CollectionDrawer(props: {
                       setDrag(b.id);
                       e.dataTransfer.effectAllowed = 'move';
                       e.dataTransfer.setData('text/uri-list', b.url);
+                      setDragUrl(e.dataTransfer, b.url, b.title);
                     }}
                     onDragEnd={endDrag}
                     onDragOver={(e) => {
@@ -491,6 +493,7 @@ export function CollectionDrawer(props: {
                         {b.tags.length > 0 && ` · ${b.tags.map((t) => `#${t}`).join(' ')}`}
                       </span>
                     </button>
+                    <SourceNotes ws={ws} id={b.id} url={b.url} title={b.title} />
                     <button
                       type="button"
                       className={mine ? 'bm-icon bm-pin bm-pin--on' : 'bm-icon bm-pin'}

@@ -152,7 +152,7 @@ export const DESK_LAYOUT_TEXT = {
   slotNoRoom: 'Kein Nachbar-Slot hat Platz – ein Stack fasst höchstens 9 Portale.',
   layoutHead: 'Layout',
   /** V56: Layout-Modus nach Skizze V55 */
-  layoutsHead: 'Layouts',
+  layoutsHead: 'Desk-Layouts', // V93: sichtbar neben Notizen-Layouts und Board-Vorlagen
   previewHead: 'Vorschau für:',
   slotsHead: 'Slots',
   selHead: 'Gewählter Slot',
@@ -656,6 +656,7 @@ export const ORIGIN_TEXT = {
   import: 'aus Lesezeichen-Import',
   sample: 'aus den Beispielen',
   workspace: 'aus Import der Arbeitsfläche',
+  note: 'aus einer Notiz verknüpft',
   unknown: 'Herkunft unbekannt (angelegt vor dieser Angabe)',
 } as const;
 

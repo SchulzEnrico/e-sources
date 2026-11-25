@@ -22,6 +22,10 @@ import type { ShownTint } from '../workspace/tint';
 import { inkOn, rgbOf } from '../workspace/look';
 import { Icon } from './Icon';
 import { NewInTab, NoteTab, ViewTab } from './NoteTab';
+import { DRAG_NOTE, noteForPage, openNote, setDragUrl } from './SourceChips';
+import { newId } from '../workspace/workspace';
+import * as NS from '../workspace/noteSources';
+import { titleOf as noteTitleOf } from '../workspace/notes';
 import type { IconName } from '../workspace/icons';
 
 /** Voreingestellte Größen (F-12) als Anteil von Breite und Höhe der Arbeitsfläche. */
@@ -491,6 +495,8 @@ export function PanelFrame(p: Props) {
   const [draft, setDraft] = useState(p.panel.name);
   const tab = activeTab(p.panel);
   const url = tab.url;
+  // V93 (Q2 c): Notiz wird auf dieses Portal gezogen
+  const [noteOver, setNoteOver] = useState(false);
   const [address, setAddress] = useState(url ?? '');
   /** Zähler für „Neu laden“ je Tab: ein neuer Schlüssel lädt dessen iframe neu. */
   const [reloads, setReloads] = useState<Record<string, number>>({});
@@ -693,7 +699,23 @@ export function PanelFrame(p: Props) {
 
   return (
     <section
-      className={cls}
+      className={noteOver ? `${cls} win--noteover` : cls}
+      onDragOver={(e) => {
+        if (!url || !e.dataTransfer.types.includes(DRAG_NOTE)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setNoteOver(true);
+      }}
+      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setNoteOver(false)}
+      onDrop={(e) => {
+        setNoteOver(false);
+        const id = e.dataTransfer.getData(DRAG_NOTE);
+        if (!id || !url) return;
+        e.preventDefault();
+        const title = NS.sourceForUrl(p.ws, url)?.title || NS.pageTitle(url);
+        p.dispatch({ type: 'noteLink', id, url, title, sid: newId(), by: p.ws.profile?.name || undefined });
+        flash({ text: NS.SOURCE_LINK_TEXT.autoLinked(title), ms: 3000 });
+      }}
       onMouseDown={p.onActivate}
       onPointerDownCapture={() => p.onUse?.(true)}
       onFocusCapture={() => p.onUse?.(false)}
@@ -732,7 +754,7 @@ export function PanelFrame(p: Props) {
               title={backOk ? 'Zurück' : 'Zurück – noch kein Schritt in diesem Tab'}
               aria-label="Zurück"
             >
-              ←
+              <Icon name="arrowLeft" size={14} />
             </button>
             <button
               type="button"
@@ -742,7 +764,7 @@ export function PanelFrame(p: Props) {
               title={fwdOk ? 'Vor' : 'Vor – noch kein Schritt zurück gemacht'}
               aria-label="Vor"
             >
-              →
+              <Icon name="arrowRight" size={14} />
             </button>
             <button
               type="button"
@@ -755,7 +777,7 @@ export function PanelFrame(p: Props) {
               title="Neu laden"
               aria-label="Neu laden"
             >
-              <span className="win__spin" aria-hidden="true">⟳</span>
+              <span className="win__spin" aria-hidden="true"><Icon name="reload" size={14} /></span>
             </button>
             <button
               type="button"
@@ -770,7 +792,7 @@ export function PanelFrame(p: Props) {
               title={p.panel.home ? `Startseite: ${p.panel.home}` : 'Noch keine Startseite'}
               aria-label="Startseite"
             >
-              ⌂
+              <Icon name="home" size={14} />
             </button>
           </div>
           {/* F-20: Sammlung des Panels */}
@@ -973,6 +995,40 @@ export function PanelFrame(p: Props) {
               <span className="win__name">{p.panel.name}</span>
             )}
           </div>
+          {/* F-206 Schritt 6 (V93, Q4): Notizen zu dieser Seite – Symbol + Zahl ab 1, Liste am Ort */}
+          {url &&
+            (() => {
+              const linked = NS.notesOfSource(p.ws, { url });
+              if (!linked.length) return null;
+              const page = { url, title: NS.sourceForUrl(p.ws, url)?.title || NS.pageTitle(url) };
+              return (
+                <Menu
+                  className="win__notes"
+                  label={NS.SOURCE_LINK_TEXT.notesTitle(linked.length)}
+                  icon={
+                    <>
+                      <Icon name="note" size={14} />
+                      <span className="win__notes-n">{linked.length}</span>
+                    </>
+                  }
+                >
+                  {(close) => (
+                    <>
+                      <MenuHead>{NS.SOURCE_LINK_TEXT.notes(linked.length)}</MenuHead>
+                      {linked.slice(0, 12).map((n) => (
+                        <Item key={n.id} icon="note" onClick={() => (close(), openNote(n.id))}>
+                          {noteTitleOf(n) || 'Ohne Titel'}
+                        </Item>
+                      ))}
+                      <li className="menu__sep" role="separator" />
+                      <Item icon="plus" onClick={() => (close(), noteForPage(page))}>
+                        {NS.SOURCE_LINK_TEXT.newForPage.replace(/^\+ /, '')}
+                      </Item>
+                    </>
+                  )}
+                </Menu>
+              );
+            })()}
           {/* F-163: Kategorie nie nur als Farbe – Name steht dabei; Klick öffnet „Farben“ (NF-03) */}
           {p.category && (
             <button
@@ -1194,6 +1250,7 @@ export function PanelFrame(p: Props) {
                 dragTab.current = t.id;
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', t.url ?? '');
+                if (t.url) setDragUrl(e.dataTransfer, t.url, NS.sourceForUrl(p.ws, t.url)?.title || NS.pageTitle(t.url));
               }}
               onDragOver={(e) => dragTab.current && e.preventDefault()}
               onDrop={(e) => dropTab(e, i)}

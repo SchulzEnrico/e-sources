@@ -130,7 +130,7 @@ function namedList(v: unknown): Named[] {
 }
 
 /** Lesezeichen (F-30); fehlerhafte Einträge fallen weg, statt die ganze Arbeitsfläche zu verwerfen. */
-const VIAS: OriginVia[] = ['hand', 'launcher', 'import', 'sample', 'workspace'];
+const VIAS: OriginVia[] = ['hand', 'launcher', 'import', 'sample', 'workspace', 'note'];
 
 /** F-185: Herkunft aus gespeicherten Daten; Unbrauchbares fällt weg. */
 function originFrom(v: unknown): BookmarkOrigin | undefined {

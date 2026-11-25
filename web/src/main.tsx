@@ -1,17 +1,34 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import MobileGate from './components/MobileGate';
 import SendPage from './components/SendPage';
 import { sentUrl, withoutSent } from './workspace/send';
 import { windowTarget } from './workspace/useWindows';
 
 const root = createRoot(document.getElementById('root')!);
-const startApp = (sent?: string) =>
+const renderApp = (sent?: string) =>
   root.render(
     <StrictMode>
       <App sent={sent} />
     </StrictMode>,
   );
+// V93 (Enrico): Auf dem Smartphone statt der App ein Hinweis, dass E-Sources derzeit nur am Computer Sinn macht;
+// ohne „Trotzdem öffnen“. Testen am Rechner mit ?phone=1.
+// Nur Touch-Geräte mit kleinem Bildschirm (Telefon hoch oder quer) – ein schmales Fenster am Rechner bleibt frei,
+// Tablets ebenso.
+const GATE_MQ = '(pointer: coarse) and (max-width: 600px), (pointer: coarse) and (max-height: 600px)';
+const isPhone = () =>
+  new URLSearchParams(window.location.search).has('phone') || (typeof matchMedia === 'function' && matchMedia(GATE_MQ).matches);
+const startApp = (sent?: string) => {
+  if (isPhone())
+    root.render(
+      <StrictMode>
+        <MobileGate />
+      </StrictMode>,
+    );
+  else renderApp(sent);
+};
 
 // F-189 Stufe 2: Aufruf über das Lesezeichen „An E-Sources senden“ (?open=<Adresse>)
 const sent = sentUrl(window.location.search);

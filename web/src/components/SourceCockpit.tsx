@@ -1,3 +1,4 @@
+import { SourceNotes } from './SourceChips';
 import { useState } from 'react';
 import { Icon } from './Icon';
 import { SiteIcon, useDisplay } from './SiteIcon';
@@ -63,6 +64,7 @@ export function SourceCockpit(p: { ws: Workspace; dispatch: (a: Action) => void 
                       <span className="srcc__title">{b.title}</span>
                       <span className="srcc__host">{hostOf(b.url)}</span>
                     </span>
+                    <SourceNotes ws={p.ws} id={b.id} url={b.url} title={b.title} />
                   </li>
                 ))}
               </ul>

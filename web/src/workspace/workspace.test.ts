@@ -54,6 +54,7 @@ import * as Rm from './remind';
 import * as Pd from './pads';
 import * as FR from './focusRing';
 import * as ND from './noteDoc';
+import * as Sh from './sheets';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -5189,5 +5190,158 @@ describe('V84 Suche: Passung über alle Arten (F-206 N6)', () => {
     expect(SR.chipStep('functions', 1, c)).toBe('all');
     expect(SR.chipStep('all', -1, c)).toBe('functions');
     expect(SR.chipStep('all', 1, { all: 0, portals: 0, library: 0, notes: 0, functions: 0 })).toBe('all');
+  });
+});
+
+describe('F-206 Schritt 7: To-do, Kanban, Eisenhower (V86)', () => {
+  const act = { now: Date.UTC(2026, 10, 25, 10), by: 'Enrico' };
+  const seq = () => {
+    let i = 0;
+    return () => `c${++i}`;
+  };
+  const setup = () => {
+    let ws = W.defaultWorkspace();
+    ws = { ...ws };
+    let a: string, b: string, kb: string, todo: string;
+    ({ ws, id: a } = No.createNote(ws, { title: 'A' }, act));
+    ({ ws, id: b } = No.createNote(ws, { title: 'B' }, act));
+    ({ ws, id: kb } = No.createView(ws, 'kanban', 'Board', { makeId: seq() }));
+    ({ ws, id: todo } = No.createView(ws, 'todo', ''));
+    return { ws, a, b, kb, todo };
+  };
+
+  it('K2: Spalten haben eine Bedeutung – neu gesetzt, alt aus dem Namen geraten', () => {
+    const { ws, kb } = setup();
+    expect(No.viewById(ws, kb)!.cols!.map((c) => c.state)).toEqual(['open', 'doing', 'done']);
+    expect(Sh.colStateOf({ name: 'Fertig' })).toBe('done');
+    expect(Sh.colStateOf({ name: 'In Prüfung' })).toBe('review');
+    expect(Sh.colStateOf({ name: 'Backlog' })).toBe('open');
+    expect(Sh.colStateOf({ name: 'Erledigt', state: 'doing' })).toBe('doing');
+    const parsed = No.parseNoteViews([{ id: 'k', kind: 'kanban', name: 'K', cols: [{ id: 'x', name: 'X', ids: [], state: 'review' }, { id: 'y', name: 'Y', ids: [], state: 'quatsch' }] }], new Set(), new Set());
+    expect(parsed[0].cols!.map((c) => c.state)).toEqual(['review', undefined]);
+  });
+
+  it('K2: Karte in Spalte setzt den Zustand; mit Abnahme wird erledigt „in Prüfung“', () => {
+    let { ws, a, kb } = setup();
+    const cols = No.viewById(ws, kb)!.cols!;
+    let r = Sh.moveCard(ws, kb, a, cols[1].id, undefined, act);
+    ws = (r as { ws: Workspace }).ws;
+    expect(No.noteById(ws, a)!.state).toBe('doing');
+    ws = (Sh.moveCard(ws, kb, a, cols[2].id, undefined, act) as { ws: Workspace }).ws;
+    expect(No.noteById(ws, a)!.state).toBe('done');
+    ws = (Sh.moveCard(ws, kb, a, cols[0].id, undefined, act) as { ws: Workspace }).ws;
+    expect(No.noteById(ws, a)!.state).toBe('open');
+    ws = No.updateView(ws, kb, { review: true });
+    ws = (Sh.moveCard(ws, kb, a, cols[2].id, undefined, act) as { ws: Workspace }).ws;
+    expect(No.noteById(ws, a)!.state).toBe('review');
+    r = Sh.moveCard(ws, kb, a, 'fehlt');
+    expect(r.ok).toBe(false);
+  });
+
+  it('K2/L1: anderswo erledigt wandert die Karte; auf dem Kanban ist der Haken anderswo gesperrt', () => {
+    let { ws, a, b, kb, todo } = setup();
+    const cols = No.viewById(ws, kb)!.cols!;
+    ws = (Sh.moveCard(ws, kb, a, cols[0].id, undefined, act) as { ws: Workspace }).ws;
+    ws = (No.placeNote(ws, a, { view: todo }) as { ws: Workspace }).ws;
+    ws = (No.placeNote(ws, b, { view: todo }) as { ws: Workspace }).ws;
+    expect(Sh.lockOf(ws, a, todo).map((v) => v.id)).toEqual([kb]);
+    expect(Sh.lockOf(ws, a, kb)).toEqual([]);
+    expect(Sh.lockOf(ws, b, todo)).toEqual([]);
+    expect(Sh.toggleDone(ws, a, todo, act)).toBe(ws);
+    ws = Sh.toggleDone(ws, b, todo, act);
+    expect(No.noteById(ws, b)!.state).toBe('done');
+    ws = No.setState(ws, a, 'done', act);
+    ws = Sh.syncBoards(ws, a);
+    expect(Sh.colOf(No.viewById(ws, kb)!, a)!.id).toBe(cols[2].id);
+    ws = No.setState(ws, a, 'open', act);
+    ws = Sh.syncBoards(ws, a);
+    expect(Sh.colOf(No.viewById(ws, kb)!, a)!.id).toBe(cols[0].id);
+  });
+
+  it('K3: WIP-Limit fragt erst beim Überschreiten', () => {
+    let { ws, a, b, kb } = setup();
+    const col = No.viewById(ws, kb)!.cols![1];
+    ws = Sh.setWip(ws, kb, col.id, 1);
+    expect(Sh.overWip(No.viewById(ws, kb)!.cols![1])).toBe(false);
+    ws = (Sh.moveCard(ws, kb, a, col.id) as { ws: Workspace }).ws;
+    expect(Sh.overWip(No.viewById(ws, kb)!.cols![1])).toBe(true);
+    ws = Sh.setWip(ws, kb, col.id, 0);
+    expect(No.viewById(ws, kb)!.cols![1].wip).toBeUndefined();
+    expect(b).toBeDefined();
+  });
+
+  it('T2/T3: To-do-Zeilen mit Unter-Notizen, Erledigte unten, Ordnung nach Fällig/Wichtig', () => {
+    let { ws, a, b, todo } = setup();
+    let c: string;
+    ({ ws, id: c } = No.createNote(ws, { title: 'C', parent: a, due: '2026-11-30' }, act));
+    ws = No.updateNote(ws, b, { due: '2026-11-27', important: true }, act);
+    ws = (No.placeNote(ws, a, { view: todo }) as { ws: Workspace }).ws;
+    ws = (No.placeNote(ws, b, { view: todo }) as { ws: Workspace }).ws;
+    const v = () => No.viewById(ws, todo)!;
+    expect(Sh.todoRows(ws, v()).rows.map((r) => [r.note.title, r.depth])).toEqual([['A', 0], ['C', 1], ['B', 0]]);
+    expect(Sh.todoRows(ws, v(), 'due').rows.map((r) => r.note.title)).toEqual(['B', 'A', 'C']);
+    expect(Sh.todoRows(ws, v(), 'important').rows[0].note.title).toBe('B');
+    ws = Sh.toggleDone(ws, b, todo, act);
+    const t = Sh.todoRows(ws, v());
+    expect(t.done.map((n) => n.title)).toEqual(['B']);
+    expect(Sh.todoRows(ws, v(), 'own', 'all').rows).toHaveLength(3);
+    ws = Sh.shiftIn(ws, todo, b, -1);
+    expect(v().ids).toEqual([b, a]);
+    expect(c).toBeDefined();
+  });
+
+  it('addTask legt im Sheet an (Kanban: erste Spalte, Zustand offen)', () => {
+    let { ws, kb, todo } = setup();
+    const r1 = Sh.addTask(ws, todo, '  Anrufen ', act)!;
+    ws = r1.ws;
+    expect(No.viewById(ws, todo)!.ids).toEqual([r1.id]);
+    const r2 = Sh.addTask(ws, kb, 'Karte', act)!;
+    ws = r2.ws;
+    expect(No.viewById(ws, kb)!.cols![0].ids).toEqual([r2.id]);
+    expect(Sh.addTask(ws, kb, '   ', act)).toBeNull();
+  });
+
+  it('T1: Checkliste mit Fortschritt; Punkt in Aufgabe umwandeln (wie Trello)', () => {
+    let { ws, a, kb } = setup();
+    ws = No.updateNote(ws, a, { text: '# A\n- [ ] Milch\n- [x] Brot\nText' }, act);
+    expect(Sh.checklistOf(No.noteById(ws, a)!)).toEqual({ done: 1, all: 2 });
+    expect(Sh.checklistItems(No.noteById(ws, a)!)).toEqual([{ text: 'Milch', done: false }, { text: 'Brot', done: true }]);
+    ws = (Sh.moveCard(ws, kb, a, No.viewById(ws, kb)!.cols![1].id, undefined, act) as { ws: Workspace }).ws;
+    const r = Sh.checklistToTask(ws, a, 0, kb, act)!;
+    ws = r.ws;
+    expect(No.noteById(ws, a)!.text).toBe('# A\n- [x] Brot\nText');
+    const t = No.noteById(ws, r.id)!;
+    expect(No.titleOf(t)).toBe('Milch');
+    expect(t.text).toBe('# Milch');
+    ws = Sh.renameTask(ws, r.id, 'Hafermilch', act);
+    expect(No.noteById(ws, r.id)!.text).toBe('# Hafermilch');
+    expect(t.trail[0].detail).toBe('A (Checkliste)');
+    expect(No.viewById(ws, kb)!.cols![1].ids).toEqual([a, r.id]);
+    expect(Sh.checklistToTask(ws, a, 5, kb)).toBeNull();
+    expect(Sh.checklistOf({ text: 'ohne' })).toBeNull();
+  });
+
+  it('E1–E4: Matrix nach Report (oben wichtig, rechts dringend), Ungeordnetes, offene aus allen Sheets', () => {
+    let { ws, a, b } = setup();
+    let m: string, c: string;
+    ({ ws, id: m } = No.createView(ws, 'eisenhower', ''));
+    ({ ws, id: c } = No.createNote(ws, { title: 'C', urgent: true }, act));
+    ws = (No.placeNote(ws, a, { view: m }) as { ws: Workspace }).ws;
+    let mx = Sh.matrixOf(ws, No.viewById(ws, m)!);
+    expect(mx.unsorted.map((n) => n.title)).toEqual(['A']);
+    expect(mx.quads[3].map((n) => n.title)).toEqual(['C']);
+    ws = Sh.setQuad(ws, m, a, 2, act);
+    ws = Sh.setQuad(ws, m, b, 4, act);
+    mx = Sh.matrixOf(ws, No.viewById(ws, m)!);
+    expect(mx.unsorted).toHaveLength(0);
+    expect(mx.quads[2].map((n) => n.title)).toEqual(['A']);
+    expect(mx.quads[4].map((n) => n.title)).toEqual(['B']);
+    expect(No.noteById(ws, b)).toMatchObject({ important: false, urgent: false });
+    expect(Sh.quadAt(0, 1)).toBe(1);
+    expect(Sh.quadAt(1, 0)).toBe(4);
+    expect(Sh.QUAD_CELL[3]).toEqual([1, 1]);
+    expect(Sh.theMatrix(ws)!.id).toBe(m);
+    ws = No.setState(ws, c, 'done', act);
+    expect(Sh.matrixOf(ws, No.viewById(ws, m)!).quads[3]).toHaveLength(0);
   });
 });

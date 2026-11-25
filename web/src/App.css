@@ -7797,3 +7797,78 @@ h3.cases__name { font-size: 1.05em; }
   .ncp__tile, .ncp__slot { border-color: CanvasText; background: Canvas; color: CanvasText; }
   .ncp__tile.is-sel { border-color: Highlight; }
 }
+
+/* ---------------------------------------------------------------- F-206 Schritt 7 (V86): Sheets To-do, Kanban, Eisenhower
+   An Trello und unserer UX/UI ausgerichtet: Zeilen/Karten im Clay-Stil der Notizliste, Kopfzeile mit Filter und Rädern
+   an derselben Stelle in allen Sheets (S3), Notiz als Kartenfenster mittig über dem Sheet (S1). */
+.sheet { position: relative; height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px; overflow: hidden; container-type: inline-size; }
+.sheet__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sheet__find { flex: 1 1 160px; min-width: 120px; }
+.sheet__wheel { flex: none; }
+.sheet__msg { margin: 0; padding: 6px 8px; border-radius: 8px; font-size: 13px; background: rgba(var(--accent-rgb), 0.12); border: 1px solid rgba(var(--accent-rgb), 0.4); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sheet__msg .icon { display: inline-block; }
+.sheet__msgx { margin-left: auto; width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
+.sheet__signs { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; }
+.sign { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; line-height: 1; padding: 3px 6px; border-radius: 99px; background: rgba(var(--tint), 0.1); border: 1px solid rgba(var(--tint), 0.16); white-space: nowrap; opacity: 0.9; }
+.sign .icon { display: inline-block; }
+.sign--imp { border-color: rgba(var(--accent-rgb), 0.55); }
+.sign--urg { border-style: dashed; border-color: rgba(var(--accent-rgb), 0.55); }
+
+/* To-do: Feld „Neue Aufgabe …“ wie die Suche versenkt, Zeilen als Clay-Knete wie die Notizliste */
+.todo__new { display: flex; align-items: center; gap: 6px; padding: 0 8px; min-height: 34px; border-radius: 7px; background: rgba(127, 127, 127, 0.12); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3); }
+.todo__new .icon { display: inline-block; opacity: 0.7; }
+.todo__new input { flex: 1; min-width: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; padding: 7px 0; outline: none; }
+.todo__new:focus-within { box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 2px rgb(var(--accent-rgb)); }
+.todo__list { list-style: none; margin: 0; padding: 2px 2px 8px; display: flex; flex-direction: column; gap: 4px; overflow: auto; min-height: 0; }
+.sheet--todo > .todo__list { flex: 1; }
+.todo__row {
+  display: flex; align-items: center; gap: 6px;
+  margin-left: calc(var(--depth, 0) * 22px);
+  padding: 4px 6px; border-radius: 7px;
+  background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 14%, rgba(var(--hi), 0.14)), color-mix(in srgb, rgb(var(--accent-rgb)) 6%, rgba(var(--lo), 0.2)));
+  box-shadow: inset 3px 3px 6px rgba(var(--hi), 0.22), inset -4px -5px 9px rgba(var(--lo), 0.55), 4px 5px 10px rgba(0, 0, 0, 0.35);
+}
+.todo__row.is-dim { opacity: 0.55; }
+.todo__row.is-done .todo__text { text-decoration: line-through; }
+.todo__tick { flex: none; width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: transparent; border: 0; }
+.todo__tick .icon { display: inline-block; }
+.todo__tick.is-locked { opacity: 0.75; }
+.todo__title { flex: 1; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; text-align: left; padding: 5px 4px; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; border-radius: 6px; }
+.todo__text { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
+.todo__title:focus-visible, .todo__tick:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 1px; }
+.todo__edit { flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 5px 6px; border-radius: 6px; border: 1px solid rgba(var(--accent-rgb), 0.6); background: rgba(0, 0, 0, 0.2); color: inherit; }
+.todo__done { flex: none; max-height: 40%; display: flex; flex-direction: column; min-height: 0; }
+.todo__donebtn { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 4px 8px; }
+.todo__donebtn .icon { display: inline-block; }
+
+/* S1 (wie Trello): Kartenfenster mittig über dem Sheet, Sheet dahinter abgedunkelt */
+.cardwin { position: absolute; inset: 0; z-index: 20; display: flex; align-items: flex-start; justify-content: center; padding: 18px 12px; background: rgba(0, 0, 0, 0.45); overflow: auto; }
+.cardwin__box {
+  width: min(760px, 100%); min-height: min(420px, 100%); max-height: 100%; display: flex; flex-direction: column;
+  border-radius: 10px; overflow: hidden; background: var(--panel-bg, rgb(var(--lo)));
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(var(--hi), 0.12);
+  border: 1px solid rgba(var(--tint), 0.16);
+}
+.cardwin__head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-bottom: 1px solid rgba(var(--tint), 0.1); }
+.cardwin__where { font-size: 12px; opacity: 0.75; display: inline-flex; align-items: center; gap: 5px; }
+.cardwin__where .icon, .cardwin__x .icon { display: inline-block; }
+.cardwin__x { margin-left: auto; width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; }
+.cardwin__check { padding: 6px 12px 8px; border-bottom: 1px solid rgba(var(--tint), 0.1); font-size: 13px; }
+.cardwin__checkhead { margin: 0 0 4px; font-size: 12px; opacity: 0.75; display: flex; align-items: center; gap: 5px; }
+.cardwin__checkhead .icon, .cardwin__totask .icon { display: inline-block; }
+.cardwin__check ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.cardwin__check li { display: flex; align-items: center; gap: 8px; }
+.cardwin__check li > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cardwin__check li.is-done > span { text-decoration: line-through; opacity: 0.65; }
+.cardwin__totask { flex: none; font-size: 11px; padding: 2px 7px; display: inline-flex; align-items: center; gap: 3px; opacity: 0.8; }
+.cardwin__check li:hover .cardwin__totask, .cardwin__totask:focus-visible { opacity: 1; }
+.cardwin__note { position: relative; flex: 1; min-height: 260px; display: flex; flex-direction: column; }
+.cardwin__note > .note { position: relative; inset: auto; flex: 1; min-height: 0; }
+@container padbody (max-width: 640px) {
+  .cardwin { padding: 0; }
+  .cardwin__box { width: 100%; height: 100%; max-height: none; border-radius: 0; }
+}
+@media (forced-colors: active) {
+  .todo__row, .cardwin__box, .sign { border: 1px solid CanvasText; }
+  .cardwin { background: Canvas; }
+}

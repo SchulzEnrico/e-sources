@@ -470,7 +470,12 @@ export interface NoteColumn {
   ids: string[];
   /** V65: WIP-Limit (höchstens so viele Karten); fehlt = ohne. */
   wip?: number;
+  /** V86 (K2): Bedeutung der Spalte – Karte hier = dieser Zustand der Notiz; fehlt = aus dem Namen geraten (colStateOf). */
+  state?: ColState;
 }
+
+/** V86 (K2): Bedeutung einer Kanban-Spalte. */
+export type ColState = 'open' | 'doing' | 'review' | 'done';
 
 /** V65: Besitzer eines Sheets. */
 export interface SheetOwner {

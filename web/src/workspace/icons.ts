@@ -98,6 +98,11 @@ export const ICONS = {
   keep: { d: [ring(8, 8, 6), 'M6.5 5.5v5', 'M9.5 5.5v5', 'M2.8 13.2 13.2 2.8'], w: 1.6 },
   /** F-202 Stufe 2: Auswählen (Haken) */
   check: { d: ['M3 8.6 6.4 12 13 4.4'], w: 1.6 },
+  // V86 (F-206 Schritt 7): Schloss am Haken (L1), Erledigt-Kreis wie Trello (K2)
+  lock: { d: ['M4 7.5h8v6H4z', 'M5.8 7.5V5.4a2.2 2.2 0 0 1 4.4 0v2.1'] },
+  tick: { d: [ring(8, 8, 5.6)] },
+  chevronDown: { d: ['M4 6l4 4 4-4'], w: 1.6 },
+  chevronRight: { d: ['M6 4l4 4-4 4'], w: 1.6 },
   // F-194: Zoom – Lupe mit Plus
   zoom: { d: [ring(6.5, 6.5, 4.5), 'M10 10l4 4', 'M6.5 4.6v3.8', 'M4.6 6.5h3.8'] },
   /** F-200: Entwickler-Modus – spitze Klammern </> */

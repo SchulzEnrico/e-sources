@@ -34,6 +34,7 @@ const TPL_OF: Record<SwipeDir, NoteTpl | undefined> = { up: 'tpl-note', right: '
 import { recentIn, type RecentRef } from '../workspace/pads';
 import { Item, Menu } from './PanelFrame';
 import { Icon } from './Icon';
+import { TodoSheet } from './SheetViews';
 import { RemindAlarm, useReminders } from './RemindAlarm';
 import { remindLabel } from '../workspace/remind';
 import { useDisplay } from './SiteIcon';
@@ -90,16 +91,18 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   const [cmd, setCmd] = useState<Cmd | null>(null);
   const send = (k: BlockCmd, id?: string) => setCmd((c) => ({ k, n: (c?.n ?? 0) + 1, id }));
   const isBlock = sheet?.kind === 'block';
+  // V86 (S2): Fußleiste auch in den Sheets To-do/Kanban/Eisenhower – Home, Neue Aufgabe, Suche sinngemäß
+  const isSheetUi = isBlock || sheet?.kind === 'todo';
   const footItems: FootItem[] = [
     { id: 'recent', label: FOOT_TEXT.recent, icon: 'recent', run: () => setRecentOpen(true) },
-    { id: 'new', label: FOOT_TEXT.newNote, icon: 'plus', run: isBlock ? () => send('new') : undefined },
+    { id: 'new', label: FOOT_TEXT.newNote, icon: 'plus', run: isSheetUi ? () => send('new') : undefined },
     { id: 'voice', label: FOOT_TEXT.voice, icon: 'mic', run: isBlock ? () => voiceStart.current?.() : undefined },
-    { id: 'task', label: FOOT_TEXT.newTask, icon: 'task', run: () => newTask() },
-    { id: 'search', label: FOOT_TEXT.search, icon: 'search', run: () => (isBlock ? send('search') : say(FOOT_TEXT.searchNoBlock)) },
+    { id: 'task', label: FOOT_TEXT.newTask, icon: 'task', run: () => (isBlock ? newTask() : isSheetUi ? send('new') : undefined) },
+    { id: 'search', label: FOOT_TEXT.search, icon: 'search', run: () => (isSheetUi ? send('search') : say(FOOT_TEXT.searchNoBlock)) },
     { id: 'share', label: FOOT_TEXT.share, icon: 'share', run: () => setShareOpen(true) },
   ];
   const home = () => {
-    if (isBlock) send('home');
+    if (isSheetUi) send('home');
     say(FOOT_TEXT.atHome);
   };
   // F-215 (V71, Wunsch Enrico): Wischen am Knopf formatiert die Zeile der offenen Note – links Liste,
@@ -735,6 +738,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           <p className="win__placeholder win__placeholder--small">{NOTE_TEXT.missingView}</p>
         ) : sheet.kind === 'block' ? (
           <NoteBlock ws={ws} dispatch={dispatch} padId={pad.id} sheetId={sheet.id} picked={picked[sheet.id]} onPick={(n) => onPick(sheet.id, n)} say={say} cmd={cmd} />
+        ) : sheet.kind === 'todo' ? (
+          <TodoSheet ws={ws} dispatch={dispatch} desk={pad.desk} sheetId={sheet.id} say={say} cmd={cmd} />
         ) : (
           <div className="pad__soon">
             <p className="win__placeholder">

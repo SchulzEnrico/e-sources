@@ -12,6 +12,7 @@ import type {
   NoteDraft,
   NoteDraftField,
   NoteColumn,
+  ColState,
   NoteEvent,
   NoteEventKind,
   NoteLink,
@@ -42,6 +43,9 @@ export const NOTE_STATES: readonly NoteState[] = ['open', 'waiting', 'doing', 'r
 export const VIEW_KINDS: readonly NoteViewKind[] = ['block', 'todo', 'kanban', 'eisenhower'];
 /** Spalten eines neuen Kanban-Boards. */
 export const KANBAN_START = ['Offen', 'In Arbeit', 'Erledigt'] as const;
+/** V86 (K2): Bedeutung der Start-Spalten. */
+export const KANBAN_STATES: readonly ColState[] = ['open', 'doing', 'done'];
+const COL_STATES: readonly ColState[] = ['open', 'doing', 'review', 'done'];
 
 /** Wer und wann – für die Spur. */
 export interface Act {
@@ -417,7 +421,7 @@ export function createView(ws: Workspace, kind: NoteViewKind, name: string, opts
   const id = opts.id ?? make();
   const v: NoteView = { id, kind, name: name.trim() || defaultViewName(ws, kind), ids: [] };
   if (opts.category) v.category = opts.category;
-  if (kind === 'kanban') v.cols = KANBAN_START.map((c) => ({ id: make(), name: c, ids: [] }));
+  if (kind === 'kanban') v.cols = KANBAN_START.map((c, i) => ({ id: make(), name: c, ids: [], state: KANBAN_STATES[i] }));
   return { ws: withViews(ws, [...viewsOf(ws), v]), id };
 }
 
@@ -870,7 +874,7 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
         .slice(0, COLUMN_MAX)
         .map((c) => {
           const wip = parseWip(c.wip);
-          return { id: c.id as string, name: typeof c.name === 'string' && c.name.trim() ? c.name : 'Spalte', ids: clean(c.ids, used), ...(wip ? { wip } : {}) };
+          return { id: c.id as string, name: typeof c.name === 'string' && c.name.trim() ? c.name : 'Spalte', ids: clean(c.ids, used), ...(wip ? { wip } : {}), ...(COL_STATES.includes(c.state as ColState) ? { state: c.state as ColState } : {}) };
         });
       view.cols = cols.length ? cols : [{ id: `${raw.id}-1`, name: KANBAN_START[0], ids: [] }];
     } else view.ids = clean(raw.ids, used);

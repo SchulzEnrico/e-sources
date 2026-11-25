@@ -1,0 +1,401 @@
+/**
+ * F-206 Schritt 7 (V86): Sheets To-do, Kanban, Eisenhower im Pad – gemeinsamer Rahmen.
+ *
+ * Entscheidungen im Claude Doc „F-206 V86 – To-do, Kanban, Eisenhower (Schritt 7)“: an Trello und unserer
+ * UX/UI ausgerichtet. S1: Notiz öffnet als Kartenfenster mittig über dem Sheet; S3: gleiche Kopfzeile
+ * (Filter + Rad „Offen · Alle“); F: gleiche Tasten wie Cockpit „Notizen“ (NF-08); Meldungen am Ort (2 s).
+ */
+import { type Dispatch, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import type { Action } from '../workspace/useWorkspace';
+import type { Note, NoteView, Workspace } from '../workspace/types';
+import * as No from '../workspace/notes';
+import * as Sh from '../workspace/sheets';
+import { NOTICE_MS } from '../workspace/flash';
+import { NOTE_TEXT, PAUSE_TEXT, SHEET_TEXT } from '../workspace/terms';
+import { newId } from '../workspace/workspace';
+import { type Notice, NoteTab } from './NoteTab';
+import { ModeWheel } from './ModeWheel';
+import { Icon } from './Icon';
+
+export type SheetCmd = { k: 'home' | 'new' | 'go' | 'search'; n: number; id?: string };
+export type Show = 'open' | 'all';
+
+/** Meldung am Ort, höchstens 2 s (V79), mit „Rückgängig“. */
+export function useNotice() {
+  const [msg, setMsg] = useState<Notice | null>(null);
+  const timer = useRef(0);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const notice = (m: Notice) => {
+    window.clearTimeout(timer.current);
+    setMsg(m);
+    timer.current = window.setTimeout(() => setMsg(null), Math.min(m.ms ?? NOTICE_MS, NOTICE_MS));
+  };
+  const shown = msg ? { ...msg, ...(msg.undo ? { undo: () => (setMsg(null), msg.undo!()) } : {}) } : null;
+  return { notice, shown, clear: () => setMsg(null) };
+}
+
+export function NoticeLine({ shown, extra }: { shown: Notice | null; extra?: ReactNode }) {
+  if (!shown) return null;
+  return (
+    <p className="sheet__msg" role="status">
+      {shown.text}
+      {shown.undo && (
+        <button type="button" className="note__undo" onClick={shown.undo}>
+          {PAUSE_TEXT.undo}
+        </button>
+      )}
+      {extra}
+    </p>
+  );
+}
+
+/** S3: dieselbe Kopfzeile in allen Sheets – Filterfeld links, Räder rechts. */
+export function SheetHead(props: { id: string; filter: string; onFilter: (q: string) => void; show: Show; onShow: (s: Show) => void; onDown: () => void; filterRef?: React.RefObject<HTMLInputElement>; children?: ReactNode }) {
+  const key = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      props.onDown();
+    } else if (e.key === 'Escape' && props.filter) {
+      e.preventDefault();
+      e.stopPropagation();
+      props.onFilter('');
+    }
+  };
+  return (
+    <div className="sheet__head">
+      <div className="nblock__find sheet__find" role="search">
+        <Icon name="search" size={13} />
+        <input ref={props.filterRef} type="search" value={props.filter} placeholder={SHEET_TEXT.filterPh} aria-label={SHEET_TEXT.filter} title={SHEET_TEXT.filterHint} onChange={(e) => props.onFilter(e.target.value)} onKeyDown={key} />
+      </div>
+      {props.children}
+      <ModeWheel
+        id={`${props.id}-show`}
+        className="sheet__wheel"
+        label={SHEET_TEXT.show}
+        options={[
+          { id: 'open', name: SHEET_TEXT.showOpen, icon: 'todo', hint: SHEET_TEXT.showHint },
+          { id: 'all', name: SHEET_TEXT.showAll, icon: 'check', hint: SHEET_TEXT.showHint },
+        ]}
+        value={props.show}
+        onChange={(v) => props.onShow(v as Show)}
+      />
+    </div>
+  );
+}
+
+const day = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.`;
+
+/** Kleine Zeichen einer Zeile bzw. Karte (Entscheidung V61: nie Farbe allein). */
+export function Signs({ ws, n }: { ws: Workspace; n: Note }) {
+  const out: ReactNode[] = [];
+  const st = No.stateOf(ws, n).state;
+  if (n.important) out.push(<span key="i" className="sign sign--imp">{SHEET_TEXT.important}</span>);
+  if (n.urgent) out.push(<span key="u" className="sign sign--urg">{SHEET_TEXT.urgent}</span>);
+  if (n.due) out.push(<span key="d" className="sign">{SHEET_TEXT.due(day(n.due))}</span>);
+  if (st === 'waiting') out.push(<span key="w" className="sign">{SHEET_TEXT.waiting}</span>);
+  if (st === 'review') out.push(<span key="r" className="sign">{NOTE_TEXT.states.review}</span>);
+  if (n.delegated) out.push(<span key="g" className="sign">{SHEET_TEXT.delegated(n.delegated.to)}</span>);
+  const cl = Sh.checklistOf(n);
+  if (cl) out.push(<span key="c" className="sign" title={SHEET_TEXT.progress(cl.done, cl.all)}><Icon name="check" size={11} /> {cl.done}/{cl.all}</span>);
+  const p = No.progress(ws, n.id);
+  if (p.total) out.push(<span key="p" className="sign" title={SHEET_TEXT.sub(p.done, p.total)}>{p.done}/{p.total}</span>);
+  return out.length ? <span className="sheet__signs">{out}</span> : null;
+}
+
+/**
+ * S1 (D, wie Trello): Notiz als Kartenfenster mittig über dem Sheet; Sheet dahinter abgedunkelt. Esc, ✕ oder
+ * Klick daneben schließt, der Fokus geht zurück an die Karte (Aufrufer). Tab bleibt im Fenster.
+ */
+export function CardWindow(props: { ws: Workspace; dispatch: Dispatch<Action>; noteId: string; where: string; sheetId: string; onClose: () => void; say: (t: string) => void }) {
+  const { ws, dispatch, noteId } = props;
+  const n = No.noteById(ws, noteId);
+  const box = useRef<HTMLElement>(null);
+  const { notice, shown } = useNotice();
+  useEffect(() => {
+    box.current?.querySelector<HTMLElement>('.cardwin__x')?.focus({ preventScroll: true });
+  }, []);
+  if (!n) return null;
+  const items = !No.hasDraft(n) ? Sh.checklistItems(n) : [];
+  const key = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      props.onClose();
+    } else if (e.key === 'Tab' && box.current) {
+      const f = [...box.current.querySelectorAll<HTMLElement>('button, input, textarea, select, [contenteditable="true"], [tabindex="0"]')].filter((x) => !x.hasAttribute('disabled'));
+      if (!f.length) return;
+      const i = f.indexOf(document.activeElement as HTMLElement);
+      if (e.shiftKey && i <= 0) (e.preventDefault(), f[f.length - 1].focus());
+      else if (!e.shiftKey && i === f.length - 1) (e.preventDefault(), f[0].focus());
+    }
+  };
+  const t = No.titleOf(No.shownNote(n)) || NOTE_TEXT.untitled;
+  return (
+    <div className="cardwin" onMouseDown={(e) => e.target === e.currentTarget && props.onClose()}>
+      <section ref={box} className="cardwin__box" role="dialog" aria-modal="true" aria-label={`${SHEET_TEXT.card}: ${t}`} onKeyDown={key}>
+        <header className="cardwin__head">
+          <span className="cardwin__where">
+            <Icon name="todo" size={13} /> {SHEET_TEXT.inPlace(props.where)}
+          </span>
+          <button type="button" className="cardwin__x" onClick={props.onClose} title={SHEET_TEXT.cardClose} aria-label={SHEET_TEXT.cardClose}>
+            <Icon name="close" size={14} />
+          </button>
+        </header>
+        {items.length > 0 && (
+          <div className="cardwin__check" role="group" aria-label={SHEET_TEXT.checklist}>
+            <p className="cardwin__checkhead">
+              <Icon name="check" size={12} /> {SHEET_TEXT.checklist} {items.filter((x) => x.done).length}/{items.length}
+            </p>
+            <ul>
+              {items.map((it, i) => (
+                <li key={i} className={it.done ? 'is-done' : undefined}>
+                  <span>{it.text || '…'}</span>
+                  <button
+                    type="button"
+                    className="cardwin__totask"
+                    title={SHEET_TEXT.toTaskHint}
+                    aria-label={`${SHEET_TEXT.toTask}: ${it.text}`}
+                    onClick={() => {
+                      dispatch({ type: 'checkToTask', note: noteId, index: i, view: props.sheetId, id: newId(), by: ws.profile?.name || undefined });
+                      props.say(`${SHEET_TEXT.toTask}: ${it.text}`);
+                    }}
+                  >
+                    <Icon name="plus" size={11} /> {SHEET_TEXT.toTask}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="cardwin__note">
+          <NoteTab ws={ws} noteId={noteId} dispatch={dispatch} draft={{ onClose: props.onClose, say: props.say, notice, shown }} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/** Wo erledigt gesetzt wird (L1) – Hinweis mit „Zum Kanban“. */
+export function lockText(boards: NoteView[]): string {
+  return SHEET_TEXT.locked(boards.map((b) => b.name).join('“, „'));
+}
+
+// ---------- To-do-Liste (T2, T3) ----------
+
+export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; desk: string; sheetId: string; say: (t: string) => void; cmd?: SheetCmd | null }) {
+  const { ws, dispatch, sheetId, say } = props;
+  const v = No.viewById(ws, sheetId)!;
+  const by = ws.profile?.name || undefined;
+  const [filter, setFilter] = useState('');
+  const [show, setShow] = useState<Show>('open');
+  const [order, setOrder] = useState<Sh.TodoOrder>('own');
+  const [openDone, setOpenDone] = useState(false);
+  const [card, setCard] = useState<string | null>(null);
+  const [edit, setEdit] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const listRef = useRef<HTMLUListElement>(null);
+  const newRef = useRef<HTMLInputElement>(null);
+  const filterRef = useRef<HTMLInputElement>(null);
+  const { notice, shown } = useNotice();
+  const [lockMsg, setLockMsg] = useState<{ note: string; boards: NoteView[] } | null>(null);
+
+  const all = Sh.todoRows(ws, v, order, show);
+  const rows = all.rows.filter((r) => Sh.matchesFilter(No.shownNote(r.note), filter));
+  const done = all.done.filter((n) => Sh.matchesFilter(No.shownNote(n), filter));
+  const focusRow = (id?: string) =>
+    window.setTimeout(() => (listRef.current?.querySelector<HTMLElement>(id ? `[data-row="${id}"]` : '[data-row]') ?? newRef.current)?.focus({ preventScroll: true }), 0);
+
+  // Fußleiste (S2): Home = Liste, Neue Aufgabe = Feld, Suche = Filter, go = Karte
+  const seen = useRef(props.cmd?.n ?? 0);
+  useEffect(() => {
+    const c = props.cmd;
+    if (!c || c.n === seen.current) return;
+    seen.current = c.n;
+    if (c.k === 'new') return void newRef.current?.focus();
+    if (c.k === 'search') return void filterRef.current?.focus();
+    if (c.k === 'go' && c.id) return setCard(c.id);
+    setCard(null);
+    focusRow();
+  }, [props.cmd?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const title = (n: Note) => No.titleOf(No.shownNote(n)) || NOTE_TEXT.untitled;
+  const toggle = (n: Note) => {
+    const boards = Sh.lockOf(ws, n.id, sheetId);
+    if (boards.length) {
+      setLockMsg({ note: n.id, boards });
+      return say(lockText(boards));
+    }
+    const wasDone = No.isFinished(n.state) || n.state === 'review';
+    dispatch({ type: 'sheetDone', note: n.id, here: sheetId, by });
+    if (!wasDone) notice({ text: SHEET_TEXT.doneMsg(title(n)), undo: () => dispatch({ type: 'sheetDone', note: n.id, here: sheetId, by }) });
+    say(wasDone ? SHEET_TEXT.uncheck(title(n)) : SHEET_TEXT.check(title(n)));
+  };
+  const remove = (n: Note) => {
+    const before = v;
+    dispatch({ type: 'sheetRemove', view: sheetId, note: n.id, by });
+    notice({ text: SHEET_TEXT.removed(title(n)), undo: () => dispatch({ type: 'sheetRestore', view: before }) });
+  };
+  const add = () => {
+    if (!draft.trim()) return;
+    dispatch({ type: 'sheetAdd', view: sheetId, title: draft, note: newId(), by });
+    say(`${draft.trim()} – angelegt`);
+    setDraft('');
+  };
+  const toBoard = (board: string) => {
+    setLockMsg(null);
+    dispatch({ type: 'padOpen', desk: props.desk, ref: { view: board }, ids: [newId(), newId(), newId()] });
+  };
+  const rowKey = (e: KeyboardEvent<HTMLElement>, n: Note) => {
+    const ids = [...(listRef.current?.querySelectorAll<HTMLElement>('[data-row]') ?? [])];
+    const i = ids.indexOf(e.currentTarget);
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey) {
+      e.preventDefault();
+      if (order !== 'own' || !v.ids.includes(n.id)) return;
+      const d = e.key === 'ArrowUp' ? -1 : 1;
+      dispatch({ type: 'sheetShift', view: sheetId, note: n.id, by: d });
+      say(SHEET_TEXT.moved(d));
+      return focusRow(n.id);
+    }
+    if (e.key === 'ArrowDown') return void (e.preventDefault(), ids[i + 1]?.focus());
+    if (e.key === 'ArrowUp') return void (e.preventDefault(), i > 0 ? ids[i - 1].focus() : newRef.current?.focus());
+    if (e.key === 'Home') return void (e.preventDefault(), ids[0]?.focus());
+    if (e.key === 'End') return void (e.preventDefault(), ids[ids.length - 1]?.focus());
+    if (e.key === ' ') return void (e.preventDefault(), toggle(n));
+    if (e.key === 'F2') return void (e.preventDefault(), setEdit(n.id));
+    if ((e.key === 'Delete' || e.key === 'Backspace') && v.ids.includes(n.id)) {
+      e.preventDefault();
+      remove(n);
+      return void ids[i + 1 < ids.length ? i + 1 : i - 1]?.focus();
+    }
+  };
+  const row = (n: Note, depth: number, dim = false) => {
+    const t = title(n);
+    const fin = No.isFinished(n.state) || n.state === 'review';
+    const lock = Sh.lockOf(ws, n.id, sheetId);
+    return (
+      <li key={n.id} className={`todo__row${fin ? ' is-done' : ''}${dim ? ' is-dim' : ''}`} style={{ ['--depth' as string]: depth }}>
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={fin}
+          tabIndex={-1}
+          className={`todo__tick${lock.length ? ' is-locked' : ''}`}
+          title={lock.length ? SHEET_TEXT.lockedHint(lock.map((b) => b.name).join(', ')) : fin ? SHEET_TEXT.uncheck(t) : SHEET_TEXT.check(t)}
+          aria-label={lock.length ? SHEET_TEXT.lockedHint(lock.map((b) => b.name).join(', ')) : t}
+          onClick={() => toggle(n)}
+        >
+          <Icon name={lock.length ? 'lock' : fin ? 'check' : 'tick'} size={lock.length ? 13 : 15} />
+        </button>
+        {edit === n.id ? (
+          <input
+            className="todo__edit"
+            autoFocus
+            defaultValue={t}
+            aria-label={SHEET_TEXT.rename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const val = e.currentTarget.value.trim();
+                if (val) dispatch({ type: 'taskRename', note: n.id, title: val, by });
+                setEdit(null);
+                focusRow(n.id);
+              } else if (e.key === 'Escape') {
+                e.stopPropagation();
+                setEdit(null);
+                focusRow(n.id);
+              }
+            }}
+            onBlur={() => setEdit(null)}
+          />
+        ) : (
+          <button type="button" data-row={n.id} className="todo__title" title={`${SHEET_TEXT.open(t)} – ${SHEET_TEXT.rowKeys}`} aria-describedby={`${sheetId}-rowkeys`} onClick={() => setCard(n.id)} onKeyDown={(e) => rowKey(e, n)}>
+            <span className="todo__text">{t}</span>
+            <Signs ws={ws} n={n} />
+            <span className="sr-only">, {fin ? NOTE_TEXT.states.done : NOTE_TEXT.states[No.stateOf(ws, n).state]}{lock.length ? `, ${lockText(lock)}` : ''}</span>
+          </button>
+        )}
+      </li>
+    );
+  };
+  const cardNote = card ? No.noteById(ws, card) : undefined;
+  return (
+    <div className="sheet sheet--todo">
+      <SheetHead id={sheetId} filter={filter} onFilter={setFilter} show={show} onShow={setShow} onDown={() => focusRow()} filterRef={filterRef}>
+        <ModeWheel
+          id={`${sheetId}-order`}
+          className="sheet__wheel"
+          label={SHEET_TEXT.order}
+          options={Sh.TODO_ORDERS.map((o) => ({ id: o, name: Sh.TODO_ORDER_NAME[o], icon: o === 'own' ? 'sort' : o === 'due' ? 'closed' : 'todo', hint: SHEET_TEXT.orderHint }))}
+          value={order}
+          onChange={(o) => setOrder(o as Sh.TodoOrder)}
+        />
+      </SheetHead>
+      <div className="todo__new">
+        <Icon name="plus" size={14} />
+        <input
+          ref={newRef}
+          value={draft}
+          placeholder={SHEET_TEXT.newTask}
+          aria-label={SHEET_TEXT.newTask}
+          title={SHEET_TEXT.newTaskHint}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.preventDefault(), add());
+            else if (e.key === 'ArrowDown') (e.preventDefault(), focusRow());
+          }}
+        />
+      </div>
+      <span id={`${sheetId}-rowkeys`} className="sr-only">{SHEET_TEXT.rowKeys}</span>
+      <span className="sr-only" role="status">{SHEET_TEXT.sheetInfo(all.rows.filter((r) => r.depth === 0).length, all.done.length)}</span>
+      {rows.length ? (
+        <ul className="todo__list" aria-label={`${v.name} – ${SHEET_TEXT.list}`} ref={listRef}>
+          {rows.map((r) => row(r.note, r.depth, show === 'all' && (No.isFinished(r.note.state) || r.note.state === 'review')))}
+        </ul>
+      ) : (
+        <p className="nblock__empty">{filter ? SHEET_TEXT.none : SHEET_TEXT.empty}</p>
+      )}
+      {lockMsg && (
+        <p className="sheet__msg" role="status">
+          <Icon name="lock" size={12} /> {lockText(lockMsg.boards)}
+          {lockMsg.boards.map((b) => (
+            <button key={b.id} type="button" className="note__undo" onClick={() => toBoard(b.id)}>
+              {lockMsg.boards.length > 1 ? `${SHEET_TEXT.toBoard}: ${b.name}` : SHEET_TEXT.toBoard}
+            </button>
+          ))}
+          <button type="button" className="sheet__msgx" aria-label={SHEET_TEXT.cardClose} onClick={() => setLockMsg(null)}>
+            <Icon name="close" size={11} />
+          </button>
+        </p>
+      )}
+      <NoticeLine shown={shown} />
+      {show === 'open' && done.length > 0 && (
+        <div className="todo__done">
+          <button type="button" className="todo__donebtn" aria-expanded={openDone} title={SHEET_TEXT.doneHint} onClick={() => setOpenDone((o) => !o)}>
+            <Icon name={openDone ? 'chevronDown' : 'chevronRight'} size={12} /> {SHEET_TEXT.doneCount(done.length)}
+          </button>
+          {openDone && (
+            <ul className="todo__list" ref={undefined}>
+              {done.map((n) => row(n, 0, true))}
+            </ul>
+          )}
+        </div>
+      )}
+      {cardNote && (
+        <CardWindow
+          ws={ws}
+          dispatch={dispatch}
+          noteId={cardNote.id}
+          where={v.name}
+          sheetId={sheetId}
+          say={say}
+          onClose={() => {
+            const id = cardNote.id;
+            const cur = No.noteById(ws, id);
+            if (cur && No.isEmptyDraft(ws, cur)) dispatch({ type: 'noteDiscard', id });
+            setCard(null);
+            focusRow(id);
+          }}
+        />
+      )}
+    </div>
+  );
+}

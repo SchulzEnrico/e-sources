@@ -27,7 +27,8 @@ import { setCategoryIcon, setCategoryTint, setPanelCategory, setPanelNewCategory
 import * as Cs from './cases';
 import * as No from './notes';
 import * as Pd from './pads';
-import type { NoteState, NoteViewKind, PadPlace } from './types';
+import type { ColState, NoteState, NoteView, NoteViewKind, PadPlace } from './types';
+import * as Sh from './sheets';
 import { type RuleUndo, deleteRule, restoreRule, setRuleOn, setSiteCategory } from './rules';
 
 type S = { setup: ScreenSetup };
@@ -202,6 +203,23 @@ export type Action =
   | { type: 'padRestoreSheet'; undo: Pd.SheetUndo }
   | { type: 'padRenameSheet'; sheet: string; name: string }
   | { type: 'padNote'; id: string; sheet: string; note: string; by?: string }
+  // F-206 Schritt 7 (V86): To-do, Kanban, Eisenhower
+  | { type: 'sheetDone'; note: string; here?: string; by?: string }
+  | { type: 'sheetAdd'; view: string; title: string; note: string; col?: string; index?: number; by?: string }
+  | { type: 'sheetShift'; view: string; note: string; by: number }
+  | { type: 'sheetRemove'; view: string; note: string; by?: string }
+  | { type: 'sheetRestore'; view: NoteView }
+  | { type: 'cardMove'; view: string; note: string; col: string; index?: number; from?: string; by?: string }
+  | { type: 'colAdd'; view: string; name: string; col: string }
+  | { type: 'colRename'; view: string; col: string; name: string }
+  | { type: 'colMove'; view: string; col: string; index: number }
+  | { type: 'colRemove'; view: string; col: string }
+  | { type: 'colState'; view: string; col: string; state: ColState }
+  | { type: 'colWip'; view: string; col: string; wip?: number }
+  | { type: 'quadSet'; view: string; note: string; q: Sh.Quad; by?: string }
+  | { type: 'checkToTask'; note: string; index: number; view?: string; id: string; by?: string }
+  | { type: 'reviewOk'; note: string; by?: string }
+  | { type: 'taskRename'; note: string; title: string; by?: string }
   // F-213 (V68): Entwurf bis „Speichern“
   | { type: 'noteDraft'; id: string; patch: No.DraftPatch; by?: string }
   | { type: 'noteSave'; id: string; by?: string }
@@ -311,7 +329,46 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'noteForward':
       return No.markForwarded(ws, a.id, a.to, { by: a.by });
     case 'noteState':
-      return No.setState(ws, a.id, a.state, { by: a.by }, a.reason);
+      // V86 (K2): Kanbans ziehen nach
+      return Sh.syncBoards(No.setState(ws, a.id, a.state, { by: a.by }, a.reason), a.id);
+    case 'sheetDone':
+      return Sh.toggleDone(ws, a.note, a.here, { by: a.by });
+    case 'sheetAdd':
+      return Sh.addTask(ws, a.view, a.title, { by: a.by, id: a.note, col: a.col, index: a.index })?.ws ?? ws;
+    case 'sheetShift':
+      return Sh.shiftIn(ws, a.view, a.note, a.by);
+    case 'sheetRemove':
+      return No.removeFromView(ws, a.note, a.view, { by: a.by });
+    case 'sheetRestore':
+      return { ...ws, noteViews: No.viewsOf(ws).map((v) => (v.id === a.view.id ? a.view : v)) };
+    case 'cardMove': {
+      const r = Sh.moveCard(ws, a.view, a.note, a.col, a.index, { by: a.by, from: a.from });
+      return r.ok ? r.ws : ws;
+    }
+    case 'colAdd': {
+      const r = No.addColumn(ws, a.view, a.name, { makeId: () => a.col });
+      return r.ok ? r.ws : ws;
+    }
+    case 'colRename':
+      return No.renameColumn(ws, a.view, a.col, a.name);
+    case 'colMove':
+      return No.moveColumn(ws, a.view, a.col, a.index);
+    case 'colRemove': {
+      const r = No.removeColumn(ws, a.view, a.col);
+      return r.ok ? r.ws : ws;
+    }
+    case 'colState':
+      return Sh.setColState(ws, a.view, a.col, a.state);
+    case 'colWip':
+      return Sh.setWip(ws, a.view, a.col, a.wip);
+    case 'quadSet':
+      return Sh.setQuad(ws, a.view, a.note, a.q, { by: a.by });
+    case 'checkToTask':
+      return Sh.checklistToTask(ws, a.note, a.index, a.view, { by: a.by, id: a.id })?.ws ?? ws;
+    case 'taskRename':
+      return Sh.renameTask(ws, a.note, a.title, { by: a.by });
+    case 'reviewOk':
+      return Sh.syncBoards(No.confirmReview(ws, a.note, { by: a.by }), a.note);
     case 'noteDraft':
       return No.setDraft(ws, a.id, a.patch, { by: a.by });
     case 'noteSave':

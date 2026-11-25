@@ -13,7 +13,9 @@ import * as No from '../workspace/notes';
 import * as Sh from '../workspace/sheets';
 import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
 import { MATRIX_TEXT as M, NOTE_TEXT, SHEET_TEXT } from '../workspace/terms';
-import { CardWindow, lockText, MoveToBar, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useNotice } from './SheetViews';
+import * as Ps from '../workspace/persons';
+import { PersonPicker } from './PersonChips';
+import { CardWindow, lockText, MoveToBar, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useNotice, usePersonKeys } from './SheetViews';
 import { Icon } from './Icon';
 import { newId } from '../workspace/workspace';
 
@@ -28,6 +30,7 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const v = No.viewById(ws, sheetId)!;
   const by = ws.profile?.name || undefined;
   const [filter, setFilter] = useState('');
+  const pk = usePersonKeys(ws, dispatch, by, say);
   // V88: Rad-Wahl je Sheet und Gerät merken
   const [show, setShowRaw] = useState<Show>(() => loadSheetPref(sheetId).show ?? 'open');
   const setShow = (s: Show) => (setShowRaw(s), saveSheetPref(sheetId, { show: s }));
@@ -49,7 +52,7 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const [moving, setMoving] = useState<string | null>(null);
 
   const m = Sh.matrixOf(ws, v, show);
-  const pass = (n: Note) => n.id === lift?.id || Sh.matchesFilter(No.shownNote(n), filter);
+  const pass = (n: Note) => n.id === lift?.id || (Sh.matchesFilter(No.shownNote(n), filter) && pk.pass(n));
   const unsorted = m.unsorted.filter(pass);
   const quads = Object.fromEntries(ORDER.map((q) => [q, m.quads[q].filter(pass)])) as Record<Sh.Quad, Note[]>;
   const title = (n: Note) => No.titleOf(No.shownNote(n)) || NOTE_TEXT.untitled;
@@ -189,6 +192,7 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       return say(`${M.lifted(title(n))}${s ? ` ${spotSay(s)}` : ''}`);
     }
     // V88 (F/K4): V = Verschieben nach … (Ziel-Sheet wählen)
+    if (pk.onKey(e, n)) return;
     if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setMoving(n.id));
     if (e.key === 'F2') return void (e.preventDefault(), setEdit(n.id));
     if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -265,7 +269,8 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     const lock = Sh.lockOf(ws, n.id, sheetId);
     const q = spotOf(n);
     return (
-      <li key={n.id} className={`kcard mcard${fin ? ' is-done is-dim' : ''}${lift?.id === n.id ? ' is-lifted' : ''}`}>
+      <li key={n.id} className={`kcard mcard${fin ? ' is-done is-dim' : ''}${lift?.id === n.id ? ' is-lifted' : ''}${pk.mark(n)}`}>
+        {pk.picker(n, () => focusCard(n.id))}
         <div className="kcard__top">
           <button
             type="button"
@@ -340,21 +345,25 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
           </button>
         ))}
         {q === 3 && (tool?.id === n.id && tool.kind === 'delegate' ? (
-          <input
-            className="todo__edit mcard__field"
-            autoFocus
-            placeholder={M.delegatePh}
-            defaultValue={n.delegated?.to ?? ''}
-            aria-label={`${M.delegate} ${t}`}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                const to = e.currentTarget.value.trim();
-                if (to) (dispatch({ type: 'noteEdit', id: n.id, patch: { delegated: { to } }, by }), say(M.delegateSet(t, to)));
-                setTool(null);
-                focusCard(n.id);
-              } else if (e.key === 'Escape') (e.stopPropagation(), setTool(null), focusCard(n.id));
+          // V94 (P4/B3): Delegieren an … = Personenauswahl; setzt Zuständig und merkt „delegiert von mir“
+          <PersonPicker
+            ws={ws}
+            current={n.delegated?.person}
+            noNone
+            label={`${M.delegate} ${t}`}
+            onPick={(id) => {
+              setTool(null);
+              const p = id ? Ps.personById(ws, id) : undefined;
+              if (p) (dispatch({ type: 'noteDelegate', id: n.id, person: p.id, by }), say(M.delegateSet(t, p.name)));
+              focusCard(n.id);
             }}
-            onBlur={() => setTool(null)}
+            onCreate={(name) => {
+              setTool(null);
+              const r = Ps.addPerson(ws, name);
+              if (r) (dispatch({ type: 'personAdd', name, by }), dispatch({ type: 'noteDelegate', id: n.id, person: r.id, by }), say(M.delegateSet(t, name)));
+              focusCard(n.id);
+            }}
+            onClose={() => (setTool(null), focusCard(n.id))}
           />
         ) : (
           <button type="button" className="mcard__act" onClick={() => setTool({ id: n.id, kind: 'delegate' })}>
@@ -417,7 +426,7 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const total = unsorted.length + ORDER.reduce((s, q) => s + quads[q].length, 0);
   return (
     <div ref={rootRef} className={`sheet sheet--matrix${lift?.mode === 'drag' ? ' is-dragging' : ''}`}>
-      <SheetHead id={sheetId} filter={filter} onFilter={setFilter} show={show} onShow={setShow} onDown={() => focusCard()} filterRef={filterRef} />
+      <SheetHead id={sheetId} filter={filter} onFilter={setFilter} show={show} onShow={setShow} onDown={() => focusCard()} filterRef={filterRef} who={pk.who} onWho={pk.setWho} />
       <span id={`${sheetId}-mkeys`} className="sr-only">{M.cardKeys}</span>
       <span className="sr-only" role="status">{M.info(total, unsorted.length)}</span>
       {moving && (

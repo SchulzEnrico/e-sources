@@ -8736,3 +8736,23 @@ main button:not(.pad *, .tab, .stack__row, .dock__tab, [role='tab'], [role='opti
 .srcs__drop { flex-basis: 100%; font-size: 12px; font-weight: 600; color: rgb(var(--accent-rgb)); }
 .win.win--noteover { box-shadow: 0 0 0 2px rgb(var(--accent-rgb)), 0 0 24px rgba(var(--accent-rgb), 0.5); }
 .win.win--noteover::after { content: 'Loslassen = Notiz mit dieser Seite verknüpfen'; position: absolute; inset: auto 10px 10px; z-index: 9; padding: 8px 12px; border-radius: 10px; background: rgba(var(--glass), 0.96); border: 1px solid rgb(var(--accent-rgb)); font-size: 13px; text-align: center; pointer-events: none; }
+
+/* ---------------------------------------------------------------- V94 F-206 Schritt 8: Personen, Zuständig, Aufwand */
+.people { gap: 6px 8px; }
+.people__item { display: inline-flex; align-items: center; position: relative; }
+.people__who { padding-left: 4px; }
+.pbadge { display: inline-grid; place-items: center; flex: none; border-radius: 50%; color: #fff; font-weight: 700; line-height: 1; }
+.people__eff.is-empty { opacity: 0.75; font-size: 12px; min-height: 24px; }
+.people__eff label { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.people__eff .srcs__spotin { width: 4.5em; }
+.people__eff.srcs__edit { flex-wrap: wrap; max-width: none; gap: 6px; }
+.people__clock { font-size: 14px; opacity: 0.8; }
+.people__ask { flex-basis: 100%; }
+.ppick__plus { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px dashed rgba(var(--accent-rgb), 0.8); font-weight: 700; }
+.srcpick__where.is-over { color: #e0a040; font-weight: 600; }
+/* V94: eigene Karten/Zeilen (P15) – Akzentkante links; Vertretung gestrichelt (P16); Auswahl an der Karte */
+.kcard, .todo__row { position: relative; }
+.kcard.is-mine, .todo__row.is-mine { box-shadow: inset 3px 0 0 rgb(var(--accent-rgb)); }
+.kcard.is-stand, .todo__row.is-stand { box-shadow: inset 3px 0 0 rgba(var(--accent-rgb), 0.55); }
+.kcard > .ppick, .todo__row > .ppick, .mcard .ppick { top: 100%; left: 8px; }
+.sign--who { padding: 0; background: none; border: 0; }

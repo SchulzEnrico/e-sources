@@ -14,7 +14,12 @@ import * as Sh from '../workspace/sheets';
 import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
 import { noticeLater } from '../workspace/flash';
 import { switchOf } from '../workspace/ruleSet';
-import { DIALOG_TEXT, NOTE_TEXT, PAUSE_TEXT, SHEET_TEXT } from '../workspace/terms';
+import { DIALOG_TEXT, NOTE_TEXT, PAUSE_TEXT, PERSON_TEXT, SHEET_TEXT } from '../workspace/terms';
+import * as Ps from '../workspace/persons';
+import { hoursText } from '../workspace/focusLoad';
+import { PersonBadge } from './PersonChips';
+import { type Who, usePersonKeys } from './usePersonKeys';
+export { usePersonKeys };
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab } from './NoteTab';
 import { ModeWheel } from './ModeWheel';
@@ -112,7 +117,7 @@ export function MoveToBar(props: { ws: Workspace; dispatch: Dispatch<Action>; sh
 }
 
 /** S3: dieselbe Kopfzeile in allen Sheets – Filterfeld links, Räder rechts. */
-export function SheetHead(props: { id: string; filter: string; onFilter: (q: string) => void; show: Show; onShow: (s: Show) => void; onDown: () => void; filterRef?: React.RefObject<HTMLInputElement>; children?: ReactNode }) {
+export function SheetHead(props: { id: string; filter: string; onFilter: (q: string) => void; show: Show; onShow: (s: Show) => void; onDown: () => void; filterRef?: React.RefObject<HTMLInputElement>; children?: ReactNode; who?: Who; onWho?: (w: Who) => void }) {
   const key = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -130,6 +135,20 @@ export function SheetHead(props: { id: string; filter: string; onFilter: (q: str
         <input ref={props.filterRef} type="search" value={props.filter} placeholder={SHEET_TEXT.filterPh} aria-label={SHEET_TEXT.filter} title={SHEET_TEXT.filterHint} onChange={(e) => props.onFilter(e.target.value)} onKeyDown={key} />
       </div>
       {props.children}
+      {/* V94 (P7): Rad „Alle · Nur meine“ (Q) – in allen Sheets an derselben Stelle */}
+      {props.onWho && (
+        <ModeWheel
+          id={`${props.id}-who`}
+          className="sheet__wheel"
+          label={PERSON_TEXT.whoLabel}
+          options={[
+            { id: 'all', name: PERSON_TEXT.whoAll, icon: 'catPeople', hint: PERSON_TEXT.whoHint },
+            { id: 'mine', name: PERSON_TEXT.whoMine, icon: 'profile', hint: PERSON_TEXT.whoHint },
+          ]}
+          value={props.who ?? 'all'}
+          onChange={(v) => props.onWho?.(v as Who)}
+        />
+      )}
       <ModeWheel
         id={`${props.id}-show`}
         className="sheet__wheel"
@@ -156,7 +175,11 @@ export function Signs({ ws, n }: { ws: Workspace; n: Note }) {
   if (n.due) out.push(<span key="d" className="sign">{SHEET_TEXT.due(day(n.due))}</span>);
   if (st === 'waiting') out.push(<span key="w" className="sign">{SHEET_TEXT.waiting}</span>);
   if (st === 'review') out.push(<span key="r" className="sign">{NOTE_TEXT.states.review}</span>);
-  if (n.delegated) out.push(<span key="g" className="sign">{SHEET_TEXT.delegated(n.delegated.to)}</span>);
+  // V94 (P4/P8): Aufwand und Zuständig (Kennzeichen wie Trello-Mitglieder); „delegiert“ nur, wenn noch an diese Person
+  if (n.effort?.plan !== undefined) out.push(<span key="e" className="sign" title={PERSON_TEXT.effortTitle}>{hoursText(n.effort.plan)}</span>);
+  if (n.delegated && (!n.delegated.person || n.delegated.person === Ps.assigneeOf(n))) out.push(<span key="g" className="sign">{SHEET_TEXT.delegated(n.delegated.to)}</span>);
+  const who = Ps.personById(ws, Ps.assigneeOf(n));
+  if (who) out.push(<span key="a" className="sign sign--who" title={`${PERSON_TEXT.assignee}: ${who.name}`}><PersonBadge person={who} size={18} /><span className="sr-only">{`${PERSON_TEXT.assignee}: ${who.name}`}</span></span>);
   const cl = Sh.checklistOf(n);
   if (cl) out.push(<span key="c" className="sign" title={SHEET_TEXT.progress(cl.done, cl.all)}><Icon name="check" size={11} /> {cl.done}/{cl.all}</span>);
   // V93 (Q10): Büroklammer + Zahl, wenn die Notiz Quellen hat (wie Trello-Anhänge)
@@ -269,6 +292,7 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
   const v = No.viewById(ws, sheetId)!;
   const by = ws.profile?.name || undefined;
   const [filter, setFilter] = useState('');
+  const pk = usePersonKeys(ws, dispatch, by, say);
   // V88: Rad-Wahl „Zeigen“ und „Ordnung“ je Sheet und Gerät merken
   const [show, setShowRaw] = useState<Show>(() => loadSheetPref(sheetId).show ?? 'open');
   const setShow = (s: Show) => (setShowRaw(s), saveSheetPref(sheetId, { show: s }));
@@ -286,8 +310,8 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
   const [lockMsg, setLockMsg] = useState<{ note: string; boards: NoteView[] } | null>(null);
 
   const all = Sh.todoRows(ws, v, order, show);
-  const rows = all.rows.filter((r) => Sh.matchesFilter(No.shownNote(r.note), filter));
-  const done = all.done.filter((n) => Sh.matchesFilter(No.shownNote(n), filter));
+  const rows = all.rows.filter((r) => Sh.matchesFilter(No.shownNote(r.note), filter) && pk.pass(r.note));
+  const done = all.done.filter((n) => Sh.matchesFilter(No.shownNote(n), filter) && pk.pass(n));
   const focusRow = (id?: string) =>
     window.setTimeout(() => (listRef.current?.querySelector<HTMLElement>(id ? `[data-row="${id}"]` : '[data-row]') ?? newRef.current)?.focus({ preventScroll: true }), 0);
 
@@ -348,6 +372,7 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
     if (e.key === 'End') return void (e.preventDefault(), ids[ids.length - 1]?.focus());
     if (e.key === ' ') return void (e.preventDefault(), toggle(n));
     // V88 (F/K4): V = Verschieben nach … (Ziel-Sheet wählen)
+    if (pk.onKey(e, n)) return;
     if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setMoving(n.id));
     if (e.key === 'F2') return void (e.preventDefault(), setEdit(n.id));
     if ((e.key === 'Delete' || e.key === 'Backspace') && v.ids.includes(n.id)) {
@@ -361,7 +386,8 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
     const fin = No.isFinished(n.state) || n.state === 'review';
     const lock = Sh.lockOf(ws, n.id, sheetId);
     return (
-      <li key={n.id} className={`todo__row${fin ? ' is-done' : ''}${dim ? ' is-dim' : ''}`} style={{ ['--depth' as string]: depth }}>
+      <li key={n.id} className={`todo__row${fin ? ' is-done' : ''}${dim ? ' is-dim' : ''}${pk.mark(n)}`} style={{ ['--depth' as string]: depth }}>
+        {pk.picker(n, () => focusRow(n.id))}
         <button
           type="button"
           role="checkbox"
@@ -407,7 +433,7 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
   const cardNote = card ? No.noteById(ws, card) : undefined;
   return (
     <div className="sheet sheet--todo">
-      <SheetHead id={sheetId} filter={filter} onFilter={setFilter} show={show} onShow={setShow} onDown={() => focusRow()} filterRef={filterRef}>
+      <SheetHead id={sheetId} filter={filter} onFilter={setFilter} show={show} onShow={setShow} onDown={() => focusRow()} filterRef={filterRef} who={pk.who} onWho={pk.setWho}>
         <ModeWheel
           id={`${sheetId}-order`}
           className="sheet__wheel"

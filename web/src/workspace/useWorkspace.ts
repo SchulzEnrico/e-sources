@@ -31,9 +31,10 @@ import * as Pd from './pads';
 import * as NT from './noteTree';
 import * as NL from './notesLayouts';
 import * as RS from './ruleSet';
-import type { BoardTemplate, ColState, NoteState, NoteView, NoteViewKind, PadPlace, SourceLink, SourceSpot } from './types';
+import type { BoardTemplate, ColState, NoteState, NoteView, NoteViewKind, PadPlace, Person, SourceLink, SourceSpot } from './types';
 import * as BT from './boardTemplates';
 import * as Sh from './sheets';
+import * as Ps from './persons';
 import { type RuleUndo, deleteRule, restoreRule, setRuleOn, setSiteCategory } from './rules';
 
 type S = { setup: ScreenSetup };
@@ -187,6 +188,13 @@ export type Action =
   /** F-206: im Tab eine neue Notiz bzw. Ansicht anlegen (Tab zeigt nur darauf). */
   | { type: 'tabNote'; id: string; tab: string; kind: 'note' | NoteViewKind; by?: string; noteId?: string }
   | { type: 'noteEdit'; id: string; patch: No.NotePatch; by?: string }
+  /** F-206 Schritt 8 (V94): Personen und Zuständig */
+  | { type: 'personAdd'; name: string; kind?: Person['kind']; extra?: Partial<Person>; assignTo?: string; by?: string }
+  | { type: 'personEdit'; id: string; patch: Partial<Omit<Person, 'id' | 'me'>> }
+  | { type: 'personRemove'; id: string }
+  | { type: 'personRestore'; undo: Ps.PersonUndo }
+  | { type: 'noteAssign'; id: string; person?: string; by?: string }
+  | { type: 'noteDelegate'; id: string; person: string; by?: string }
   // F-206 Schritt 6 (V93): Notiz ↔ Quelle – `sid` = Id für eine neu anzulegende Source (Reducer bleibt rein)
   | { type: 'noteLink'; id: string; url: string; title: string; at?: SourceSpot; sid: string; by?: string }
   | { type: 'noteUnlink'; id: string; index: number; by?: string }
@@ -292,8 +300,12 @@ export const idSeq = (ids: readonly string[]) => {
   return () => ids[i++] ?? W.newId();
 };
 
+/** F-206 Schritt 8 (V94, P6): Aktionen, die eine Notiz neu anlegen – sie bekommt „ich“ als zuständig. */
+const NEW_NOTE = new Set<Action['type']>(['padOpen', 'newNote', 'tabNote', 'noteForPage', 'sheetAdd', 'padNote', 'checkToTask']);
+
 export function reducer(ws: Workspace, a: Action): Workspace {
-  const next0 = step(ws, a);
+  const raw = step(ws, a);
+  const next0 = NEW_NOTE.has(a.type) && raw !== ws ? Ps.defaultAssignee(ws, raw) : raw;
   // F-218 (V92): Wenn-dann-Regeln W1/W2 (nicht bei Abgleich – das andere Gerät hat sie schon angewandt)
   const next = a.type === 'remote' || next0 === ws ? next0 : Sh.applyWhenRules(ws, next0);
   // F-27: Fensterliste passend zu den Panels halten (leere Fenster fallen weg).
@@ -370,8 +382,25 @@ function step(ws: Workspace, a: Action): Workspace {
         panels: made.ws.panels.map((p) => (p.id === a.id ? { ...p, tabs: p.tabs.map((x) => (x.id === a.tab ? { ...x, [key]: made.id } : x)) } : p)),
       };
     }
-    case 'noteEdit':
-      return No.updateNote(ws, a.id, a.patch, { by: a.by });
+    case 'noteEdit': {
+      const out = No.updateNote(ws, a.id, a.patch, { by: a.by });
+      return a.patch.assignee === Ps.ME_ID ? Ps.ensureMe(out) : out;
+    }
+    case 'personAdd': {
+      const r = Ps.addPerson(ws, a.name, a.kind, a.extra);
+      if (!r) return ws;
+      return a.assignTo ? Ps.assign(r.ws, a.assignTo, r.id, { by: a.by }) : r.ws;
+    }
+    case 'personEdit':
+      return Ps.editPerson(ws, a.id, a.patch);
+    case 'personRemove':
+      return Ps.removePerson(ws, a.id)?.ws ?? ws;
+    case 'personRestore':
+      return Ps.undoRemovePerson(ws, a.undo);
+    case 'noteAssign':
+      return Ps.assign(ws, a.id, a.person, { by: a.by });
+    case 'noteDelegate':
+      return Ps.delegate(ws, a.id, a.person, { by: a.by });
     case 'noteLink':
       return NS.linkSource(ws, a.id, { url: a.url, title: a.title, ...(a.at ? { at: a.at } : {}) }, () => a.sid, { by: a.by }).ws;
     case 'noteUnlink':
@@ -440,8 +469,10 @@ function step(ws: Workspace, a: Action): Workspace {
       return Sh.renameTask(ws, a.note, a.title, { by: a.by });
     case 'reviewOk':
       return Sh.syncBoards(No.confirmReview(ws, a.note, { by: a.by }), a.note);
-    case 'noteDraft':
-      return No.setDraft(ws, a.id, a.patch, { by: a.by });
+    case 'noteDraft': {
+      const out = No.setDraft(ws, a.id, a.patch, { by: a.by });
+      return a.patch.assignee === Ps.ME_ID ? Ps.ensureMe(out) : out;
+    }
     case 'noteSave':
       return No.saveDraft(ws, a.id, { by: a.by });
     case 'noteDiscard': {

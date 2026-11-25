@@ -475,7 +475,7 @@ export interface Note {
 }
 
 /** F-213 (V68): Felder, die ein Entwurf ändern kann (S9: alles in der Note). */
-export type NoteDraftField = 'title' | 'text' | 'state' | 'waitReason' | 'important' | 'urgent' | 'notBefore' | 'due' | 'remind' | 'place';
+export type NoteDraftField = 'title' | 'text' | 'state' | 'waitReason' | 'important' | 'urgent' | 'notBefore' | 'due' | 'remind' | 'place' | 'assignee' | 'effort';
 /** F-213: Entwurf; `null` = Feld beim Speichern entfernen. */
 export interface NoteDraft {
   fields: { [K in NoteDraftField]?: Note[K] | null };
@@ -616,6 +616,10 @@ export interface Person {
   stand?: { by: string; from?: string; to?: string }[];
   /** Das eigene Profil. */
   me?: boolean;
+  /** F-206 Schritt 8 (V94, P1): Kennfarbe (Index in PROFILE_COLORS); „ich“ nimmt die Farbe aus dem Profil. */
+  color?: number;
+  /** F-206 Schritt 8 (V94, P9/P21): Ressourcenkalender – Abwesenheiten (Kapazität 0), JJJJ-MM-TT einschließlich. */
+  away?: { from: string; to: string; why?: string }[];
   /** Später: Konto-Id (F-81). */
   account?: string;
 }

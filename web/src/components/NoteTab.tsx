@@ -15,6 +15,7 @@ import { NoteEditor } from './NoteEditor';
 import { RemindChips } from './RemindChips';
 import { AudioChips } from './AudioChips';
 import { SourceChips } from './SourceChips';
+import { PeopleRow } from './PersonChips';
 import { recentPlaces } from '../workspace/remind';
 import { Icon } from './Icon';
 import type { IconName } from '../workspace/icons';
@@ -289,6 +290,14 @@ export function NoteTab({ ws, noteId, dispatch, draft, sheet }: NoteProps) {
           list.splice(at, 0, a);
           dispatch({ type: 'noteEdit', id: cur.id, patch: { attach: list }, by });
         }}
+      />
+      {/* F-206 Schritt 8 (V94, P5/P8): Zuständig und Aufwand – Teil des Entwurfs (im Projektfokus „vorläufig“) */}
+      <PeopleRow
+        ws={ws}
+        note={n}
+        onAssign={(assignee) => edit({ assignee })}
+        onEffort={(effort) => edit({ effort })}
+        onCreate={(name) => dispatch({ type: 'personAdd', name })}
       />
       {/* F-206 Schritt 6 (V93, Q1): Quellen der Notiz – wirken sofort, nicht Teil des Entwurfs */}
       <SourceChips ws={ws} note={raw} dispatch={dispatch} by={by} />

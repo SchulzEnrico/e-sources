@@ -212,6 +212,13 @@ export function parsePersons(v: unknown): Person[] {
         .map((s) => ({ by: s.by as string, ...(isDay(s.from) ? { from: s.from } : {}), ...(isDay(s.to) ? { to: s.to } : {}) }));
     }
     if (r.me === true && !out.some((x) => x.me)) p.me = true;
+    if (isNum(r.color) && Number.isInteger(r.color) && r.color >= 0 && r.color < 8) p.color = r.color;
+    if (Array.isArray(r.away)) {
+      const away = r.away
+        .filter((a): a is Record<string, unknown> => isObj(a) && isDay(a.from) && isDay(a.to) && (a.from as string) <= (a.to as string))
+        .map((a) => ({ from: a.from as string, to: a.to as string, ...(text(a.why) ? { why: (a.why as string).trim() } : {}) }));
+      if (away.length) p.away = away;
+    }
     if (text(r.account)) p.account = r.account as string;
     out.push(p);
   }

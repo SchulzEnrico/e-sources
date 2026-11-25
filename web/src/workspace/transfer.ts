@@ -10,6 +10,7 @@ import type { Workspace } from './types';
  */
 export const FILE_FORMAT = 'e-sources-arbeitsflaeche';
 /**
+ * Version 9: Personen mit Kennfarbe und Ressourcenkalender (F-206 Schritt 8, V94).
  * Version 8: Notizen-Layouts (F-210 Schritt 5, V91) – Pads mit Sheets und Baum je Bildschirm in
  * `deskNotes[desk].board`; ältere Apps würden sie verwerfen.
  * Version 7: Board-Vorlagen (F-206 Schritt 7, BL, V88) und Bedeutung der Kanban-Spalten (V86).
@@ -19,7 +20,7 @@ export const FILE_FORMAT = 'e-sources-arbeitsflaeche';
  * Version 3 (Lesezeichen, V08), 2 (Panels mit Tabs, V07) und 1 werden beim Import umgewandelt.
  * Bei jeder Änderung am Datenmodell, die eine ältere App verlieren würde, hochzählen.
  */
-export const FILE_VERSION = 8;
+export const FILE_VERSION = 9;
 export const FILE_NAME = 'e-sources-arbeitsflaeche.json';
 
 export interface TransferFile {

@@ -16,7 +16,7 @@ import { foldsDone, switchOf } from '../workspace/ruleSet';
 import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
 import { KANBAN_TEXT as K, NOTE_TEXT, SHEET_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
-import { CardWindow, MoveToBar, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useFoldTick, useNotice } from './SheetViews';
+import { CardWindow, MoveToBar, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useFoldTick, useNotice, usePersonKeys } from './SheetViews';
 import { Item, Menu, MenuPages } from './PanelFrame';
 import { Icon } from './Icon';
 
@@ -43,6 +43,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const cols = v.cols ?? [];
   const by = ws.profile?.name || undefined;
   const [filter, setFilter] = useState('');
+  const pk = usePersonKeys(ws, dispatch, by, say);
   // V88: Rad-Wahl je Sheet und Gerät merken
   const [show, setShowRaw] = useState<Show>(() => loadSheetPref(sheetId).show ?? 'open');
   const setShow = (s: Show) => (setShowRaw(s), saveSheetPref(sheetId, { show: s }));
@@ -245,6 +246,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       return say(`${K.lifted(title(n))} ${K.at(c.name, index + 1, c.ids.length)}`);
     }
     // V88 (F/K4): V = Verschieben nach … (Ziel-Sheet wählen)
+    if (pk.onKey(e, n)) return;
     if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setMoving(n.id));
     if (e.key === 'F2') return void (e.preventDefault(), setEdit(n.id));
     if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -340,7 +342,8 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     const colState = Sh.colStateOf(c);
     const needsOk = n.state === 'review' && (colState === 'done' || colState === 'review');
     return (
-      <li key={n.id} data-cardli={n.id} className={`kcard${fin ? ' is-done' : ''}${dim ? ' is-dim' : ''}${lifted ? ' is-lifted' : ''}`}>
+      <li key={n.id} data-cardli={n.id} className={`kcard${fin ? ' is-done' : ''}${dim ? ' is-dim' : ''}${lifted ? ' is-lifted' : ''}${pk.mark(n)}`}>
+        {pk.picker(n, () => focusCard(n.id))}
         <div className="kcard__top">
           <button
             type="button"
@@ -543,7 +546,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     const notes = idsOf(c)
       .map((id) => No.noteById(ws, id))
       .filter((n): n is Note => !!n)
-      .filter((n) => n.id === lift?.id || Sh.matchesFilter(No.shownNote(n), filter));
+      .filter((n) => n.id === lift?.id || (Sh.matchesFilter(No.shownNote(n), filter) && pk.pass(n)));
     const hideDone = show === 'open' && !openDone.has(c.id);
     const visible = notes.filter((n) => !(hideDone && finished(n) && n.id !== lift?.id && foldsDone(ws, n)));
     const doneHere = notes.filter((n) => finished(n) && n.id !== lift?.id && foldsDone(ws, n)).length;
@@ -652,7 +655,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const ghostNote = lift && ghost ? No.noteById(ws, lift.id) : undefined;
   return (
     <div className={`sheet sheet--kanban${lift?.mode === 'drag' ? ' is-dragging' : ''}`}>
-      <SheetHead id={sheetId} filter={filter} onFilter={setFilter} show={show} onShow={setShow} onDown={() => focusCard()} filterRef={filterRef} />
+      <SheetHead id={sheetId} filter={filter} onFilter={setFilter} show={show} onShow={setShow} onDown={() => focusCard()} filterRef={filterRef} who={pk.who} onWho={pk.setWho} />
       <span id={`${sheetId}-cardkeys`} className="sr-only">{K.cardKeys}</span>
       <span className="sr-only" role="status">{K.info(cols.length, No.idsIn(v).length)}</span>
       {moving && (

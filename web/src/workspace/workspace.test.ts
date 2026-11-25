@@ -667,7 +667,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (r.ok) expect(W.panelUrl(r.file.workspace.panels[0])).toBe('https://a.de');
-    expect(X.FILE_VERSION).toBe(8);
+    expect(X.FILE_VERSION).toBe(9);
   });
 
   it('Bereich und Szenario bleiben erhalten (F-116, vorbereitet)', () => {

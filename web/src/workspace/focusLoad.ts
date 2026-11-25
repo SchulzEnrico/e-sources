@@ -189,3 +189,23 @@ export function focusLine(ws: Workspace, w: WeekLoad): string {
   if (w.draft) parts.push(`${hoursText(w.draft)} vorläufig`);
   return parts.join(' · ');
 }
+
+// ---------- V95 (Bau 5): Cockpit „Fokus“ ----------
+
+export const FOCUS_WEEKS = 6;
+
+/** P14: Team = Summe mit Balken je Mitglied. Rest = Aufgaben, die dem Team selbst zugewiesen sind. */
+export function teamSplit(ws: Workspace, teamId: string, o: LoadOpts): { id: string; hours: number[] }[] {
+  const p = personById(ws, teamId);
+  if (!p || p.kind !== 'team' || !p.members?.length) return [];
+  const total = loadOf(ws, teamId, o).weeks.map((w) => w.hours);
+  const parts = p.members.map((m) => ({ id: m, hours: loadOf(ws, m, o).weeks.map((w) => w.hours) }));
+  const rest = total.map((h, i) => round(Math.max(0, h - parts.reduce((s, x) => s + (x.hours[i] ?? 0), 0))));
+  return rest.some((h) => h > 0) ? [...parts, { id: teamId, hours: rest }] : parts;
+}
+
+/** Skala für die Balken: Kapazität mit Luft, mindestens die höchste Woche. */
+export function scaleOf(weeks: Pick<WeekLoad, 'hours' | 'draft' | 'capacity'>[]): number {
+  const top = Math.max(1, ...weeks.map((w) => Math.max(w.capacity * 1.25, w.hours + w.draft)));
+  return Math.ceil(top / 4) * 4;
+}

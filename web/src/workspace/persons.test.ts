@@ -124,3 +124,65 @@ describe('focusLoad (V94)', () => {
     eq(F.focusLine(ws, l.weeks[0]), 'Diese Woche 10 von 40 h · 1 dringend', 'zeile');
   });
 });
+
+describe('V95 Ressourcentabelle', () => {
+  const base = { id: 'pn-a', name: 'Anna', kind: 'person' as const };
+  it('rightsOf: ich ohne Befugnisse = alle, andere = gesetzte', () => {
+    expect(P.rightsOf({ ...base, me: true })).toHaveLength(4);
+    expect(P.rightsOf(base)).toHaveLength(0);
+    expect(P.rightsOf({ ...base, rights: ['accept'] })).toEqual(['accept']);
+  });
+  it('awayState: jetzt mit anschließendem Zeitraum, sonst nächste', () => {
+    const p = { ...base, away: [{ from: '2026-12-21', to: '2026-12-31', why: 'Urlaub' }, { from: '2026-12-10', to: '2026-12-20' }] };
+    expect(P.awayState(p, '2026-12-12').now?.to).toBe('2026-12-31');
+    expect(P.awayState(p, '2026-12-01').next?.from).toBe('2026-12-10');
+    expect(P.awayState(p, '2027-01-05')).toEqual({});
+  });
+  it('withAway: sortiert, doppelt nur einmal, bis < von abgelehnt', () => {
+    const p = { ...base, away: [{ from: '2026-12-21', to: '2026-12-31' }] };
+    expect(P.withAway(p, { from: '2026-12-01', to: '2026-12-02', why: ' Schulung ' })).toEqual([{ from: '2026-12-01', to: '2026-12-02', why: 'Schulung' }, { from: '2026-12-21', to: '2026-12-31' }]);
+    expect(P.withAway(p, { from: '2026-12-21', to: '2026-12-31' })).toHaveLength(1);
+    expect(P.withAway(p, { from: '2026-12-05', to: '2026-12-01' })).toBeNull();
+  });
+  it('withStand: nicht sich selbst, gleiche Person ersetzt', () => {
+    const p = { ...base, stand: [{ by: 'pn-b', from: '2026-12-01' }] };
+    expect(P.withStand(p, { by: 'pn-a' })).toBeNull();
+    expect(P.withStand(p, { by: 'pn-b', to: '2026-12-31' })).toEqual([{ by: 'pn-b', to: '2026-12-31' }]);
+  });
+  it('memberChoices: ohne Kreis', () => {
+    let ws = defaultWorkspace();
+    ws = P.addPerson(ws, 'Team A', 'team')!.ws;
+    const a = P.personList(ws).find((p) => p.name === 'Team A')!;
+    const r = P.addPerson(ws, 'Team B', 'team', { members: [a.id] })!;
+    ws = r.ws;
+    const choices = P.memberChoices(ws, P.personById(ws, a.id)!).map((p) => p.name);
+    expect(choices).not.toContain('Team B');
+    expect(choices).not.toContain('Team A');
+  });
+  it('ich ohne Befugnisse bleibt ohne', () => {
+    let ws = P.ensureMe(defaultWorkspace());
+    ws = P.editPerson(ws, P.ME_ID, { rights: [] });
+    expect(P.hasRight(P.meOf(ws), 'accept')).toBe(false);
+  });
+});
+
+describe('V95 Fokus: Team-Aufteilung und Skala', () => {
+  it('teamSplit: Balken je Mitglied, Rest für das Team', () => {
+    let ws = defaultWorkspace();
+    ws = P.addPerson(ws, 'Anna')!.ws;
+    ws = P.addPerson(ws, 'Ben')!.ws;
+    const [a, b] = ['Anna', 'Ben'].map((n) => P.personList(ws).find((p) => p.name === n)!.id);
+    const r = P.addPerson(ws, 'Team', 'team', { members: [a, b] })!;
+    ws = r.ws;
+    ws = note(ws, 'n1', { assignee: a, due: '2026-12-04', effort: { plan: 5 } });
+    ws = note(ws, 'n2', { assignee: r.id, due: '2026-12-04', effort: { plan: 2 } });
+    const s = F.teamSplit(ws, r.id, { from: '2026-11-30', weeks: 2 });
+    expect(s.find((x) => x.id === a)!.hours[0]).toBe(5);
+    expect(s.find((x) => x.id === b)!.hours[0]).toBe(0);
+    expect(s.find((x) => x.id === r.id)!.hours[0]).toBe(2);
+  });
+  it('scaleOf: Kapazität mit Luft, auf 4 gerundet', () => {
+    expect(F.scaleOf([{ hours: 10, draft: 0, capacity: 40 }])).toBe(52);
+    expect(F.scaleOf([{ hours: 70, draft: 3, capacity: 40 }])).toBe(76);
+  });
+});

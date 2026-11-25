@@ -8,7 +8,7 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor, newId } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { NOTES_COCKPIT_TEXT, NT_TEXT, PAD_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
+import { NOTES_COCKPIT_TEXT, PERSONS_TEXT, FOCUS_TEXT, NT_TEXT, PAD_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import { type Action, padOpenResult } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
@@ -16,6 +16,8 @@ import { RULE_SET_TEXT } from '../workspace/terms';
 import { LayoutCockpit, type LayoutOps } from './DeskLayouts';
 import { ModeWheel } from './ModeWheel';
 import { NotesCockpit } from './NotesCockpit';
+import { PersonCockpit } from './PersonCockpit';
+import { FocusCockpit } from './FocusCockpit';
 import { Icon } from './Icon';
 
 /**
@@ -120,6 +122,8 @@ export interface OverviewProps {
   dispatch?: (a: Action) => void;
   shown?: Shown;
   startRules?: boolean;
+  /** V95 (F-206 Schritt 8, Bau 5): in „Notizen“ gleich die Seite „Fokus“ zeigen (Klick auf die Fokus-Zeile). */
+  startFocus?: boolean;
   /** F-187: Modus „Layouts“ – Bedienung der Layouts und gleich in diesem Modus öffnen. */
   layoutOps?: LayoutOps;
   /** V91 (F-210 Schritt 5): nach Wechsel eines Notizen-Layouts in den Notizen-Modus schalten. */
@@ -239,16 +243,22 @@ export function Overview(p: OverviewProps) {
   /** V85 (F-206 Schritt 5, N8): Ansicht „Notizen“ – Pads je Desk, weitestgehend wie „Portale“. */
   const canNotes = !!p.onShowPad && !!p.onPadToDesk && !!p.dispatch;
   const [notes, setNotes] = useState(!!p.startNotes && canNotes);
-  type Mode = 'portals' | 'notes' | 'layouts' | 'sources';
-  const mode: Mode = layouts ? 'layouts' : sources ? 'sources' : notes ? 'notes' : 'portals';
-  const modes: Mode[] = ['portals', ...(canNotes ? (['notes'] as Mode[]) : []), ...(p.layoutOps ? (['layouts'] as Mode[]) : []), 'sources'];
+  /** V95 (F-206 Schritt 8, Bau 4): Ansicht „Personen“ – Ressourcentabelle. */
+  const [persons, setPersons] = useState(false);
+  /** V95 (Bau 5): Seite „Fokus“ im Cockpit „Notizen“ (Rad Notizen · Fokus · Regeln). */
+  const [focusView, setFocusView] = useState(!!p.startFocus && canNotes);
+  type Mode = 'portals' | 'notes' | 'persons' | 'layouts' | 'sources';
+  const mode: Mode = layouts ? 'layouts' : sources ? 'sources' : persons ? 'persons' : notes ? 'notes' : 'portals';
+  const modes: Mode[] = ['portals', ...(canNotes ? (['notes', 'persons'] as Mode[]) : []), ...(p.layoutOps ? (['layouts'] as Mode[]) : []), 'sources'];
   const setMode = (m: Mode) => {
     setLayouts(m === 'layouts');
     setSources(m === 'sources');
     setNotes(m === 'notes');
+    setPersons(m === 'persons');
+    setFocusView(false);
     setRules(false);
     setQuery('');
-    setSaid(m === 'layouts' ? DESK_LAYOUT_TEXT.modeOn : m === 'sources' ? DESK_LAYOUT_TEXT.modeSourcesOn : m === 'notes' ? NOTES_COCKPIT_TEXT.modeOn : '');
+    setSaid(m === 'layouts' ? DESK_LAYOUT_TEXT.modeOn : m === 'sources' ? DESK_LAYOUT_TEXT.modeSourcesOn : m === 'notes' ? NOTES_COCKPIT_TEXT.modeOn : m === 'persons' ? PERSONS_TEXT.modeOn : '');
   };
   /** Pfeil runter im Filterfeld → erste Zeile der Notizen-Liste. */
   const notesFirst = useRef<(() => void) | null>(null);
@@ -833,7 +843,7 @@ export function Overview(p: OverviewProps) {
           if (e.key === 'Escape') {
             e.stopPropagation();
             // F-187: Esc führt aus den Layout-Einstellungen erst zurück zu den Portalen.
-            if (layouts || sources || notes) {
+            if (layouts || sources || notes || persons) {
               setMode('portals');
               window.setTimeout(() => document.querySelector<HTMLElement>('.overview__mode')?.focus(), 0);
             } else dismiss();
@@ -853,13 +863,13 @@ export function Overview(p: OverviewProps) {
               onChange={(m) => setMode(m as Mode)}
               options={modes.map((m) => ({
                 id: m,
-                name: m === 'layouts' ? DESK_LAYOUT_TEXT.modeLayouts : m === 'sources' ? DESK_LAYOUT_TEXT.modeSources : m === 'notes' ? NOTES_COCKPIT_TEXT.mode : DESK_LAYOUT_TEXT.modePortals,
-                icon: m === 'layouts' ? 'layouts' : m === 'sources' ? 'source' : m === 'notes' ? 'notesTasks' : 'radar',
+                name: m === 'layouts' ? DESK_LAYOUT_TEXT.modeLayouts : m === 'sources' ? DESK_LAYOUT_TEXT.modeSources : m === 'notes' ? NOTES_COCKPIT_TEXT.mode : m === 'persons' ? PERSONS_TEXT.mode : DESK_LAYOUT_TEXT.modePortals,
+                icon: m === 'layouts' ? 'layouts' : m === 'sources' ? 'source' : m === 'notes' ? 'notesTasks' : m === 'persons' ? 'catPeople' : 'radar',
               }))}
             />
           )}
           {/* V90 (Enrico): neue Pads und Sheets direkt im Cockpit „Notizen“ – links gleich nach dem Rad (Enrico) */}
-          {notes && !rules && p.onNotesNew && (
+          {notes && !rules && !focusView && p.onNotesNew && (
             <span className="overview__new" role="group" aria-label={NOTES_COCKPIT_TEXT.newGroup}>
               {(
                 [
@@ -886,7 +896,7 @@ export function Overview(p: OverviewProps) {
             </span>
           )}
           <span className="grow" />
-          {!rules && !layouts && !sources && <input
+          {!rules && !layouts && !sources && !persons && !focusView && <input
             ref={filterRef}
             className="radar__filter"
             type="search"
@@ -920,7 +930,7 @@ export function Overview(p: OverviewProps) {
             </button>
           )}
           {/* F-170: Hebel der Slotmaschine – klein, nur Symbol (Name im Tooltip und aria-label) */}
-          {p.onJackpot && !rules && !layouts && !sources && !notes && (
+          {p.onJackpot && !rules && !layouts && !sources && !notes && !persons && (
             <button type="button" className="overview__tour overview__jackpot" onClick={p.onJackpot} title={JACKPOT_TEXT.openTitle} aria-label={JACKPOT_TEXT.openTitle}>
               <Icon name="jackpot" />
             </button>
@@ -928,16 +938,18 @@ export function Overview(p: OverviewProps) {
           {/* V84 (F-216, U6): Regeln | Radar als Umschalt-Rad – nur in der Ansicht „Portale“ (dort sind Radar und Regeln zwei
               Seiten derselben Ansicht); verspringt nicht, weil es an der Stelle des alten Knopfs sitzt */}
           {/* F-218 (V92, RG6): auch im Cockpit „Notizen“ – öffnet dort die Gruppe „Notizen“ */}
-          {p.dispatch && !layouts && !sources && (
+          {p.dispatch && !layouts && !sources && !persons && (
             <ModeWheel
               className="overview__rules"
               label={RULES_TEXT.wheel}
-              value={rules ? 'rules' : 'radar'}
-              onChange={(v) => setRules(v === 'rules')}
+              value={rules ? 'rules' : focusView && notes ? 'focus' : 'radar'}
+              onChange={(v) => (setRules(v === 'rules'), setFocusView(v === 'focus'))}
               options={[
                 notes
                   ? { id: 'radar', name: NOTES_COCKPIT_TEXT.mode, icon: 'notesTasks', hint: RULE_SET_TEXT.backNotes }
                   : { id: 'radar', name: RULES_TEXT.back, icon: 'radar', hint: RULES_TEXT.backTitle },
+                // V95 (P13/P22): Rad Notizen · Fokus · Regeln
+                ...(notes ? [{ id: 'focus', name: FOCUS_TEXT.mode, icon: 'focus' as const, hint: FOCUS_TEXT.modeHint }] : []),
                 { id: 'rules', name: RULES_TEXT.open, icon: 'rules', hint: RULES_TEXT.openTitle },
               ]}
             />
@@ -988,7 +1000,11 @@ export function Overview(p: OverviewProps) {
               />
             );
           })()}
-        {notes && canNotes && !rules ? (
+        {persons && p.dispatch ? (
+          <PersonCockpit ws={p.ws} dispatch={p.dispatch} say={setSaid} />
+        ) : notes && canNotes && focusView && !rules ? (
+          <FocusCockpit ws={p.ws} onOpen={p.onDismiss} onPersons={() => setMode('persons')} />
+        ) : notes && canNotes && !rules ? (
           <NotesCockpit
             ws={p.ws}
             win={p.win}

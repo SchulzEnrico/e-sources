@@ -103,7 +103,8 @@ export function editPerson(ws: Workspace, id: string, patch: Partial<Omit<Person
       if (p.id !== id) return p;
       const out: Person = { ...p };
       for (const [k, v] of Object.entries(patch)) {
-        if (v === undefined || (Array.isArray(v) && !v.length)) delete (out as unknown as Record<string, unknown>)[k];
+        // „ich“ ohne Befugnisse bleibt [] (sonst hieße leer wieder „alle“)
+        if (v === undefined || (Array.isArray(v) && !v.length && !(k === 'rights' && p.me))) delete (out as unknown as Record<string, unknown>)[k];
         else (out as unknown as Record<string, unknown>)[k] = k === 'name' ? cleanName(v as string) || p.name : v;
       }
       return out;
@@ -250,4 +251,54 @@ export function defaultAssignee(prev: Workspace, next: Workspace): Workspace {
   const ids = new Set(fresh.map((n) => n.id));
   const out = { ...next, notes: notesOf(next).map((n) => (ids.has(n.id) ? { ...n, assignee: (n.parent && noteById(next, n.parent)?.assignee) || me } : n)) };
   return ensureMe(out);
+}
+
+// ---------- V95 (Bau 4): Ressourcentabelle ----------
+
+/** Wirksame Befugnisse („ich“ ohne gesetzte = alle). */
+export const rightsOf = (p: Person): PersonRight[] => ALL_RIGHTS.filter((r) => hasRight(p, r));
+
+/** Abwesenheit für die Tabelle: jetzt (bis) bzw. nächste (ab). */
+export function awayState(p: Person, day: string): { now?: { to: string; why?: string }; next?: { from: string; why?: string } } {
+  const list = [...(p.away ?? [])].sort((a, b) => a.from.localeCompare(b.from));
+  const now = list.find((a) => a.from <= day && a.to >= day);
+  if (now) {
+    // anschließende Zeiträume zusammenziehen (Urlaub direkt nach Schulung)
+    let to = now.to;
+    for (const a of list) if (a.from <= addOne(to) && a.to > to) to = a.to;
+    return { now: { to, why: now.why } };
+  }
+  const next = list.find((a) => a.from > day);
+  return next ? { next: { from: next.from, why: next.why } } : {};
+}
+const addOne = (day: string) => {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+};
+
+/** Abwesenheit eintragen: sortiert, gleiche Zeiträume nur einmal; `null` wenn bis < von. */
+export function withAway(p: Person, a: { from: string; to: string; why?: string }): Person['away'] | null {
+  if (!a.from || !a.to || a.to < a.from) return null;
+  const why = a.why?.trim();
+  const entry = { from: a.from, to: a.to, ...(why ? { why } : {}) };
+  const rest = (p.away ?? []).filter((x) => !(x.from === a.from && x.to === a.to));
+  return [...rest, entry].sort((x, y) => x.from.localeCompare(y.from));
+}
+
+/** Vertretung eintragen (`by` vertritt `p`); gleiche Person ersetzt ihren alten Eintrag. Nicht sich selbst. */
+export function withStand(p: Person, s: { by: string; from?: string; to?: string }): Person['stand'] | null {
+  if (!s.by || s.by === p.id || (s.from && s.to && s.to < s.from)) return null;
+  const entry = { by: s.by, ...(s.from ? { from: s.from } : {}), ...(s.to ? { to: s.to } : {}) };
+  return [...(p.stand ?? []).filter((x) => x.by !== s.by), entry];
+}
+
+/** Team-Mitglieder wählbar: alle außer dem Team selbst und Teams, die dieses Team enthalten (kein Kreis). */
+export function memberChoices(ws: Workspace, team: Person): Person[] {
+  const contains = (p: Person, seen = new Set<string>()): boolean => {
+    if (seen.has(p.id)) return false;
+    seen.add(p.id);
+    return !!p.members?.some((m) => m === team.id || (personById(ws, m) ? contains(personById(ws, m)!, seen) : false));
+  };
+  return personList(ws).filter((p) => p.id !== team.id && !contains(p));
 }

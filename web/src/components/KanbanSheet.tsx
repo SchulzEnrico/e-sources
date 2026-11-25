@@ -13,6 +13,7 @@ import type { IconName } from '../workspace/icons';
 import * as No from '../workspace/notes';
 import * as Sh from '../workspace/sheets';
 import { foldsDone, switchOf } from '../workspace/ruleSet';
+import { hasRight, meOf } from '../workspace/persons';
 import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
 import { KANBAN_TEXT as K, NOTE_TEXT, SHEET_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
@@ -24,7 +25,7 @@ export const COL_STATE_ICON: Record<ColState, IconName> = { open: 'todo', doing:
 const COL_STATES: ColState[] = ['open', 'doing', 'review', 'done'];
 
 type Lift = { id: string; col: string; index: number; from: { col: string; index: number }; mode: 'key' | 'drag' };
-type Ask = { kind: 'wip'; col: string; text: string; run: () => void } | { kind: 'review'; id: string };
+type Ask = { kind: 'wip'; col: string; text: string; run: () => void } | { kind: 'review'; id: string } | { kind: 'noRight'; id: string };
 
 const finished = (n: Note) => No.isFinished(n.state);
 
@@ -413,12 +414,23 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
             type="button"
             className="kcard__ok"
             onClick={() =>
-              // F-218 A4 (V92): Abnahme ohne Rückfrage, wenn so eingestellt
-              switchOf(ws, 'review') === 'direct' ? (dispatch({ type: 'reviewOk', note: n.id, by }), say(K.reviewDone(t)), focusCard(n.id)) : setAsk({ kind: 'review', id: n.id })
+              // V95 (L2, P18): nur mit Befugnis „Abnehmen“ – sonst Hinweis am Ort
+              !hasRight(meOf(ws), 'accept')
+                ? setAsk({ kind: 'noRight', id: n.id })
+                : // F-218 A4 (V92): Abnahme ohne Rückfrage, wenn so eingestellt
+                  switchOf(ws, 'review') === 'direct' ? (dispatch({ type: 'reviewOk', note: n.id, by }), say(K.reviewDone(t)), focusCard(n.id)) : setAsk({ kind: 'review', id: n.id })
             }
           >
             <Icon name="check" size={12} /> {K.reviewOk}
           </button>
+        )}
+        {ask?.kind === 'noRight' && ask.id === n.id && (
+          <p className="sheet__msg kcard__ask" role="alert">
+            {K.noRight}
+            <button type="button" className="note__undo" autoFocus onClick={() => (setAsk(null), focusCard(n.id))}>
+              {K.cancel}
+            </button>
+          </p>
         )}
         {ask?.kind === 'review' && ask.id === n.id && (
           <p className="sheet__msg kcard__ask" role="alertdialog" aria-label={K.reviewAsk(t)}>

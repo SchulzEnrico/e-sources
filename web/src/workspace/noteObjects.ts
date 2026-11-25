@@ -204,7 +204,8 @@ export function parsePersons(v: unknown): Person[] {
     }
     if (Array.isArray(r.rights)) {
       const rights = RIGHTS.filter((x) => (r.rights as unknown[]).includes(x));
-      if (rights.length) p.rights = rights;
+      // V95: „ich“ ohne Befugnisse = [] (leer hieße sonst „alle“)
+      if (rights.length || r.me === true) p.rights = rights;
     }
     if (Array.isArray(r.stand)) {
       p.stand = r.stand

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { ZOOM_DEFAULT, fitFor, fitStart, frameWidth, nearestStep, shownZoom, zoomOf, zoomStep } from './workspace/zoom';
 import * as NS from './workspace/noteSources';
+import { FocusLine } from './components/FocusCockpit';
 import { NOTE_FOR_PAGE_EVENT, OPEN_NOTE_EVENT, OPEN_SOURCE_EVENT, type OpenSourceDetail } from './components/SourceChips';
 import './App.css';
 import { usePause } from './workspace/usePause';
@@ -362,6 +363,7 @@ function DeskApp(props: DeskProps) {
   const notesModeRef = useRef(false);
   const toggleOverview = useCallback(() => {
     setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
+    setOverviewFocus(false);
     setOverviewNotes(notesModeRef.current); // V85: Fokus-Knopf öffnet die Portale – V90: im Notizen-Modus die Notizen
     setOverview((o) => !o);
   }, []);
@@ -485,6 +487,8 @@ function DeskApp(props: DeskProps) {
   const [overviewLayouts, setOverviewLayouts] = useState(false);
   /** V85 (F-206 Schritt 5, N8): Cockpit gleich in der Ansicht „Notizen“ öffnen („Im Cockpit ordnen …“). */
   const [overviewNotes, setOverviewNotes] = useState(false);
+  /** V95 (Bau 5): Fokus-Zeile öffnet „Notizen“ › „Fokus“. */
+  const [overviewFocus, setOverviewFocus] = useState(false);
   const [layoutUndo, setLayoutUndo] = useState<DeletedLayout | null>(null);
   const [resetUndo, setResetUndo] = useState<{ old: LayoutContent; name: string } | null>(null);
   /** F-29 Rest: Dialog „Fokusanzeige anpassen“. */
@@ -3949,6 +3953,20 @@ function DeskApp(props: DeskProps) {
         {/* F-29 Gesamtfokus; Klick klappt das Fokus-Radar (F-28, bisher Master-Panel) aus */}
         {/* F-177: Fokusanzeige und Knopf „Design“ teilen sich die rechte Spalte der Kopfleiste */}
         <div className="tb-end">
+          {/* V95 (F-206 Schritt 8, P13): Fokus-Zeile – Auslastung diese Woche; Klick öffnet Cockpit „Notizen“ › „Fokus“ */}
+          {!notesOff && (
+            <FocusLine
+              ws={ws}
+              onOpen={() => {
+                setOverviewRules(false);
+                setOverviewLayouts(false);
+                setOverviewNotes(true);
+                setOverviewFocus(true);
+                setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
+                setOverview(true);
+              }}
+            />
+          )}
           <FocusMeter focus={focus} open={overview} onToggle={toggleOverview} btnRef={meterRef} />
           <button type="button" className="tb-design" onClick={() => setDesign(true)} aria-haspopup="dialog" aria-label="Design anpassen" title="Design anpassen – Darstellung und Akzentfarbe">
             <Icon name="design" size={18} />
@@ -4203,6 +4221,7 @@ function DeskApp(props: DeskProps) {
             setOverviewRules(false);
             setOverviewLayouts(false);
             setOverviewNotes(false);
+            setOverviewFocus(false);
             setLayoutUndo(null);
             setResetUndo(null);
           }}
@@ -4220,6 +4239,7 @@ function DeskApp(props: DeskProps) {
           onNotesApplied={notesOff ? undefined : () => { if (!notesModeRef.current) setDeskMode('notes'); }}
           startLayouts={overviewLayouts}
           startNotes={overviewNotes}
+          startFocus={overviewFocus}
           onNotesNew={notesOff ? undefined : (kind) => (kind === 'pad' ? newPad(false) : newNoteHere(kind, undefined, false))}
           onShowPad={notesOff ? undefined : showPad}
           onPadToDesk={notesOff ? undefined : padToDesk}

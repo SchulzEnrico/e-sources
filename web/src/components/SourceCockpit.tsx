@@ -1,12 +1,13 @@
 import { SourceNotes } from './SourceChips';
 import { useState } from 'react';
+import { LibraryWheel, NoteLibrary, allNotes, useLibMode } from './LibraryNotes';
 import { Icon } from './Icon';
 import { SiteIcon, useDisplay } from './SiteIcon';
 import { KeepToggle, PickBar, togglePicked } from './Bookmarks';
 import { categoryIcon } from '../workspace/icons';
 import { groups } from '../workspace/bookmarks';
 import { hostOf } from '../workspace/workspace';
-import { DESK_LAYOUT_TEXT, PAUSE_TEXT } from '../workspace/terms';
+import { DESK_LAYOUT_TEXT, LIB_TEXT, PAUSE_TEXT } from '../workspace/terms';
 import type { Action } from '../workspace/useWorkspace';
 import type { Workspace } from '../workspace/types';
 
@@ -16,7 +17,21 @@ import type { Workspace } from '../workspace/types';
  * V50: Schalter je Zeile (KeepToggle), Suchfeld mit sichtbarer Beschriftung.
  * Tastatur (NF-03): Tab wandert Filter → Leiste → Haken; Leertaste setzt den Haken.
  */
+/** V97 (L1–L4): Rad „Sources · Notizen“ oben – an derselben Stelle wie in der Library eines Portals. */
 export function SourceCockpit(p: { ws: Workspace; dispatch: (a: Action) => void }) {
+  const [mode, setMode] = useLibMode('cockpit');
+  const notes = allNotes(p.ws);
+  return (
+    <>
+      <div className="lib-top">
+        <LibraryWheel value={mode} onChange={setMode} sources={p.ws.bookmarks.length} notes={notes.length} />
+      </div>
+      {mode === 'notes' ? <NoteLibrary ws={p.ws} notes={notes} empty={LIB_TEXT.emptyAll} /> : <SourceList {...p} />}
+    </>
+  );
+}
+
+function SourceList(p: { ws: Workspace; dispatch: (a: Action) => void }) {
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const display = useDisplay();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as S from './stage';
 import { defaultWorkspace } from './workspace';
+import { rects } from './tree';
 
 describe('F-207 Main Stage (V96)', () => {
   it('setzen, ablösen, lösen, Rückgängig', () => {
@@ -40,5 +41,16 @@ describe('F-207 Main Stage (V96)', () => {
     expect(big.w).toBe(0.3);
     // Stage über alles: bleibt
     expect(S.avoidStage({ x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, { x: 0, y: 0, w: 1, h: 1 })).toEqual({ x: 0.1, y: 0.1, w: 0.2, h: 0.2 });
+  });
+  it('Dock drängt nur die anderen Slots zurück (M5)', () => {
+    const tree = { dir: 'row', sizes: [0.5, 0.5], children: [{ id: 'a' }, { id: 'b' }] } as never;
+    const min = { w: 0.05, h: 0.05 };
+    // Fläche nur noch 80 % breit → Stage a braucht 0,5 / 0,8 = 0,625
+    const t = S.keepStageWidth(tree, 'a', 0.8, min);
+    expect(Math.round(rects(t).get('a')!.w * 1000) / 1000).toBe(0.625);
+    expect(Math.round(rects(t).get('b')!.w * 1000) / 1000).toBe(0.375);
+    // ohne Dock bzw. unbekannte Stage: unverändert
+    expect(S.keepStageWidth(tree, 'a', 1, min)).toBe(tree);
+    expect(S.keepStageWidth(tree, 'x', 0.8, min)).toBe(tree);
   });
 });

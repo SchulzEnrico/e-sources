@@ -5,6 +5,7 @@ import { type ScreenSetup, specOf } from './screen';
 import * as T from './tree';
 import type { FRect } from './tree';
 import { setupOfWindow } from './move';
+import { stageOf } from './stage';
 
 // ---------------------------------------------------------------- F-29 Gesamtfokus
 
@@ -194,6 +195,8 @@ export function overviewOf(ws: Workspace, slots: Slot[], win = '', open: Set<str
 export interface RadarArea extends OverviewArea {
   /** Lage auf dem Bildschirm des Fensters (Anteile 0–1); null = Anordnung unbekannt. */
   rect: FRect | null;
+  /** F-207 (V97, M7): dieser Slot ist die Main Stage seines Desks (fixed = fest im Layout). */
+  stage?: { fixed: boolean };
 }
 
 export interface RadarWindow {
@@ -225,6 +228,7 @@ export function radarOf(ws: Workspace, slots: Slot[], setup: ScreenSetup, open: 
     const v = s ? viewOf(ws, s) : null;
     const list = here ? slots : v ? v.slots : null;
     const isOpen = here || open.has(w.id);
+    const st = stageOf(ws, w.id);
     const areas: RadarArea[] = list
       ? list.map((sl, i) => ({
           id: here ? sl.id : `${w.id}:${sl.id}`,
@@ -234,6 +238,7 @@ export function radarOf(ws: Workspace, slots: Slot[], setup: ScreenSetup, open: 
           title: areaLabel(ws, sl) || (sl.panels.length === 1 ? sl.front.name : `Slot ${i + 1}`),
           panels: sl.panels.map((p) => rowOf(p, p.id === sl.front.id)),
           rect: sl.rect,
+          ...(st?.area === sl.id ? { stage: { fixed: !!st.fixed } } : {}),
         }))
       : [{ id: `win:${w.id}`, win: w.id, other: true, open: isOpen, title: 'Alle Portale', panels: panels.map((p) => rowOf(p, true)), rect: null }];
     out.push({ win: w.id, title: w.name, here, open: isOpen, aspect: s ? specOf(s).aspect : 1.6, tree: v?.tree ?? null, areas });

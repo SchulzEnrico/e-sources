@@ -15,7 +15,7 @@ import { PAD_MIN, type PadUndo, padUndoOf } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
 import { noticeLater } from '../workspace/flash';
 import { switchOf } from '../workspace/ruleSet';
-import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, STAGE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab, freshNotes } from './NoteTab';
 import { type FootItem, PadFooter, type VoiceProps } from './PadFooter';
@@ -39,6 +39,8 @@ import { recentIn, type RecentRef } from '../workspace/pads';
 import { Item, Menu, MenuPages } from './PanelFrame';
 import { SaveTemplateBar, TemplatePick } from './BoardTemplates';
 import { Icon } from './Icon';
+import { avoidStage, overlaps } from '../workspace/stage';
+import type { FRect } from '../workspace/tree';
 import { TodoSheet } from './SheetViews';
 import { KanbanSheet } from './KanbanSheet';
 import { MatrixSheet } from './MatrixSheet';
@@ -98,11 +100,13 @@ export interface PadProps {
   };
   /** V90 (F4): nach „Pad schließen“ – zeigt „Rückgängig“ am alten Platz. */
   onClosed?: (undo: PadUndo | null) => void;
+  /** F-207 (V97, M4): Lage der Main Stage (Anteile) – das Pad liegt nie darüber. */
+  stage?: FRect;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say, dock, full, plan, tile, onClosed }: PadProps) {
+export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say, dock, full, plan, tile, onClosed, stage }: PadProps) {
   const [live, setLive] = useState<PadPlace | null>(null);
   const [renaming, setRenaming] = useState(false);
   /** V88 (BL3): „Als Vorlage speichern …“ – Leiste unter dem Kopf */
@@ -443,7 +447,10 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     return { x: clamp(r.x, 0, 1 - w), y: clamp(r.y, 0, 1 - h), w, h };
   };
   // gezeigt wird immer mindestens 260 × 200 px und ganz im Desk (z. B. nach kleinerem Fenster)
-  const p = fit(live ?? place);
+  // F-207 (M4): ein alter Platz über der Main Stage rückt in der Anzeige daneben (beim Ziehen nicht – dort „hier nicht“)
+  const p = live || !stage ? fit(live ?? place) : avoidStage(fit(place), stage);
+  /** M4: Pad läge über der Stage? */
+  const onStage = (r: PadPlace) => !!stage && overlaps(r, stage);
   const where = PAD_TEXT.where(p.x + p.w / 2, p.y + p.h / 2);
   const gesture = (e: PointerEvent, edge: Edge | null) => {
     if (e.button !== 0) return;
@@ -479,6 +486,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
       window.removeEventListener('pointercancel', up);
       document.body.classList.remove('gesture');
       setLive(null);
+      // M4: über der Stage losgelassen → das Pad springt zurück
+      if (onStage(last)) return say(STAGE_TEXT.padNotHere);
       if (last !== start) commit(last);
     };
     document.body.classList.add('gesture');
@@ -510,6 +519,15 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
       const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
       const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
       const next = fit(e.shiftKey ? { ...p, w: p.w + dx, h: p.h + dy } : { ...p, x: p.x + dx, y: p.y + dy });
+      // M4: nicht über die Stage – beim Verschieben springt das Pad über sie hinweg auf die andere Seite
+      if (onStage(next)) {
+        if (e.shiftKey || !stage) return say(STAGE_TEXT.padNotHere);
+        const jump = fit({ ...next, x: dx > 0 ? stage.x + stage.w : dx < 0 ? stage.x - next.w : next.x, y: dy > 0 ? stage.y + stage.h : dy < 0 ? stage.y - next.h : next.y });
+        if (onStage(jump) || jump.x < -1e-6 || jump.y < -1e-6) return say(STAGE_TEXT.padNotHere);
+        commit(jump);
+        say(PAD_TEXT.moved(PAD_TEXT.where(jump.x + jump.w / 2, jump.y + jump.h / 2)));
+        return;
+      }
       commit(next);
       say(e.shiftKey ? PAD_TEXT.sized(Math.round(next.w * box.w), Math.round(next.h * box.h)) : PAD_TEXT.moved(PAD_TEXT.where(next.x + next.w / 2, next.y + next.h / 2)));
       return;
@@ -630,7 +648,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   return (
     <section
       ref={self}
-      className={`pad${dock ? ' pad--docked' : ''}${top ? ' is-top' : ''}${live ? ' is-moving' : ''}${curNote ? ' has-note' : ''}`}
+      className={`pad${dock ? ' pad--docked' : ''}${top ? ' is-top' : ''}${live ? ' is-moving' : ''}${live && onStage(live) ? ' is-nohere' : ''}${curNote ? ' has-note' : ''}`}
+      data-nohere={live && onStage(live) ? STAGE_TEXT.padHere : undefined}
       style={style}
       role="region"
       aria-label={dock ? DOCK_TEXT.region(sheet?.name ?? TERMS.pad.split(' =')[0]) : PAD_TEXT.region(sheet?.name ?? TERMS.pad.split(' =')[0], where)}

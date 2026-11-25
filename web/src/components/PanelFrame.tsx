@@ -1,6 +1,6 @@
 import { DevBar } from './DevBar';
 import { devFrame, devSizeOf } from '../workspace/dev';
-import { flash } from '../workspace/flash';
+import { flash, noticeLater } from '../workspace/flash';
 import { TOUR_EVENT } from '../workspace/tour';
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { ZOOM_DEFAULT, ZOOM_STEPS, nearestStep, setFrameWidth, shownZoom, zoomStep, zoomStyle } from '../workspace/zoom';
@@ -16,11 +16,12 @@ import { FOCUS_WARN, NEW_AREA, TAB_MAX, rulerShown, activeTab, canGoBack, canGoF
 import { StackBar, type StackProps, useSwipe } from './StackBar';
 import { Ruler } from './Ruler';
 import * as FH from '../workspace/frameHistory';
-import { CATEGORY_TEXT, DEV_TEXT, PAUSE_TEXT, SLOT_FILE_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT, DIALOG_TEXT } from '../workspace/terms';
+import { CATEGORY_TEXT, DEV_TEXT, PAUSE_TEXT, SLOT_FILE_TEXT, STAGE_TEXT, TERMS, TINT_TEXT, WEB_TEXT, ZOOM_TEXT, DIALOG_TEXT } from '../workspace/terms';
 import { looksLikeAddress } from '../workspace/websearch';
 import type { ShownTint } from '../workspace/tint';
 import { inkOn, rgbOf } from '../workspace/look';
 import { Icon } from './Icon';
+import { StagePanel } from './StagePanel';
 import { NewInTab, NoteTab, ViewTab } from './NoteTab';
 import { DRAG_NOTE, noteForPage, openNote, setDragUrl } from './SourceChips';
 import { newId } from '../workspace/workspace';
@@ -49,6 +50,18 @@ interface Props {
   fx?: { panel: Fx; tab: Fx };
   /** F-162: Rahmen- und Akzentfarbe (Portal → Slot → Desk). */
   tint?: ShownTint;
+  /**
+   * F-207 (V97): Main Stage – nur gesetzt, wenn das Portal auf einem Slot im Desk-Modus liegt. `onToggle` setzt bzw. löst
+   * die Stage und gibt die Meldung am Ort samt „Rückgängig“ zurück.
+   */
+  stage?: {
+    on: boolean;
+    fixed: boolean;
+    minW?: number;
+    minH?: number;
+    onEdit: (patch: { fixed?: boolean; minW?: number; minH?: number }) => void;
+    onToggle: () => { text: string; undo: () => void };
+  };
   /** F-162: Dialog „Farben“ öffnen. */
   onColors?: () => void;
   /** F-158: Slot dieses Portals als Datei speichern. */
@@ -492,6 +505,35 @@ export function PanelFrame(p: Props) {
   // Mausrad über der Lupe zoomt direkt (nicht passiv, damit nichts anderes mitscrollt)
   useWheelZoom(zoomBtn, p.onZoom ? (dir) => p.onZoom?.(zoomStep(zoomNow, dir)) : null);
   const areaName = p.stack?.areaName ?? '';
+  // F-207 (V97): Meldung am Ort nach „Auf die Main Stage“ – mit „Rückgängig“
+  const [stageNote, setStageNote] = useState<null | { text: string; undo: () => void; canUndo?: boolean }>(null);
+  const stageT = useRef(0);
+  useEffect(() => () => window.clearTimeout(stageT.current), []);
+  const stageBtn = useRef<HTMLButtonElement>(null);
+  const toggleStage = () => {
+    if (!p.stage) return;
+    const r = p.stage.onToggle();
+    window.clearTimeout(stageT.current);
+    setStageNote(r);
+    stageT.current = noticeLater(() => setStageNote(null), 2);
+  };
+  const stageName = areaName || p.panel.name;
+  // M3: „Main Stage …“ am Ort – Klick auf den Scheinwerfer einer Stage
+  const [stageOpen, setStageOpen] = useState(false);
+  useEffect(() => {
+    if (!p.stage?.on) setStageOpen(false);
+  }, [p.stage?.on]);
+  const slotPx = () => {
+    const r = body.current?.closest('section')?.getBoundingClientRect();
+    return { w: Math.round(r?.width ?? 0), h: Math.round(r?.height ?? 0) };
+  };
+  /** M6: letztes Portal einer festen Stage lässt sich nicht schließen – Grund am Ort. */
+  const closeLocked = !!p.stage?.fixed && !p.stack;
+  const stageSay = (text: string) => {
+    window.clearTimeout(stageT.current);
+    setStageNote({ text, undo: () => {}, canUndo: false });
+    stageT.current = noticeLater(() => setStageNote(null), 3);
+  };
   const [draft, setDraft] = useState(p.panel.name);
   const tab = activeTab(p.panel);
   const url = tab.url;
@@ -693,6 +735,7 @@ export function PanelFrame(p: Props) {
     !p.panel.dev && p.tint?.frame && 'win--framed',
     !p.panel.dev && p.tint?.accent && 'win--tinted',
     p.panel.dev && 'win--dev',
+    p.stage?.on && 'win--stage',
   ]
     .filter(Boolean)
     .join(' ');
@@ -741,7 +784,14 @@ export function PanelFrame(p: Props) {
         {/* Kopfleiste wie im Browser (F-14): Schließen · Zurück · Vor · Neu laden · Home · Adresse · Größen · Name · Menü · Stapeln (F-140) */}
         <header className="win__bar">
           {/* F-140: Schließen ganz links */}
-          <button type="button" className="win__close" onClick={p.onClose} title="Portal schließen" aria-label="Portal schließen">
+          <button
+            type="button"
+            className={closeLocked ? 'win__close is-off' : 'win__close'}
+            aria-disabled={closeLocked || undefined}
+            onClick={() => (closeLocked ? stageSay(STAGE_TEXT.lockedClose) : p.onClose())}
+            title={closeLocked ? STAGE_TEXT.lockedClose : 'Portal schließen'}
+            aria-label="Portal schließen"
+          >
             <Icon name="close" size={14} />
           </button>
           <div className="win__nav">
@@ -1029,6 +1079,23 @@ export function PanelFrame(p: Props) {
                 </Menu>
               );
             })()}
+          {/* F-207 (V97, M1/M7): Scheinwerfer – sichtbar, wenn dieser Slot die Main Stage ist, sonst bei Hover/Fokus */}
+          {p.stage && (
+            <button
+              type="button"
+              ref={stageBtn}
+              className={p.stage.on ? 'win__stagebtn is-on' : 'win__stagebtn'}
+              aria-pressed={p.stage.on}
+              aria-expanded={p.stage.on ? stageOpen : undefined}
+              aria-haspopup={p.stage.on ? 'dialog' : undefined}
+              onClick={() => (p.stage?.on ? setStageOpen((o) => !o) : toggleStage())}
+              title={`${p.stage.on ? STAGE_TEXT.btnMenu(stageName) : STAGE_TEXT.btnOn(stageName)}${p.stage.fixed ? ` · ${STAGE_TEXT.fixedHint}` : ''}\n${TERMS.mainStage}`}
+              aria-label={STAGE_TEXT.word}
+            >
+              <Icon name="spotlight" size={14} />
+              {p.stage.on && <span className="win__stageword">Stage</span>}
+            </button>
+          )}
           {/* F-163: Kategorie nie nur als Farbe – Name steht dabei; Klick öffnet „Farben“ (NF-03) */}
           {p.category && (
             <button
@@ -1071,6 +1138,13 @@ export function PanelFrame(p: Props) {
                   <Item icon="library" onClick={run(() => setDrawer({ kind: 'collection' }))}>Library ({ownCount})</Item>
                   {url && <Item icon={saved ? 'starOn' : 'star'} onClick={run(() => editCurrent())}>{saved ? 'Source bearbeiten' : 'Source in der Library speichern'}</Item>}
                   <li className="menu__sep" role="separator" />
+                  {/* F-207 (V97, M1): Schalter im ⋮ – auch für Touch, wo der Scheinwerfer erst bei Fokus erscheint */}
+                  {p.stage && (
+                    <Item icon="spotlight" checked={p.stage.on} title={TERMS.mainStage} onClick={run(toggleStage)}>
+                      {STAGE_TEXT.on}
+                    </Item>
+                  )}
+                  {p.stage?.on && <Item icon="spotlight" onClick={run(() => setStageOpen(true))}>{STAGE_TEXT.menu}</Item>}
                   <Item icon="newTab" onClick={run(addTab)}>Neuer Tab</Item>
                   <Item icon="stackOn" onClick={run(p.onAddHere)}>Neues Portal auf „{p.panel.name}“ legen</Item>
                   {/* F-27, F-28: Panel oder ganze Area auf eine andere Area, auch in ein anderes Fenster */}
@@ -1170,6 +1244,47 @@ export function PanelFrame(p: Props) {
             <StackAddIcon color={p.fx?.panel.color} />
           </button>
         </header>
+        {/* F-207 (V97, M7): Lichtkegel oben am Portal in Akzentfarbe; das Wort für Bildschirmleser trägt der Knopf */}
+        {p.stage?.on && <span className="win__cone" aria-hidden="true" />}
+        {p.stage?.on && stageOpen && (
+          <StagePanel
+            name={stageName}
+            fixed={p.stage.fixed}
+            minW={p.stage.minW}
+            minH={p.stage.minH}
+            now={slotPx()}
+            onEdit={p.stage.onEdit}
+            onOff={() => {
+              setStageOpen(false);
+              toggleStage();
+              stageBtn.current?.focus({ preventScroll: true });
+            }}
+            onClose={(back) => {
+              setStageOpen(false);
+              if (back) stageBtn.current?.focus({ preventScroll: true });
+            }}
+            anchor={stageBtn}
+          />
+        )}
+        {/* F-207 (V97): Meldung am Ort, direkt unter dem Scheinwerfer */}
+        {stageNote && (
+          <div className="win__stagenote" role="status">
+            <Icon name="spotlight" size={14} />
+            <span>{stageNote.text}</span>
+            {stageNote.canUndo !== false && <button
+              type="button"
+              className="audio__undo"
+              onClick={() => {
+                window.clearTimeout(stageT.current);
+                stageNote.undo();
+                setStageNote(null);
+                stageBtn.current?.focus({ preventScroll: true });
+              }}
+            >
+              {STAGE_TEXT.undo}
+            </button>}
+          </div>
+        )}
         {p.panel.dev && dv && (
           <DevBar
             view={p.panel.devView}

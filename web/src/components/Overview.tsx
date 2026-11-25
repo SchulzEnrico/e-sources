@@ -8,7 +8,7 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor, newId } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { NOTES_COCKPIT_TEXT, PERSONS_TEXT, FOCUS_TEXT, NT_TEXT, PAD_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
+import { NOTES_COCKPIT_TEXT, PERSONS_TEXT, FOCUS_TEXT, NT_TEXT, PAD_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, STAGE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import { type Action, padOpenResult } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
@@ -19,6 +19,8 @@ import { NotesCockpit } from './NotesCockpit';
 import { PersonCockpit } from './PersonCockpit';
 import { FocusCockpit } from './FocusCockpit';
 import { Icon } from './Icon';
+import * as St from '../workspace/stage';
+import { noticeLater } from '../workspace/flash';
 
 /**
  * F-29: Gesamtfokus als Equalizer-Pegel mit 9 Segmenten (Farben wie F-26/F-68). Ist zugleich der
@@ -320,6 +322,25 @@ export function Overview(p: OverviewProps) {
     const text = p.onFetch(id);
     setSaid(text.startsWith('Portal ') ? `Portal „${name}“ auf diesen Desk geholt.` : text);
   };
+  // F-207 (V97, M1): Taste S setzt den Slot auf die Main Stage seines Desks bzw. nimmt ihn herunter – Meldung am Ort
+  const [stageNote, setStageNote] = useState<null | { text: string; undo: () => void }>(null);
+  const stageT = useRef(0);
+  useEffect(() => () => window.clearTimeout(stageT.current), []);
+  const toggleStage = (t: (typeof tiles)[number]) => {
+    const area = leafOf(t);
+    const dispatch = p.dispatch;
+    if (!area || !dispatch) return;
+    const desk = t.w.win;
+    const on = !!t.a.stage;
+    const r = St.setStage(p.ws, desk, on ? null : area);
+    dispatch({ type: 'stageSet', desk, area: on ? null : area });
+    const prev = !on && r.undo ? tiles.find((x) => x.w.win === desk && leafOf(x) === r.undo!.area) : undefined;
+    const text = on ? STAGE_TEXT.cleared(t.a.title) : prev ? STAGE_TEXT.replaced(t.a.title, prev.a.title) : STAGE_TEXT.set(t.a.title);
+    window.clearTimeout(stageT.current);
+    setStageNote({ text, undo: () => dispatch({ type: 'stageRestore', desk, undo: r.undo }) });
+    stageT.current = noticeLater(() => setStageNote(null), 2);
+    setSaid(text);
+  };
   const close = (id: string, name: string) => {
     const i = order.indexOf(id);
     const next = order[i + 1] ?? order[i - 1] ?? null;
@@ -538,6 +559,9 @@ export function Overview(p: OverviewProps) {
       },
       // F-28: Umschalt+V verschiebt die ganze Area.
       V: () => front && setMoving({ id: front.meta.id, whole: true }),
+      // F-207 (V97): S = Main Stage
+      s: () => toggleStage(t),
+      S: () => toggleStage(t),
       Escape: dismiss,
     };
     const f = keys[e.key];
@@ -568,6 +592,9 @@ export function Overview(p: OverviewProps) {
       V: () => setMoving({ id, whole: true }),
       Delete: () => close(id, name),
       Backspace: () => close(id, name),
+      // F-207 (V97): S = Slot dieses Portals auf die Main Stage
+      s: () => rows[i] && toggleStage(rows[i].t),
+      S: () => rows[i] && toggleStage(rows[i].t),
       Escape: dismiss,
     };
     const f = keys[e.key];
@@ -734,6 +761,7 @@ export function Overview(p: OverviewProps) {
             over && 'is-drop',
             over && drag?.target?.disabled && 'is-no',
             dockHere && `is-dock is-dock-${drag!.dock!.zone}`,
+            a.stage && 'is-stage',
           ]
             .filter(Boolean)
             .join(' ');
@@ -750,11 +778,11 @@ export function Overview(p: OverviewProps) {
               data-win={w.win}
               data-area={realArea}
               data-title={a.title}
-              title={realArea ? 'Ziehen: Mitte = im Portal ablegen, Rand = an dieser Position einsetzen · Alt+Pfeil einsetzen, Alt+Umschalt+Pfeil Größe' : undefined}
+              title={realArea ? `${a.stage ? `${STAGE_TEXT.word} · ` : ''}Ziehen: Mitte = im Portal ablegen, Rand = an dieser Position einsetzen · Alt+Pfeil einsetzen, Alt+Umschalt+Pfeil Größe · ${STAGE_TEXT.cockpitKey}` : undefined}
               style={{ left: `calc(${r.x * 100}% + 2px)`, top: `calc(${r.y * 100}% + 2px)`, width: `calc(${r.w * 100}% - 4px)`, height: `calc(${r.h * 100}% - 4px)` }}
               tabIndex={on ? 0 : -1}
               aria-pressed={on}
-              aria-label={`${a.title}, ${n} ${n === 1 ? 'Portal' : 'Portale'}${n > 1 && front ? `, vorn ${front.meta.name}` : ''}${hasActive ? ', enthält das aktive Portal' : ''}`}
+              aria-label={`${a.title}, ${n} ${n === 1 ? 'Portal' : 'Portale'}${n > 1 && front ? `, vorn ${front.meta.name}` : ''}${hasActive ? ', enthält das aktive Portal' : ''}${a.stage ? STAGE_TEXT.tileSay : ''}`}
               onFocus={() => setSel(a.id)}
               onPointerDown={(e) => front && n > 0 && startDrag(e, front.meta.id, true, a.title, a.id, realArea || null, w.win)}
               onClick={() => {
@@ -769,6 +797,11 @@ export function Overview(p: OverviewProps) {
               {(over || dockHere) && (
                 <span className="radar__droplabel" aria-hidden="true">
                   {dockHere ? 'An dieser Position einsetzen' : drag?.target?.disabled ? 'Stack voll' : 'Im Portal ablegen'}
+                </span>
+              )}
+              {a.stage && (
+                <span className="radar__stage" aria-hidden="true" title={STAGE_TEXT.word}>
+                  <Icon name="spotlight" size={13} />
                 </span>
               )}
               <span className="radar__title">{a.title}</span>
@@ -969,7 +1002,7 @@ export function Overview(p: OverviewProps) {
           {focusText(p.focus)} · {p.info}
         </p>
         <p id="overview-help" className="sr-only">
-          Radar: Jeder Desk zeigt seine Slots an ihrer Stelle auf dem Bildschirm. Pfeiltasten wandern zwischen den Slots, Enter öffnet die Portal-Liste. In der Liste wählen Pfeil hoch und runter ein Portal, Pfeil links geht zurück zum Radar. Enter zeigt das Portal, auch auf einem anderen Desk. V verschiebt das Portal, Umschalt und V den ganzen Slot. H holt ein Portal von einem anderen Desk hierher. Entf schließt es, F2 benennt es um. Auf einem Slot setzt Alt mit Pfeil ihn in diese Richtung an eine neue Position, Alt, Umschalt und Pfeil macht ihn breiter, schmaler, höher oder flacher; der Desk folgt sofort. Mit der Maus lässt sich eine Portal-Zeile auf einen Slot im Radar ziehen, auf das Feld „Eigener neuer Slot“ über einem Desk, und eine Slot-Kachel auf eine andere: in die Mitte = im Portal ablegen, an den Rand = an dieser Position einsetzen. Die Kante zwischen zwei Slots ändert beim Ziehen die Größe. Das Filterfeld zeigt Treffer von allen Desks. Escape schließt das Cockpit.
+          Radar: Jeder Desk zeigt seine Slots an ihrer Stelle auf dem Bildschirm. Pfeiltasten wandern zwischen den Slots, Enter öffnet die Portal-Liste. In der Liste wählen Pfeil hoch und runter ein Portal, Pfeil links geht zurück zum Radar. Enter zeigt das Portal, auch auf einem anderen Desk. V verschiebt das Portal, Umschalt und V den ganzen Slot. H holt ein Portal von einem anderen Desk hierher. Entf schließt es, F2 benennt es um. S setzt den Slot auf die Main Stage seines Desks oder nimmt ihn wieder herunter. Auf einem Slot setzt Alt mit Pfeil ihn in diese Richtung an eine neue Position, Alt, Umschalt und Pfeil macht ihn breiter, schmaler, höher oder flacher; der Desk folgt sofort. Mit der Maus lässt sich eine Portal-Zeile auf einen Slot im Radar ziehen, auf das Feld „Eigener neuer Slot“ über einem Desk, und eine Slot-Kachel auf eine andere: in die Mitte = im Portal ablegen, an den Rand = an dieser Position einsetzen. Die Kante zwischen zwei Slots ändert beim Ziehen die Größe. Das Filterfeld zeigt Treffer von allen Desks. Escape schließt das Cockpit.
         </p>
         {moving &&
           (() => {
@@ -1055,6 +1088,25 @@ export function Overview(p: OverviewProps) {
         ) : (
           <div className="radar">
             <div className="radar__maps">{wins.map(map)}</div>
+            {/* F-207 (V97): Meldung am Ort, direkt unter dem Radar */}
+            {stageNote && (
+              <p className="overview__stagenote">
+                <Icon name="spotlight" size={14} />
+                <span>{stageNote.text}</span>
+                <button
+                  type="button"
+                  className="audio__undo"
+                  onClick={() => {
+                    window.clearTimeout(stageT.current);
+                    stageNote.undo();
+                    setStageNote(null);
+                    setSaid(STAGE_TEXT.undo);
+                  }}
+                >
+                  {STAGE_TEXT.undo}
+                </button>
+              </p>
+            )}
             {/* V54 (Wunsch Enrico): Kennzeichnung über dem Rahmen, nicht darin */}
             <div className="radar__side">
               {detailKind && (

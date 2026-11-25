@@ -12,6 +12,7 @@ import { Item, Menu, MenuHead, MenuPages, PanelFrame } from './components/PanelF
 import { TemplatePick } from './components/BoardTemplates';
 import { OpacitySlider, Pad as PadView, type Edge as PadEdge, type PadSide } from './components/Pad';
 import * as NT from './workspace/noteTree';
+import * as St from './workspace/stage';
 import { activeNotesLayout } from './workspace/notesLayouts';
 import { type PadUndo } from './workspace/pads';
 import { PAD_SHEETS_MAX } from './workspace/noteObjects';
@@ -63,8 +64,8 @@ import { ColorPicker } from './components/ColorPicker';
 import { importSlot, isSlotFile, readSlotFile, slotFileName, slotToFile } from './workspace/slotFile';
 import { type NoteHit, tabShowing, titleOf as noteTitleOf, viewById } from './workspace/notes';
 import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
-import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_LAYOUT_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, VIEW_TEXT } from './workspace/terms';
+import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, setPanelSize, resetPanel, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
+import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_LAYOUT_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, STAGE_TEXT, VIEW_TEXT } from './workspace/terms';
 import { type DeskMode, PHONE_MQ, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
 import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, RULE_SET_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
@@ -664,12 +665,26 @@ function DeskApp(props: DeskProps) {
   });
   // F-28: Das Fenster merkt sich seine Einstellung, damit andere Fenster seine Areas als Ziel anbieten.
   useEffect(() => dispatch({ type: 'seen', setup }), [view.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // F-207 (V97): Stage auf einem Slot, den es in keiner Anordnung mehr gibt (geschlossen, verschoben, geladen) → lösen
+  useEffect(() => {
+    const st = St.stageOf(ws, win);
+    if (!st || view.slots.some((x) => x.id === st.area)) return;
+    const known = new Set(Object.values(ws.layouts).flatMap((arr) => (arr ? Object.keys(arr.areas) : [])));
+    const next = St.dropStaleStage(ws, win, known);
+    if (next !== ws) dispatch({ type: 'stageSet', desk: win, area: null });
+  }, [view, ws.layouts, ws.deskNotes]); // eslint-disable-line react-hooks/exhaustive-deps
   // F-128: Stapel ohne Namen (alte Stände, kleinerer Bildschirm) bekommen „NewArea n“.
   useEffect(() => dispatch({ type: 'ensureAreas', setup }), [view]); // eslint-disable-line react-hooks/exhaustive-deps
-  const shownView = useMemo(
-    () => (draft && view.arrangement ? describe(ws, view.key, view.spec, { ...view.arrangement, tree: draft }) : view),
-    [draft, ws, view],
-  );
+  // F-207 (V97, M5): Breite des offenen Docks – die Main Stage behält dann ihre Breite in px, nur die anderen Slots rücken
+  const [dockKeep, setDockKeep] = useState(0);
+  const shownView = useMemo(() => {
+    const base = draft ? draft : view.tree;
+    const st = dockKeep > 0 ? St.stageOf(ws, win) : undefined;
+    const iwNow = Math.max(1, area.width - GAP);
+    const kept = st && base ? St.keepStageWidth(base, st.area, iwNow / (iwNow + dockKeep), { w: Math.min(PORTAL_MIN_PX.w / iwNow, 0.5), h: 0.01 }) : base;
+    if (kept === view.tree || !view.arrangement || !kept) return view;
+    return describe(ws, view.key, view.spec, { ...view.arrangement, tree: kept });
+  }, [draft, ws, view, dockKeep, area.width, win]);
   const tree = shownView.tree;
   /** NF-07: Panels, deren Größe sich beim Ziehen gerade ändert. */
   const resizing = useMemo(() => (draft ? T.resizedLeaves(view.tree, draft) : new Set<string>()), [draft, view.tree]);
@@ -958,6 +973,36 @@ function DeskApp(props: DeskProps) {
 
   // ---------------------------------------------------------------- F-02 Kanten ziehen
 
+  /**
+   * F-207 (V97, M6): Mindestgröße der Main Stage (px). Eine Änderung, die die Stage unter die Mindestgröße
+   * schrumpft, gilt nicht; wächst sie (oder war sie schon kleiner, z. B. nach kleinerem Fenster), geht es.
+   */
+  const stageOk = (before: T.Node | null | undefined, after: T.Node | null | undefined): boolean => {
+    const st = notesMode ? undefined : St.stageOf(ws, win);
+    if (!st || (!st.minW && !st.minH) || !after) return true;
+    const ra = T.rects(after).get(st.area);
+    if (!ra) return true;
+    const rb = before ? T.rects(before).get(st.area) : undefined;
+    const a = px(ra);
+    const b = rb ? px(rb) : a;
+    const c = St.clampToMin(st, a.width, a.height);
+    const tooW = c.w > a.width + 1 && a.width < b.width - 0.5;
+    const tooH = c.h > a.height + 1 && a.height < b.height - 0.5;
+    return !tooW && !tooH;
+  };
+  const stageSizeSaid = () => {
+    const st = St.stageOf(ws, win);
+    notify(STAGE_TEXT.lockedSize(st?.minW ?? 0, st?.minH ?? 0));
+  };
+  /** Anordnung dieses Desks setzen – mit Prüfung der Mindestgröße der Stage. */
+  const layoutTo = (tree: T.Node): boolean => {
+    if (!stageOk(view.tree, tree)) {
+      stageSizeSaid();
+      return false;
+    }
+    dispatch({ type: 'setLayout', setup, tree });
+    return true;
+  };
   const startResize = (e: ReactPointerEvent, id: string, x: 'left' | 'right' | undefined, y: 'top' | 'bottom' | undefined, cursor: string) => {
     const base = view.tree;
     if (!base || e.button !== 0) return;
@@ -965,10 +1010,19 @@ function DeskApp(props: DeskProps) {
     e.stopPropagation();
     const x0 = e.clientX;
     const y0 = e.clientY;
-    const at = (ev: PointerEvent) => T.resizeEdges(base, id, { x, dx: (ev.clientX - x0) / iw, y, dy: (ev.clientY - y0) / ih }, min);
+    // M6: über die Mindestgröße der Stage hinaus bleibt die Kante am letzten erlaubten Stand stehen
+    let ok = base;
+    const at = (ev: PointerEvent) => {
+      const t = T.resizeEdges(base, id, { x, dx: (ev.clientX - x0) / iw, y, dy: (ev.clientY - y0) / ih }, min);
+      if (stageOk(base, t)) ok = t;
+      return ok;
+    };
     track(
       (ev) => setDraft(at(ev)),
-      (ev) => dispatch({ type: 'setLayout', setup, tree: at(ev) }),
+      (ev) => {
+        const t = at(ev);
+        if (t !== base) dispatch({ type: 'setLayout', setup, tree: t });
+      },
       cursor,
     );
   };
@@ -1006,8 +1060,22 @@ function DeskApp(props: DeskProps) {
     return null;
   };
 
+  /**
+   * F-207 (V97, M6): „fest im Layout“ – die Main Stage lässt sich nicht verschieben, tauschen oder schließen.
+   * Gilt für den Slot; einzelne Portale eines Stacks dürfen gehen, solange der Slot bleibt.
+   */
+  const fixedStage = (): string | null => {
+    const st = St.stageOf(ws, win);
+    return st?.fixed && !notesMode ? st.area : null;
+  };
+  const stageLockOf = (panelId: string): { slot: Slot; single: boolean } | null => {
+    const area = fixedStage();
+    const slot = area ? shownView.slots.find((x) => x.id === area) : undefined;
+    return slot && slot.panels.some((m) => m.id === panelId) ? { slot, single: slot.panels.length === 1 } : null;
+  };
   const startDrag = (e: ReactPointerEvent, id: string) => {
     if (swapFrom || view.slots.length < 2) return;
+    if (id === fixedStage()) return notify(STAGE_TEXT.lockedMove);
     const x0 = e.clientX;
     const y0 = e.clientY;
     const slots = view.slots;
@@ -1023,7 +1091,11 @@ function DeskApp(props: DeskProps) {
         setDrag(last);
       },
       () => {
-        if (last?.target && last.zone) dispatch({ type: 'drop', setup, id, target: last.target, zone: last.zone });
+        if (last?.target && last.zone) {
+          // M6: in die Mitte der festen Stage = tauschen – geht nicht
+          if (last.zone === 'center' && last.target === fixedStage()) return notify(STAGE_TEXT.lockedSwap);
+          dispatch({ type: 'drop', setup, id, target: last.target, zone: last.zone });
+        }
       },
     );
   };
@@ -1086,8 +1158,19 @@ function DeskApp(props: DeskProps) {
   /** Schwebende Pads dieses Desks (Reihenfolge = Stapel, zuletzt = oben). */
   const deskPads = padsOn(ws, win).filter((p) => !p.docked);
   const slotRectOf = (panelId: string | null) => (panelId ? shownView.slots.find((s) => s.panels.some((m) => m.id === panelId))?.rect : undefined);
+  /** F-207 (V97, M4/M9): Lage der Main Stage auf dem Desk (Anteile) – nur im Desk-Modus. */
+  const stageRect = (): T.FRect | undefined => {
+    const st = notesMode ? undefined : St.stageOf(ws, win);
+    return st ? shownView.slots.find((x) => x.id === st.area)?.rect : undefined;
+  };
+  /** M4: Pad-Platz neben die Stage rücken. */
+  const besideStage = (p: PadPlace): PadPlace => {
+    const sr = stageRect();
+    return sr ? St.avoidStage(p, sr) : p;
+  };
   /** P2/P5: ohne Platz über der rechten Hälfte des Slots seines Portals bzw. des aktiven Slots. */
-  const padHome = (p?: PadT): PadPlace => {
+  const padHome = (p?: PadT): PadPlace => besideStage(padHome0(p));
+  const padHome0 = (p?: PadT): PadPlace => {
     const r = (p?.from && slotRectOf(p.from)) || slotRectOf(currentPanel());
     const z = r ? zonePlace(r, 'right') : { x: 0.5, y: 0, w: 0.5, h: 1 };
     // V74: Startgröße 520 × 720 px (statt Mindestgröße 260 × 200) – in kleinen Slots ragt das Pad nach links bzw. oben
@@ -1105,7 +1188,8 @@ function DeskApp(props: DeskProps) {
     const id = newId();
     // F-218 A6 (V92): Platz eines neuen Pads – rechte Hälfte des aktiven Slots (Werk) oder am zuletzt benutzten Platz
     const lastPad = switchOf(ws, 'newPad') === 'last' ? [...deskPads].reverse().find((p) => placeOf(ws, win, p.id)) : undefined;
-    dispatch({ type: 'padNew', desk: win, id, sheet: newId(), place: (lastPad && placeOf(ws, win, lastPad.id)) || padHome() });
+    const lastPlace = lastPad && placeOf(ws, win, lastPad.id);
+    dispatch({ type: 'padNew', desk: win, id, sheet: newId(), place: lastPlace ? besideStage(lastPlace) : padHome() });
     setPadsHidden(false);
     // im Cockpit meldet das Cockpit selbst (Meldung am Ort)
     if (focus) notify(PAD_TEXT.created);
@@ -1119,14 +1203,20 @@ function DeskApp(props: DeskProps) {
   const planStart: PlanPick = { tile: shownView.slots.find((sl) => sl.panels.some((m) => m.id === currentPanel()))?.id ?? planSlots[0]?.id ?? null, zone: 'right' };
   const deskAr = iw / ih;
   /** L2: Das Pad nimmt die gewählte Zone genau ein – mindestens 260 × 200 px. */
-  const placeFrom = (pick: PlanPick): PadPlace => {
+  const placeFrom = (pick: PlanPick): PadPlace => besideStage(placeFrom0(pick));
+  const placeFrom0 = (pick: PlanPick): PadPlace => {
     const r = pickRect(planSlots, pick);
     const w = Math.min(1, Math.max(r.w, PAD_MIN.w / iw));
     const h = Math.min(1, Math.max(r.h, PAD_MIN.h / ih));
     return { x: Math.max(0, Math.min(r.x, 1 - w)), y: Math.max(0, Math.min(r.y, 1 - h)), w, h };
   };
+  /** M4: Lageplan sperrt Plätze über der Main Stage (Grund am Ort). */
+  const padPlanBlocked = (pick: PlanPick): string | null => {
+    const sr = stageRect();
+    return sr && St.overlaps(placeFrom0(pick), sr) ? STAGE_TEXT.planBlocked : null;
+  };
   const padPlan = (title: string, onTake: (pick: PlanPick) => void) => (done: () => void, back: () => void) => (
-    <SitePlan title={title} kind="pad" tiles={planSlots} start={planStart} ar={deskAr} onPreview={setPlanPrev} onBack={back} onPick={(p) => (done(), onTake(p))} />
+    <SitePlan title={title} kind="pad" tiles={planSlots} start={planStart} ar={deskAr} blocked={padPlanBlocked} onPreview={setPlanPrev} onBack={back} onPick={(p) => (done(), onTake(p))} />
   );
   const newPadAt = (pick: PlanPick) => {
     const id = newId();
@@ -1414,6 +1504,7 @@ function DeskApp(props: DeskProps) {
           const tiled = notesMode && !fullOn;
           return (
             <PadView
+              stage={!tiled && !fullOn ? stageRect() : undefined}
               key={p.id}
               ws={ws}
               dispatch={dispatch}
@@ -1467,6 +1558,8 @@ function DeskApp(props: DeskProps) {
   const dockShown = docked.length > 0 && !dockSt.off;
   const [dockLive, setDockLive] = useState<number | null>(null);
   const dockWidth = clampDockW(dockLive ?? dockSt.w, area.vw);
+  const keepNow = dockShown && !dockSt.folded ? dockWidth : 0;
+  useEffect(() => setDockKeep(keepNow), [keepNow]);
   const padName = (p: PadT) => DOCK_TEXT.padName(viewById(ws, p.active)?.name ?? '');
   const setFold = (folded: boolean) => {
     dispatch({ type: 'dockSet', desk: win, folded });
@@ -1775,6 +1868,7 @@ function DeskApp(props: DeskProps) {
   const closePortal = (id: string) => {
     const p = ws.panels.find((x) => x.id === id);
     if (!p) return;
+    if (stageLockOf(id)?.single) return notify(STAGE_TEXT.lockedClose);
     const here = (p.win ?? '') === (win ?? '');
     const target = here ? setup : (setupOfWindow(ws, p.win ?? '') ?? setup);
     dispatch({ type: 'remove', id, setup: target });
@@ -2069,7 +2163,8 @@ function DeskApp(props: DeskProps) {
 
   /**
    * F-206 Schritt 6 (V93, Q5): Quelle aus einer Notiz öffnen – ist die Seite schon in einem Portal offen, dorthin
-   * (Stelle wird in diesem Tab angesprungen), sonst als neuer Tab im aktiven Portal. Main Stage folgt mit F-207.
+   * (Stelle wird in diesem Tab angesprungen), sonst als neuer Tab im vorderen Portal der Main Stage (F-207, V97) bzw.
+   * ohne Stage im aktiven Portal.
    */
   const openSourceUrl = (url: string, title: string) => {
     if (isBlocked(ws, url)) return launch(url, title, launcher.how);
@@ -2081,7 +2176,8 @@ function DeskApp(props: DeskProps) {
           if (!sameUrl(t.url, url)) dispatch({ type: 'setUrl', id: p.id, url });
           return;
         }
-    const id = currentPanel();
+    const st = notesMode ? undefined : St.stageOf(ws, win);
+    const id = (st && shownView.slots.find((x) => x.id === st.area)?.front.id) || currentPanel();
     if (!id) return notify('Lege zuerst einen Slot an, dann lässt sich die Quelle öffnen.');
     openHitIn(id, url, ws.panels.find((x) => x.id === id)?.name ?? '');
   };
@@ -2340,6 +2436,8 @@ function DeskApp(props: DeskProps) {
     const ids = whole && slot ? slot.panels.map((m) => m.id) : [id];
     const dest = target ?? newId();
     if (dest === win) return;
+    const lock = stageLockOf(id);
+    if (lock && (whole || lock.single)) return notify(STAGE_TEXT.lockedMove);
     dispatch({ type: 'toWindow', ids, win: dest });
     const name = ws.panels.find((x) => x.id === id)?.name ?? '';
     const what = ids.length > 1 ? `${ids.length} Portale` : `„${name}“`;
@@ -2373,6 +2471,8 @@ function DeskApp(props: DeskProps) {
     const ids = moveIds(id, whole);
     const from = setupOfPanel(id);
     if (t.disabled || !from) return;
+    const lock = stageLockOf(id);
+    if (lock && (whole || lock.single)) return notify(STAGE_TEXT.lockedMove);
     dispatch({ type: 'move', ids, from, win: t.win, area: t.area });
     const name = ws.panels.find((x) => x.id === id)?.name ?? '';
     const what = ids.length > 1 ? `${ids.length} Portale` : `„${name}“`;
@@ -2405,6 +2505,11 @@ function DeskApp(props: DeskProps) {
 
   const activate = (id: string) => {
     if (swapFrom && swapFrom !== id) {
+      if (stageLockOf(swapFrom) || stageLockOf(id)) {
+        setSwapFrom(null);
+        setActive(id);
+        return notify(STAGE_TEXT.lockedSwap);
+      }
       dispatch({ type: 'swap', setup, a: swapFrom, b: id });
       setSwapFrom(null);
     }
@@ -2503,7 +2608,7 @@ function DeskApp(props: DeskProps) {
       );
       return;
     }
-    dispatch({ type: 'setLayout', setup, tree: next });
+    if (!layoutTo(next)) return;
     const r = T.rects(next).get(slot.id);
     if (r) setSizeSaid(arrangeText(name, r));
   };
@@ -2640,7 +2745,7 @@ function DeskApp(props: DeskProps) {
       if (edge) t = T.resizeEdge(t, slot.id, edge, (dy * SPEED) / ih, min);
     }
     if (t === tree) return;
-    dispatch({ type: 'setLayout', setup, tree: t });
+    if (!layoutTo(t)) return;
     const r = T.rects(t).get(slot.id);
     if (r) setSizeSaid(arrangeText(slotName(slot), r));
   };
@@ -2686,6 +2791,30 @@ function DeskApp(props: DeskProps) {
   /** F-06 Stufe 2: Tab geladen? „Nicht pausieren“ (Portal oder Tab) immer; im pausierten Portal sonst nichts. */
   const tabAwake = (meta: PanelMeta, tab: string) => keepTabOf(meta, tab, keptSrc) || (!asleep(meta.id) && isAwake(tabKey(meta.id, tab)));
 
+  /**
+   * F-207 (V97, M1/M2/M7): Main Stage dieses Slots – Scheinwerfer im Portal-Kopf und Eintrag im ⋮. Eine Stage je Desk;
+   * eine neue löst die alte ab, die Meldung am Ort bietet „Rückgängig“. Nur im Desk-Modus (M9).
+   */
+  const stageOf = (slot: Slot) => {
+    const cur = St.stageOf(ws, win);
+    const on = cur?.area === slot.id;
+    return {
+      on,
+      fixed: on && !!cur?.fixed,
+      minW: on ? cur?.minW : undefined,
+      minH: on ? cur?.minH : undefined,
+      onEdit: (patch: Partial<Pick<St.Stage, 'fixed' | 'minW' | 'minH'>>) => dispatch({ type: 'stageEdit', desk: win, patch }),
+      onToggle: () => {
+        const name = slotName(slot);
+        const r = St.setStage(ws, win, on ? null : slot.id);
+        dispatch({ type: 'stageSet', desk: win, area: on ? null : slot.id });
+        const prev = r.undo && r.undo.area !== slot.id ? shownView.slots.find((x) => x.id === r.undo!.area) : undefined;
+        const text = on ? STAGE_TEXT.cleared(name) : prev ? STAGE_TEXT.replaced(name, slotName(prev)) : STAGE_TEXT.set(name);
+        return { text, undo: () => dispatch({ type: 'stageRestore', desk: win, undo: r.undo }) };
+      },
+    };
+  };
+
   const frame = (meta: PanelMeta, onArea?: { slotId: string; rect: T.FRect }) => {
     const slotOfMeta = shownView.slots.find((s) => s.panels.some((m) => m.id === meta.id));
     const inStack = !!slotOfMeta && slotOfMeta.panels.length > 1;
@@ -2703,6 +2832,7 @@ function DeskApp(props: DeskProps) {
           return c ? { name: c.name, color: c.tint?.frame ?? c.tint?.accent, icon: categoryIcon(c) } : undefined;
         })()}
         share={onArea && { w: onArea.rect.w, h: onArea.rect.h }}
+        stage={slotOfMeta && !notesMode ? stageOf(slotOfMeta) : undefined}
         stack={
           inStack && slotOfMeta
             ? {
@@ -2834,10 +2964,17 @@ function DeskApp(props: DeskProps) {
         onClose={() => closePortal(meta.id)}
         onStartSwap={() => {
           if (mine.length < 2) return notify('Zum Tauschen braucht es mindestens zwei Portale.');
+          if (stageLockOf(meta.id)) return notify(STAGE_TEXT.lockedSwap);
           setSwapFrom(swapFrom === meta.id ? null : meta.id);
         }}
-        onSetSize={(w, h) => dispatch({ type: 'setSize', setup, id: meta.id, w, h, min })}
-        onReset={() => dispatch({ type: 'resetPanel', setup, id: meta.id, min })}
+        onSetSize={(w, h) => {
+          if (!stageOk(view.tree, viewOf(setPanelSize(ws, setup, meta.id, w, h, min), setup).tree)) return stageSizeSaid();
+          dispatch({ type: 'setSize', setup, id: meta.id, w, h, min });
+        }}
+        onReset={() => {
+          if (!stageOk(view.tree, viewOf(resetPanel(ws, setup, meta.id, min), setup).tree)) return stageSizeSaid();
+          dispatch({ type: 'resetPanel', setup, id: meta.id, min });
+        }}
         onSizeKeys={() => startSizeMode(meta.id)}
         onToggleMaximize={() =>
           setMode(mode.kind === 'max' && mode.id === meta.id ? { kind: 'area' } : { kind: 'max', id: meta.id })
@@ -4214,7 +4351,8 @@ function DeskApp(props: DeskProps) {
           onLayout={(w, tree) => {
             // F-153: Anordnung auch für ein anderes Fenster (dessen zuletzt gesehene Einstellung).
             const s = w === win ? setup : setupOfWindow(ws, w);
-            if (s) dispatch({ type: 'setLayout', setup: s, tree });
+            if (w === win) layoutTo(tree);
+            else if (s) dispatch({ type: 'setLayout', setup: s, tree });
           }}
           onDismiss={() => {
             setOverview(false);

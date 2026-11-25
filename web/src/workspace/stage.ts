@@ -6,7 +6,7 @@
  * M9: nur im Desk-Modus (im Notizen-Modus gibt es keine Stage).
  */
 import type { DeskNotes, PadPlace, Workspace } from './types';
-import type { FRect } from './tree';
+import { type FRect, type Min, type Node, rects, setLeafSize } from './tree';
 
 export type Stage = NonNullable<DeskNotes['stage']>;
 
@@ -107,6 +107,18 @@ export function avoidStage(p: PadPlace, st: FRect): PadPlace {
   const h = Math.min(p.h, best.h);
   const within = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
   return round({ x: within(p.x, best.x, best.x + best.w - w), y: within(p.y, best.y, best.y + best.h - h), w, h });
+}
+
+/**
+ * M5: Das Dock drängt nur die anderen Slots zurück. `frac` = heutige Breite der Desk-Fläche ÷ Breite ohne Dock
+ * (0–1). Die Stage bekommt so viel Anteil, dass sie in px so breit bleibt wie ohne Dock – soweit die Nachbarn es
+ * zulassen (Mindestgröße `min`). Nur für die Anzeige; gespeichert bleibt die Anordnung ohne Dock.
+ */
+export function keepStageWidth(tree: Node | null, area: string, frac: number, min: Min): Node | null {
+  if (!tree || !(frac > 0) || frac >= 1 - EPS) return tree;
+  const r = rects(tree).get(area);
+  if (!r || r.w >= 1 - EPS) return tree;
+  return setLeafSize(tree, area, Math.min(1, r.w / frac), null, min);
 }
 
 const r4 = (x: number) => Math.round(x * 10000) / 10000;

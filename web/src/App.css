@@ -8892,3 +8892,86 @@ b.pc__week.is-warn { color: #e0a040; }
 :root[data-theme='light'] .fc__cell.is-over .fc__cell-h, :root[data-theme='light'] .fc__ring.is-over .fc__ring-pct { color: #b3261e; }
 @media (max-width: 760px) { .fc__top { flex-direction: column; } .fc__ring { align-self: center; } }
 @media (forced-colors: active) { .fc__ring, .fc__arc { forced-color-adjust: none; } .fc__cell.is-sel { outline: 2px solid Highlight; } .fc__view[aria-pressed='true'] { outline: 2px solid Highlight; } }
+
+/* ---------- F-207 Main Stage (V97, Schritt 9 Bau 2): Scheinwerfer im Portal-Kopf, Lichtkegel, Meldung am Ort */
+.win__bar button.win__stagebtn { display: inline-flex; align-items: center; gap: 4px; opacity: 0; transition: opacity 0.15s; }
+.win:hover .win__bar button.win__stagebtn,
+.win:focus-within .win__bar button.win__stagebtn,
+.win__bar button.win__stagebtn.is-on { opacity: 1; }
+.win__bar button.win__stagebtn.is-on {
+  color: var(--on-accent, #fff); background: rgba(var(--accent-rgb), 0.85); border-radius: 999px; padding: 1px 8px;
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.55);
+}
+.win__stageword { font-size: 11px; font-weight: 700; letter-spacing: 0.03em; }
+/* Lichtkegel: fällt oben in der Mitte aus dem Kopf in das Portal, in Akzentfarbe */
+.win__cone {
+  position: absolute; z-index: 3; pointer-events: none; top: 0; left: 50%; width: min(60%, 420px); height: 70px; transform: translateX(-50%);
+  background: radial-gradient(ellipse 50% 100% at 50% 0, rgba(var(--accent-rgb), 0.5), rgba(var(--accent-rgb), 0.12) 60%, transparent 100%);
+  clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
+  border-radius: var(--radius) var(--radius) 0 0; mix-blend-mode: screen;
+}
+:root[data-theme] .win__cone { mix-blend-mode: normal; }
+.win.win--stage { box-shadow: 0 0 0 1.5px rgba(var(--accent-rgb), 0.7), 0 16px 40px rgba(var(--lo), 0.7); }
+.win__stagenote {
+  position: absolute; z-index: 25; top: 40px; right: 8px; max-width: min(420px, calc(100% - 16px));
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; font-size: 13px;
+  border-radius: 12px; background: var(--panel); border: 1px solid rgba(var(--accent-rgb), 0.6); box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+}
+.win__stagenote > .icon { flex: none; color: rgb(var(--accent-rgb)); }
+/* Radar im Cockpit „Portale“ (M7): Scheinwerfer an der Kachel */
+.radar__stage { position: absolute; top: 3px; right: 4px; color: rgb(var(--accent-rgb)); line-height: 0; }
+.radar__tile.is-stage { box-shadow: inset 0 0 0 1.5px rgba(var(--accent-rgb), 0.85), inset 0 10px 18px -8px rgba(var(--accent-rgb), 0.55); }
+.overview__stagenote { display: flex; align-items: center; gap: 8px; margin: 6px 0 0; font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { .win__bar button.win__stagebtn { transition: none; } }
+@media (forced-colors: active) {
+  .win__cone { display: none; }
+  .win.win--stage { outline: 3px solid Highlight; }
+  .win__bar button.win__stagebtn.is-on { border: 1px solid ButtonText; }
+  .radar__tile.is-stage { outline: 2px solid Highlight; }
+}
+/* M3: „Main Stage …“ am Ort */
+.stagepop {
+  position: absolute; z-index: 26; width: min(340px, calc(100% - 16px)); box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px; font-size: 13px;
+  border-radius: 14px; background: var(--panel); border: 1px solid rgba(var(--accent-rgb), 0.6); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+}
+.stagepop p { margin: 0; }
+.stagepop__head { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+.stagepop__head > .icon { color: rgb(var(--accent-rgb)); }
+.stagepop__hint { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.stagepop__row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.stagepop__label { min-width: 6em; }
+.stagepop__min { margin: 0; padding: 8px 10px; border: 1px solid rgba(var(--tint, 255, 255, 255), 0.18); border-radius: 10px; display: flex; flex-direction: column; gap: 8px; }
+.stagepop__min legend { padding: 0 4px; }
+.stagepop__fields { display: flex; align-items: end; gap: 8px; }
+.stagepop__field { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+.stagepop__field input { width: 6.5em; font: inherit; font-size: 14px; padding: 4px 8px; border-radius: 8px; color: var(--text); }
+.stagepop__btns, .stagepop__foot { display: flex; flex-wrap: wrap; gap: 6px; }
+.stagepop__foot { justify-content: flex-end; }
+.stagepop__all { display: inline-flex; align-items: center; gap: 8px; }
+.stagepop__box { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid currentColor; }
+.stagepop__later { font-size: 12px; color: var(--muted); }
+@media (forced-colors: active) { .stagepop { border: 2px solid CanvasText; } }
+/* M4: Pad über der Main Stage – „hier nicht“, Pad springt beim Loslassen zurück */
+.pad.is-nohere { outline: 2px dashed rgb(255, 59, 48); outline-offset: 2px; }
+.pad.is-nohere::after {
+  content: attr(data-nohere); position: absolute; z-index: 5; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  padding: 6px 14px; border-radius: 999px; background: rgba(255, 59, 48, 0.9); color: #fff; font-weight: 700; pointer-events: none;
+}
+@media (forced-colors: active) { .pad.is-nohere { outline-color: Highlight; } .pad.is-nohere::after { background: Canvas; color: CanvasText; border: 2px solid CanvasText; } }
+
+/* ---------- V97 (L1–L4): Library-Rad „Sources · Notizen“ und Notizenliste – Portal-Library und Cockpit gleich */
+.lib-top { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
+.libnotes { display: flex; flex-direction: column; gap: 8px; }
+.libnotes__tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.libnotes__filter { flex: 1 1 14em; }
+.libnotes__new { display: inline-flex; align-items: center; gap: 4px; }
+.libnotes__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.libnotes__open {
+  width: 100%; display: flex; align-items: center; gap: 8px; text-align: left; padding: 6px 8px; min-height: 32px;
+  border-radius: 8px; background: transparent; border-color: transparent; box-shadow: none;
+}
+.libnotes__open:hover, .libnotes__open:focus-visible { background: rgba(var(--accent-rgb), 0.18); }
+.libnotes__title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.libnotes__meta { flex: none; font-size: 12px; color: var(--muted); }
+@media (forced-colors: active) { .libnotes__open:focus-visible { outline: 2px solid Highlight; } }

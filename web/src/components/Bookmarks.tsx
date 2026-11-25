@@ -1,6 +1,9 @@
 import { SourceNotes, setDragUrl } from './SourceChips';
 import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
+import { LibraryWheel, NoteLibrary, notesOfPanel, useLibMode } from './LibraryNotes';
+import { pageTitle, sourceForUrl } from '../workspace/noteSources';
+import { LIB_TEXT } from '../workspace/terms';
 import { SiteIcon, useDisplay } from './SiteIcon';
 import { categoryIcon } from '../workspace/icons';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
@@ -240,6 +243,13 @@ export function CollectionDrawer(props: {
   const total = list.reduce((n, g) => n + g.items.length, 0);
   const shownIds = list.flatMap((g) => g.items.map((b) => b.id));
   const togglePick = (id: string) => setPicked((old) => togglePicked(old, id));
+  // V97 (L1–L4): Library-Rad „Sources · Notizen“ – Wahl je Portal gemerkt
+  const [libMode, setLibMode] = useLibMode(panelId);
+  const panelNotes = notesOfPanel(ws, panelId);
+  const pageUrl = (() => {
+    const pm = ws.panels.find((x) => x.id === panelId);
+    return pm?.tabs.find((t) => t.id === pm.activeTab)?.url;
+  })();
 
   const endDrag = () => {
     setDrag(null);
@@ -257,7 +267,7 @@ export function CollectionDrawer(props: {
       title={`Library · ${props.panelName}`}
       onClose={props.onClose}
       footer={
-        <form
+        libMode === 'notes' ? undefined : <form
           className="bm-newcat"
           onSubmit={(e) => {
             e.preventDefault();
@@ -296,6 +306,14 @@ export function CollectionDrawer(props: {
         </form>
       }
     >
+      {/* V97 (L1): oberstes Rad – an derselben Stelle wie im Cockpit „Library“ */}
+      <div className="lib-top">
+        <LibraryWheel value={libMode} onChange={setLibMode} sources={own} notes={panelNotes.length} />
+      </div>
+      {libMode === 'notes' ? (
+        <NoteLibrary ws={ws} notes={panelNotes} empty={LIB_TEXT.emptyPanel} page={pageUrl ? { url: pageUrl, title: sourceForUrl(ws, pageUrl)?.title || pageTitle(pageUrl) } : undefined} />
+      ) : (
+      <>
       <div className="bm-tools">
         {/* V84 (F-216, U6): Dieses Portal | Alle als Umschalt-Rad („Panel“ heißt seit F-183 „Portal“) */}
         <ModeWheel
@@ -515,6 +533,8 @@ export function CollectionDrawer(props: {
           </section>
         );
       })}
+      </>
+      )}
     </Drawer>
   );
 }

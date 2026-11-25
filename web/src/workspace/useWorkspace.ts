@@ -37,7 +37,7 @@ type S = { setup: ScreenSetup };
 export type Action =
   | ({ type: 'add'; area?: string; id?: string } & S)
   /** F-134: neue Area als Spalte rechts oder Zeile unten. */
-  | ({ type: 'addArea'; side: 'right' | 'bottom' } & S)
+  | ({ type: 'addArea'; side: 'left' | 'right' | 'top' | 'bottom'; near?: string } & S)
   /** F-24: mit `setup` wird das Portal unter „Zuletzt geschlossen“ gemerkt. */
   | { type: 'remove'; id: string; setup?: ScreenSetup }
   /** F-170 Stufe 2: Slot zusammenlegen – weitere Seiten als Tabs ins bleibende Portal, die anderen schließen (→ Zuletzt geschlossen). */
@@ -280,7 +280,7 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'add':
       return W.addPanel(ws, a.setup, a.area, a.id);
     case 'addArea':
-      return W.addArea(ws, a.setup, a.side);
+      return W.addArea(ws, a.setup, a.side, a.near);
     case 'mergeSlot': {
       let next = mergeSlotTabs(ws, a.keep, a.others);
       for (const id of a.others) next = C.closePanel(next, id, a.setup);

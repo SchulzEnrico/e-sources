@@ -268,7 +268,11 @@ export function canAddArea(ws: Workspace, setup: ScreenSetup): boolean {
  * F-134 „+ Area“: neue Area mit leerem Panel als Spalte rechts oder Zeile unten. Ist der
  * Bildschirm voll, bleibt alles, wie es ist – Panels kommen dann nur über die Areas dazu.
  */
-export function addArea(ws: Workspace, setup: ScreenSetup, side: 'right' | 'bottom'): Workspace {
+/**
+ * F-134: neuer Slot als ganze Spalte rechts bzw. Zeile unten. F-210 (V89): jetzt an jedem Desk-Rand
+ * (`side`) oder – mit `near` – direkt neben diesem Slot (Area-Id), der dafür halbiert wird.
+ */
+export function addArea(ws: Workspace, setup: ScreenSetup, side: T.Side, near?: string): Workspace {
   if (!canAddArea(ws, setup)) return ws;
   const meta = inWin(newPanel(`Portal ${ws.nextNumber}`), setup.win);
   const v = viewOf(ws, setup);
@@ -276,7 +280,7 @@ export function addArea(ws: Workspace, setup: ScreenSetup, side: 'right' | 'bott
   if (!v.arrangement) return ensureAreaNames(commit(next, v.key, normalize(panelsIn(next.panels, setup.win), null, v.spec)), setup);
   const id = newAreaId(meta.id, v.arrangement.areas);
   const arr: Arrangement = {
-    tree: T.addAtEdge(v.arrangement.tree, id, side),
+    tree: near && T.hasLeaf(v.arrangement.tree, near) ? T.insertAt(v.arrangement.tree, near, id, side) : T.addAtSide(v.arrangement.tree, id, side),
     areas: { ...v.arrangement.areas, [id]: { id, panels: [meta.id], front: meta.id } },
   };
   return ensureAreaNames(commit(next, v.key, arr), setup);

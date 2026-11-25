@@ -243,6 +243,26 @@ export function addAtEdge(n: Node | null, id: string, side: 'right' | 'bottom'):
   return tidy({ dir, children: [n, { id }], sizes: [1 - frac, frac] });
 }
 
+/**
+ * F-210 (V89): neues Blatt als ganze Spalte bzw. Zeile an einem beliebigen Rand der Fläche anfügen;
+ * es bekommt so viel Platz wie eine der vorhandenen Spalten bzw. Zeilen (wie `addAtEdge`).
+ */
+export function addAtSide(n: Node | null, id: string, side: Side): Node {
+  if (!n) return { id };
+  const dir = dirOf(side);
+  const lines = !isLeaf(n) && n.dir === dir ? n.children.length : 1;
+  const frac = 1 / (lines + 1);
+  const before = side === 'left' || side === 'top';
+  return tidy({ dir, children: before ? [{ id }, n] : [n, { id }], sizes: before ? [frac, 1 - frac] : [1 - frac, frac] });
+}
+
+/** Anteil, den ein neues Blatt am Rand `side` bekäme (für die Vorschau im Lageplan). */
+export function sideShare(n: Node | null, side: Side): number {
+  if (!n) return 1;
+  const lines = !isLeaf(n) && n.dir === dirOf(side) ? n.children.length : 1;
+  return 1 / (lines + 1);
+}
+
 /** Ablegen: Mitte tauscht, Rand dockt an; Ziel AREA = am Rand der ganzen Fläche. */
 export function drop(n: Node, id: string, target: string, zone: Zone): Node {
   if (id === target) return n;

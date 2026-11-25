@@ -8,8 +8,10 @@ import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, MenuHead, MenuPages, PanelFrame } from './components/PanelFrame';
 import { TemplatePick } from './components/BoardTemplates';
 import { OpacitySlider, Pad as PadView } from './components/Pad';
+import { type PlanPreview, SitePlan } from './components/SitePlan';
+import { type PlanPick, type PlanSide, type PlanTile, pickName, pickRect } from './workspace/sitePlan';
 import { useF6 } from './components/useF6';
-import { DOCK_TAB_W, PAD_START, clampDockW, dockFront, dockOf, dockedOn, noteTiles, padsOn, padsShow, placeOf, zonePlace } from './workspace/pads';
+import { DOCK_TAB_W, PAD_MIN, PAD_START, clampDockW, dockFront, dockOf, dockedOn, noteTiles, padsOn, padsShow, placeOf, zonePlace } from './workspace/pads';
 import {
   type Lines,
   type Orientation,
@@ -54,7 +56,7 @@ import { importSlot, isSlotFile, readSlotFile, slotFileName, slotToFile } from '
 import { type NoteHit, tabShowing, titleOf as noteTitleOf, viewById } from './workspace/notes';
 import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { DESK_MODE_TEXT, DOCK_TEXT, NT_TEXT, VIEW_TEXT } from './workspace/terms';
+import { DESK_MODE_TEXT, DOCK_TEXT, NT_TEXT, PLAN_TEXT, VIEW_TEXT } from './workspace/terms';
 import { type DeskMode, PHONE_MQ, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
 import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
@@ -760,27 +762,27 @@ function DeskApp(props: DeskProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ws.panels]);
-  const newSlot = (side: 'right' | 'bottom') => {
+  const newSlot = (side: T.Side, near?: string) => {
     // F-52: ab der Empfehlung erst nachfragen; dann gleich verteilen – und nur, wenn jedes Portal
     // danach mindestens 240 × 160 Pixel groß bleibt.
     if (view.slots.length + 1 > rec) {
       const n = view.slots.length;
       if (n >= rec * 2) return notify(DESK_LAYOUT_TEXT.fullSlots(rec * 2), 6000);
-      const even = distributeIn(addAreaTo(ws, setup, side), setup);
+      const even = distributeIn(addAreaTo(ws, setup, side, near), setup);
       const fits = [...T.rects(viewOf(even, setup).tree).values()].every((r) => r.w * iw - GAP >= PORTAL_MIN_PX.w && r.h * ih - GAP >= PORTAL_MIN_PX.h);
-      if (!fits) return notify(DESK_LAYOUT_TEXT.noRoom(side === 'right' ? 'rechts' : 'unten'), 8000);
+      if (!fits) return notify(DESK_LAYOUT_TEXT.noRoom(PLAN_TEXT.side[side]), 8000);
       return setAsk({
         text: DESK_LAYOUT_TEXT.askMore(n, rec, rec * 2),
         yes: DESK_LAYOUT_TEXT.more,
         run: () => {
-          dispatch({ type: 'addArea', setup, side });
+          dispatch({ type: 'addArea', setup, side, near });
           dispatch({ type: 'distribute', setup });
           notify(DESK_LAYOUT_TEXT.small(n + 1, rec), 8000);
         },
       });
     }
-    dispatch({ type: 'addArea', setup, side });
-    offerColors(side === 'right' ? 'Neuer Slot rechts angelegt.' : 'Neuer Slot unten angelegt.');
+    dispatch({ type: 'addArea', setup, side, near });
+    offerColors(near ? 'Neuer Slot angelegt.' : side === 'right' ? 'Neuer Slot rechts angelegt.' : side === 'bottom' ? 'Neuer Slot unten angelegt.' : `Neuer Slot ${PLAN_TEXT.side[side]} angelegt.`);
   };
 
   // F-36: Lesezeichen aus Chrome, Safari, Firefox, Edge (HTML-Datei) übernehmen und die Library so ausgeben.
@@ -1093,6 +1095,57 @@ function DeskApp(props: DeskProps) {
     sayLive(PAD_TEXT.created);
     window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .nblock__new`)?.focus(), 60);
   };
+
+  // ---------------------------------------------------------------- F-210 (V89): Lageplan
+  const [planPrev, setPlanPrev] = useState<PlanPreview | null>(null);
+  const planSlots: PlanTile[] = shownView.slots.map((sl) => ({ id: sl.id, name: areaLabel(ws, sl) || sl.front.name, rect: sl.rect }));
+  const planStart: PlanPick = { tile: shownView.slots.find((sl) => sl.panels.some((m) => m.id === currentPanel()))?.id ?? planSlots[0]?.id ?? null, zone: 'right' };
+  const deskAr = iw / ih;
+  /** L2: Das Pad nimmt die gewählte Zone genau ein – mindestens 260 × 200 px. */
+  const placeFrom = (pick: PlanPick): PadPlace => {
+    const r = pickRect(planSlots, pick);
+    const w = Math.min(1, Math.max(r.w, PAD_MIN.w / iw));
+    const h = Math.min(1, Math.max(r.h, PAD_MIN.h / ih));
+    return { x: Math.max(0, Math.min(r.x, 1 - w)), y: Math.max(0, Math.min(r.y, 1 - h)), w, h };
+  };
+  const padPlan = (title: string, onTake: (pick: PlanPick) => void) => (done: () => void, back: () => void) => (
+    <SitePlan title={title} kind="pad" tiles={planSlots} start={planStart} ar={deskAr} onPreview={setPlanPrev} onBack={back} onPick={(p) => (done(), onTake(p))} />
+  );
+  const newPadAt = (pick: PlanPick) => {
+    const id = newId();
+    dispatch({ type: 'padNew', desk: win, id, sheet: newId(), place: placeFrom(pick) });
+    setPadsHidden(false);
+    const where = PLAN_TEXT.placed(pickName(planSlots, pick, 'pad'));
+    notify(`${PAD_TEXT.created} ${where}`);
+    sayLive(`${PAD_TEXT.created} ${where}`);
+    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .nblock__new`)?.focus(), 60);
+  };
+  const movePadTo = (id: string, pick: PlanPick) => {
+    dispatch({ type: 'padPlace', desk: win, id, place: placeFrom(pick) });
+    dispatch({ type: 'padRaise', id });
+    sayLive(PLAN_TEXT.placed(pickName(planSlots, pick, 'pad')));
+    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .pad__head`)?.focus(), 60);
+  };
+  /** NewSlot (L3–L5): Rand eines Slots = daneben (halbiert ihn), Mitte = stapeln, Außenrand = Spalte/Zeile am Desk-Rand. */
+  const slotTiles: PlanTile[] = view.slots.map((sl) => ({ id: sl.id, name: areaLabel(ws, sl) || sl.front.name, rect: sl.rect }));
+  const slotBlocked = (pick: PlanPick): string | null => {
+    if (pick.zone === 'full') {
+      if (!pick.tile) return PLAN_TEXT.noWhole;
+      return stackFull(ws, setup, pick.tile) ? PLAN_TEXT.slotStackFull : null;
+    }
+    if (!canAddArea(ws, setup) || view.slots.length >= rec * 2) return PLAN_TEXT.slotFull;
+    const r = pickRect(slotTiles, pick, slotShare(pick.zone));
+    return r.w * iw - GAP < PORTAL_MIN_PX.w || r.h * ih - GAP < PORTAL_MIN_PX.h ? PLAN_TEXT.slotSmall : null;
+  };
+  const slotShare = (side: PlanSide) => T.sideShare(view.tree, side);
+  const newSlotAt = (pick: PlanPick) => {
+    if (pick.zone === 'full') {
+      if (!pick.tile) return;
+      dispatch({ type: 'add', setup, area: pick.tile });
+      return offerColors(PLAN_TEXT.placed(pickName(slotTiles, pick, 'slot')));
+    }
+    newSlot(pick.zone, pick.tile ?? undefined);
+  };
   // V75 (F-215): Note Mode – das oberste Pad füllt den Desk; fehlt eins, legt E-Sources es an
   // V76 (Enrico: „Schalte die Notizen in der Mobilansicht vorerst weg“): auf dem Telefon keine Pads, kein NewPad
   // und kein Umschalter – erst alle Funktionen, die Mobilansicht der Notizen kommt später
@@ -1141,6 +1194,7 @@ function DeskApp(props: DeskProps) {
               box={{ w: iw, h: ih, gap: GAP }}
               top={fullOn ? true : notesMode ? p.id === allPads.at(-1)?.id : z === deskPads.length - 1}
               full={{ on: fullOn === p.id, toggle: () => toggleFull(p.id, padName(p)) }}
+              plan={notesMode || fullOn ? undefined : padPlan(PLAN_TEXT.movePad(viewById(ws, p.active)?.name ?? 'Pad'), (pick) => movePadTo(p.id, pick))}
               z={z + 1}
               picked={padPick}
               onPick={pickInPad}
@@ -3050,6 +3104,21 @@ function DeskApp(props: DeskProps) {
         {canAddArea(ws, setup) ? (
           <Menu icon={<span className="tb-add fx" style={{ '--fx': fx.panel.color } as CSSProperties}><Icon name="newSlot" size={15} className="icon tb-plus" /><span className="tb-label"> NewSlot</span></span>} label={`Neuen Slot anlegen – ${TERMS.slot} – ${fx.panel.text}`}>
             {(close) => (
+              <MenuPages>
+                {(page, go) => page === 'place' ? (
+                  <SitePlan
+                    title={PLAN_TEXT.pickSlot}
+                    kind="slot"
+                    tiles={slotTiles}
+                    start={{ tile: planStart.tile, zone: 'right' }}
+                    ar={deskAr}
+                    blocked={slotBlocked}
+                    edgeFrac={slotShare}
+                    onPreview={setPlanPrev}
+                    onBack={() => go('')}
+                    onPick={(p) => (close(), newSlotAt(p))}
+                  />
+                ) : (
               <>
                 <Item
                   onClick={() => {
@@ -3067,7 +3136,13 @@ function DeskApp(props: DeskProps) {
                 >
                   Neue Zeile unten
                 </Item>
+                {/* F-210 (V89): Lageplan – neben jedem Slot und an allen vier Desk-Rändern */}
+                <Item icon="slot" hint={PLAN_TEXT.menuSlotHint} onClick={() => go('place')}>
+                  {PLAN_TEXT.menuSlot}
+                </Item>
               </>
+                )}
+              </MenuPages>
             )}
           </Menu>
         ) : (
@@ -3097,6 +3172,8 @@ function DeskApp(props: DeskProps) {
             <MenuPages>
               {(page, go) => page === 'kanban' ? (
                 <TemplatePick ws={ws} onBack={() => go('')} onPick={(tpl) => (close(), newNoteHere('kanban', tpl))} />
+              ) : page === 'place' ? (
+                padPlan(PLAN_TEXT.pickPad, newPadAt)(close, () => go(''))
               ) : (
             <>
               <Item icon="newPad" hint={PAD_TEXT.menuNewHint} onClick={() => (close(), newPad())}>
@@ -3112,7 +3189,7 @@ function DeskApp(props: DeskProps) {
               <Item icon="matrix" hint={NT_TEXT.matrixHint(!!theMatrix(ws))} onClick={() => (close(), newNoteHere('eisenhower'))}>
                 {NT_TEXT.matrix}
               </Item>
-              <Item icon="slot" disabled title={PAD_TEXT.menuPlaceHint} hint={PAD_TEXT.menuPlaceHint} onClick={() => undefined}>
+              <Item icon="slot" disabled={notesMode} title={notesMode ? PAD_TEXT.menuPlaceNotes : undefined} hint={PLAN_TEXT.menuPadHint} onClick={() => go('place')}>
                 {PAD_TEXT.menuPlace}
               </Item>
               <Item icon="search" hint={NT_TEXT.findHint} onClick={() => (close(), window.setTimeout(findNotes, 0))}>
@@ -3875,6 +3952,15 @@ function DeskApp(props: DeskProps) {
         <main className={`area${notesMode ? ' is-notes' : ''}`} ref={areaRef}>
           {content}
           {padLayer}
+          {planPrev && (
+            <div
+              className="planprev"
+              aria-hidden="true"
+              style={{ left: GAP + planPrev.rect.x * iw, top: GAP + planPrev.rect.y * ih, width: Math.max(0, planPrev.rect.w * iw - GAP), height: Math.max(0, planPrev.rect.h * ih - GAP) }}
+            >
+              <span className="planprev__label">{planPrev.label}</span>
+            </div>
+          )}
         </main>
         {dockEl}
       </div>

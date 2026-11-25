@@ -3,7 +3,7 @@
  * Logik in workspace/pads.ts; hier nur Darstellung, Ziehen/Größe und Tastatur.
  * Entscheidungen: Claude Doc „Pads mit Notizblock und Lageplan“ (P1–P9).
  */
-import { type CSSProperties, type Dispatch, type KeyboardEvent, type PointerEvent, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, type Dispatch, type KeyboardEvent, type PointerEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useKeyboard } from './useKeyboard';
 import type { Action } from '../workspace/useWorkspace';
 import type { NoteViewKind, Pad as PadT, PadPlace, Workspace } from '../workspace/types';
@@ -12,7 +12,7 @@ import * as Sh from '../workspace/sheets';
 import { PAD_MIN } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
 import { NOTICE_MS } from '../workspace/flash';
-import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab, freshNotes } from './NoteTab';
 import { type FootItem, PadFooter, type VoiceProps } from './PadFooter';
@@ -77,11 +77,13 @@ export interface PadProps {
   dock?: { onWidth: (dx: number, repeat: boolean) => void; onFold: () => void };
   /** V87 (Enrico): Vollbild – Pad füllt den Desk bzw. zurück zur Übersicht (alle Pads). */
   full?: { on: boolean; toggle: () => void };
+  /** F-210 (V89): Seite „Platz wählen …“ im ⋮ – Lageplan für dieses Pad (fehlt = gesperrt). */
+  plan?: (done: () => void, back: () => void) => ReactNode;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say, dock, full }: PadProps) {
+export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say, dock, full, plan }: PadProps) {
   const [live, setLive] = useState<PadPlace | null>(null);
   const [renaming, setRenaming] = useState(false);
   /** V88 (BL3): „Als Vorlage speichern …“ – Leiste unter dem Kopf */
@@ -722,6 +724,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
         </Menu>
         <Menu className="pad__menu" icon={<Icon name="more" size={16} />} label={PAD_TEXT.options}>
           {(close) => (
+            <MenuPages>
+              {(page, go) => page === 'place' && plan ? plan(close, () => go('')) : (
             <>
               <Item
                 icon="rename"
@@ -753,7 +757,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
                 {dock ? DOCK_TEXT.undock : DOCK_TEXT.toDock}
               </Item>
               {!dock && (
-                <Item icon="slot" disabled title={PAD_TEXT.menuPlaceHint} onClick={() => undefined}>
+                <Item icon="slot" disabled={!plan} hint={plan ? PLAN_TEXT.padMoveHint : undefined} title={plan ? undefined : PAD_TEXT.menuPlaceNotes} onClick={() => go('place')}>
                   {PAD_TEXT.menuPlace}
                 </Item>
               )}
@@ -773,6 +777,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               <OpacitySlider label={PAD_TEXT.knobOpacity} hint={PAD_TEXT.knobOpacityHint} value={display.knobOpacity} min={KNOB_OP_MIN} onChange={setKnobOpacity} />
               <OpacitySlider label={PAD_TEXT.knobX} hint={PAD_TEXT.knobXHint} value={display.knobX} min={0} step={1} valueText={PAD_TEXT.knobXValue} onChange={setKnobX} />
             </>
+              )}
+            </MenuPages>
           )}
         </Menu>
         {full && (

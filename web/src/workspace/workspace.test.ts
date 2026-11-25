@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { type ScreenSetup, detectScreen, specOf } from './screen';
 import * as T from './tree';
+import * as Plan from './sitePlan';
 import { keepDeviceFields, onlyDeviceChanged, parseWorkspace } from './storage';
 import type { Workspace } from './types';
 import * as X from './transfer';
@@ -1042,6 +1043,18 @@ describe('F-134 + Area', () => {
     const row = W.addArea(ws, LAPTOP2, 'bottom');
     const r = W.viewOf(row, LAPTOP2).slots.find((s) => s.front.id === row.panels[row.panels.length - 1].id)!;
     expect(close(r.rect.w, 1) && close(r.rect.y + r.rect.h, 1)).toBe(true);
+  });
+
+  it('F-210: neuer Slot links am Desk-Rand bzw. direkt unter einem Slot (halbiert ihn)', () => {
+    const ws = W.defaultWorkspace();
+    const left = W.addArea(ws, LAPTOP2, 'left');
+    const l = W.viewOf(left, LAPTOP2).slots.find((s) => s.front.id === left.panels[left.panels.length - 1].id)!;
+    expect(close(l.rect.x, 0) && close(l.rect.h, 1)).toBe(true);
+    const v = W.viewOf(ws, LAPTOP2);
+    const target = v.slots[0];
+    const under = W.addArea(ws, LAPTOP2, 'bottom', target.id);
+    const u = W.viewOf(under, LAPTOP2).slots.find((s) => s.front.id === under.panels[under.panels.length - 1].id)!;
+    expect(close(u.rect.x, target.rect.x) && close(u.rect.w, target.rect.w) && close(u.rect.h, target.rect.h / 2)).toBe(true);
   });
 
   it('voller Bildschirm: keine neue Area, nichts wird gestapelt', () => {
@@ -5555,5 +5568,60 @@ describe('V88: Rad-Wahl je Sheet merken', () => {
     for (let i = 0; i < SP.SHEET_PREFS_MAX + 5; i++) all = SP.withSheetPref(all, `s${i}`, { show: 'open' });
     expect(Object.keys(all).length).toBe(SP.SHEET_PREFS_MAX);
     expect(all.a).toBeUndefined();
+  });
+});
+
+describe('F-210 Lageplan (V89)', () => {
+  // zwei Slots nebeneinander, rechts darunter ein dritter
+  const tiles: Plan.PlanTile[] = [
+    { id: 'a', name: 'Slot 1', rect: { x: 0, y: 0, w: 0.5, h: 1 } },
+    { id: 'b', name: 'Slot 2', rect: { x: 0.5, y: 0, w: 0.5, h: 0.5 } },
+    { id: 'c', name: 'Slot 3', rect: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } },
+  ];
+  const at = (x: number, _y?: number) => Plan.PLAN_RIM + (1 - 2 * Plan.PLAN_RIM) * x;
+  it('Zonen: Rand = Seite, Mitte = ganz, Außenrand = Desk-Rand', () => {
+    expect(Plan.pickAt(tiles, at(0.25, 0), at(0.5, 0))).toEqual({ tile: 'a', zone: 'full' });
+    expect(Plan.pickAt(tiles, at(0.45, 0), at(0.5, 0))).toEqual({ tile: 'a', zone: 'right' });
+    expect(Plan.pickAt(tiles, at(0.75, 0), at(0.05, 0))).toEqual({ tile: 'b', zone: 'top' });
+    expect(Plan.pickAt(tiles, 0.01, 0.5)).toEqual({ tile: null, zone: 'left' });
+    expect(Plan.pickAt(tiles, 0.5, 0.99)).toEqual({ tile: null, zone: 'bottom' });
+  });
+  it('Vorschau: Hälfte des Slots bzw. des Desks', () => {
+    expect(Plan.pickRect(tiles, { tile: 'a', zone: 'right' })).toEqual({ x: 0.25, y: 0, w: 0.25, h: 1 });
+    expect(Plan.pickRect(tiles, { tile: 'c', zone: 'full' })).toEqual({ x: 0.5, y: 0.5, w: 0.5, h: 0.5 });
+    expect(Plan.pickRect(tiles, { tile: null, zone: 'top' })).toEqual({ x: 0, y: 0, w: 1, h: 0.5 });
+    expect(Plan.pickRect(tiles, { tile: null, zone: 'right' }, 1 / 3).w).toBeGreaterThan(0.33);
+  });
+  it('Tastatur: Pfeile wandern, Umschalt wählt Seite, zweimal am Rand = Desk-Rand', () => {
+    const p0: Plan.PlanPick = { tile: 'a', zone: 'right' };
+    expect(Plan.keyPick(tiles, p0, 'ArrowRight')).toEqual({ tile: 'b', zone: 'right' });
+    expect(Plan.keyPick(tiles, { tile: 'b', zone: 'right' }, 'ArrowDown')).toEqual({ tile: 'c', zone: 'right' });
+    expect(Plan.keyPick(tiles, { tile: 'c', zone: 'right' }, 'ArrowLeft')).toEqual({ tile: 'a', zone: 'right' });
+    expect(Plan.keyPick(tiles, p0, 'ArrowLeft')).toEqual(p0);
+    expect(Plan.keyPick(tiles, p0, 'ArrowLeft', true)).toEqual({ tile: 'a', zone: 'left' });
+    expect(Plan.keyPick(tiles, { tile: 'a', zone: 'left' }, 'ArrowLeft', true)).toEqual({ tile: null, zone: 'left' });
+    expect(Plan.keyPick(tiles, { tile: null, zone: 'left' }, 'ArrowRight')).toEqual({ tile: 'a', zone: 'left' });
+    expect(Plan.keyPick(tiles, p0, ' ')).toEqual({ tile: 'a', zone: 'full' });
+    expect(Plan.keyPick(tiles, p0, 'End')).toEqual({ tile: 'c', zone: 'right' });
+    expect(Plan.keyPick(tiles, p0, 'x')).toBeNull();
+  });
+  it('Beschriftung je Zweck', () => {
+    expect(Plan.pickName(tiles, { tile: 'b', zone: 'right' }, 'pad')).toBe('Slot 2 · rechte Hälfte');
+    expect(Plan.pickName(tiles, { tile: 'b', zone: 'left' }, 'slot')).toBe('Neuer Slot links von Slot 2');
+    expect(Plan.pickName(tiles, { tile: 'b', zone: 'full' }, 'slot')).toBe('Neues Portal in „Slot 2“ stapeln');
+    expect(Plan.pickName(tiles, { tile: null, zone: 'top' }, 'slot')).toBe('Neue Zeile am Desk-Rand oben');
+    expect(Plan.pickName(tiles, { tile: null, zone: 'left' }, 'pad')).toBe('Ganzer Desk · linke Hälfte');
+  });
+  it('Slot-Baum: neues Blatt an jedem Rand bzw. neben einem Blatt', () => {
+    const tree: T.Node = { dir: 'row', children: [{ id: 'a' }, { id: 'b' }], sizes: [0.5, 0.5] };
+    const left = T.addAtSide(tree, 'n', 'left');
+    expect(T.leaves(left)).toEqual(['n', 'a', 'b']);
+    expect(T.rects(left).get('n')!.w).toBeGreaterThan(0.33);
+    const top = T.addAtSide(tree, 'n', 'top');
+    expect(T.rects(top).get('n')).toMatchObject({ x: 0, y: 0, w: 1 });
+    expect(T.sideShare(tree, 'right')).toBeGreaterThan(0.33);
+    expect(T.sideShare(tree, 'bottom')).toBe(0.5);
+    const near = T.insertAt(tree, 'b', 'n', 'top');
+    expect(T.rects(near).get('n')).toMatchObject({ x: 0.5, y: 0, w: 0.5, h: 0.5 });
   });
 });

@@ -36,6 +36,9 @@ import * as BT from './boardTemplates';
 import * as Sh from './sheets';
 import * as Ps from './persons';
 import * as Pj from './projects';
+import * as Psp from './psp';
+import * as Sc from './schedule';
+import * as Sp from './sampleProject';
 import * as FL from './focusLoad';
 import * as St from './stage';
 import { type RuleUndo, deleteRule, restoreRule, setRuleOn, setSiteCategory } from './rules';
@@ -206,6 +209,12 @@ export type Action =
   | { type: 'projectRemove'; id: string }
   | { type: 'projectRestore'; undo: Pj.ProjectUndo }
   | { type: 'noteProject'; id: string; project?: string }
+  /* F-206 Schritt 10 (V100): PSP und Planung je Vorgang */
+  | { type: 'pspAdd'; project: string; title: string; note: string; after?: string; under?: string; by?: string }
+  | { type: 'pspMove'; project: string; id: string; by: number }
+  | { type: 'pspShift'; project: string; id: string; out: boolean }
+  | { type: 'taskPlan'; id: string; plan: Sc.TaskPlan }
+  | { type: 'sampleProject'; on: boolean }
   | { type: 'personRestore'; undo: Ps.PersonUndo }
   | { type: 'noteAssign'; id: string; person?: string; by?: string }
   | { type: 'noteDelegate'; id: string; person: string; by?: string }
@@ -315,7 +324,7 @@ export const idSeq = (ids: readonly string[]) => {
 };
 
 /** F-206 Schritt 8 (V94, P6): Aktionen, die eine Notiz neu anlegen – sie bekommt „ich“ als zuständig. */
-const NEW_NOTE = new Set<Action['type']>(['padOpen', 'newNote', 'tabNote', 'noteForPage', 'sheetAdd', 'padNote', 'checkToTask']);
+const NEW_NOTE = new Set<Action['type']>(['padOpen', 'newNote', 'tabNote', 'noteForPage', 'sheetAdd', 'padNote', 'checkToTask', 'pspAdd']);
 
 export function reducer(ws: Workspace, a: Action): Workspace {
   const raw = step(ws, a);
@@ -425,6 +434,18 @@ function step(ws: Workspace, a: Action): Workspace {
       return Pj.undoRemoveProject(ws, a.undo);
     case 'noteProject':
       return Pj.setNoteProject(ws, a.id, a.project);
+    case 'pspAdd':
+      return Psp.addPspTask(ws, a.project, a.title, { id: a.note, after: a.after, under: a.under, by: a.by })?.ws ?? ws;
+    case 'pspMove':
+      return Psp.movePsp(ws, a.project, a.id, a.by);
+    case 'pspShift': {
+      const r = a.out ? Psp.outdentPsp(ws, a.project, a.id) : Psp.indentPsp(ws, a.project, a.id);
+      return r.ok ? r.ws : ws;
+    }
+    case 'taskPlan':
+      return Sc.setTaskPlan(ws, a.id, a.plan);
+    case 'sampleProject':
+      return a.on ? Sp.addSampleProject(ws) : Sp.removeSampleProject(ws);
     case 'personRemove':
       return Ps.removePerson(ws, a.id)?.ws ?? ws;
     case 'personRestore':

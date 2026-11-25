@@ -9009,3 +9009,20 @@ b.pc__week.is-warn { color: #e0a040; }
 .pj__mile { color: rgb(var(--accent-rgb)); }
 .pj__empty { padding: 24px 4px; }
 .people__proj.is-empty { opacity: 0.6; }
+
+/* ---------- V100: F-206 Schritt 10 – PSP im Projekt-Modus ---------- */
+.pj.is-psp .pc__body { grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.5fr); }
+@media (max-width: 1000px) { .pj.is-psp .pc__body { grid-template-columns: 1fr; } }
+.pj__viewwheel { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; font-size: 11px; }
+.projlayer .pj__psp .help__run { opacity: 1; }
+.pj__psp-set { align-items: center; }
+.pj__psp-new input { width: 18em; }
+.pj__psp-table .pj__code { color: var(--muted, inherit); font-size: 11px; }
+.pj__psp-table tr.is-sum .pc__name { font-weight: 700; }
+.pj__psp-table tr.is-done .pc__name { opacity: 0.55; text-decoration: line-through; }
+.pj__psp-name { display: inline-flex; align-items: center; gap: 2px; }
+.pj__twist { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; background: none; box-shadow: none; color: var(--muted, inherit); font-size: 11px; cursor: pointer; }
+span.pj__twist { cursor: default; }
+.pj__ms { color: rgb(var(--accent-rgb)); font-size: 10px; }
+.pj__plan { font-size: 11px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line); }
+.pj__plan.is-manual { border-color: rgba(var(--accent-rgb), 0.7); color: rgb(var(--accent-rgb)); }

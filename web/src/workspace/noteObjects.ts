@@ -4,6 +4,7 @@
  * die Oberfläche folgt ab Bau-Schritt 3. Reine Funktionen.
  */
 import type {
+  BaselineTask,
   FocusView,
   Note,
   NoteCheck,
@@ -16,6 +17,7 @@ import type {
   PersonRight,
   PlanActual,
   Project,
+  ProjectBaseline,
   SheetOwner,
   SheetRange,
   SourceLink,
@@ -75,6 +77,9 @@ function parsePlanActual(v: unknown): PlanActual | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
+/** V100 (K1): längste Dauer eines Vorgangs in Arbeitstagen (rund 8 Jahre). */
+export const DURATION_MAX = 2000;
+
 /** Neue Felder einer Note (v8) – Bezüge auf Projekte und Personen prüft cleanRefs. */
 export function parseNoteExtras(v: Record<string, unknown>): Partial<Note> {
   const out: Partial<Note> = {};
@@ -86,6 +91,9 @@ export function parseNoteExtras(v: Record<string, unknown>): Partial<Note> {
   const cost = parsePlanActual(v.cost);
   if (cost) out.cost = cost;
   if (v.milestone === true) out.milestone = true;
+  // V100 (Dateiformat 10, K1/K2): Dauer in ganzen Arbeitstagen, Planungsart
+  if (isNum(v.duration) && v.duration >= 0) out.duration = Math.min(DURATION_MAX, Math.round(v.duration));
+  if (v.manual === true) out.manual = true;
   if (isObj(v.remind) && isTime(v.remind.at)) {
     out.remind = {
       at: v.remind.at,
@@ -164,6 +172,10 @@ export function parseProjects(v: unknown, scopeIds: ReadonlySet<string>): Projec
     if (isNum(r.points) && r.points > 0) p.points = r.points;
     const sources = parseSourceLinks(r.sources);
     if (sources) p.sources = sources;
+    const baseline = parseBaseline(r.baseline);
+    if (baseline) p.baseline = baseline;
+    const order = parseOrder(r.order);
+    if (order) p.order = order;
     out.push(p);
   }
   const byId = new Map(out.map((p) => [p.id, p]));
@@ -182,6 +194,72 @@ export function parseProjects(v: unknown, scopeIds: ReadonlySet<string>): Projec
     }
   }
   return out;
+}
+
+/** V100 (K5): Soll eines Vorgangs; leer = undefined. */
+function parseBaselineTask(v: unknown): BaselineTask | undefined {
+  if (!isObj(v)) return undefined;
+  const t: BaselineTask = {};
+  if (isDay(v.start)) t.start = v.start;
+  if (isDay(v.end)) t.end = v.end;
+  if (isNum(v.duration) && v.duration >= 0) t.duration = Math.min(DURATION_MAX, Math.round(v.duration));
+  if (isNum(v.effort) && v.effort >= 0) t.effort = v.effort;
+  if (isNum(v.cost) && v.cost >= 0) t.cost = v.cost;
+  return Object.keys(t).length ? t : undefined;
+}
+
+/** V100 (K4/K5, Dateiformat 10): Basisplan am Projekt – ohne gültigen Zeitpunkt fällt er weg. */
+export function parseBaseline(v: unknown): ProjectBaseline | undefined {
+  if (!isObj(v) || !isTime(v.at)) return undefined;
+  const tasks: Record<string, BaselineTask> = {};
+  if (isObj(v.tasks))
+    for (const [id, t] of Object.entries(v.tasks)) {
+      const x = parseBaselineTask(t);
+      if (id && x) tasks[id] = x;
+    }
+  return {
+    at: v.at,
+    ...(isDay(v.start) ? { start: v.start } : {}),
+    ...(isDay(v.end) ? { end: v.end } : {}),
+    ...(isNum(v.budget) && v.budget >= 0 ? { budget: v.budget } : {}),
+    tasks,
+  };
+}
+
+/** V100 (K6, Dateiformat 10): PSP-Ordnung – je Ebene Ids ohne Doppelte; leere Ebenen fallen weg. */
+export function parseOrder(v: unknown): Record<string, string[]> | undefined {
+  if (!isObj(v)) return undefined;
+  const out: Record<string, string[]> = {};
+  for (const [k, ids] of Object.entries(v)) {
+    if (!Array.isArray(ids)) continue;
+    const list = [...new Set(ids.filter((x): x is string => typeof x === 'string' && !!x && x !== k))];
+    if (list.length) out[k] = list;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * V100 (K6): PSP-Ordnung auf Bekanntes beschränken – Ebenen nur für bekannte Eltern-Notizen, Einträge nur
+ * bekannte Notizen bzw. Projekte; jede Id nur auf einer Ebene (erste gewinnt). Der Basisplan bleibt
+ * unverändert (gelöschte Vorgänge zeigt der Bericht als „entfallen“).
+ */
+export function cleanProjectRefs(projects: Project[], noteIds: ReadonlySet<string>): Project[] {
+  const projectIds = new Set(projects.map((p) => p.id));
+  return projects.map((p) => {
+    if (!p.order) return p;
+    const seen = new Set<string>();
+    const order: Record<string, string[]> = {};
+    for (const [k, ids] of Object.entries(p.order)) {
+      if (k !== '' && !noteIds.has(k)) continue;
+      const list = ids.filter((id) => !seen.has(id) && (noteIds.has(id) || (k === '' && projectIds.has(id) && id !== p.id)));
+      list.forEach((id) => seen.add(id));
+      if (list.length) order[k] = list;
+    }
+    const out: Project = { ...p };
+    if (Object.keys(order).length) out.order = order;
+    else delete out.order;
+    return out;
+  });
 }
 
 // ---------------------------------------------------------------- Personen

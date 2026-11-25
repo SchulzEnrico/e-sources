@@ -2,7 +2,7 @@ import { CATEGORY_ICONS } from './icons';
 import { parseFit, parseZoom } from './zoom';
 import { parseBoardTemplates } from './boardTemplates';
 import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, DeskNotes, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
-import { cleanRefs, parseFocusViews, parsePadDesks, parsePads, parsePersons, parseProjects, personsFromDelegated } from './noteObjects';
+import { cleanProjectRefs, cleanRefs, parseFocusViews, parsePadDesks, parsePads, parsePersons, parseProjects, personsFromDelegated } from './noteObjects';
 import { parseDeskLooks, parseLook } from './look';
 import { parseTint } from './tint';
 import { PAUSE_CHOICES, SHOWN_CHOICES } from './pause';
@@ -343,7 +343,7 @@ function parseWorkspaceRaw(data: unknown): Workspace | null {
   const parsedNotes = parseNotes(data.notes, catIds);
   const noteViews = parseNoteViews(data.noteViews, new Set(parsedNotes.map((n) => n.id)), catIds);
   // F-206 v8: Projekte, Personen, Pads; Bezüge der Notes nur auf Bekanntes
-  const projects = parseProjects(data.projects, new Set(scenarios.map((c) => c.id)));
+  const projects = cleanProjectRefs(parseProjects(data.projects, new Set(scenarios.map((c) => c.id))), new Set(parsedNotes.map((n) => n.id)));
   const moved = personsFromDelegated(fixDelegated(parsedNotes, new Set(noteViews.map((v) => v.id))), parsePersons(data.persons));
   const persons = moved.persons;
   const notes = cleanRefs(moved.notes, new Set(projects.map((p) => p.id)), new Set(persons.map((p) => p.id)));

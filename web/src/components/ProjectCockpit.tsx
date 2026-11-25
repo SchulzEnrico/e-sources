@@ -18,6 +18,8 @@ import { noticeLater } from '../workspace/flash';
 import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
 import { openNote } from './SourceChips';
+import { ProjectPsp } from './ProjectPsp';
+import { PSP_TEXT } from '../workspace/terms';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 /** 2026-12-21 → 21.12.2026 */
@@ -28,6 +30,19 @@ const num = (v: string): number | undefined => {
 };
 const euro = (n: number) => `${n.toLocaleString('de-DE', { maximumFractionDigits: 2 })} €`;
 const TASKS_SHOWN = 12;
+
+/** V100 (J2): Ansicht rechts neben der Projektliste – je Gerät gemerkt; weitere (Gantt …) folgen. */
+type ProjectView = 'brief' | 'psp';
+const VIEWS: ProjectView[] = ['brief', 'psp'];
+const VIEW_KEY = 'esource.projectView.v1';
+function loadView(): ProjectView {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return VIEWS.includes(v as ProjectView) ? (v as ProjectView) : 'brief';
+  } catch {
+    return 'brief';
+  }
+}
 
 export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void }) {
   const rowsAll = Pj.projectRows(ws);
@@ -43,6 +58,16 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [undo, setUndo] = useState<{ text: string; u: Pj.ProjectUndo } | null>(null);
+  const [view, setViewState] = useState<ProjectView>(loadView);
+  const setView = (v: ProjectView) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* ohne Speicher: nur bis zum Neuladen */
+    }
+    say(`${PSP_TEXT.view}: ${PSP_TEXT.views[v]}`);
+  };
   const rows = useRef(new Map<string, HTMLButtonElement>());
   const infoRef = useRef<HTMLElement>(null);
   const later = (f: () => void) => window.setTimeout(f, 0);
@@ -125,13 +150,17 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
     !d ? <span className="lc__muted">{T.none}</span> : derived ? <span className="pj__derived" title={T.derivedHint}>{dmy(d)}<span className="sr-only"> ({T.derived})</span></span> : dmy(d);
 
   return (
-    <section className="lc__group pc pj" aria-labelledby="pj-head">
+    <section className={`lc__group pc pj${view === 'psp' ? ' is-psp' : ''}`} aria-labelledby="pj-head">
       <header className="lc__head lc__band">
         <Icon name="project" size={15} className="icon icon--inline" />
         <h3 id="pj-head" className="lc__head-title" title={explain(TERMS.projects)}>
           {T.head}
         </h3>
         <span className="lc__head-tools">
+          <span className="layouts__label pj__wheel pj__viewwheel">
+            <span aria-hidden="true">{PSP_TEXT.view}</span>
+            <ModeWheel label={PSP_TEXT.viewLabel} value={view} onChange={(v) => setView(v as ProjectView)} options={VIEWS.map((v) => ({ id: v, name: PSP_TEXT.views[v], hint: PSP_TEXT.viewHint[v] }))} />
+          </span>
           <button type="button" id="pj-add" className="help__run" aria-expanded={adding} disabled={full} title={full ? T.full(Pj.PROJECTS_MAX) : T.addHint} onClick={() => (adding ? setAdding(false) : openAdd())}>
             <Icon name="plus" size={13} className="icon icon--inline" /> {T.add}
           </button>
@@ -286,7 +315,11 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
             {error && !adding && <p className="layouts__error" role="alert">{error}</p>}
           </div>
 
+          {view === 'psp' ? (
+            <ProjectPsp key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} onPickProject={(id) => (setSel(id), setViewState('brief'), focusRow(id))} />
+          ) : (
           <ProjectBrief key={shown.id} ws={ws} p={shown} row={rowsAll.find((r) => r.project.id === shown.id)!} dispatch={dispatch} say={say} boxRef={infoRef} onRename={() => startRename(shown)} onRemove={() => askRemove(shown)} />
+          )}
         </div>
       )}
     </section>

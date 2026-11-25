@@ -27,6 +27,9 @@ import * as S from './sizing';
 import * as H from './help';
 import * as Tour from './tour';
 import * as Pj from './projects';
+import * as Sc from './schedule';
+import * as Psp from './psp';
+import * as Sp from './sampleProject';
 import * as Terms from './terms';
 import * as Rs from './reset';
 import * as Zm from './zoom';
@@ -668,7 +671,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (r.ok) expect(W.panelUrl(r.file.workspace.panels[0])).toBe('https://a.de');
-    expect(X.FILE_VERSION).toBe(9);
+    expect(X.FILE_VERSION).toBe(10);
   });
 
   it('Bereich und Szenario bleiben erhalten (F-116, vorbereitet)', () => {
@@ -6030,5 +6033,149 @@ describe('F-206 Schritt 10 Projekte (V98)', () => {
     expect(Pj.projectById(back, b.id)?.parent).toBe(a);
     expect(back.notes![0].project).toBe(a);
     expect(Pj.setNoteProject(back, 'n1', 'gibt-es-nicht')).toBe(back);
+  });
+});
+
+describe('F-206 Schritt 10 Dateiformat 10 und Kalender (V100)', () => {
+  const base = (): Workspace => ({ ...W.defaultWorkspace(), notes: [] }) as Workspace;
+  const note = (id: string, extra: Partial<Note> = {}): Note => ({ id, title: id, text: '', state: 'open', trail: [], created: 1, changed: 1, ...extra }) as Note;
+  it('Kalender Mo–Fr (K7): Arbeitstage zählen, Wochenende überspringen', () => {
+    expect(Sc.isWorkday('2026-11-27')).toBe(true); // Fr
+    expect(Sc.isWorkday('2026-11-28')).toBe(false); // Sa
+    expect(Sc.workdayFrom('2026-11-28')).toBe('2026-11-30');
+    expect(Sc.workdayFrom('2026-11-29', true)).toBe('2026-11-27');
+    expect(Sc.addWorkdays('2026-11-27', 1)).toBe('2026-11-30');
+    expect(Sc.addWorkdays('2026-11-30', -1)).toBe('2026-11-27');
+    expect(Sc.workdaysBetween('2026-11-23', '2026-12-04')).toBe(10);
+    expect(Sc.workdaysBetween('2026-12-04', '2026-11-23')).toBe(0);
+    expect(Sc.endOf('2026-11-26', 3)).toBe('2026-11-30');
+    expect(Sc.endOf('2026-11-28', 0)).toBe('2026-11-30');
+  });
+  it('Dauer (K1): Feld, sonst Abstand nicht vor → fällig, sonst 1 Tag; Meilenstein 0', () => {
+    expect(Sc.durationInfo({ duration: 4 })).toEqual({ days: 4, from: 'set' });
+    expect(Sc.durationInfo({ notBefore: '2026-11-23', due: '2026-11-27' })).toEqual({ days: 5, from: 'dates' });
+    expect(Sc.durationInfo({})).toEqual({ days: 1, from: 'default' });
+    expect(Sc.durationInfo({ milestone: true, duration: 3 })).toEqual({ days: 0, from: 'milestone' });
+    expect(Sc.parseDurationInput('3 Tage')).toBe(3);
+    expect(Sc.parseDurationInput('2,6')).toBe(3);
+    expect(Sc.parseDurationInput('')).toBeNull();
+    expect(Sc.parseDurationInput('viel')).toBeUndefined();
+  });
+  it('Planung setzen (K1/K2): Meilenstein nimmt Dauer, Dauer nimmt Meilenstein, manuell an/aus', () => {
+    let ws = { ...base(), notes: [note('n1')] } as Workspace;
+    ws = Sc.setTaskPlan(ws, 'n1', { duration: 3, manual: true }, 9);
+    expect(ws.notes![0]).toMatchObject({ duration: 3, manual: true, changed: 9 });
+    ws = Sc.setTaskPlan(ws, 'n1', { milestone: true });
+    expect(ws.notes![0].duration).toBeUndefined();
+    expect(ws.notes![0].milestone).toBe(true);
+    ws = Sc.setTaskPlan(ws, 'n1', { duration: 2, manual: false });
+    expect(ws.notes![0].milestone).toBeUndefined();
+    expect(ws.notes![0].manual).toBeUndefined();
+    expect(Sc.setTaskPlan(ws, 'n1', { duration: 2 })).toBe(ws);
+  });
+  it('Speicher (Dateiformat 10): duration, manual, baseline, order kommen an; Fremdes fällt weg', () => {
+    const raw = {
+      ...base(),
+      notes: [note('n1', { duration: 2.4, manual: true } as Partial<Note>), note('n2', { duration: -1 } as Partial<Note>)],
+      projects: [
+        {
+          id: 'pj-a', name: 'A', created: 1, changed: 1,
+          baseline: { at: '2026-11-25T10:00:00.000Z', start: '2026-12-01', budget: 500, tasks: { n1: { start: '2026-12-01', end: '2026-12-02', duration: 2, effort: 8 }, alt: { cost: 10 }, leer: { start: 'x' } } },
+          order: { '': ['n2', 'n1', 'n1', 'pj-b', 'weg'], n1: ['n2'], weg: ['n1'] },
+        },
+        { id: 'pj-b', name: 'B', parent: 'pj-a', created: 1, changed: 1, baseline: { at: 'kaputt', tasks: {} } },
+      ],
+    };
+    const ws = parseWorkspace(JSON.parse(JSON.stringify(raw)))!;
+    expect(ws.notes![0].duration).toBe(2);
+    expect(ws.notes![0].manual).toBe(true);
+    expect(ws.notes![1].duration).toBeUndefined();
+    const a = ws.projects!.find((p) => p.id === 'pj-a')!;
+    expect(a.baseline!.tasks).toEqual({ n1: { start: '2026-12-01', end: '2026-12-02', duration: 2, effort: 8 }, alt: { cost: 10 } });
+    expect(a.baseline!.budget).toBe(500);
+    expect(a.order).toEqual({ '': ['n2', 'n1', 'pj-b'] });
+    expect(ws.projects!.find((p) => p.id === 'pj-b')!.baseline).toBeUndefined();
+    const r = X.readTransferFile(JSON.stringify(X.toTransferFile(ws, 'Mac')));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.file.workspace.projects!.find((p) => p.id === 'pj-a')!.order).toEqual(a.order);
+  });
+});
+
+describe('F-206 Schritt 10 PSP (V100, K6)', () => {
+  const base = (): Workspace => ({ ...W.defaultWorkspace(), notes: [] }) as Workspace;
+  const note = (id: string, extra: Partial<Note> = {}): Note => ({ id, title: id, text: '', state: 'open', trail: [], created: 1, changed: 1, ...extra }) as Note;
+  const setup = () => {
+    let ws = Pj.addProject(base(), 'Web', { psp: { prefix: 'WEB' } })!.ws;
+    const a = Pj.projectsOf(ws)[0].id;
+    const rb = Pj.addProject(ws, 'Shop', { parent: a })!;
+    ws = rb.ws;
+    ws = { ...ws, notes: [note('t1', { project: a, effort: { plan: 2 } }), note('t2', { project: a }), note('t3', { project: a, parent: 't1', effort: { plan: 3 } }), note('s1', { project: rb.id }), note('x', {})] };
+    return { ws, a, b: rb.id };
+  };
+  const codes = (ws: Workspace, a: string) => Psp.pspRows(Psp.pspTree(ws, a)).map((n) => `${n.code} ${n.id}`);
+  it('Baum und Code aus Präfix + Stelle, Teilprojekt mit eigenen Vorgängen, Aufwand rollt hoch', () => {
+    const { ws, a } = setup();
+    expect(codes(ws, a)).toEqual(['WEB-1 t1', 'WEB-1.1 t3', 'WEB-2 t2', `WEB-3 ${Pj.projectsOf(ws)[1].id}`, 'WEB-3.1 s1']);
+    expect(Psp.pspTree(ws, a)[0]).toMatchObject({ summary: true, effort: 5 });
+    expect(Psp.pspSegment(1, 0, 'alpha')).toBe('B');
+    expect(Psp.pspSegment(27, 0, 'alpha')).toBe('AB');
+    expect([0, 1, 2].map((d) => Psp.pspSegment(0, d, 'mixed'))).toEqual(['A', '1', 'a']);
+    expect(Psp.withPrefix('P.', '1')).toBe('P.1');
+  });
+  it('verschieben ändert nur order, nicht die Reihenfolge der Notizen; Unbekanntes wird übersprungen', () => {
+    const { ws, a } = setup();
+    const m = Psp.movePsp(ws, a, 't2', -1, 7);
+    expect(codes(m, a).slice(0, 3)).toEqual(['WEB-1 t2', 'WEB-2 t1', 'WEB-2.1 t3']);
+    expect(m.notes!.map((n) => n.id)).toEqual(ws.notes!.map((n) => n.id));
+    expect(Pj.projectById(m, a)!.order).toEqual({ '': ['t2', 't1', Pj.projectsOf(ws)[1].id] });
+    expect(Psp.movePsp(m, a, 't2', -1)).toBe(m);
+    expect(Psp.ordered(['a', 'b', 'c'], ['c', 'weg', 'a'])).toEqual(['c', 'a', 'b']);
+  });
+  it('tiefer und höher stufen; unter ein Teilprojekt wechselt das Projekt', () => {
+    const { ws, a, b } = setup();
+    const r = Psp.indentPsp(ws, a, 't2');
+    expect(r.ok && r.ws.notes!.find((n) => n.id === 't2')!.parent).toBe('t1');
+    if (!r.ok) return;
+    expect(codes(r.ws, a).slice(0, 3)).toEqual(['WEB-1 t1', 'WEB-1.1 t3', 'WEB-1.2 t2']);
+    const o = Psp.outdentPsp(r.ws, a, 't3');
+    expect(o.ok && codes(o.ws, a).slice(0, 3)).toEqual(['WEB-1 t1', 'WEB-1.1 t2', 'WEB-2 t3']);
+    expect(Psp.indentPsp(ws, a, 't1')).toEqual({ ok: false, reason: 'first' });
+    expect(Psp.outdentPsp(ws, a, 't1')).toEqual({ ok: false, reason: 'top' });
+    expect(Psp.indentPsp(ws, a, b)).toEqual({ ok: false, reason: 'project' });
+    const m = Psp.movePsp(ws, a, b, -1);
+    const into = Psp.indentPsp(Psp.movePsp(m, a, 't2', 5), a, 't2');
+    expect(into.ok && into.ws.notes!.find((n) => n.id === 't2')!.project).toBe(b);
+  });
+  it('neuer Vorgang hinter dem gewählten bzw. darunter', () => {
+    const { ws, a } = setup();
+    const r = Psp.addPspTask(ws, a, 'Konzept', { id: 'k', after: 't1' })!;
+    expect(codes(r.ws, a).slice(0, 4)).toEqual(['WEB-1 t1', 'WEB-1.1 t3', 'WEB-2 k', 'WEB-3 t2']);
+    expect(r.ws.notes!.find((n) => n.id === 'k')!.project).toBe(a);
+    const u = Psp.addPspTask(r.ws, a, 'Text', { id: 'u', under: 't1' })!;
+    expect(codes(u.ws, a).slice(0, 3)).toEqual(['WEB-1 t1', 'WEB-1.1 t3', 'WEB-1.2 u']);
+    expect(Psp.addPspTask(ws, a, '  ')).toBeNull();
+  });
+});
+
+describe('F-206 Schritt 10 Beispielprojekt ColorGentlemen (V100)', () => {
+  const base = (): Workspace => ({ ...W.defaultWorkspace(), notes: [] }) as Workspace;
+  it('legt Projekt, 39 Vorgänge mit Vorgängern und PSP-Codes wie im Report an und entfernt sie ganz', () => {
+    const ws = Sp.addSampleProject(base(), 5);
+    expect(Sp.hasSampleProject(ws)).toBe(true);
+    expect(Pj.notesOfProject(ws, Sp.SAMPLE_PROJECT)).toHaveLength(39);
+    const rows = Psp.pspRows(Psp.pspTree(ws, Sp.SAMPLE_PROJECT));
+    expect(rows.find((r) => r.id === 'cg-31')!.code).toBe('CG-1.6.4');
+    expect(rows.find((r) => r.id === 'cg-2')!.effort).toBe(830);
+    const n8 = ws.notes!.find((n) => n.id === 'cg-8')!;
+    expect(n8.after).toEqual([{ id: 'cg-4', rel: 'EA' }, { id: 'cg-5', rel: 'EA' }, { id: 'cg-6', rel: 'EA' }, { id: 'cg-26', rel: 'AA' }]);
+    expect(Sp.parsePreds('10EA+1 t')).toEqual([{ id: 'cg-10', rel: 'EA', lag: 1 }]);
+    expect(ws.notes!.find((n) => n.id === 'cg-32')).toMatchObject({ milestone: true, notBefore: '2026-12-01' });
+    expect(Sp.addSampleProject(ws)).toBe(ws);
+    const r = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(Pj.notesOfProject(r, Sp.SAMPLE_PROJECT)).toHaveLength(39);
+    const gone = Sp.removeSampleProject(ws);
+    expect(gone.notes).toHaveLength(0);
+    expect(Sp.hasSampleProject(gone)).toBe(false);
+    expect((gone.persons ?? []).some((p) => p.id.startsWith('pn-cg-'))).toBe(false);
   });
 });

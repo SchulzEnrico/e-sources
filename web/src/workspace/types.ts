@@ -456,6 +456,13 @@ export interface Note {
   cost?: PlanActual;
   /** V65: Meilenstein (Dauer 0). */
   milestone?: boolean;
+  /**
+   * F-206 Schritt 10 (V100, K1): Dauer in Arbeitstagen (Mo–Fr, K7), ganze Tage ab 0. Fehlt = Abstand
+   * „nicht beginnen vor“ bis „fällig am“, sonst 1 Tag; Meilenstein = 0 (`durationOf` in schedule.ts).
+   */
+  duration?: number;
+  /** F-206 Schritt 10 (V100, K2): manuell geplant (wie MS Project); fehlt = automatisch nach den Vorgängern. */
+  manual?: boolean;
   remind?: NoteRemind;
   /** F-215 (V72, E2): Ort der Erinnerung – freier Text, vorerst nur angezeigt. */
   place?: string;
@@ -593,8 +600,40 @@ export interface Project {
   /** M6: Aufwand in Punkten zeigen, 1 Punkt = so viele Stunden; fehlt = Stunden. */
   points?: number;
   sources?: SourceLink[];
+  /** F-206 Schritt 10 (V100, K4/K5): ein Basisplan (Soll) zum Vergleich mit dem Ist. */
+  baseline?: ProjectBaseline;
+  /**
+   * F-206 Schritt 10 (V100, K6): Ordnung im PSP – je Ebene die Ids in ihrer Reihenfolge. Schlüssel `''` =
+   * oberste Ebene des Projekts, sonst Id der Eltern-Notiz. Werte: Notizen (Vorgänge) und auf der obersten
+   * Ebene auch Teilprojekte. Fehlende Ids hängt der PSP hinten an, unbekannte überspringt er.
+   */
+  order?: Record<string, string[]>;
   created: number;
   changed: number;
+}
+
+/** F-206 Schritt 10 (V100, K5): Soll eines Vorgangs im Basisplan. */
+export interface BaselineTask {
+  /** JJJJ-MM-TT */
+  start?: string;
+  end?: string;
+  /** Arbeitstage. */
+  duration?: number;
+  /** Plan-Aufwand in Stunden. */
+  effort?: number;
+  /** Plan-Kosten in Euro. */
+  cost?: number;
+}
+
+/** F-206 Schritt 10 (V100, K4/K5): Basisplan am Projekt – „Basisplan speichern“ überschreibt ihn. */
+export interface ProjectBaseline {
+  /** Zeitpunkt des Speicherns (ISO 8601). */
+  at: string;
+  start?: string;
+  end?: string;
+  budget?: number;
+  /** Je Vorgang (Id der Notiz); bleibt auch für später gelöschte Vorgänge stehen („entfallen“). */
+  tasks: Record<string, BaselineTask>;
 }
 
 /** V65: Befugnisse einer Person (AKV). */

@@ -216,6 +216,9 @@ export type Action =
   | { type: 'colRemove'; view: string; col: string }
   | { type: 'colState'; view: string; col: string; state: ColState }
   | { type: 'colWip'; view: string; col: string; wip?: number }
+  | { type: 'sheetReview'; view: string; on: boolean }
+  | { type: 'colSort'; view: string; col: string; by: Sh.ColSort }
+  | { type: 'colMoveAll'; view: string; col: string; to: string; by?: string }
   | { type: 'quadSet'; view: string; note: string; q: Sh.Quad; by?: string }
   | { type: 'checkToTask'; note: string; index: number; view?: string; id: string; by?: string }
   | { type: 'reviewOk'; note: string; by?: string }
@@ -234,6 +237,9 @@ export type Action =
  */
 export function padOpenResult(ws: Workspace, a: { desk: string; ref?: No.NoteRef; create?: 'note' | NoteViewKind; ids: string[]; by?: string }): Pd.OpenInPadResult & { id?: string } {
   const make = idSeq(a.ids);
+  // V87 (E3): genau eine Eisenhower-Matrix – eine zweite anlegen öffnet die vorhandene
+  const matrix = a.create === 'eisenhower' ? Sh.theMatrix(ws) : undefined;
+  if (matrix) return Pd.openSheetInPad(ws, a.desk, matrix.id, { makeId: make });
   if (a.create) {
     const made = a.create === 'note' ? No.createNote(ws, { unsaved: true }, { by: a.by, id: make() }) : No.createView(ws, a.create, No.defaultViewName(ws, a.create), { id: make() });
     const r = a.create === 'note' ? Pd.openNoteInPad(made.ws, a.desk, made.id, { makeId: make }) : Pd.openSheetInPad(made.ws, a.desk, made.id, { makeId: make });
@@ -361,6 +367,12 @@ function step(ws: Workspace, a: Action): Workspace {
       return Sh.setColState(ws, a.view, a.col, a.state);
     case 'colWip':
       return Sh.setWip(ws, a.view, a.col, a.wip);
+    case 'sheetReview':
+      return No.updateView(ws, a.view, { review: a.on });
+    case 'colSort':
+      return Sh.sortCol(ws, a.view, a.col, a.by);
+    case 'colMoveAll':
+      return Sh.moveAllCards(ws, a.view, a.col, a.to, { by: a.by });
     case 'quadSet':
       return Sh.setQuad(ws, a.view, a.note, a.q, { by: a.by });
     case 'checkToTask':

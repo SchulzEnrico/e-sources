@@ -5337,11 +5337,112 @@ describe('F-206 Schritt 7: To-do, Kanban, Eisenhower (V86)', () => {
     expect(mx.quads[2].map((n) => n.title)).toEqual(['A']);
     expect(mx.quads[4].map((n) => n.title)).toEqual(['B']);
     expect(No.noteById(ws, b)).toMatchObject({ important: false, urgent: false });
-    expect(Sh.quadAt(0, 1)).toBe(1);
-    expect(Sh.quadAt(1, 0)).toBe(4);
-    expect(Sh.QUAD_CELL[3]).toEqual([1, 1]);
+    // V87: Lage wie im Original – oben links erledigen, unten rechts ablegen
+    expect(Sh.quadAt(0, 0)).toBe(1);
+    expect(Sh.quadAt(0, 1)).toBe(2);
+    expect(Sh.quadAt(1, 0)).toBe(3);
+    expect(Sh.QUAD_CELL[4]).toEqual([1, 1]);
     expect(Sh.theMatrix(ws)!.id).toBe(m);
     ws = No.setState(ws, c, 'done', act);
     expect(Sh.matrixOf(ws, No.viewById(ws, m)!).quads[3]).toHaveLength(0);
+  });
+});
+
+describe('F-206 Schritt 7: Kanban-Oberfläche (V87)', () => {
+  const act = { now: Date.UTC(2026, 10, 25, 11), by: 'Enrico' };
+  const seq = () => {
+    let i = 0;
+    return () => `k${++i}`;
+  };
+  const setup = () => {
+    let ws = W.defaultWorkspace();
+    let a: string, b: string, c: string, kb: string;
+    ({ ws, id: a } = No.createNote(ws, { title: 'Zebra', due: '2026-12-03' }, act));
+    ({ ws, id: b } = No.createNote(ws, { title: 'Apfel', important: true }, act));
+    ({ ws, id: c } = No.createNote(ws, { title: 'Mond', due: '2026-12-01' }, act));
+    ({ ws, id: kb } = No.createView(ws, 'kanban', 'Board', { makeId: seq() }));
+    const cols = No.viewById(ws, kb)!.cols!;
+    for (const id of [a, b, c]) ws = (Sh.moveCard(ws, kb, id, cols[0].id, undefined, act) as { ws: Workspace }).ws;
+    return { ws, a, b, c, kb, cols };
+  };
+
+  it('K1: Spalte sortieren nach Fälligkeit, Wichtigkeit, Titel', () => {
+    const { ws, a, b, c, kb, cols } = setup();
+    const ids = (w: Workspace) => No.viewById(w, kb)!.cols![0].ids;
+    expect(ids(Sh.sortCol(ws, kb, cols[0].id, 'due'))).toEqual([c, a, b]);
+    expect(ids(Sh.sortCol(ws, kb, cols[0].id, 'important'))[0]).toBe(b);
+    expect(ids(Sh.sortCol(ws, kb, cols[0].id, 'title'))).toEqual([b, c, a]);
+    expect(Sh.sortCol(ws, kb, 'fehlt', 'title')).toBe(ws);
+  });
+
+  it('K1: alle Karten verschieben setzt den Zustand nach der Ziel-Spalte', () => {
+    let { ws, a, b, c, kb, cols } = setup();
+    ws = Sh.moveAllCards(ws, kb, cols[0].id, cols[2].id, act);
+    const v = No.viewById(ws, kb)!;
+    expect(v.cols![0].ids).toEqual([]);
+    expect(v.cols![2].ids).toEqual([a, b, c]);
+    expect([a, b, c].map((id) => No.noteById(ws, id)!.state)).toEqual(['done', 'done', 'done']);
+    expect(Sh.moveAllCards(ws, kb, cols[2].id, cols[2].id, act)).toBe(ws);
+  });
+
+  it('K4: Platz einer Karte für die Ansage', () => {
+    const { ws, b, kb, cols } = setup();
+    const p = Sh.cardPlace(No.viewById(ws, kb)!, b)!;
+    expect([p.col.id, p.pos, p.of]).toEqual([cols[0].id, 2, 3]);
+    expect(Sh.cardPlace(No.viewById(ws, kb)!, 'fehlt')).toBeNull();
+  });
+});
+
+describe('F-206 Schritt 7: Menü G und genau eine Matrix (V87)', () => {
+  it('E3: eine zweite Matrix anlegen öffnet die vorhandene', () => {
+    let ws = W.defaultWorkspace();
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'eisenhower', ids: ['m1', 'p1', 's1'] });
+    expect(Sh.theMatrix(ws)?.id).toBe('m1');
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'eisenhower', ids: ['m2', 'p2', 's2'] });
+    expect(No.viewsOf(ws).filter((v) => v.kind === 'eisenhower').map((v) => v.id)).toEqual(['m1']);
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'kanban', ids: ['k1', 'p3', 's3'] });
+    expect(No.viewsOf(ws).filter((v) => v.kind === 'kanban').length).toBe(1);
+  });
+
+  it('L2: Board-Regel „Abnahme nötig“ schalten', () => {
+    let ws = W.defaultWorkspace();
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'kanban', ids: ['k1', 'p1', 's1'] });
+    ws = reducer(ws, { type: 'sheetReview', view: 'k1', on: true });
+    expect(No.viewById(ws, 'k1')!.review).toBe(true);
+  });
+});
+
+describe('V87: Pads im Notizen-Modus verteilt', () => {
+  it('Raster aus √n Spalten, letzte Reihe breiter', () => {
+    expect(Pd.noteTiles(0)).toEqual([]);
+    expect(Pd.noteTiles(1)).toEqual([{ x: 0, y: 0, w: 1, h: 1 }]);
+    expect(Pd.noteTiles(2).map((t) => [t.x, t.w])).toEqual([[0, 0.5], [0.5, 0.5]]);
+    const three = Pd.noteTiles(3);
+    expect(three.map((t) => [t.x, t.y, t.w, t.h])).toEqual([[0, 0, 0.5, 0.5], [0.5, 0, 0.5, 0.5], [0, 0.5, 1, 0.5]]);
+    expect(Pd.noteTiles(9).length).toBe(9);
+  });
+});
+
+describe('V87: Abbild im Cockpit (BC1–BC3)', () => {
+  const act = { now: Date.UTC(2026, 10, 25, 12), by: 'Enrico' };
+  it('Mini-Board, To-do-Fortschritt und Matrix-Zahlen', () => {
+    let ws = W.defaultWorkspace();
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'kanban', ids: ['k', 'p1', 's1'] });
+    const cols = No.viewById(ws, 'k')!.cols!;
+    ws = reducer(ws, { type: 'colWip', view: 'k', col: cols[1].id, wip: 1 });
+    for (const [id, c] of [['a', 1], ['b', 1], ['c', 0]] as const) ws = reducer(ws, { type: 'sheetAdd', view: 'k', title: id, note: id, col: cols[c].id });
+    const sum = Sh.boardSummary(ws, No.viewById(ws, 'k')!);
+    expect(sum.map((c) => [c.state, c.count, c.over])).toEqual([['open', 1, false], ['doing', 2, true], ['done', 0, false]]);
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'todo', ids: ['t', 'p2', 's2'] });
+    ws = reducer(ws, { type: 'sheetAdd', view: 't', title: 'x', note: 'x' });
+    ws = reducer(ws, { type: 'sheetAdd', view: 't', title: 'y', note: 'y' });
+    ws = reducer(ws, { type: 'sheetDone', note: 'x', here: 't' });
+    expect(Sh.todoSummary(ws, No.viewById(ws, 't')!)).toEqual({ done: 1, all: 2 });
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'eisenhower', ids: ['m', 'p3', 's3'] });
+    ws = reducer(ws, { type: 'sheetAdd', view: 'm', title: 'u', note: 'u' });
+    ws = reducer(ws, { type: 'quadSet', view: 'm', note: 'y', q: 1 });
+    const ms = Sh.matrixSummary(ws, Sh.matricesOf(ws)[0]);
+    expect([ms.quads[1], ms.unsorted, ms.open]).toEqual([1, 1, 2]);
+    void act;
   });
 });

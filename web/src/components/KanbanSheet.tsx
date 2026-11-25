@@ -1,0 +1,695 @@
+/**
+ * F-206 Schritt 7 (V87): Kanban-Board im Pad – an Trello und unserer UX/UI ausgerichtet (K1–K5, L2).
+ *
+ * Spalten wie Trello-Listen nebeneinander (waagerecht scrollbar), Kopf mit Name, Bedeutung, Zähler „3 / 4“ und ⋮;
+ * „+ Karte hinzufügen“ unten je Spalte, „+ Spalte“ rechts (bis 8). Karten im Clay-Stil mit Zeichen, Erledigt-Kreis
+ * (Hover/Fokus) und den nächsten drei offenen Unter-Notizen. Ziehen mit Maus bzw. lange drücken auf Touch; Tastatur:
+ * Leertaste nimmt auf, Pfeile bewegen, Leertaste/Enter legt ab, Esc bricht ab. WIP-Limit fragt, sperrt nicht (K3).
+ */
+import { type Dispatch, type KeyboardEvent, type PointerEvent as RPointerEvent, useEffect, useRef, useState } from 'react';
+import type { Action } from '../workspace/useWorkspace';
+import type { ColState, Note, NoteColumn, Workspace } from '../workspace/types';
+import type { IconName } from '../workspace/icons';
+import * as No from '../workspace/notes';
+import * as Sh from '../workspace/sheets';
+import { KANBAN_TEXT as K, NOTE_TEXT, SHEET_TEXT } from '../workspace/terms';
+import { newId } from '../workspace/workspace';
+import { CardWindow, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useNotice } from './SheetViews';
+import { Item, Menu, MenuPages } from './PanelFrame';
+import { Icon } from './Icon';
+
+export const COL_STATE_ICON: Record<ColState, IconName> = { open: 'todo', doing: 'play', review: 'show', done: 'check' };
+const COL_STATES: ColState[] = ['open', 'doing', 'review', 'done'];
+
+type Lift = { id: string; col: string; index: number; from: { col: string; index: number }; mode: 'key' | 'drag' };
+type Ask = { kind: 'wip'; col: string; text: string; run: () => void } | { kind: 'review'; id: string };
+
+const finished = (n: Note) => No.isFinished(n.state);
+
+/** BC2 (V87): Klick auf eine Spalte im Mini-Board des Cockpits – Board zeigen, Fokus in diese Spalte. */
+let pendingCol: { sheet: string; col: string } | null = null;
+export function focusColLater(sheet: string, col: string) {
+  pendingCol = { sheet, col };
+  // nach dem Zeigen des Pads (das setzt den Fokus zuerst auf den Reiter)
+  window.setTimeout(() => window.dispatchEvent(new CustomEvent('esource:kanbancol')), 450);
+}
+
+export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; desk: string; sheetId: string; say: (t: string) => void; cmd?: SheetCmd | null }) {
+  const { ws, dispatch, sheetId, say } = props;
+  const v = No.viewById(ws, sheetId)!;
+  const cols = v.cols ?? [];
+  const by = ws.profile?.name || undefined;
+  const [filter, setFilter] = useState('');
+  const [show, setShow] = useState<Show>('open');
+  const [card, setCard] = useState<string | null>(null);
+  const [edit, setEdit] = useState<string | null>(null);
+  const [colEdit, setColEdit] = useState<string | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [newCol, setNewCol] = useState<string | null>(null);
+  const [lift, setLiftState] = useState<Lift | null>(null);
+  const liftRef = useRef<Lift | null>(null);
+  const setLift = (l: Lift | null) => ((liftRef.current = l), setLiftState(l));
+  const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
+  const [ask, setAsk] = useState<Ask | null>(null);
+  const [openDone, setOpenDone] = useState<Set<string>>(new Set());
+  const boardRef = useRef<HTMLDivElement>(null);
+  const filterRef = useRef<HTMLInputElement>(null);
+  const suppress = useRef(false);
+  const { notice, shown } = useNotice();
+
+  const title = (n: Note) => No.titleOf(No.shownNote(n)) || NOTE_TEXT.untitled;
+  const colById = (id: string) => cols.find((c) => c.id === id);
+  /** Fokus auf die Karte; ist sie nicht mehr sichtbar (z. B. eingeklappt erledigt), auf den Nachbarn bzw. „+ Karte hinzufügen“. */
+  const focusCard = (id?: string, near?: { col: string; next?: string }) =>
+    window.setTimeout(() => {
+      const b = boardRef.current;
+      const el =
+        b?.querySelector<HTMLElement>(id ? `[data-card="${id}"]` : '[data-card]') ??
+        (near?.next ? b?.querySelector<HTMLElement>(`[data-card="${near.next}"]`) : null) ??
+        (near ? b?.querySelector<HTMLElement>(`[data-add="${near.col}"]`) : null);
+      el?.focus({ preventScroll: false });
+    }, 0);
+  /** Nachbar in der sichtbaren Spalte (für den Fokus, wenn die Karte verschwindet). */
+  const nearOf = (id: string, col: string) => {
+    const list = [...(boardRef.current?.querySelectorAll<HTMLElement>(`[data-colbody="${col}"] [data-card]`) ?? [])].map((x) => x.dataset.card!);
+    const i = list.indexOf(id);
+    return { col, next: list[i + 1] ?? list[i - 1] };
+  };
+  const focusAdd = (col: string) => window.setTimeout(() => boardRef.current?.querySelector<HTMLElement>(`[data-add="${col}"]`)?.focus(), 0);
+
+  // BC2: Fokus aus dem Cockpit in eine Spalte
+  useEffect(() => {
+    const take = () => {
+      if (!pendingCol || pendingCol.sheet !== sheetId) return;
+      const col = pendingCol.col;
+      pendingCol = null;
+      const b = boardRef.current;
+      const el = b?.querySelector<HTMLElement>(`[data-colbody="${col}"] [data-card]`) ?? b?.querySelector<HTMLElement>(`[data-add="${col}"]`);
+      el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      el?.focus({ preventScroll: true });
+    };
+    window.addEventListener('esource:kanbancol', take);
+    return () => window.removeEventListener('esource:kanbancol', take);
+  }, [sheetId]);
+
+  // Fußleiste (S2): Home = Board, Neue Aufgabe = Karte in der ersten Spalte, Suche = Filter, go = Karte öffnen
+  const seen = useRef(props.cmd?.n ?? 0);
+  useEffect(() => {
+    const c = props.cmd;
+    if (!c || c.n === seen.current) return;
+    seen.current = c.n;
+    if (c.k === 'new') return void (cols[0] && (setDraft(''), setAdding(cols[0].id)));
+    if (c.k === 'search') return void filterRef.current?.focus();
+    if (c.k === 'go' && c.id) return void (setCard(c.id), focusCard(c.id));
+    setCard(null);
+    focusCard();
+  }, [props.cmd?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ids je Spalte, wie sie gerade erscheinen (aufgenommene Karte an ihrem neuen Platz)
+  const idsOf = (c: NoteColumn): string[] => {
+    if (!lift) return c.ids;
+    const ids = c.ids.filter((x) => x !== lift.id);
+    if (c.id === lift.col) ids.splice(Math.min(lift.index, ids.length), 0, lift.id);
+    return ids;
+  };
+  const restOf = (colId: string) => (colById(colId)?.ids ?? []).filter((x) => x !== lift?.id);
+
+  // ---------- Ablegen, Erledigt, Abnahme ----------
+  const commit = (id: string, col: string, index: number | undefined, origin?: string) => {
+    const target = colById(col);
+    const n = No.noteById(ws, id);
+    if (!target || !n) return;
+    const run = () => {
+      dispatch({ type: 'cardMove', view: sheetId, note: id, col, index, by });
+      const pos = index === undefined ? target.ids.filter((x) => x !== id).length + 1 : index + 1;
+      const of = target.ids.filter((x) => x !== id).length + 1;
+      say(K.dropped(title(n), target.name, pos, of));
+      focusCard(id);
+    };
+    if (origin !== col && Sh.overWip(target)) return setAsk({ kind: 'wip', col, text: K.wipAsk(target.wip!, target.name), run });
+    run();
+  };
+  const drop = () => {
+    const l = liftRef.current;
+    if (!l) return;
+    setLift(null);
+    setGhost(null);
+    if (l.col === l.from.col && l.index === l.from.index) return focusCard(l.id);
+    commit(l.id, l.col, l.index, l.from.col);
+  };
+  const cancelLift = () => {
+    const l = liftRef.current;
+    setLift(null);
+    setGhost(null);
+    if (l) (say(K.cancelled), focusCard(l.id));
+  };
+  const toggleDone = (n: Note) => {
+    const here = Sh.colOf(v, n.id);
+    if (!here) return;
+    const fin = finished(n) || n.state === 'review';
+    const to = fin ? Sh.firstCol(v, 'open') : (Sh.firstCol(v, 'done') ?? Sh.firstCol(v, 'review'));
+    const back = { col: here.id, index: here.ids.indexOf(n.id) };
+    if (to && to.id !== here.id) dispatch({ type: 'cardMove', view: sheetId, note: n.id, col: to.id, by });
+    else dispatch({ type: 'sheetDone', note: n.id, here: sheetId, by });
+    if (!fin) notice({ text: K.doneMsg(title(n), to?.name ?? here.name), undo: () => dispatch({ type: 'cardMove', view: sheetId, note: n.id, col: back.col, index: back.index, by }) });
+    say(fin ? SHEET_TEXT.uncheck(title(n)) : K.doneMsg(title(n), to?.name ?? here.name));
+    focusCard(n.id, nearOf(n.id, here.id));
+  };
+  const remove = (n: Note) => {
+    const before = v;
+    dispatch({ type: 'sheetRemove', view: sheetId, note: n.id, by });
+    notice({ text: SHEET_TEXT.removed(title(n)), undo: () => dispatch({ type: 'sheetRestore', view: before }) });
+  };
+  const addCard = (col: NoteColumn) => {
+    const t = draft.trim();
+    if (!t) return;
+    const run = () => {
+      dispatch({ type: 'sheetAdd', view: sheetId, title: t, note: newId(), col: col.id, by });
+      say(`${t} – ${K.col(col.name)}`);
+      setDraft('');
+      setAsk(null);
+      window.setTimeout(() => boardRef.current?.querySelector<HTMLElement>(`[data-addin="${col.id}"]`)?.focus(), 0);
+    };
+    if (Sh.overWip(col)) return setAsk({ kind: 'wip', col: col.id, text: K.wipAsk(col.wip!, col.name), run });
+    run();
+  };
+  const removeCol = (c: NoteColumn) => {
+    const i = cols.findIndex((x) => x.id === c.id);
+    if (cols.length <= 1) return say(K.removeLast);
+    const to = cols[i > 0 ? i - 1 : 1];
+    const before = v;
+    dispatch({ type: 'colRemove', view: sheetId, col: c.id });
+    notice({ text: K.removed(c.name, to.name), undo: () => dispatch({ type: 'sheetRestore', view: before }) });
+    focusAdd(to.id);
+  };
+
+  // ---------- Tastatur auf der Karte (K4) ----------
+  const cardKey = (e: KeyboardEvent<HTMLElement>, n: Note, c: NoteColumn) => {
+    const l = liftRef.current;
+    if (l && l.id === n.id && l.mode === 'key') {
+      const ci = cols.findIndex((x) => x.id === l.col);
+      let next: Lift | null = null;
+      if (e.key === 'ArrowUp') next = { ...l, index: Math.max(0, l.index - 1) };
+      else if (e.key === 'ArrowDown') next = { ...l, index: Math.min(restOf(l.col).length, l.index + 1) };
+      else if (e.key === 'ArrowLeft' && ci > 0) next = { ...l, col: cols[ci - 1].id, index: Math.min(l.index, restOf(cols[ci - 1].id).length) };
+      else if (e.key === 'ArrowRight' && ci < cols.length - 1) next = { ...l, col: cols[ci + 1].id, index: Math.min(l.index, restOf(cols[ci + 1].id).length) };
+      else if (e.key === ' ' || e.key === 'Enter') return void (e.preventDefault(), drop());
+      else if (e.key === 'Escape') return void (e.preventDefault(), e.stopPropagation(), cancelLift());
+      else if (e.key === 'Tab') return void cancelLift();
+      if (e.key.startsWith('Arrow')) e.preventDefault();
+      if (next) {
+        setLift(next);
+        const to = colById(next.col)!;
+        say(K.at(to.name, next.index + 1, restOf(next.col).length + 1) + (Sh.overWip(to, next.col === l.from.col ? 0 : 1) ? `, ${K.over}` : ''));
+        focusCard(n.id);
+      }
+      return;
+    }
+    const colEls = [...(boardRef.current?.querySelectorAll<HTMLElement>('[data-colbody]') ?? [])];
+    const ci = colEls.findIndex((x) => x.dataset.colbody === c.id);
+    const inCol = (k: number) => [...(colEls[k]?.querySelectorAll<HTMLElement>('[data-card]') ?? [])];
+    const mine = inCol(ci);
+    const i = mine.indexOf(e.currentTarget);
+    const side = (k: number) => {
+      const list = inCol(k);
+      (list[Math.min(i, list.length - 1)] ?? boardRef.current?.querySelector<HTMLElement>(`[data-add="${colEls[k]?.dataset.colbody}"]`))?.focus();
+    };
+    if (e.key === 'ArrowDown') return void (e.preventDefault(), mine[i + 1]?.focus());
+    if (e.key === 'ArrowUp') return void (e.preventDefault(), i > 0 ? mine[i - 1].focus() : filterRef.current?.focus());
+    if (e.key === 'ArrowLeft') return void (e.preventDefault(), ci > 0 && side(ci - 1));
+    if (e.key === 'ArrowRight') return void (e.preventDefault(), ci < colEls.length - 1 && side(ci + 1));
+    if (e.key === 'Home') return void (e.preventDefault(), mine[0]?.focus());
+    if (e.key === 'End') return void (e.preventDefault(), mine[mine.length - 1]?.focus());
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) return void (e.preventDefault(), toggleDone(n));
+    if (e.key === ' ') {
+      e.preventDefault();
+      const index = c.ids.indexOf(n.id);
+      setLift({ id: n.id, col: c.id, index, from: { col: c.id, index }, mode: 'key' });
+      return say(`${K.lifted(title(n))} ${K.at(c.name, index + 1, c.ids.length)}`);
+    }
+    if (e.key === 'F2') return void (e.preventDefault(), setEdit(n.id));
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      remove(n);
+      return void (mine[i + 1] ?? mine[i - 1])?.focus();
+    }
+  };
+
+  // ---------- Ziehen mit Maus und Touch ----------
+  const target = (x: number, y: number): { col: string; index: number } | null => {
+    const bodies = [...(boardRef.current?.querySelectorAll<HTMLElement>('[data-colbody]') ?? [])];
+    if (!bodies.length) return null;
+    let best = bodies[0];
+    let dist = Infinity;
+    for (const b of bodies) {
+      const r = b.getBoundingClientRect();
+      const d = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
+      if (d < dist) (dist = d), (best = b);
+    }
+    const col = best.dataset.colbody!;
+    const l = liftRef.current!;
+    const seenIds = [...best.querySelectorAll<HTMLElement>('[data-cardli]')].filter((el) => el.dataset.cardli !== l.id);
+    let iv = seenIds.findIndex((el) => {
+      const r = el.getBoundingClientRect();
+      return y < r.top + r.height / 2;
+    });
+    if (iv < 0) iv = seenIds.length;
+    const full = restOf(col);
+    const index = iv < seenIds.length ? full.indexOf(seenIds[iv].dataset.cardli!) : seenIds.length ? full.indexOf(seenIds[seenIds.length - 1].dataset.cardli!) + 1 : full.length;
+    return { col, index: Math.max(0, index) };
+  };
+  const startPointer = (e: RPointerEvent<HTMLElement>, n: Note, c: NoteColumn) => {
+    if (e.button !== 0 || liftRef.current || edit) return;
+    const touch = e.pointerType !== 'mouse';
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let dragging = false;
+    let timer = 0;
+    const begin = (x: number, y: number) => {
+      dragging = true;
+      const index = c.ids.indexOf(n.id);
+      setLift({ id: n.id, col: c.id, index, from: { col: c.id, index }, mode: 'drag' });
+      setGhost({ x, y });
+      say(K.lifted(title(n)));
+    };
+    const noScroll = (ev: TouchEvent) => dragging && ev.preventDefault();
+    const move = (ev: PointerEvent) => {
+      const d = Math.hypot(ev.clientX - x0, ev.clientY - y0);
+      if (!dragging) {
+        if (touch && d > 8) return end(false);
+        if (touch || d <= 5) return;
+        begin(ev.clientX, ev.clientY);
+      }
+      setGhost({ x: ev.clientX, y: ev.clientY });
+      const b = boardRef.current;
+      if (b) {
+        const r = b.getBoundingClientRect();
+        if (ev.clientX < r.left + 30) b.scrollLeft -= 14;
+        else if (ev.clientX > r.right - 30) b.scrollLeft += 14;
+      }
+      const t = target(ev.clientX, ev.clientY);
+      const l = liftRef.current;
+      if (t && l && (t.col !== l.col || t.index !== l.index)) setLift({ ...l, ...t });
+    };
+    const end = (doDrop: boolean) => {
+      window.clearTimeout(timer);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('touchmove', noScroll);
+      if (!dragging) return;
+      suppress.current = true;
+      window.setTimeout(() => (suppress.current = false), 0);
+      if (doDrop) drop();
+      else cancelLift();
+    };
+    const up = () => end(true);
+    const cancel = () => end(false);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('touchmove', noScroll, { passive: false });
+    if (touch) timer = window.setTimeout(() => begin(x0, y0), 450);
+  };
+
+  // ---------- Darstellung ----------
+  const cardView = (n: Note, c: NoteColumn, dim: boolean) => {
+    const t = title(n);
+    const fin = finished(n) || n.state === 'review';
+    const lifted = lift?.id === n.id;
+    const subs = No.nextOpenChildren(ws, n.id, 3);
+    const colState = Sh.colStateOf(c);
+    const needsOk = n.state === 'review' && (colState === 'done' || colState === 'review');
+    return (
+      <li key={n.id} data-cardli={n.id} className={`kcard${fin ? ' is-done' : ''}${dim ? ' is-dim' : ''}${lifted ? ' is-lifted' : ''}`}>
+        <div className="kcard__top">
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={fin}
+            tabIndex={-1}
+            className="kcard__done"
+            title={fin ? K.undone(t) : K.doneHint(t)}
+            aria-label={fin ? K.undone(t) : K.doneHint(t)}
+            onClick={() => toggleDone(n)}
+          >
+            <Icon name={fin ? 'check' : 'tick'} size={15} />
+          </button>
+          {edit === n.id ? (
+            <input
+              className="todo__edit"
+              autoFocus
+              defaultValue={t}
+              aria-label={SHEET_TEXT.rename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const val = e.currentTarget.value.trim();
+                  if (val) dispatch({ type: 'taskRename', note: n.id, title: val, by });
+                  setEdit(null);
+                  focusCard(n.id);
+                } else if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  setEdit(null);
+                  focusCard(n.id);
+                }
+              }}
+              onBlur={() => setEdit(null)}
+            />
+          ) : (
+            <button
+              type="button"
+              data-card={n.id}
+              className="kcard__main"
+              aria-describedby={`${sheetId}-cardkeys`}
+              aria-roledescription={lifted ? 'aufgenommene Karte' : 'Karte'}
+              title={`${SHEET_TEXT.open(t)} – ${K.cardKeys}`}
+              onClick={() => !suppress.current && !liftRef.current && setCard(n.id)}
+              onKeyDown={(e) => cardKey(e, n, c)}
+              onPointerDown={(e) => startPointer(e, n, c)}
+              onContextMenu={(e) => liftRef.current && e.preventDefault()}
+            >
+              <span className="kcard__title">{t}</span>
+              <Signs ws={ws} n={n} />
+              <span className="sr-only">
+                , {NOTE_TEXT.states[No.stateOf(ws, n).state]}
+                {subs.length ? `, ${K.subs}: ${subs.map((s) => No.titleOf(No.shownNote(s)) || NOTE_TEXT.untitled).join(', ')}` : ''}
+              </span>
+            </button>
+          )}
+        </div>
+        {subs.length > 0 && (
+          <ul className="kcard__subs" aria-hidden="true">
+            {subs.map((s, i) => (
+              <li key={s.id} style={{ opacity: 0.75 - i * 0.18 }}>
+                {No.titleOf(No.shownNote(s)) || NOTE_TEXT.untitled}
+              </li>
+            ))}
+          </ul>
+        )}
+        {needsOk && (
+          <button type="button" className="kcard__ok" onClick={() => setAsk({ kind: 'review', id: n.id })}>
+            <Icon name="check" size={12} /> {K.reviewOk}
+          </button>
+        )}
+        {ask?.kind === 'review' && ask.id === n.id && (
+          <p className="sheet__msg kcard__ask" role="alertdialog" aria-label={K.reviewAsk(t)}>
+            {K.reviewAsk(t)}
+            <button
+              type="button"
+              className="note__undo"
+              autoFocus
+              onClick={() => {
+                dispatch({ type: 'reviewOk', note: n.id, by });
+                setAsk(null);
+                say(K.reviewDone(t));
+                focusCard(n.id);
+              }}
+            >
+              {K.reviewOk}
+            </button>
+            <button type="button" className="note__undo" onClick={() => (setAsk(null), focusCard(n.id))}>
+              {K.cancel}
+            </button>
+          </p>
+        )}
+      </li>
+    );
+  };
+
+  const colMenu = (c: NoteColumn, i: number) => (
+    <Menu className="kcol__more" icon={<Icon name="more" size={15} />} label={K.menu(c.name)}>
+      {(close) => (
+        <MenuPages>
+          {(page, go) =>
+            page === 'moveAll' ? (
+              <>
+                <Item icon="back" onClick={() => go('')}>{K.back}</Item>
+                {cols.filter((x) => x.id !== c.id).map((x) => (
+                  <Item
+                    key={x.id}
+                    icon={COL_STATE_ICON[Sh.colStateOf(x)]}
+                    disabled={!c.ids.length}
+                    onClick={() => {
+                      close();
+                      dispatch({ type: 'colMoveAll', view: sheetId, col: c.id, to: x.id, by });
+                      say(K.movedAll(c.ids.length, x.name));
+                    }}
+                  >
+                    {K.moveAllTo(x.name)}
+                  </Item>
+                ))}
+              </>
+            ) : page === 'sort' ? (
+              <>
+                <Item icon="back" onClick={() => go('')}>{K.back}</Item>
+                {Sh.COL_SORTS.map((s) => (
+                  <Item key={s} icon="sort" onClick={() => (close(), dispatch({ type: 'colSort', view: sheetId, col: c.id, by: s }), say(K.sorted(Sh.COL_SORT_NAME[s])))}>
+                    {Sh.COL_SORT_NAME[s]}
+                  </Item>
+                ))}
+              </>
+            ) : page === 'state' ? (
+              <>
+                <Item icon="back" onClick={() => go('')}>{K.back}</Item>
+                {COL_STATES.map((s) => (
+                  <Item key={s} checked={Sh.colStateOf(c) === s} onClick={() => (close(), dispatch({ type: 'colState', view: sheetId, col: c.id, state: s }), say(`${K.meaning}: ${Sh.COL_STATE_NAME[s]}`))}>
+                    {Sh.COL_STATE_NAME[s]}
+                  </Item>
+                ))}
+              </>
+            ) : page === 'wip' ? (
+              <>
+                <Item icon="back" onClick={() => go('')}>{K.back}</Item>
+                <li className="kcol__wipform">
+                  <label>
+                    <span>{K.wipField}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      defaultValue={c.wip ?? ''}
+                      title={K.wipHint}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const n = Number(e.currentTarget.value) || undefined;
+                          close();
+                          dispatch({ type: 'colWip', view: sheetId, col: c.id, wip: n });
+                          say(K.wipSaid(n));
+                        }
+                      }}
+                    />
+                  </label>
+                  <span className="menu__hint">{K.wipHint}</span>
+                </li>
+                <Item icon="close" disabled={!c.wip} onClick={() => (close(), dispatch({ type: 'colWip', view: sheetId, col: c.id, wip: undefined }), say(K.wipSaid()))}>
+                  {K.wipNone}
+                </Item>
+              </>
+            ) : (
+              <>
+                <Item icon="plus" onClick={() => (close(), setDraft(''), setAdding(c.id))}>{K.addCard}</Item>
+                <Item icon="back" disabled={i === 0} onClick={() => (close(), dispatch({ type: 'colMove', view: sheetId, col: c.id, index: i - 1 }), say(K.colLeft))}>
+                  {K.colLeft}
+                </Item>
+                <Item icon="next" disabled={i === cols.length - 1} onClick={() => (close(), dispatch({ type: 'colMove', view: sheetId, col: c.id, index: i + 1 }), say(K.colRight))}>
+                  {K.colRight}
+                </Item>
+                <Item icon="move" disabled={!c.ids.length || cols.length < 2} onClick={() => go('moveAll')}>{K.moveAll}</Item>
+                <Item icon="sort" disabled={c.ids.length < 2} onClick={() => go('sort')}>{K.sort}</Item>
+                <Item icon="adjust" hint={K.wipHint} onClick={() => go('wip')}>{K.wip}</Item>
+                <Item icon={COL_STATE_ICON[Sh.colStateOf(c)]} hint={K.meaningHint} onClick={() => go('state')}>{K.state}</Item>
+                <Item icon="rename" onClick={() => (close(), setColEdit(c.id))}>{K.colRename}</Item>
+                <Item icon="trash" hint={cols.length <= 1 ? K.removeLast : K.removeHint} disabled={cols.length <= 1} onClick={() => (close(), removeCol(c))}>
+                  {K.remove}
+                </Item>
+              </>
+            )
+          }
+        </MenuPages>
+      )}
+    </Menu>
+  );
+
+  const column = (c: NoteColumn, i: number) => {
+    const st = Sh.colStateOf(c);
+    const notes = idsOf(c)
+      .map((id) => No.noteById(ws, id))
+      .filter((n): n is Note => !!n)
+      .filter((n) => n.id === lift?.id || Sh.matchesFilter(No.shownNote(n), filter));
+    const hideDone = show === 'open' && !openDone.has(c.id);
+    const visible = notes.filter((n) => !(hideDone && finished(n) && n.id !== lift?.id));
+    const doneHere = notes.filter((n) => finished(n) && n.id !== lift?.id).length;
+    const over = Sh.overWip(c, 0);
+    return (
+      <section key={c.id} className={`kcol${lift?.col === c.id ? ' is-target' : ''}`} aria-label={`${K.col(c.name)}, ${Sh.COL_STATE_NAME[st]}, ${K.countLabel(c.ids.length, c.wip)}`}>
+        <header className="kcol__head">
+          {colEdit === c.id ? (
+            <input
+              className="todo__edit kcol__edit"
+              autoFocus
+              defaultValue={c.name}
+              aria-label={K.colRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const val = e.currentTarget.value.trim();
+                  if (val) dispatch({ type: 'colRename', view: sheetId, col: c.id, name: val });
+                  setColEdit(null);
+                  focusAdd(c.id);
+                } else if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  setColEdit(null);
+                }
+              }}
+              onBlur={() => setColEdit(null)}
+            />
+          ) : (
+            <h3 className="kcol__name" title={K.colNameHint} onDoubleClick={() => setColEdit(c.id)}>
+              {c.name}
+            </h3>
+          )}
+          <span className="sign kcol__state" title={`${K.meaning}: ${Sh.COL_STATE_NAME[st]} – ${K.meaningHint}`}>
+            <Icon name={COL_STATE_ICON[st]} size={11} />
+            <span className="kcol__statename">{Sh.COL_STATE_NAME[st]}</span>
+          </span>
+          <span className={`kcol__count${over ? ' is-over' : ''}`} title={K.countLabel(c.ids.length, c.wip)} aria-hidden="true">
+            {K.count(c.ids.length, c.wip)}
+          </span>
+          {over && (
+            <span className="sign kcol__over" title={K.overHint(c.wip!)}>
+              ! {K.over}
+            </span>
+          )}
+          {colMenu(c, i)}
+        </header>
+        {ask?.kind === 'wip' && ask.col === c.id && (
+          <p className="sheet__msg kcol__ask" role="alertdialog" aria-label={ask.text}>
+            {ask.text}
+            <button type="button" className="note__undo" autoFocus onClick={() => (setAsk(null), ask.run())}>
+              {K.wipYes}
+            </button>
+            <button type="button" className="note__undo" onClick={() => (setAsk(null), focusAdd(c.id))}>
+              {K.cancel}
+            </button>
+          </p>
+        )}
+        <ul className="kcol__body" data-colbody={c.id} aria-label={K.col(c.name)}>
+          {visible.map((n) => cardView(n, c, show === 'all' && finished(n)))}
+          {!visible.length && <li className="kcol__empty">{K.empty}</li>}
+        </ul>
+        {show === 'open' && doneHere > 0 && (
+          <button
+            type="button"
+            className="todo__donebtn kcol__donebtn"
+            aria-expanded={!hideDone}
+            title={K.doneToggle}
+            onClick={() => setOpenDone((s) => {
+              const x = new Set(s);
+              if (x.has(c.id)) x.delete(c.id);
+              else x.add(c.id);
+              return x;
+            })}
+          >
+            <Icon name={hideDone ? 'chevronRight' : 'chevronDown'} size={12} /> {K.doneCount(doneHere)}
+          </button>
+        )}
+        {adding === c.id ? (
+          <div className="todo__new kcol__new">
+            <Icon name="plus" size={14} />
+            <input
+              data-addin={c.id}
+              autoFocus
+              value={draft}
+              placeholder={K.addCardPh}
+              aria-label={`${K.addCard} – ${K.col(c.name)}`}
+              title={K.addCardHint}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.preventDefault(), addCard(c));
+                else if (e.key === 'Escape') (e.preventDefault(), e.stopPropagation(), setAdding(null), focusAdd(c.id));
+              }}
+              onBlur={() => !draft.trim() && setAdding(null)}
+            />
+          </div>
+        ) : (
+          <button type="button" data-add={c.id} className="kcol__add" onClick={() => (setDraft(''), setAdding(c.id))}>
+            <Icon name="plus" size={13} /> {K.addCard}
+          </button>
+        )}
+      </section>
+    );
+  };
+
+  const full = cols.length >= No.COLUMN_MAX;
+  const cardNote = card ? No.noteById(ws, card) : undefined;
+  const ghostNote = lift && ghost ? No.noteById(ws, lift.id) : undefined;
+  return (
+    <div className={`sheet sheet--kanban${lift?.mode === 'drag' ? ' is-dragging' : ''}`}>
+      <SheetHead id={sheetId} filter={filter} onFilter={setFilter} show={show} onShow={setShow} onDown={() => focusCard()} filterRef={filterRef} />
+      <span id={`${sheetId}-cardkeys`} className="sr-only">{K.cardKeys}</span>
+      <span className="sr-only" role="status">{K.info(cols.length, No.idsIn(v).length)}</span>
+      <NoticeLine shown={shown} />
+      <div className="kanban__board" ref={boardRef} aria-label={K.board(v.name)} role="group">
+        {cols.map(column)}
+        <div className="kcol kcol--new">
+          {newCol !== null ? (
+            <div className="todo__new">
+              <Icon name="plus" size={14} />
+              <input
+                autoFocus
+                value={newCol}
+                placeholder={K.newColPh}
+                aria-label={K.newColLabel}
+                title={K.newColHint}
+                onChange={(e) => setNewCol(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newCol.trim()) {
+                    e.preventDefault();
+                    const id = newId();
+                    dispatch({ type: 'colAdd', view: sheetId, name: newCol.trim(), col: id });
+                    say(`${K.newColLabel}: ${newCol.trim()}`);
+                    setNewCol(null);
+                    focusAdd(id);
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setNewCol(null);
+                  }
+                }}
+                onBlur={() => !newCol.trim() && setNewCol(null)}
+              />
+            </div>
+          ) : (
+            <button type="button" className="kcol__add kcol__addcol" disabled={full} title={full ? K.colFull(No.COLUMN_MAX) : K.newColHint} onClick={() => setNewCol('')}>
+              <Icon name="plus" size={13} /> {K.newCol}
+            </button>
+          )}
+        </div>
+      </div>
+      {ghostNote && ghost && (
+        <div className="kcard kcard--ghost" style={{ left: ghost.x, top: ghost.y }} aria-hidden="true">
+          <span className="kcard__title">{title(ghostNote)}</span>
+        </div>
+      )}
+      {cardNote && (
+        <CardWindow
+          ws={ws}
+          dispatch={dispatch}
+          noteId={cardNote.id}
+          where={Sh.colOf(v, cardNote.id)?.name ?? v.name}
+          sheetId={sheetId}
+          say={say}
+          onClose={() => {
+            const id = cardNote.id;
+            const cur = No.noteById(ws, id);
+            if (cur && No.isEmptyDraft(ws, cur)) dispatch({ type: 'noteDiscard', id });
+            setCard(null);
+            focusCard(id);
+          }}
+        />
+      )}
+    </div>
+  );
+}

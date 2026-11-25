@@ -515,3 +515,20 @@ export function restoreSheet(ws: Workspace, u: SheetUndo): Workspace {
   const p = padById(ws, u.padId);
   return u.active || !p ? r.ws : patchPad(r.ws, u.padId, (x) => ({ ...x, active: p.active }));
 }
+
+/**
+ * V87 (Enrico): Im Notizen-Modus liegen alle Pads des Desks verteilt im Raster (wie „Gleich verteilen“ bei Slots)
+ * statt nur das oberste als Vollbild. Spalten = ⌈√n⌉, Reihen = ⌈n / Spalten⌉; die letzte Reihe wird breiter.
+ * Freie Anordnung kommt mit dem Lageplan (F-210).
+ */
+export function noteTiles(n: number): { x: number; y: number; w: number; h: number }[] {
+  if (n <= 0) return [];
+  const cols = Math.ceil(Math.sqrt(n));
+  const rows = Math.ceil(n / cols);
+  const out: { x: number; y: number; w: number; h: number }[] = [];
+  for (let r = 0; r < rows; r++) {
+    const inRow = r === rows - 1 ? n - cols * (rows - 1) : cols;
+    for (let c = 0; c < inRow; c++) out.push({ x: c / inRow, y: r / rows, w: 1 / inRow, h: 1 / rows });
+  }
+  return out;
+}

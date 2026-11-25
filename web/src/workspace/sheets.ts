@@ -119,6 +119,46 @@ export function syncBoards(ws: Workspace, noteId: string): Workspace {
   return next;
 }
 
+// ---------- Kanban: Spalten-Menü (K1, V87) ----------
+
+export type ColSort = 'due' | 'important' | 'title';
+export const COL_SORTS: readonly ColSort[] = ['due', 'important', 'title'];
+export const COL_SORT_NAME: Record<ColSort, string> = { due: 'Fälligkeit', important: 'Wichtigkeit', title: 'Titel (A–Z)' };
+
+/** Spalte einmal sortieren (wie Trello „Liste sortieren nach …“): ändert die Reihenfolge der Karten dauerhaft. */
+export function sortCol(ws: Workspace, viewId: string, colId: string, by: ColSort): Workspace {
+  const v = No.viewById(ws, viewId);
+  const col = v?.cols?.find((c) => c.id === colId);
+  if (!v || !col) return ws;
+  const list = col.ids.map((id) => No.noteById(ws, id)).filter((n): n is Note => !!n);
+  const sorted =
+    by === 'title'
+      ? [...list].sort((a, b) => (No.titleOf(No.shownNote(a)) || '').localeCompare(No.titleOf(No.shownNote(b)) || '', 'de'))
+      : sortNotes(list, by);
+  const ids = [...sorted.map((n) => n.id), ...col.ids.filter((id) => !list.some((n) => n.id === id))];
+  const views = No.viewsOf(ws).map((x) => (x.id !== viewId ? x : { ...x, cols: (x.cols ?? []).map((c) => (c.id === colId ? { ...c, ids } : c)) }));
+  return { ...ws, noteViews: views };
+}
+
+/** „Alle Karten dieser Spalte verschieben …“ (wie Trello): ans Ende der Ziel-Spalte, Zustand nach deren Bedeutung. */
+export function moveAllCards(ws: Workspace, viewId: string, fromCol: string, toCol: string, act: No.Act = {}): Workspace {
+  const v = No.viewById(ws, viewId);
+  const from = v?.cols?.find((c) => c.id === fromCol);
+  if (!v || !from || fromCol === toCol || !v.cols?.some((c) => c.id === toCol)) return ws;
+  let next = ws;
+  for (const id of from.ids) {
+    const r = moveCard(next, viewId, id, toCol, undefined, act);
+    if (r.ok) next = r.ws;
+  }
+  return next;
+}
+
+/** Platz einer Karte für Ansagen: Spalte, Platz (ab 1) und Zahl der Karten dort. */
+export function cardPlace(v: NoteView, noteId: string): { col: NoteColumn; pos: number; of: number } | null {
+  const col = colOf(v, noteId);
+  return col ? { col, pos: col.ids.indexOf(noteId) + 1, of: col.ids.length } : null;
+}
+
 // ---------- Schloss (L1) ----------
 
 /** Sheets, die über „erledigt“ bestimmen: Kanbans und Sheets mit Abnahme, auf denen die Notiz liegt. */
@@ -299,7 +339,7 @@ export function checklistToTask(ws: Workspace, noteId: string, index: number, vi
 
 // ---------- Eisenhower (E1–E4) ----------
 
-/** Felder nach Enricos Report (Abb. 17): 1 erledigen · 2 planen · 3 delegieren · 4 ablegen. */
+/** Felder: 1 erledigen · 2 planen · 3 delegieren · 4 ablegen (V87: Lage wie im Original, siehe QUAD_CELL). */
 export type Quad = 1 | 2 | 3 | 4;
 export const QUAD_NAME: Record<Quad, string> = { 1: 'erledigen', 2: 'planen', 3: 'delegieren', 4: 'ablegen' };
 export const QUAD_HINT: Record<Quad, string> = {
@@ -308,9 +348,12 @@ export const QUAD_HINT: Record<Quad, string> = {
   3: 'dringend, nicht wichtig – an jemand anderen geben',
   4: 'weder wichtig noch dringend – Vorentscheidung zum Löschen; endgültig erst im Mülleimer',
 };
-/** Lage im Raster: [Zeile, Spalte] – oben wichtig, rechts dringend. */
-export const QUAD_CELL: Record<Quad, [number, number]> = { 2: [0, 0], 1: [0, 1], 4: [1, 0], 3: [1, 1] };
-export const quadAt = (row: number, col: number): Quad => (row === 0 ? (col === 0 ? 2 : 1) : col === 0 ? 4 : 3);
+/**
+ * Lage im Raster: [Zeile, Spalte] – wie im Original (V87, Enrico): oben wichtig, links dringend.
+ * Oben links erledigen, oben rechts planen, unten links delegieren, unten rechts ablegen (mit Mülleimer).
+ */
+export const QUAD_CELL: Record<Quad, [number, number]> = { 1: [0, 0], 2: [0, 1], 3: [1, 0], 4: [1, 1] };
+export const quadAt = (row: number, col: number): Quad => (row === 0 ? (col === 0 ? 1 : 2) : col === 0 ? 3 : 4);
 
 /** Noch nie eingeordnet (E2)? */
 export const unsorted = (n: Pick<Note, 'important' | 'urgent'>) => n.important === undefined && n.urgent === undefined;
@@ -362,3 +405,36 @@ export function theMatrix(ws: Workspace): NoteView | undefined {
 
 /** Filtern im Sheet: Titel, Text, Tags (wie die Suche im Notizblock). */
 export const matchesFilter = (n: Note, q: string) => !q.trim() || No.noteMatches(n, q);
+
+// ---------- Abbild im Cockpit (V87, Entscheidung BC1–BC3) ----------
+
+export interface ColSummary { id: string; name: string; state: ColState; count: number; wip?: number; over: boolean; review: number }
+
+/** BC1: Mini-Board – je Spalte Bedeutung, Zahl der Karten, WIP und wie viele auf die Abnahme warten. */
+export function boardSummary(ws: Workspace, v: NoteView): ColSummary[] {
+  return (v.cols ?? []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    state: colStateOf(c),
+    count: c.ids.length,
+    ...(c.wip ? { wip: c.wip } : {}),
+    over: overWip(c, 0),
+    review: c.ids.filter((id) => No.noteById(ws, id)?.state === 'review').length,
+  }));
+}
+
+/** BC3: To-do als Fortschritt – erledigt von allen (ohne archivierte). */
+export function todoSummary(ws: Workspace, v: NoteView): { done: number; all: number } {
+  const list = No.idsIn(v).map((id) => No.noteById(ws, id)).filter((n): n is Note => !!n && n.state !== 'archived');
+  return { done: list.filter((n) => n.state === 'done').length, all: list.length };
+}
+
+/** BC3 (Enrico): Übersicht der Matrizen – offene Karten je Feld, noch nicht eingeordnet, erledigt. */
+export function matrixSummary(ws: Workspace, v: NoteView): { quads: Record<Quad, number>; unsorted: number; open: number; done: number } {
+  const m = matrixOf(ws, v, 'open');
+  const quads = { 1: m.quads[1].length, 2: m.quads[2].length, 3: m.quads[3].length, 4: m.quads[4].length } as Record<Quad, number>;
+  return { quads, unsorted: m.unsorted.length, open: m.unsorted.length + quads[1] + quads[2] + quads[3] + quads[4], done: m.done };
+}
+
+/** Alle Matrizen (heute genau eine; mit Personen in Schritt 8 mehrere). */
+export const matricesOf = (ws: Workspace): NoteView[] => No.viewsOf(ws).filter((v) => v.kind === 'eisenhower');

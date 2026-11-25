@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from 'react';
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from 'react';
 import type { Pad, Workspace } from '../workspace/types';
 import type { RadarWindow } from '../workspace/focus';
 import { placeText } from '../workspace/focus';
@@ -9,6 +9,11 @@ import { NOTICE_MS } from '../workspace/flash';
 import { DIALOG_TEXT, NOTES_COCKPIT_TEXT as NC, PAD_TEXT } from '../workspace/terms';
 import type { Action } from '../workspace/useWorkspace';
 import { Icon } from './Icon';
+import * as Sh from '../workspace/sheets';
+import { padWith } from '../workspace/pads';
+import { padOpenResult } from '../workspace/useWorkspace';
+import { newId } from '../workspace/workspace';
+import { COL_STATE_ICON, focusColLater } from './KanbanSheet';
 import { OpacitySlider } from './Pad';
 
 /**
@@ -136,6 +141,15 @@ export function NotesCockpit(p: NotesCockpitProps) {
     const next = order.filter((k, j) => j !== i && !k.startsWith(`s:${key.slice(2)}:`))[Math.max(0, i - 1)];
     if (next) toRow(next);
     else toTile(tiles.find((t) => t.id !== sel)?.id);
+  };
+  /** BC3: Matrix zeigen – offen in einem Pad: dorthin; sonst im obersten Pad dieses Desks öffnen. */
+  const showMatrix = (id: string) => {
+    const there = padWith(ws, id);
+    if (there) return p.onShowPad(there.id, id);
+    const ids = [newId(), newId(), newId()];
+    const r = padOpenResult(ws, { desk: p.win, ref: { view: id }, ids });
+    p.dispatch({ type: 'padOpen', desk: p.win, ref: { view: id }, ids });
+    if (r.result !== 'missing' && r.pad) window.setTimeout(() => p.onShowPad(r.pad!, id), 0);
   };
   const closePad = (pad: Pad) => {
     const u = padUndoOf(ws, pad.id);
@@ -320,7 +334,7 @@ export function NotesCockpit(p: NotesCockpitProps) {
     const name = sheetName(r.sheet);
     const n = idsIn(viewById(ws, r.sheet) ?? { id: '', name: '', kind: 'block' } as never).length;
     const front = pad.active === r.sheet;
-    return (
+    const main = (
       <li key={key} className={`overview__row ncp__sheet${front ? ' is-front' : ''}`}>
         <button
           ref={ref}
@@ -342,6 +356,59 @@ export function NotesCockpit(p: NotesCockpitProps) {
         {tool('rename', NC.rename, `„${name}“ umbenennen`, () => startRename(pad, r.sheet))}
         {tool('close', NC.closeSheet, `Sheet „${name}“ schließen`, () => closeSheet(pad, r.sheet), ' overview__tool--x')}
       </li>
+    );
+    // V87 (BC1–BC3): Abbild des gewählten Sheets direkt darunter – Kanban als Mini-Board, To-do als Fortschritt
+    const v = viewById(ws, r.sheet);
+    const glance =
+      key === focusKey && v?.kind === 'kanban' ? (
+        <li key={`${key}:glance`} className="ncp__glance" aria-label={NC.miniBoard(name)}>
+          <ul className="ncp__mini" role="list">
+            {Sh.boardSummary(ws, v).map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  className={`ncp__minicol${c.over ? ' is-over' : ''}`}
+                  title={NC.miniCol(c.name, c.count, c.wip)}
+                  aria-label={`${NC.miniCol(c.name, c.count, c.wip)}${c.over ? `, ${NC.over}` : ''}${c.review ? `, ${NC.review(c.review)}` : ''}`}
+                  onClick={() => (p.onShowPad(pad.id, r.sheet), focusColLater(r.sheet, c.id))}
+                >
+                  <span className="ncp__minihead">
+                    <Icon name={COL_STATE_ICON[c.state]} size={10} /> {c.name}
+                  </span>
+                  <span className="ncp__minicards" aria-hidden="true">
+                    {Array.from({ length: Math.min(c.count, 8) }, (_, i) => (
+                      <i key={i} />
+                    ))}
+                    {c.count > 8 && <b>+{c.count - 8}</b>}
+                  </span>
+                  <span className="ncp__mininum">
+                    {c.wip ? `${c.count} / ${c.wip}` : c.count}
+                    {c.over && ` · ! ${NC.over}`}
+                    {c.review > 0 && ` · ${NC.review(c.review)}`}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ) : key === focusKey && v?.kind === 'todo' ? (
+        (() => {
+          const t = Sh.todoSummary(ws, v);
+          return (
+            <li key={`${key}:glance`} className="ncp__glance">
+              <span className="ncp__bar" role="meter" aria-valuemin={0} aria-valuemax={t.all || 1} aria-valuenow={t.done} aria-label={NC.todoBar(t.done, t.all)} title={NC.todoBar(t.done, t.all)}>
+                <span style={{ width: `${t.all ? (t.done / t.all) * 100 : 0}%` }} />
+              </span>
+              <span className="ncp__mininum">{NC.todoBar(t.done, t.all)}</span>
+            </li>
+          );
+        })()
+      ) : null;
+    return (
+      <Fragment key={key}>
+        {main}
+        {glance}
+      </Fragment>
     );
   };
 
@@ -450,6 +517,33 @@ export function NotesCockpit(p: NotesCockpitProps) {
             />
           )}
           {rows.length === 0 ? <p className="overview__empty">{q ? NC.none : NC.emptyDesk}</p> : <ul className="overview__list">{rows.map(row)}</ul>}
+          {/* V87 (BC3, Enrico): Übersicht aller Matrizen mit offenen Karten je Feld */}
+          {Sh.matricesOf(ws).length > 0 && (
+            <section className="ncp__matrices" aria-label={NC.matrices}>
+              <h4 className="ncp__subhead">
+                <Icon name="matrix" size={13} /> {NC.matrices}
+              </h4>
+              <ul>
+                {Sh.matricesOf(ws).map((m) => {
+                  const s = Sh.matrixSummary(ws, m);
+                  const label = NC.matrixRow(m.name, s.open, s.quads[1], s.quads[2], s.quads[3], s.quads[4], s.unsorted, s.done);
+                  return (
+                    <li key={m.id}>
+                      <button type="button" className="ncp__matrix" aria-label={label} title={NC.show} onClick={() => showMatrix(m.id)}>
+                        <span className="ncp__matrixname">{m.name}</span>
+                        <span className="sign">{NC.openN(s.open)}</span>
+                        {([1, 2, 3, 4] as Sh.Quad[]).map((q) => (
+                          <span key={q} className={`sign${q === 1 ? ' sign--urg' : ''}`}>{Sh.QUAD_NAME[q]} {s.quads[q]}</span>
+                        ))}
+                        {s.unsorted > 0 && <span className="sign">{NC.unsortedN(s.unsorted)}</span>}
+                        <span className="sign">{NC.doneN(s.done)}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
           {/* Meldung am Ort (F-214): direkt unter der Liste, 2 s, mit Rückgängig */}
           {undo && (
             <p className="ncp__undo" role="status">

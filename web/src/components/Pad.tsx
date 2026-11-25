@@ -8,10 +8,11 @@ import { useKeyboard } from './useKeyboard';
 import type { Action } from '../workspace/useWorkspace';
 import type { NoteViewKind, Pad as PadT, PadPlace, Workspace } from '../workspace/types';
 import * as No from '../workspace/notes';
+import * as Sh from '../workspace/sheets';
 import { PAD_MIN } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
 import { NOTICE_MS } from '../workspace/flash';
-import { AUDIO_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { AUDIO_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab, freshNotes } from './NoteTab';
 import { type FootItem, PadFooter, type VoiceProps } from './PadFooter';
@@ -35,6 +36,8 @@ import { recentIn, type RecentRef } from '../workspace/pads';
 import { Item, Menu } from './PanelFrame';
 import { Icon } from './Icon';
 import { TodoSheet } from './SheetViews';
+import { KanbanSheet } from './KanbanSheet';
+import { MatrixSheet } from './MatrixSheet';
 import { RemindAlarm, useReminders } from './RemindAlarm';
 import { remindLabel } from '../workspace/remind';
 import { useDisplay } from './SiteIcon';
@@ -71,11 +74,13 @@ export interface PadProps {
   say: (text: string) => void;
   /** F-206 Schritt 4 (V81): Pad im Dock – füllt die Leiste, ohne Ziehen/Größe und ohne Steuerknopf (K5 zurückgestellt). */
   dock?: { onWidth: (dx: number, repeat: boolean) => void; onFold: () => void };
+  /** V87 (Enrico): Vollbild – Pad füllt den Desk bzw. zurück zur Übersicht (alle Pads). */
+  full?: { on: boolean; toggle: () => void };
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say, dock }: PadProps) {
+export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say, dock, full }: PadProps) {
   const [live, setLive] = useState<PadPlace | null>(null);
   const [renaming, setRenaming] = useState(false);
   const display = useDisplay();
@@ -92,7 +97,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   const send = (k: BlockCmd, id?: string) => setCmd((c) => ({ k, n: (c?.n ?? 0) + 1, id }));
   const isBlock = sheet?.kind === 'block';
   // V86 (S2): Fußleiste auch in den Sheets To-do/Kanban/Eisenhower – Home, Neue Aufgabe, Suche sinngemäß
-  const isSheetUi = isBlock || sheet?.kind === 'todo';
+  const isSheetUi = !!sheet;
   const footItems: FootItem[] = [
     { id: 'recent', label: FOOT_TEXT.recent, icon: 'recent', run: () => setRecentOpen(true) },
     { id: 'new', label: FOOT_TEXT.newNote, icon: 'plus', run: isSheetUi ? () => send('new') : undefined },
@@ -478,6 +483,13 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
       say(e.shiftKey ? PAD_TEXT.sized(Math.round(next.w * box.w), Math.round(next.h * box.h)) : PAD_TEXT.moved(PAD_TEXT.where(next.x + next.w / 2, next.y + next.h / 2)));
       return;
     }
+    // V87: Alt + Enter = Vollbild an/aus
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === 'Enter' && full) {
+      e.preventDefault();
+      e.stopPropagation();
+      full.toggle();
+      return;
+    }
     // F-215: Alt + H = Home (fängt auch „ª“ auf dem Mac ab)
     if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyH') {
       e.preventDefault();
@@ -528,19 +540,32 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   };
 
   const addSheet = (kind: NoteViewKind) => {
+    // V87 (E3): genau eine Eisenhower-Matrix – öffnet die vorhandene
+    const matrix = kind === 'eisenhower' ? Sh.theMatrix(ws) : undefined;
+    if (matrix) {
+      dispatch({ type: 'padOpen', desk: pad.desk, ref: { view: matrix.id }, ids: [newId(), newId(), newId()] });
+      return notify(MATRIX_TEXT.exists);
+    }
     if (pad.sheets.length >= PAD_SHEETS_MAX) return notify(PAD_TEXT.full(PAD_SHEETS_MAX));
     const id = newId();
     dispatch({ type: 'padAddSheet', id: pad.id, kind, sheet: id });
     window.setTimeout(() => tabsRef.current?.querySelector<HTMLElement>(`[data-sheet="${id}"]`)?.focus(), 0);
   };
-  const closeSheet = () => {
-    if (!sheet) return;
-    dispatch({ type: 'padCloseSheet', id: pad.id, sheet: sheet.id });
+  // V87 (Enrico): × an jedem Reiter bzw. Entf auf dem Reiter schließt genau dieses Sheet
+  const closeSheet = (id = sheet?.id) => {
+    if (!id) return;
+    const i = pad.sheets.indexOf(id);
+    const name = No.viewById(ws, id)?.name ?? '';
+    dispatch({ type: 'padCloseSheet', id: pad.id, sheet: id });
     if (pad.sheets.length <= 1) {
       notify(PAD_TEXT.closed);
       say(PAD_TEXT.closed);
       focusAway();
+      return;
     }
+    say(PAD_TEXT.sheetClosed(name));
+    const next = pad.sheets.filter((x) => x !== id)[Math.max(0, i - 1)];
+    if (next) window.setTimeout(() => tabsRef.current?.querySelector<HTMLElement>(`[data-sheet="${next}"]`)?.focus(), 0);
   };
   /** Fokus nach dem Schließen auf NewPad (sonst fiele er auf body). */
   const focusAway = () => window.setTimeout(() => document.querySelector<HTMLElement>('.tb-newpad')?.closest('button')?.focus(), 0);
@@ -631,8 +656,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
                 />
               );
             return (
+              <span key={id} className={`pad__tabwrap${on ? ' is-on' : ''}`} role="presentation">
               <button
-                key={id}
                 type="button"
                 role="tab"
                 data-sheet={id}
@@ -644,11 +669,15 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
                 title={`${v.name}${i < 9 ? ` (Strg/⌘+${i + 1})` : ''} – Pfeile wechseln, Umschalt + Pfeil verschiebt den Reiter`}
                 onClick={() => show(id)}
                 onDoubleClick={() => setRenaming(true)}
-                onKeyDown={(e) => onTabKey(e, i)}
+                onKeyDown={(e) => (e.key === 'Delete' ? (e.preventDefault(), closeSheet(id)) : onTabKey(e, i))}
               >
                 <Icon name={KIND_ICON[v.kind]} size={13} />
                 <span className="pad__tabname">{v.name}</span>
               </button>
+              <button type="button" tabIndex={-1} className="pad__tabx" title={PAD_TEXT.closeSheetTab(v.name)} aria-label={PAD_TEXT.closeSheetTab(v.name)} onClick={() => closeSheet(id)}>
+                <Icon name="close" size={10} />
+              </button>
+              </span>
             );
           })}
         </div>
@@ -694,6 +723,12 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               <Item icon="close" hint={PAD_TEXT.closeSheetHint} disabled={!sheet} onClick={() => (close(), closeSheet())}>
                 {PAD_TEXT.closeSheet}
               </Item>
+              {/* V87 (L2): Board-Regel „Abnahme nötig“ für Kanban und To-do */}
+              {(sheet?.kind === 'kanban' || sheet?.kind === 'todo') && (
+                <Item icon="check" checked={!!sheet.review} hint={KANBAN_TEXT.reviewSettingHint} onClick={() => (close(), dispatch({ type: 'sheetReview', view: sheet.id, on: !sheet.review }))}>
+                  {KANBAN_TEXT.reviewSetting}
+                </Item>
+              )}
               {/* V81 (D5/D6): ins Dock bzw. heraus an den letzten Platz */}
               <Item icon="dock" hint={dock ? DOCK_TEXT.undockHint : DOCK_TEXT.toDockHint} onClick={() => (close(), toDock(!dock))}>
                 {dock ? DOCK_TEXT.undock : DOCK_TEXT.toDock}
@@ -721,6 +756,18 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
             </>
           )}
         </Menu>
+        {full && (
+          <button
+            type="button"
+            className="pad__close pad__full"
+            aria-pressed={full.on}
+            onClick={full.toggle}
+            title={full.on ? PAD_TEXT.fullOff : PAD_TEXT.fullOn}
+            aria-label={full.on ? PAD_TEXT.fullOff : PAD_TEXT.fullOn}
+          >
+            <Icon name={full.on ? 'minimize' : 'maximize'} size={14} />
+          </button>
+        )}
         {dock ? (
           <button type="button" className="pad__close" onClick={dock.onFold} title={DOCK_TEXT.foldTitle} aria-label={DOCK_TEXT.fold}>
             <Icon name="dockFold" size={14} />
@@ -740,6 +787,10 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           <NoteBlock ws={ws} dispatch={dispatch} padId={pad.id} sheetId={sheet.id} picked={picked[sheet.id]} onPick={(n) => onPick(sheet.id, n)} say={say} cmd={cmd} />
         ) : sheet.kind === 'todo' ? (
           <TodoSheet ws={ws} dispatch={dispatch} desk={pad.desk} sheetId={sheet.id} say={say} cmd={cmd} />
+        ) : sheet.kind === 'kanban' ? (
+          <KanbanSheet ws={ws} dispatch={dispatch} desk={pad.desk} sheetId={sheet.id} say={say} cmd={cmd} />
+        ) : sheet.kind === 'eisenhower' ? (
+          <MatrixSheet ws={ws} dispatch={dispatch} desk={pad.desk} sheetId={sheet.id} say={say} cmd={cmd} />
         ) : (
           <div className="pad__soon">
             <p className="win__placeholder">

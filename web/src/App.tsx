@@ -8,7 +8,7 @@ import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, MenuHead, PanelFrame } from './components/PanelFrame';
 import { OpacitySlider, Pad as PadView } from './components/Pad';
 import { useF6 } from './components/useF6';
-import { DOCK_TAB_W, PAD_START, clampDockW, dockFront, dockOf, dockedOn, padsOn, padsShow, placeOf, zonePlace } from './workspace/pads';
+import { DOCK_TAB_W, PAD_START, clampDockW, dockFront, dockOf, dockedOn, noteTiles, padsOn, padsShow, placeOf, zonePlace } from './workspace/pads';
 import {
   type Lines,
   type Orientation,
@@ -95,6 +95,7 @@ import { FLASH_EVENT, type FlashRequest } from './workspace/flash';
 import { sweepClips } from './workspace/audioStore';
 import { sweepPics } from './workspace/imageStore';
 import { audioRefs, imageRefs } from './workspace/notes';
+import { theMatrix } from './workspace/sheets';
 
 /** Knopf im Hinweis unten (F-162, F-163). */
 interface FlashAction {
@@ -1111,12 +1112,23 @@ function DeskApp(props: DeskProps) {
     if (notesMode && allPads.length === 0) dispatch({ type: 'padNew', desk: win, id: newId(), sheet: newId(), place: padHome() });
   }, [notesMode, allPads.length, win]); // eslint-disable-line react-hooks/exhaustive-deps
   const FULL = { x: 0, y: 0, w: 1, h: 1 };
+  // V87 (Enrico): Vollbild je Pad (in beiden Modi) – Knopf im Kopf des Pads, zurück zur Übersicht
+  const [fullPad, setFullPad] = useState<string | null>(null);
+  const fullOn = fullPad && (notesMode ? allPads : deskPads).some((x) => x.id === fullPad) ? fullPad : null;
+  const toggleFull = (id: string, name: string) => {
+    const on = fullOn !== id;
+    setFullPad(on ? id : null);
+    if (on) dispatch({ type: 'padRaise', id });
+    sayLive(on ? PAD_TEXT.fullNow(name) : PAD_TEXT.fullBack);
+  };
+  // V87 (Enrico): im Notizen-Modus alle Pads verteilt im Raster, feste Reihenfolge (nicht nach „oben“)
+  const noteOrder = [...allPads].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const padOrder = [...deskPads].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const padLayer =
     !notesOff && (notesMode ? allPads.length > 0 : !padsHidden && deskPads.length > 0) ? (
       <div className={`padlayer${notesMode ? ' is-notes' : ''}`}>
-        {(notesMode ? allPads.slice(-1) : padOrder).map((p) => {
-          const z = deskPads.indexOf(p);
+        {(fullOn ? (notesMode ? allPads : deskPads).filter((x) => x.id === fullOn) : notesMode ? noteOrder : padOrder).map((p, i) => {
+          const z = notesMode ? i : deskPads.indexOf(p);
           return (
             <PadView
               key={p.id}
@@ -1124,9 +1136,10 @@ function DeskApp(props: DeskProps) {
               dispatch={dispatch}
               pad={p}
               desk={win}
-              place={notesMode ? FULL : (placeOf(ws, win, p.id) ?? padHome(p))}
+              place={fullOn ? FULL : notesMode ? noteTiles(noteOrder.length)[i] : (placeOf(ws, win, p.id) ?? padHome(p))}
               box={{ w: iw, h: ih, gap: GAP }}
-              top={notesMode || z === deskPads.length - 1}
+              top={fullOn ? true : notesMode ? p.id === allPads.at(-1)?.id : z === deskPads.length - 1}
+              full={{ on: fullOn === p.id, toggle: () => toggleFull(p.id, padName(p)) }}
               z={z + 1}
               picked={padPick}
               onPick={pickInPad}
@@ -3080,6 +3093,16 @@ function DeskApp(props: DeskProps) {
             <>
               <Item icon="newPad" hint={PAD_TEXT.menuNewHint} onClick={() => (close(), newPad())}>
                 {PAD_TEXT.menuNew}
+              </Item>
+              {/* V87 (G): Sheet-Arten mit ihrem Bau – als neuer Reiter im obersten Pad (bei 9 Sheets neues Pad); Matrix öffnet die vorhandene */}
+              <Item icon="todo" hint={NT_TEXT.newTodoHint} onClick={() => (close(), newNoteHere('todo'))}>
+                {NT_TEXT.newTodo}
+              </Item>
+              <Item icon="kanban" hint={NT_TEXT.newKanbanHint} onClick={() => (close(), newNoteHere('kanban'))}>
+                {NT_TEXT.newKanban}
+              </Item>
+              <Item icon="matrix" hint={NT_TEXT.matrixHint(!!theMatrix(ws))} onClick={() => (close(), newNoteHere('eisenhower'))}>
+                {NT_TEXT.matrix}
               </Item>
               <Item icon="slot" disabled title={PAD_TEXT.menuPlaceHint} hint={PAD_TEXT.menuPlaceHint} onClick={() => undefined}>
                 {PAD_TEXT.menuPlace}

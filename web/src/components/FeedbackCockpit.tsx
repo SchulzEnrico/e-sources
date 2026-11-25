@@ -10,6 +10,7 @@ import { tourAutoStart } from '../workspace/tour';
 import type { Action } from '../workspace/useWorkspace';
 import type { Feedback, FeedbackState, Workspace } from '../workspace/types';
 import * as Fb from '../workspace/feedback';
+import { canTriage } from '../workspace/persons';
 import { FEEDBACK_CARD_TEXT as C, FEEDBACK_COCKPIT_TEXT as K, FEEDBACK_TEXT as T } from '../workspace/terms';
 import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
@@ -28,14 +29,17 @@ function download(name: string, text: string, type: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Action>; say: (t: string) => void; startId?: string; onTourAuto?: () => void }) {
+export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Action>; say: (t: string) => void; startId?: string; onTourAuto?: () => void; /** F-225 (V105, P7): nur Meldungen dieses Projekts */ project?: string }) {
   const { ws, dispatch, say } = props;
   const [kind, setKind] = useState<string>(ALL);
   const [sev, setSev] = useState<string>(ALL);
   const [q, setQ] = useState('');
   const [card, setCard] = useState<string | null>(props.startId ?? null);
   const [onlyNew, setOnlyNew] = useState(false);
-  const [triage, setTriageRaw] = useState(loadTriage);
+  const [triageOn, setTriageRaw] = useState(loadTriage);
+  // V105 (F-224 R1–R3): „Bearbeitung“ nur mit der Befugnis „Feedback bearbeiten“ – ohne sie gibt es den Schalter nicht
+  const may = canTriage(ws);
+  const triage = may && triageOn;
   const setTriage = (on: boolean) => (setTriageRaw(on), saveTriage(on), say(on ? K.triageOn : K.triageOff));
   const [drop, setDrop] = useState<{ id: string; why: string; miss: boolean } | null>(null);
   const [msg, setMsg] = useState<{ state: FeedbackState; text: string; undo?: () => void } | null>(null);
@@ -44,7 +48,7 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
   const by = ws.profile?.name || undefined;
   // V104 (F-217): beim ersten Öffnen einmal die Tour „Feedback“
   useEffect(() => {
-    if (!props.onTourAuto || !tourAutoStart('feedback')) return;
+    if (!props.onTourAuto || props.project || !tourAutoStart('feedback')) return;
     const t = window.setTimeout(() => props.onTourAuto?.(), 450);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -54,9 +58,10 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
     ...(kind !== ALL ? { kinds: [kind as Feedback['kind']] } : {}),
     ...(sev !== ALL ? { severities: [sev as NonNullable<Feedback['severity']>] } : {}),
     ...(q.trim() ? { q } : {}),
+    project: props.project ?? null,
   };
   const cols = Fb.feedbackBoard(ws, flt);
-  const total = Fb.feedbackOf(ws).length;
+  const total = Fb.feedbackOf(ws).filter((f) => (f.project ?? null) === (props.project ?? null)).length;
   const shown = cols.reduce((s, c) => s + c.items.length, 0);
   // V104 (Enrico): Anwender sehen keinen Zustand – ohne „Bearbeitung“ eine Liste „Meine Meldungen“, neueste oben
   const list = triage ? [] : Fb.feedbackList(ws, flt);
@@ -100,10 +105,11 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
   };
   const saveFile = () => {
     const now = new Date();
-    const n = fileOnlyNew ? Fb.newCount(ws) : total;
+    const pj = props.project ?? null;
+    const n = fileOnlyNew ? (pj ? Fb.newCountOf(ws, pj) : Fb.newCount(ws)) : total;
     if (!n) return say(K.fileEmpty);
-    download(Fb.feedbackFileName(now, 'md'), Fb.feedbackFileMarkdown(ws, { onlyNew: fileOnlyNew }), 'text/markdown');
-    download(Fb.feedbackFileName(now, 'json'), Fb.feedbackFileJson(ws, { onlyNew: fileOnlyNew }), 'application/json');
+    download(Fb.feedbackFileName(now, 'md'), Fb.feedbackFileMarkdown(ws, { onlyNew: fileOnlyNew, project: pj }), 'text/markdown');
+    download(Fb.feedbackFileName(now, 'json'), Fb.feedbackFileJson(ws, { onlyNew: fileOnlyNew, project: pj }), 'application/json');
     say(K.fileSaved(n));
   };
 
@@ -150,7 +156,7 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
 
   return (
     <section className="fbb" aria-label={K.region}>
-      <p className="fbb__intro">{triage ? K.intro : K.introUser}</p>
+      {!props.project && <p className="fbb__intro">{triage ? K.intro : K.introUser}</p>}
       <div className="fbb__bar">
         <div className="fbc__wheel">
           <span className="fbq__label">{K.kindFilter}</span>
@@ -174,9 +180,9 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
           <span className="fbq__label">{K.search}</span>
           <input type="search" value={q} placeholder={K.searchPh} onChange={(e) => setQ(e.target.value)} />
         </label>
-        <label className="fbb__only fbb__triage" title={K.triageHint}>
+        {may && <label className="fbb__only fbb__triage" title={K.triageHint}>
           <input type="checkbox" checked={triage} onChange={(e) => setTriage(e.target.checked)} /> {K.triage}
-        </label>
+        </label>}
         <div className="fbb__file" role="group" aria-label={K.fileGroup}>
           {triage && <label className="fbb__only">
             <input type="checkbox" checked={onlyNew} onChange={(e) => setOnlyNew(e.target.checked)} /> {K.onlyNew}

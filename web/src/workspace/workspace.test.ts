@@ -6619,3 +6619,60 @@ describe('F-222 Werkzeug (V104): Bearbeiten, Zustand, Beispiele, Ausgabe', () =>
     expect(Dc.decisionFileName({ title: 'Beispiel: Welche Wohnung?' } as never, 'md')).toBe('Entscheidung_Beispiel_Welche_Wohnung.md');
   });
 });
+
+describe('F-225 Feedback in Projekten (V105)', () => {
+  const base = () => Pj.addProject(W.defaultWorkspace(), 'Umbau Halle')!;
+  it('Projektmeldung trägt Projekt und Instanz, Filter trennt App und Projekt', () => {
+    const { ws: w0, id: pid } = base();
+    let ws = Fb.addFeedback(w0, { kind: 'bug', title: 'Gerüst fehlt', project: pid, to: 'lead' }, { id: 'fb-p' })!.ws;
+    ws = Fb.addFeedback(ws, { kind: 'wish', title: 'Dunkles Thema' }, { id: 'fb-a' })!.ws;
+    const p = Fb.feedbackById(ws, 'fb-p')!;
+    expect(p.project).toBe(pid);
+    expect(p.to).toBe('lead');
+    expect(Fb.feedbackList(ws, { project: pid }).map((f) => f.id)).toEqual(['fb-p']);
+    expect(Fb.feedbackList(ws, { project: null }).map((f) => f.id)).toEqual(['fb-a']);
+    expect(Fb.feedbackList(ws)).toHaveLength(2);
+    expect(Fb.newCount(ws)).toBe(1);
+    expect(Fb.newCountOf(ws, pid)).toBe(1);
+    expect(JSON.parse(Fb.feedbackFileJson(ws, { project: null })).feedback).toHaveLength(1);
+  });
+  it('Instanzen: Vorgabe nach ICB4, umbenennen, Person, hinzufügen, entfernen (nie die letzte)', () => {
+    const { ws: w0, id } = base();
+    expect(Pj.rolesOf(Pj.projectById(w0, id)).map((r) => r.id)).toEqual(['lead', 'steering', 'client']);
+    let ws = Pj.editRoles(w0, id, { kind: 'person', role: 'lead', person: 'pn-ich' });
+    ws = Pj.editRoles(ws, id, { kind: 'name', role: 'client', name: '  Bauherr ' });
+    ws = Pj.editRoles(ws, id, { kind: 'add', name: 'QS', rid: 'r-qs' });
+    ws = Pj.editRoles(ws, id, { kind: 'remove', role: 'steering' });
+    const roles = Pj.rolesOf(Pj.projectById(ws, id));
+    expect(roles.map((r) => r.name)).toEqual(['Projektleitung', 'Bauherr', 'QS']);
+    expect(roles.at(0)!.person).toBe('pn-ich');
+    let one = ws;
+    for (const r of roles) one = Pj.editRoles(one, id, { kind: 'remove', role: r.id });
+    expect(Pj.rolesOf(Pj.projectById(one, id))).toHaveLength(1);
+  });
+  it('Formular: Felder aus, Pflicht zählt bei „noch offen“, „Was“ bleibt', () => {
+    let form = Fb.toggleForm(undefined, 'steps', 'off');
+    form = Fb.toggleForm(form, 'what', 'off');
+    form = Fb.toggleForm(form, 'impact', 'required');
+    form = Fb.toggleForm(form, 'steps', 'required');
+    const f = Fb.formOf(form);
+    expect(f.off).toEqual(['steps']);
+    expect(f.required).toEqual(['impact']); // ausgeschaltetes Feld ist nie Pflicht
+    const fb = { id: 'x', kind: 'bug' as const, title: 't', state: 'new' as const, at: '2026-11-25T10:00:00Z' };
+    const miss = Fb.missingOf(fb, Fb.formOf(form));
+    expect(miss).toContain('impact');
+    expect(miss).not.toContain('steps');
+    expect(Fb.toggleForm(Fb.toggleForm(undefined, 'goals', 'required'), 'goals', 'required')).toBeUndefined();
+  });
+  it('Dateiformat 11: Projekt, Instanz, Instanzen und Formular bleiben erhalten', () => {
+    const { ws: w0, id } = base();
+    let ws = Pj.editRoles(w0, id, { kind: 'add', name: 'QS', rid: 'r-qs' });
+    ws = Pj.editProject(ws, id, { feedbackForm: { off: ['steps'], required: ['impact'] } });
+    ws = Fb.addFeedback(ws, { kind: 'question', title: 'Wer zahlt?', project: id, to: 'r-qs' }, { id: 'fb-q' })!.ws;
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    const p = Pj.projectById(back, id)!;
+    expect(p.roles!.map((r) => r.id)).toEqual(['lead', 'steering', 'client', 'r-qs']);
+    expect(p.feedbackForm).toEqual({ off: ['steps'], required: ['impact'] });
+    expect(Fb.feedbackById(back, 'fb-q')!.to).toBe('r-qs');
+  });
+});

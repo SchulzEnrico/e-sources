@@ -55,7 +55,7 @@ import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './work
 import { PROBE, PROBE_KIND } from './workspace/probe';
 import { Help } from './components/Help';
 import { Tour } from './components/Tour';
-import { ProjectCockpit } from './components/ProjectCockpit';
+import { ProjectCockpit, shownProjectId } from './components/ProjectCockpit';
 import { SlotMachine } from './components/SlotMachine';
 import { type Cleanup, type InviteWhy, type RedundantSlot, INVITE_KEY, INVITE_LATER, INVITE_PAUSE, dupCount, inviteWhy } from './workspace/jackpot';
 import { TOUR_EVENT, type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace/tour';
@@ -4467,6 +4467,7 @@ function DeskApp(props: DeskProps) {
           place={fbAt.place}
           env={fbAt.env}
           kind={fbAt.kind}
+          project={projectsMode ? shownProjectId() : undefined}
           askEase={fbAskEase(ws)}
           onSave={(v) => {
             const id = newId();

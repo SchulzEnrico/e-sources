@@ -124,7 +124,7 @@ export function PersonCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch: 
   };
   const rightsCell = (p: Person) => {
     const r = Ps.rightsOf(p);
-    return r.length === 4 ? T.rightsAll : r.length === 0 ? <span className="lc__muted">{T.rightsNone}</span> : r.map((x) => T.right[x]).join(', ');
+    return r.length === Ps.ALL_RIGHTS.length - Ps.EXPLICIT_RIGHTS.length && !r.some((x) => Ps.EXPLICIT_RIGHTS.includes(x)) ? T.rightsAll : r.length === 0 ? <span className="lc__muted">{T.rightsNone}</span> : r.map((x) => T.rightShort[x] ?? T.right[x]).join(', ');
   };
   const weekOf = (p: Person) => loadOf(ws, p.id, { from: day, weeks: 1 }).weeks[0];
 
@@ -426,6 +426,7 @@ function ResourceInfo({ ws, p, day, dispatch, say, boxRef, onRename, onRemove }:
             </label>
           );
         })}
+        <p className="lc__muted pc__note">{T.rightsLocal}</p>
       </fieldset>
 
       <fieldset className="pc__set" title={explain(TERMS.absence)}>

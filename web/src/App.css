@@ -9282,3 +9282,21 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 .dc__decide label:nth-child(2) { flex: 1 1 240px; }
 .dc__trail { font-size: 12px; }
 .dc__tool.is-locked input:disabled, .dc__tool.is-locked textarea:disabled { opacity: 0.75; }
+
+/* F-225 (V105): Projekt › Meldungen, Instanzen im Steckbrief */
+.pjf { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.pjf__intro { margin: 0; font-size: 12px; color: var(--muted, inherit); }
+.pjf__form { display: block; }
+.pjf__form summary { cursor: pointer; font-size: 12px; font-weight: 600; }
+.pjf__form summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.pjf__table { border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+.pjf__table th, .pjf__table td { padding: 3px 10px 3px 0; text-align: left; font-weight: normal; }
+.pjf__table thead th { font-weight: 600; color: var(--muted, inherit); }
+.pjf__table td { text-align: center; }
+.pj__roles { flex-direction: column; align-items: stretch; }
+.pj__rolesIntro { margin: 0; font-size: 11px; }
+.pj__roleList { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.pj__role { display: flex; gap: 6px; align-items: center; }
+.pj__role input[type='text'] { flex: 1 1 10em; min-width: 0; }
+.pj__role select { flex: 1 1 10em; min-width: 0; }
+.fbq__to { flex-wrap: wrap; }

@@ -18,7 +18,7 @@ import type {
 } from './types';
 
 /** App-Stand für die Meldung (FB6) – bei jedem Chat mitzählen. */
-export const APP_VERSION = 'V104';
+export const APP_VERSION = 'V105';
 export const FEEDBACK_MAX = 2000;
 export const TITLE_MAX = 200;
 export const TEXT_MAX = 8000;
@@ -130,7 +130,7 @@ function cleanPlace(p: FeedbackPlace | undefined): FeedbackPlace | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
-export type NewFeedback = { kind: FeedbackKind; title: string; place?: FeedbackPlace; env?: FeedbackEnv } & Partial<Pick<Feedback, FeedbackText | 'severity' | 'refs'>>;
+export type NewFeedback = { kind: FeedbackKind; title: string; place?: FeedbackPlace; env?: FeedbackEnv; project?: string; to?: string } & Partial<Pick<Feedback, FeedbackText | 'severity' | 'refs'>>;
 
 /** Stufe 1 „Schnell erfassen“ (FB3): Titel + Art, Ort und Umgebung kommen mit. Leerer Titel = null. */
 export function addFeedback(ws: Workspace, v: NewFeedback, opts: { id: string; now?: Date }): { ws: Workspace; id: string } | null {
@@ -142,7 +142,12 @@ export function addFeedback(ws: Workspace, v: NewFeedback, opts: { id: string; n
   const place = cleanPlace(v.place);
   if (place) f.place = place;
   if (v.env && Object.keys(v.env).length) f.env = { ...v.env };
-  const { kind: _k, title: _t, place: _p, env: _e, ...rest } = v; // eslint-disable-line @typescript-eslint/no-unused-vars
+  // F-225 (P2/P3): Projektmeldung an eine Instanz
+  if (typeof v.project === 'string' && v.project) {
+    f.project = v.project;
+    if (typeof v.to === 'string' && v.to) f.to = v.to;
+  }
+  const { kind: _k, title: _t, place: _p, env: _e, project: _pr, to: _to, ...rest } = v; // eslint-disable-line @typescript-eslint/no-unused-vars
   f = applyPatch(f, rest);
   return { ws: withFeedback(ws, [...feedbackOf(ws), f]), id: f.id };
 }
@@ -260,8 +265,35 @@ export function undoRemoveFeedback(ws: Workspace, u: FeedbackUndo): Workspace {
 }
 
 /** FB3: noch offene Felder je Art (für „noch offen: …“ und den Hinweis an der Karte). */
-export function missingOf(f: Feedback): (FeedbackText | 'severity')[] {
-  return WANTED[f.kind].filter((k) => (k === 'severity' ? !f.severity : !f[k]));
+export function missingOf(f: Feedback, form?: FeedbackForm): (FeedbackText | 'severity')[] {
+  // F-225 (P4): im Projekt zählen zusätzlich die Pflichtfelder, ausgeschaltete Felder nie
+  const want = [...new Set([...(form?.required ?? []), ...WANTED[f.kind]])].filter((k) => !form?.off?.includes(k as FeedbackText));
+  return want.filter((k) => (k === 'severity' ? !f.severity : !f[k as FeedbackText]));
+}
+
+/** F-225 (V105, P4): Formular eines Projekts – Felder aus, Pflichtfelder (nur bekannte Felder). */
+export interface FeedbackForm {
+  off: FeedbackText[];
+  required: (FeedbackText | 'severity')[];
+}
+const FORM_KEYS: readonly (FeedbackText | 'severity')[] = [...FEEDBACK_TEXTS, 'severity'];
+export function formOf(raw: { off?: string[]; required?: string[] } | undefined): FeedbackForm {
+  const off = FEEDBACK_TEXTS.filter((k) => raw?.off?.includes(k) && k !== 'what');
+  const required = FORM_KEYS.filter((k) => raw?.required?.includes(k) && !off.includes(k as FeedbackText));
+  return { off, required };
+}
+/** F-225 (P4): Feld an/aus bzw. Pflicht umschalten – „Was ist passiert“ bleibt immer an. */
+export function toggleForm(raw: { off?: string[]; required?: string[] } | undefined, key: FeedbackText | 'severity', what: 'off' | 'required'): { off?: string[]; required?: string[] } | undefined {
+  const f = formOf(raw);
+  if (what === 'off') {
+    if (key === 'severity' || key === 'what') return raw;
+    f.off = f.off.includes(key) ? f.off.filter((k) => k !== key) : [...f.off, key];
+    f.required = f.required.filter((k) => !f.off.includes(k as FeedbackText));
+  } else {
+    f.required = f.required.includes(key) ? f.required.filter((k) => k !== key) : [...f.required, key];
+  }
+  const out = { ...(f.off.length ? { off: [...f.off] } : {}), ...(f.required.length ? { required: [...f.required] } : {}) };
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** FB3: Ähnliche Meldungen nach gemeinsamen Wörtern im Titel (≥ 4 Zeichen, mind. die Hälfte). */
@@ -288,9 +320,12 @@ export interface FeedbackFilter {
   severities?: FeedbackSeverity[];
   /** Suche in Titel und Texten */
   q?: string;
+  /** F-225 (P7): Id = nur dieses Projekt, null = nur Meldungen an E-Sources, fehlt = alle */
+  project?: string | null;
 }
 
 export function matches(f: Feedback, flt: FeedbackFilter): boolean {
+  if (flt.project !== undefined && (f.project ?? null) !== flt.project) return false;
   if (flt.kinds?.length && !flt.kinds.includes(f.kind)) return false;
   if (flt.severities?.length && (!f.severity || !flt.severities.includes(f.severity))) return false;
   if (flt.q && flt.q.trim()) {
@@ -321,7 +356,9 @@ export function feedbackList(ws: Workspace, flt: FeedbackFilter = {}): Feedback[
 }
 
 /** Zahl neuer Meldungen (Abzeichen am Knopf „Feedback“). */
-export const newCount = (ws: Workspace): number => feedbackOf(ws).filter((f) => f.state === 'new').length;
+export const newCount = (ws: Workspace): number => feedbackOf(ws).filter((f) => f.state === 'new' && !f.project).length;
+/** F-225: neue Projektmeldungen eines Projekts. */
+export const newCountOf = (ws: Workspace, project: string): number => feedbackOf(ws).filter((f) => f.state === 'new' && f.project === project).length;
 
 /** FB12: Soll „War das Melden einfach?“ gefragt werden? */
 export const askEase = (ws: Workspace): boolean => ws.feedbackPrefs?.askEase !== false;
@@ -424,9 +461,12 @@ function markLabel(m: FeedbackMark): string {
 export interface ExportOpts {
   onlyNew?: boolean;
   now?: Date;
+  /** F-225: Id = nur dieses Projekt, null = nur an E-Sources, fehlt = alle */
+  project?: string | null;
 }
 
-const pickExport = (ws: Workspace, o: ExportOpts) => feedbackOf(ws).filter((f) => !o.onlyNew || f.state === 'new');
+const pickExport = (ws: Workspace, o: ExportOpts) =>
+  feedbackOf(ws).filter((f) => (!o.onlyNew || f.state === 'new') && (o.project === undefined || (f.project ?? null) === o.project));
 
 /** FB10: alle (bzw. nur neue) Meldungen als Markdown – Claude liest die Datei zu Beginn eines Chats. */
 export function feedbackFileMarkdown(ws: Workspace, o: ExportOpts = {}): string {
@@ -501,6 +541,10 @@ export function parseFeedback(v: unknown): Feedback[] {
       at: r.at,
     };
     if (isIso(r.changed)) f.changed = r.changed;
+    if (typeof r.project === 'string' && r.project) {
+      f.project = r.project;
+      if (typeof r.to === 'string' && r.to) f.to = r.to;
+    }
     const place = parsePlace(r.place);
     if (place) f.place = place;
     const env = parseEnv(r.env);

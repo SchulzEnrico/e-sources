@@ -21,7 +21,9 @@ import { openNote } from './SourceChips';
 import { ProjectPsp } from './ProjectPsp';
 import { ProjectGantt } from './ProjectGantt';
 import { ProjectDecisions } from './ProjectDecisions';
-import { PSP_TEXT } from '../workspace/terms';
+import { ProjectFeedback } from './ProjectFeedback';
+import { PROJECT_FEEDBACK_TEXT, PSP_TEXT } from '../workspace/terms';
+import * as Ps from '../workspace/persons';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 /** 2026-12-21 → 21.12.2026 */
@@ -34,8 +36,8 @@ const euro = (n: number) => `${n.toLocaleString('de-DE', { maximumFractionDigits
 const TASKS_SHOWN = 12;
 
 /** V100 (J2): Ansicht rechts neben der Projektliste – je Gerät gemerkt; weitere (Gantt …) folgen. */
-type ProjectView = 'brief' | 'psp' | 'gantt' | 'decide';
-const VIEWS: ProjectView[] = ['brief', 'psp', 'gantt', 'decide'];
+type ProjectView = 'brief' | 'psp' | 'gantt' | 'decide' | 'feedback';
+const VIEWS: ProjectView[] = ['brief', 'psp', 'gantt', 'decide', 'feedback'];
 const VIEW_KEY = 'esource.projectView.v1';
 function loadView(): ProjectView {
   try {
@@ -46,11 +48,16 @@ function loadView(): ProjectView {
   }
 }
 
+/** F-225 (V105, P2): zuletzt gezeigtes Projekt – das Feedback-Fenster meldet im Projekt-Modus dorthin. */
+let lastShown: string | undefined;
+export const shownProjectId = (): string | undefined => lastShown;
+
 export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void }) {
   const rowsAll = Pj.projectRows(ws);
   const list = rowsAll.map((r) => r.project);
   const [sel, setSel] = useState<string | null>(list[0]?.id ?? null);
   const shown = list.find((p) => p.id === sel) ?? list[0];
+  lastShown = shown?.id;
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newParent, setNewParent] = useState('');
@@ -152,7 +159,7 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
     !d ? <span className="lc__muted">{T.none}</span> : derived ? <span className="pj__derived" title={T.derivedHint}>{dmy(d)}<span className="sr-only"> ({T.derived})</span></span> : dmy(d);
 
   return (
-    <section className={`lc__group pc pj${view === 'psp' ? ' is-psp' : view === 'gantt' || view === 'decide' ? ' is-gantt' : ''}`} aria-labelledby="pj-head">
+    <section className={`lc__group pc pj${view === 'psp' ? ' is-psp' : view === 'gantt' || view === 'decide' || view === 'feedback' ? ' is-gantt' : ''}`} aria-labelledby="pj-head">
       <header className="lc__head lc__band">
         <Icon name="project" size={15} className="icon icon--inline" />
         <h3 id="pj-head" className="lc__head-title" title={explain(TERMS.projects)}>
@@ -317,7 +324,9 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
             {error && !adding && <p className="layouts__error" role="alert">{error}</p>}
           </div>
 
-          {view === 'decide' ? (
+          {view === 'feedback' ? (
+            <ProjectFeedback key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
+          ) : view === 'decide' ? (
             <ProjectDecisions key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
           ) : view === 'gantt' ? (
             <ProjectGantt key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} onPickProject={(id) => (setSel(id), setViewState('brief'), focusRow(id))} />
@@ -493,6 +502,8 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove }:
         ))}
       </fieldset>
 
+      <ProjectRoles ws={ws} p={p} dispatch={dispatch} say={say} />
+
       <fieldset className="pc__set">
         <legend>{T.figures}</legend>
         <p className="pc__load">
@@ -525,5 +536,52 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove }:
         {tasks.length > TASKS_SHOWN && <p className="lc__muted">{T.tasksMore(tasks.length - TASKS_SHOWN)}</p>}
       </fieldset>
     </section>
+  );
+}
+
+/** F-225 (V105, P3): Instanzen der Projektorganisation (ICB4 Governance) – Empfänger von Projektmeldungen. */
+function ProjectRoles({ ws, p, dispatch, say }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void }) {
+  const R = PROJECT_FEEDBACK_TEXT;
+  const roles = Pj.rolesOf(p);
+  const people = Ps.personList(ws);
+  const [add, setAdd] = useState('');
+  const [msg, setMsg] = useState('');
+  const apply = (op: Parameters<typeof Pj.editRoles>[2], text: string) => {
+    const next = Pj.projectById(Pj.editRoles(ws, p.id, op), p.id);
+    if (!next || next.roles === undefined || JSON.stringify(next.roles) === JSON.stringify(Pj.rolesOf(p))) return;
+    dispatch({ type: 'projectEdit', id: p.id, patch: { roles: next.roles } });
+    setMsg(text);
+    say(text);
+  };
+  return (
+    <fieldset className="pc__set pj__roles" title={R.rolesHint}>
+      <legend>{R.roles}</legend>
+      <p className="lc__muted pj__rolesIntro">{R.rolesHint}</p>
+      <ul className="pc__list pj__roleList">
+        {roles.map((r) => (
+          <li key={r.id} className="pj__role">
+            <input type="text" defaultValue={r.name} maxLength={60} aria-label={R.roleName(r.name)} onBlur={(e) => e.target.value.trim() !== r.name && apply({ kind: 'name', role: r.id, name: e.target.value }, R.renamed(e.target.value.trim()))} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
+            <select value={r.person ?? ''} aria-label={R.rolePerson(r.name)} onChange={(e) => apply({ kind: 'person', role: r.id, person: e.target.value || undefined }, R.assigned(r.name, people.find((x) => x.id === e.target.value)?.name))}>
+              <option value="">{R.nobody}</option>
+              {people.map((x) => (
+                <option key={x.id} value={x.id}>{x.name}</option>
+              ))}
+            </select>
+            {roles.length > 1 && (
+              <button type="button" className="help__run pc__x" aria-label={R.roleRemove(r.name)} title={R.roleRemove(r.name)} onClick={() => apply({ kind: 'remove', role: r.id }, R.removed(r.name))}>
+                <Icon name="close" size={11} />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {roles.length < Pj.ROLES_MAX && (
+        <form className="pc__row" onSubmit={(e) => (e.preventDefault(), add.trim() && (apply({ kind: 'add', name: add, rid: `r-${Date.now().toString(36)}` }, R.added(add.trim())), setAdd('')))}>
+          <input type="text" value={add} maxLength={60} placeholder={R.addPh} aria-label={R.addPh} onChange={(e) => setAdd(e.target.value)} />
+          <button type="submit" className="help__run">{R.add}</button>
+        </form>
+      )}
+      {msg && <p className="layouts__undo" role="status">{msg}</p>}
+    </fieldset>
   );
 }

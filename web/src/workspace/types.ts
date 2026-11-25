@@ -344,6 +344,10 @@ export interface Feedback {
   kind: FeedbackKind;
   title: string;
   state: FeedbackState;
+  /** F-225 (V105, P2): Projektmeldung – Id des Projekts; fehlt = Meldung an E-Sources */
+  project?: string;
+  /** F-225 (P3): Empfänger – Id der Instanz (Rolle) im Projekt */
+  to?: string;
   /** ISO-Zeitpunkt der Meldung */
   at: string;
   /** ISO-Zeitpunkt der letzten Änderung */
@@ -730,8 +734,20 @@ export interface Project {
    * Ebene auch Teilprojekte. Fehlende Ids hängt der PSP hinten an, unbekannte überspringt er.
    */
   order?: Record<string, string[]>;
+  /** F-225 (V105, P3): Instanzen der Projektorganisation (ICB4 Governance) – fehlt = Vorgabe Projektleitung, Lenkungskreis, Auftraggeber. */
+  roles?: ProjectRole[];
+  /** F-225 (P4/P5): Formular für Projektmeldungen – Felder aus und Pflichtfelder. */
+  feedbackForm?: { off?: string[]; required?: string[] };
   created: number;
   changed: number;
+}
+
+/** F-225 (V105, P3): Instanz im Projekt – Rolle mit Person oder Team. */
+export interface ProjectRole {
+  id: string;
+  name: string;
+  /** Person-Id */
+  person?: string;
 }
 
 /** F-206 Schritt 10 (V100, K5): Soll eines Vorgangs im Basisplan. */
@@ -759,7 +775,8 @@ export interface ProjectBaseline {
 }
 
 /** V65: Befugnisse einer Person (AKV). */
-export type PersonRight = 'release' | 'spend' | 'decide' | 'accept';
+/** V105 (F-224): 'feedback' = „Feedback bearbeiten“ – als einzige nicht ab Werk (Ausnahme von P18). */
+export type PersonRight = 'release' | 'spend' | 'decide' | 'accept' | 'feedback';
 
 /** F-206 (V65, M4): Person, Team oder Rolle – lokal in der Arbeitsfläche, später mit Konto. */
 export interface Person {

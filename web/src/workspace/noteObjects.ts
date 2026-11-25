@@ -31,7 +31,7 @@ export const NOTE_TYPES: readonly NoteType[] = ['requirement', 'risk', 'stakehol
 export const FOCUS_VIEWS: readonly FocusView[] = ['line', 'week', 'ring', 'grid'];
 const PROJECT_STATES: readonly NonNullable<Project['state']>[] = ['idea', 'planned', 'running', 'paused', 'done', 'stopped'];
 const PERSON_KINDS: readonly Person['kind'][] = ['person', 'team', 'role'];
-const RIGHTS: readonly PersonRight[] = ['release', 'spend', 'decide', 'accept'];
+const RIGHTS: readonly PersonRight[] = ['release', 'spend', 'decide', 'accept', 'feedback'];
 const REPEATS: readonly NonNullable<NoteRemind['repeat']>[] = ['day', 'week', 'month', 'year'];
 const EDGES: readonly NonNullable<PadDesk['dock']>['edge'][] = ['left', 'right', 'top', 'bottom'];
 
@@ -163,6 +163,20 @@ export function parseProjects(v: unknown, scopeIds: ReadonlySet<string>): Projec
         ...(text(r.brief.org) ? { org: r.brief.org as string } : {}),
       };
       if (Object.keys(brief).length) p.brief = brief;
+    }
+    // F-225 (V105): Instanzen und Formular für Projektmeldungen
+    if (Array.isArray(r.roles)) {
+      const roles = r.roles
+        .filter((x): x is Record<string, unknown> => isObj(x) && typeof x.id === 'string' && !!x.id && !!text(x.name))
+        .slice(0, 12)
+        .map((x) => ({ id: x.id as string, name: (x.name as string).slice(0, 60), ...(typeof x.person === 'string' && x.person ? { person: x.person } : {}) }))
+        .filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i);
+      if (roles.length) p.roles = roles;
+    }
+    if (isObj(r.feedbackForm)) {
+      const keys = (v: unknown) => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string' && /^[a-zA-Z]{2,20}$/.test(x)))] : []);
+      const off = keys(r.feedbackForm.off), required = keys(r.feedbackForm.required);
+      if (off.length || required.length) p.feedbackForm = { ...(off.length ? { off } : {}), ...(required.length ? { required } : {}) };
     }
     if (isDay(r.start)) p.start = r.start;
     if (isDay(r.end)) p.end = r.end;

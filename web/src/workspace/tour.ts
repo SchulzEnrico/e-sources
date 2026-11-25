@@ -619,8 +619,8 @@ export const TOURS: Record<TourId, TourStep[]> = {
       id: 'triage',
       title: 'Bearbeitung',
       target: `${C}.is-feedback .fbb__triage`,
-      when: `${C}.is-feedback .fbb__board`,
-      text: 'Für die Entwicklung: zeigt das Board mit dem Zustand und in den Karten Zustand, Bezüge, Vermerke und „Behoben in“. Gilt nur auf diesem Gerät.',
+      when: `${C}.is-feedback .fbb__triage`,
+      text: 'Nur mit der Befugnis „Feedback bearbeiten“ (Cockpit „Personen“): zeigt das Board mit dem Zustand und in den Karten Zustand, Bezüge, Vermerke und „Behoben in“. Gilt nur auf diesem Gerät.',
     },
     {
       id: 'again',

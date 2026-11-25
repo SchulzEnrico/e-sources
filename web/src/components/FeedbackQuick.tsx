@@ -10,6 +10,10 @@ import type { FeedbackEnv, FeedbackKind, FeedbackPlace, Workspace } from '../wor
 import { FEEDBACK_KINDS, similarFeedback } from '../workspace/feedback';
 import { FEEDBACK_TEXT as T } from '../workspace/terms';
 import { ModeWheel } from './ModeWheel';
+import * as Pj from '../workspace/projects';
+import { personById } from '../workspace/persons';
+
+const APP = 'app';
 import { Icon } from './Icon';
 
 export type Anchor = { top: number; left: number; bottom: number; right: number };
@@ -53,7 +57,9 @@ export function FeedbackQuick(props: {
   askEase: boolean;
   /** Art beim Öffnen (z. B. aus „Fehler melden …“) */
   kind?: FeedbackKind;
-  onSave: (v: { kind: FeedbackKind; title: string }) => string | null;
+  onSave: (v: { kind: FeedbackKind; title: string; project?: string; to?: string }) => string | null;
+  /** F-225 (V105, P2): Projekt beim Öffnen (Projekt-Modus: das offene Projekt); fehlt = an E-Sources */
+  project?: string;
   onUndo: (id: string) => void;
   onEase: (id: string, n: number) => void;
   onNeverAsk: () => void;
@@ -67,6 +73,13 @@ export function FeedbackQuick(props: {
   const titleRef = useRef<HTMLInputElement>(null);
   const [kind, setKind] = useState<FeedbackKind>(props.kind ?? 'bug');
   const [title, setTitle] = useState('');
+  // F-225 (P2/P3): Rad „An“ – E-Sources oder ein Projekt, im Projekt die Instanz
+  const targets = Pj.reportableProjects(props.ws);
+  const [to, setTo] = useState<string>(props.project && Pj.projectById(props.ws, props.project) ? props.project : APP);
+  const toProject = to === APP ? undefined : Pj.projectById(props.ws, to);
+  const roles = Pj.rolesOf(toProject);
+  const [role, setRole] = useState<string>(roles[0]?.id ?? '');
+  const roleNow = roles.some((r) => r.id === role) ? role : roles[0]?.id ?? '';
   const [miss, setMiss] = useState(false);
   const [saved, setSaved] = useState<{ id: string; title: string } | null>(null);
   const [eased, setEased] = useState(false);
@@ -103,7 +116,7 @@ export function FeedbackQuick(props: {
       titleRef.current?.focus();
       return;
     }
-    const id = props.onSave({ kind, title: t });
+    const id = props.onSave({ kind, title: t, ...(toProject ? { project: toProject.id, ...(roleNow ? { to: roleNow } : {}) } : {}) });
     if (!id) return;
     if (then === 'elaborate' && props.onElaborate) return props.onElaborate(id);
     setSaved({ id, title: t });
@@ -157,6 +170,29 @@ export function FeedbackQuick(props: {
             />
             <span className="fbq__hint">{T.kindHints[kind]}</span>
           </div>
+          {(targets.length > 0 || toProject) && (
+            <div className="fbq__kind fbq__to">
+              <span className="fbq__label">{T.toLabel}</span>
+              <ModeWheel
+                label={T.toLabel}
+                options={[{ id: APP, name: T.toApp, hint: T.toAppHint }, ...targets.map((p) => ({ id: p.id, name: p.name, hint: T.toProjectHint }))]}
+                value={to}
+                onChange={setTo}
+              />
+              {toProject && (
+                <>
+                  <span className="fbq__label">{T.roleLabel}</span>
+                  <ModeWheel
+                    label={T.roleLabel}
+                    options={roles.map((r) => ({ id: r.id, name: r.name, hint: personById(props.ws, r.person)?.name ?? T.roleNobody }))}
+                    value={roleNow}
+                    onChange={setRole}
+                  />
+                </>
+              )}
+              <span className="fbq__hint">{toProject ? T.toRoleHint(personById(props.ws, roles.find((r) => r.id === roleNow)?.person)?.name) : T.toAppHint}</span>
+            </div>
+          )}
           <label className="fbq__title">
             <span className="fbq__label">{T.titleLabel}</span>
             <input

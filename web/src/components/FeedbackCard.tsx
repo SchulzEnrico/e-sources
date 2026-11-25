@@ -10,6 +10,8 @@ import { type ClipboardEvent, type Dispatch, useEffect, useRef, useState } from 
 import type { Action } from '../workspace/useWorkspace';
 import type { Feedback, FeedbackKind, FeedbackSeverity, FeedbackState, Workspace } from '../workspace/types';
 import * as Fb from '../workspace/feedback';
+import * as Ps from '../workspace/persons';
+import * as Pj from '../workspace/projects';
 import { getPic, putPic, shrinkImage } from '../workspace/imageStore';
 import { newId } from '../workspace/workspace';
 import { FEEDBACK_CARD_TEXT as C, FEEDBACK_TEXT as T } from '../workspace/terms';
@@ -124,7 +126,8 @@ export function FeedbackCard(props: {
   const [markKind, setMarkKind] = useState<'note' | 'decision' | 'ref'>('note');
   const [markText, setMarkText] = useState('');
   const by = ws.profile?.name || undefined;
-  const triage = props.triage ?? loadTriage();
+  // V105 (F-224): ohne Befugnis „Feedback bearbeiten“ nie Bearbeitung
+  const triage = (props.triage ?? loadTriage()) && Ps.canTriage(ws);
   const timer = useRef(0);
 
   useEffect(() => {
@@ -168,13 +171,17 @@ export function FeedbackCard(props: {
     props.onClose();
   };
 
-  const missing = Fb.missingOf(f);
+  // F-225 (V105, P4): Projektmeldung – Formular des Projekts (Felder aus, Pflicht)
+  const proj = f.project ? Pj.projectById(ws, f.project) : undefined;
+  const form = proj ? Fb.formOf(proj.feedbackForm) : undefined;
+  const role = proj ? Pj.roleOf(proj, f.to) : undefined;
+  const missing = Fb.missingOf(f, form);
   const label = (k: Field | 'severity') => Fb.FILE_LABELS.field[k];
   const jump = (k: Field | 'severity') => {
     if (k !== 'severity' && !SHOWN[f.kind].includes(k)) setAll(true);
     window.setTimeout(() => document.getElementById(fieldId(id, k))?.focus(), 0);
   };
-  const shown = (k: Field) => all || SHOWN[f.kind].includes(k) || !!f[k];
+  const shown = (k: Field) => !form?.off.includes(k) && (all || SHOWN[f.kind].includes(k) || !!f[k] || !!form?.required.includes(k));
 
   const textField = (k: Field) => {
     const long = k !== 'expected' && k !== 'actual';
@@ -274,7 +281,7 @@ export function FeedbackCard(props: {
     >
       <header className="cardwin__head">
         <span className="cardwin__where">
-          <Icon name="feedback" size={13} /> {C.head} · {T.kinds[f.kind]}{triage ? ` · ${C.states[f.state]}` : ''}
+          <Icon name="feedback" size={13} /> {C.head} · {T.kinds[f.kind]}{proj ? ` · ${proj.name}${role ? ` › ${role.name}` : ''}` : ''}{triage ? ` · ${C.states[f.state]}` : ''}
         </span>
         <button type="button" className="cardwin__x" onClick={finish} title={C.close} aria-label={C.close}>
           <Icon name="close" size={14} />

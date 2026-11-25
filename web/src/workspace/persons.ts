@@ -15,7 +15,9 @@ export const ME_ID = 'pn-ich';
 /** P9: Kapazität ab Werk (Stunden je Woche, Mo–Fr). */
 export const CAPACITY_DEFAULT = 40;
 export const PERSONS_MAX = 200;
-export const ALL_RIGHTS: readonly PersonRight[] = ['release', 'spend', 'decide', 'accept'];
+export const ALL_RIGHTS: readonly PersonRight[] = ['release', 'spend', 'decide', 'accept', 'feedback'];
+/** V105 (F-224 R2): Befugnisse, die „ich“ ohne gesetzte Befugnisse NICHT hat – nur ausdrücklich gesetzt. */
+export const EXPLICIT_RIGHTS: readonly PersonRight[] = ['feedback'];
 
 export const personsOf = (ws: Workspace): Person[] => ws.persons ?? [];
 export const personById = (ws: Workspace, id: string | undefined): Person | undefined =>
@@ -216,7 +218,7 @@ export function limitOf(ws: Workspace, id: string): { count: number; limit?: num
 /** P18: Befugnis – „ich“ ohne gesetzte Befugnisse hat alle. */
 export function hasRight(p: Person | undefined, right: PersonRight): boolean {
   if (!p) return false;
-  if (!p.rights) return !!p.me;
+  if (!p.rights) return !!p.me && !EXPLICIT_RIGHTS.includes(right);
   return p.rights.includes(right);
 }
 
@@ -302,3 +304,6 @@ export function memberChoices(ws: Workspace, team: Person): Person[] {
   };
   return personList(ws).filter((p) => p.id !== team.id && !contains(p));
 }
+
+/** V105 (F-224 R1–R4): darf „ich“ Feedback bearbeiten (Board, Zustand, Bezüge, Vermerke, „Behoben in“)? */
+export const canTriage = (ws: Workspace): boolean => hasRight(meOf(ws), 'feedback');

@@ -4,7 +4,7 @@
  * Vorgehen, Organisation). Datenmodell `Project` besteht seit v8 (types.ts); Vorgang = Notiz mit `project`.
  * Reine Funktionen, Tests in workspace.test.ts („F-206 Schritt 10 Projekte“).
  */
-import type { Note, Project, Workspace } from './types';
+import type { Note, Project, ProjectRole, Workspace } from './types';
 import { dayOf, isFinished, notesOf } from './notes';
 import { cleanName } from './profile';
 
@@ -242,3 +242,40 @@ export function briefGaps(p: Project): ('goal' | 'approach' | 'org' | 'start' | 
 
 /** Ende vor Start? */
 export const datesClash = (p: Pick<Project, 'start' | 'end'>): boolean => !!p.start && !!p.end && p.end < p.start;
+
+// ---------- F-225 (V105): Instanzen und Formular für Projektmeldungen ----------
+
+/** P3: Vorgabe-Instanzen nach IPMA ICB4 (Governance): Projektleitung, Lenkungskreis, Auftraggeber. */
+export const DEFAULT_ROLES: readonly ProjectRole[] = [
+  { id: 'lead', name: 'Projektleitung' },
+  { id: 'steering', name: 'Lenkungskreis' },
+  { id: 'client', name: 'Auftraggeber' },
+];
+export const ROLES_MAX = 12;
+export const rolesOf = (p: Project | undefined): ProjectRole[] => (p?.roles ?? DEFAULT_ROLES).map((r) => ({ ...r }));
+export const roleOf = (p: Project | undefined, id: string | undefined): ProjectRole | undefined => (id ? rolesOf(p).find((r) => r.id === id) : undefined);
+
+/** P3: Instanzen ändern – Name (leer = bleibt), Person zuordnen, hinzufügen, entfernen. */
+export function editRoles(ws: Workspace, id: string, op: { kind: 'name'; role: string; name: string } | { kind: 'person'; role: string; person?: string } | { kind: 'add'; name: string; rid: string } | { kind: 'remove'; role: string }): Workspace {
+  const p = projectById(ws, id);
+  if (!p) return ws;
+  let roles = rolesOf(p);
+  if (op.kind === 'add') {
+    const name = op.name.replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (!name || roles.length >= ROLES_MAX || roles.some((r) => r.id === op.rid)) return ws;
+    roles = [...roles, { id: op.rid, name }];
+  } else if (op.kind === 'remove') {
+    if (roles.length <= 1) return ws;
+    roles = roles.filter((r) => r.id !== op.role);
+  } else if (op.kind === 'name') {
+    const name = op.name.replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (!name) return ws;
+    roles = roles.map((r) => (r.id === op.role ? { ...r, name } : r));
+  } else {
+    roles = roles.map((r) => (r.id === op.role ? (op.person ? { ...r, person: op.person } : { id: r.id, name: r.name }) : r));
+  }
+  return editProject(ws, id, { roles });
+}
+
+/** P2: Projekte, an die man melden kann (laufend, geplant, Idee, pausiert – nicht erledigt/abgebrochen). */
+export const reportableProjects = (ws: Workspace): Project[] => projectsOf(ws).filter((p) => p.state !== 'done' && p.state !== 'stopped');

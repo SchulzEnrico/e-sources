@@ -159,6 +159,18 @@ describe('V95 Ressourcentabelle', () => {
     expect(choices).not.toContain('Team B');
     expect(choices).not.toContain('Team A');
   });
+  it('F-224: „Feedback bearbeiten“ nicht ab Werk, nur ausdrücklich gesetzt', () => {
+    expect(P.hasRight({ ...base, me: true }, 'feedback')).toBe(false);
+    expect(P.rightsOf({ ...base, me: true })).not.toContain('feedback');
+    expect(P.hasRight({ ...base, me: true, rights: ['feedback'] }, 'feedback')).toBe(true);
+    let ws = P.ensureMe(defaultWorkspace());
+    expect(P.canTriage(ws)).toBe(false);
+    ws = P.editPerson(ws, P.ME_ID, { rights: [...P.rightsOf(P.meOf(ws)), 'feedback'] });
+    expect(P.canTriage(ws)).toBe(true);
+    expect(P.hasRight(P.meOf(ws), 'accept')).toBe(true);
+    ws = P.editPerson(ws, P.ME_ID, { rights: P.rightsOf(P.meOf(ws)).filter((r) => r !== 'feedback') });
+    expect(P.canTriage(ws)).toBe(false);
+  });
   it('ich ohne Befugnisse bleibt ohne', () => {
     let ws = P.ensureMe(defaultWorkspace());
     ws = P.editPerson(ws, P.ME_ID, { rights: [] });

@@ -12,8 +12,9 @@ import * as Psp from '../workspace/psp';
 import * as Sc from '../workspace/schedule';
 import { hoursText } from '../workspace/focusLoad';
 import { newId } from '../workspace/workspace';
-import { noteById } from '../workspace/notes';
-import { PSP_TEXT as T, TERMS } from '../workspace/terms';
+import { noteById, titleOf } from '../workspace/notes';
+import * as Gt from '../workspace/gantt';
+import { GANTT_TEXT as G, PSP_TEXT as T, TERMS } from '../workspace/terms';
 import { noticeLater } from '../workspace/flash';
 import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
@@ -21,16 +22,19 @@ import { openNote } from './SourceChips';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 const STYLES: Psp.PspStyle[] = ['num', 'alpha', 'mixed'];
+/** „2026-12-01“ → „01.12.26“ (wie MS Project). */
+export const fmtDay = (d: string) => (d ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(2, 4)}` : '');
 
-export function ProjectPsp({ ws, p, dispatch, say, onPickProject }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void; onPickProject: (id: string) => void }) {
+/**
+ * V101: gemeinsame Bedienung von PSP und Gantt (NF-08 – gleiche Tasten an derselben Stelle): Auswahl,
+ * Zu-/Aufklappen, Verschieben, Stufen, Anlegen, Meldung am Ort.
+ */
+export function usePspTree(ws: Workspace, p: Project, dispatch: (a: Action) => void, say: (t: string) => void, onPickProject: (id: string) => void, extraKey?: (e: KeyboardEvent, id: string) => boolean) {
   const tree = Psp.pspTree(ws, p.id);
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const rows = Psp.pspRows(tree, closed);
   const [sel, setSel] = useState<string | null>(rows[0]?.id ?? null);
   const cur = rows.find((r) => r.id === sel) ?? rows[0];
-  const [adding, setAdding] = useState(false);
-  const [title, setTitle] = useState('');
-  const [prefix, setPrefix] = useState(p.psp?.prefix ?? '');
   const [note, setNote] = useState('');
   const refs = useRef(new Map<string, HTMLButtonElement>());
   const durRef = useRef<HTMLInputElement>(null);
@@ -53,18 +57,17 @@ export function ProjectPsp({ ws, p, dispatch, say, onPickProject }: { ws: Worksp
       return n;
     });
 
-  const create = (under: boolean) => {
-    const t = title.trim();
-    if (!t) return;
+  const create = (t: string, under: boolean): boolean => {
+    if (!t) return false;
     const id = newId();
     const opts = under && cur ? { under: cur.id } : cur ? { after: cur.id } : {};
     const r = Psp.addPspTask(ws, p.id, t, { id, ...opts });
-    if (!r) return;
+    if (!r) return false;
     dispatch({ type: 'pspAdd', project: p.id, title: t, note: id, ...opts });
     if (under && cur) toggle(cur.id, true);
-    setTitle('');
     setSel(id);
     tell(`${T.created(t)} ${T.moved(codeAfter(r.ws, id))}`);
+    return true;
   };
 
   const shift = (id: string, out: boolean) => {
@@ -84,6 +87,7 @@ export function ProjectPsp({ ws, p, dispatch, say, onPickProject }: { ws: Worksp
 
   const onKey = (e: KeyboardEvent, i: number) => {
     const r = rows[i];
+    if (extraKey?.(e, r.id)) return;
     const alt = e.altKey;
     if (alt && e.shiftKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) return e.preventDefault(), shift(r.id, e.key === 'ArrowLeft');
     if (alt && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) return e.preventDefault(), move(r.id, e.key === 'ArrowUp' ? -1 : 1);
@@ -108,6 +112,19 @@ export function ProjectPsp({ ws, p, dispatch, say, onPickProject }: { ws: Worksp
     setSel(rows[j].id);
     focusRow(rows[j].id);
   };
+  const rowRef = (id: string) => (el: HTMLButtonElement | null) => {
+    if (el) refs.current.set(id, el);
+    else refs.current.delete(id);
+  };
+  return { tree, rows, closed, toggle, sel, setSel, cur, note, tell, durRef, focusRow, onKey, rowRef, create, later };
+}
+
+export function ProjectPsp({ ws, p, dispatch, say, onPickProject }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void; onPickProject: (id: string) => void }) {
+  const { rows, closed, toggle, setSel, cur, note, tell, durRef, focusRow, onKey, rowRef, create: make } = usePspTree(ws, p, dispatch, say, onPickProject);
+  const [adding, setAdding] = useState(false);
+  const [title, setTitle] = useState('');
+  const [prefix, setPrefix] = useState(p.psp?.prefix ?? '');
+  const create = (under: boolean) => make(title.trim(), under) && setTitle('');
 
   const savePrefix = () => {
     const v = prefix.trim();
@@ -192,10 +209,7 @@ export function ProjectPsp({ ws, p, dispatch, say, onPickProject }: { ws: Worksp
                         )}
                         <button
                           type="button"
-                          ref={(el) => {
-                            if (el) refs.current.set(r.id, el);
-                            else refs.current.delete(r.id);
-                          }}
+                          ref={rowRef(r.id)}
                           className="pc__name"
                           tabIndex={on ? 0 : -1}
                           aria-label={T.rowLabel(r.code, r.title, extra)}
@@ -224,17 +238,21 @@ export function ProjectPsp({ ws, p, dispatch, say, onPickProject }: { ws: Worksp
         </div>
       )}
       {note && <p className="layouts__undo" role="status">{note}</p>}
-      {cur && <TaskInfo key={cur.id} ws={ws} node={cur} dispatch={dispatch} tell={tell} durRef={durRef} onPickProject={onPickProject} />}
+      {cur && <TaskInfo key={cur.id} ws={ws} projectId={p.id} node={cur} dispatch={dispatch} tell={tell} durRef={durRef} onPickProject={onPickProject} />}
     </section>
   );
 }
 
 /** Angaben des gewählten Vorgangs (MS Project: „Informationen zum Vorgang“). */
-function TaskInfo({ ws, node, dispatch, tell, durRef, onPickProject }: { ws: Workspace; node: Psp.PspNode; dispatch: (a: Action) => void; tell: (t: string) => void; durRef: React.RefObject<HTMLInputElement>; onPickProject: (id: string) => void }) {
+export function TaskInfo({ ws, projectId, node, dispatch, tell, durRef, predRef, onPickProject }: { ws: Workspace; projectId: string; node: Psp.PspNode; dispatch: (a: Action) => void; tell: (t: string) => void; durRef: React.RefObject<HTMLInputElement>; predRef?: React.RefObject<HTMLInputElement>; onPickProject: (id: string) => void }) {
   const n = node.kind === 'task' ? noteById(ws, node.id) : undefined;
   const info = n ? Sc.durationInfo(n) : null;
   const [dur, setDur] = useState(n?.duration !== undefined ? String(n.duration) : '');
   const [bad, setBad] = useState(false);
+  const g = Gt.ganttOf(ws, projectId);
+  const row = g.byId.get(node.id);
+  const [preds, setPreds] = useState(row ? Gt.predsText(row.preds) : '');
+  const [predErr, setPredErr] = useState('');
   if (!n || !info) {
     return (
       <fieldset className="pc__set">
@@ -252,9 +270,58 @@ function TaskInfo({ ws, node, dispatch, tell, durRef, onPickProject }: { ws: Wor
     if ((v ?? undefined) === n.duration) return;
     plan({ duration: v }, `${T.colDuration}: ${v === null ? T.durationEmpty : T.days(v)}`);
   };
+  const savePreds = () => {
+    if (!row) return;
+    const inp = Gt.parsePredInput(preds, g.rows);
+    if (inp.bad.length) return setPredErr(G.predsBad(inp.bad.join('; ')));
+    const r = Gt.setPreds(ws, projectId, n.id, inp.links);
+    if (!r.ok) {
+      const name = (id?: string) => (id ? `${g.byId.get(id)?.nr ?? ''} ${titleOf(noteById(ws, id)!)}`.trim() : '');
+      return setPredErr(r.reason === 'circle' ? `${G.predsNo.circle}: ${(r.path ?? []).map((id) => g.byId.get(id)?.nr ?? '?').join(' → ')}.` : `${G.predsNo[r.reason]}${r.id && r.reason !== 'self' ? ` (${name(r.id)})` : ''}`);
+    }
+    setPredErr('');
+    const text = Gt.predsText(inp.links.map((l) => ({ ...l, nr: g.byId.get(l.id)?.nr ?? 0 })));
+    setPreds(text);
+    if (text === Gt.predsText(row.preds)) return;
+    dispatch({ type: 'taskPreds', project: projectId, id: n.id, links: inp.links });
+    tell(G.predsSaved(text));
+  };
+  const dates = row?.planned ? G.dates(fmtDay(row.start), fmtDay(row.end), row.days) : G.noDates;
   return (
     <fieldset className="pc__set">
       <legend>{T.info}: {node.code} {node.title}</legend>
+      {row && (
+        <div className="pj__timing">
+          <p>
+            <strong>{G.timing}:</strong> {row.planned ? G.timingText(dates, G.floatDays(row.float)) : dates}
+            {row.critical && <span className="pj__crit-tag"> · {G.critical}</span>}
+            <span className="lc__muted"> · {Sc.isManual(n) ? G.manualFrom : G.derivedFrom}</span>
+          </p>
+          {row.late && row.due && <p className="layouts__error">{G.late(fmtDay(row.due))}</p>}
+          {row.conflict && <p className="layouts__error">{G.conflict(fmtDay(row.conflict))}</p>}
+        </div>
+      )}
+      {row && (
+        <>
+          <label className="layouts__label" title={explain(TERMS.predecessors)}>
+            {G.predsLabel}
+            <input
+              ref={predRef}
+              value={preds}
+              placeholder={G.predsPlaceholder}
+              aria-invalid={!!predErr}
+              aria-describedby="psp-pred-hint"
+              onChange={(e) => (setPreds(e.target.value), setPredErr(''))}
+              onBlur={savePreds}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), savePreds())}
+            />
+          </label>
+          <p id="psp-pred-hint" className={predErr ? 'layouts__error' : 'lc__keys'} role={predErr ? 'alert' : undefined}>
+            {predErr || explain(TERMS.predecessors)}
+            {!predErr && row.outside > 0 && <> {G.outside(row.outside)}</>}
+          </p>
+        </>
+      )}
       <label className="layouts__label" title={explain(TERMS.taskDuration)}>
         {T.durationLabel}
         <input

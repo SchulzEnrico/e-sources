@@ -38,6 +38,7 @@ import * as Ps from './persons';
 import * as Pj from './projects';
 import * as Psp from './psp';
 import * as Sc from './schedule';
+import * as Gt from './gantt';
 import * as Sp from './sampleProject';
 import * as FL from './focusLoad';
 import * as St from './stage';
@@ -214,6 +215,7 @@ export type Action =
   | { type: 'pspMove'; project: string; id: string; by: number }
   | { type: 'pspShift'; project: string; id: string; out: boolean }
   | { type: 'taskPlan'; id: string; plan: Sc.TaskPlan }
+  | { type: 'taskPreds'; project: string; id: string; links: Gt.PredInput['links'] }
   | { type: 'sampleProject'; on: boolean }
   | { type: 'personRestore'; undo: Ps.PersonUndo }
   | { type: 'noteAssign'; id: string; person?: string; by?: string }
@@ -444,6 +446,10 @@ function step(ws: Workspace, a: Action): Workspace {
     }
     case 'taskPlan':
       return Sc.setTaskPlan(ws, a.id, a.plan);
+    case 'taskPreds': {
+      const r = Gt.setPreds(ws, a.project, a.id, a.links);
+      return r.ok ? r.ws : ws;
+    }
     case 'sampleProject':
       return a.on ? Sp.addSampleProject(ws) : Sp.removeSampleProject(ws);
     case 'personRemove':

@@ -138,7 +138,9 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
       title: '',
       text: `${headText(r.name)}\n\n${ms ? 'Meilenstein' : 'PSP-Code im Report:'} CG-${r.code} (Projektreport ColorGentlemen).${r.text ? `\n\n${r.text}` : ''}`,
       project: SAMPLE_PROJECT,
-      notBefore: shift(r.start),
+      // V101: „nicht beginnen vor“ nur ohne Vorgänger (sonst wäre jeder Vorgang auf den Report-Termin
+      // festgelegt wie eine Einschränkung in MS Project); „fällig am“ = Ende im Report = Stichtag (K3)
+      ...(!r.pred && !ROWS.some((x) => x.parent === r.nr) ? { notBefore: shift(r.start) } : {}),
       due: shift(r.end),
       ...(r.parent && byNr.has(r.parent) ? { parent: noteId(r.parent) } : {}),
       ...(ms ? { milestone: true } : { duration: r.days }),

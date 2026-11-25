@@ -30,6 +30,7 @@ import * as Pj from './projects';
 import * as Sc from './schedule';
 import * as Psp from './psp';
 import * as Sp from './sampleProject';
+import * as Gt from './gantt';
 import * as Terms from './terms';
 import * as Rs from './reset';
 import * as Zm from './zoom';
@@ -6177,5 +6178,81 @@ describe('F-206 Schritt 10 Beispielprojekt ColorGentlemen (V100)', () => {
     expect(gone.notes).toHaveLength(0);
     expect(Sp.hasSampleProject(gone)).toBe(false);
     expect((gone.persons ?? []).some((p) => p.id.startsWith('pn-cg-'))).toBe(false);
+  });
+});
+
+describe('F-206 Schritt 10 Gantt (V101)', () => {
+  const base = (): Workspace => ({ ...W.defaultWorkspace(), notes: [] }) as Workspace;
+  const note = (id: string, extra: Partial<Note> = {}): Note => ({ id, title: id, text: '', state: 'open', trail: [], created: 1, changed: 1, ...extra }) as Note;
+  const proj = (notes: Note[], start?: string) => {
+    const r = Pj.addProject(base(), 'Bau', start ? { start } : {})!;
+    return { ws: { ...r.ws, notes: notes.map((n) => ({ ...n, project: r.id })) } as Workspace, pj: r.id };
+  };
+  it('zählt Arbeitstage fortlaufend (Sa/So = nächster Montag)', () => {
+    expect(Sc.workdayNo('2026-11-30') - Sc.workdayNo('2026-11-23')).toBe(5);
+    expect(Sc.workdayNo('2026-11-28')).toBe(Sc.workdayNo('2026-11-30'));
+    expect(Sc.dayOfWorkdayNo(Sc.workdayNo('2027-06-22'))).toBe('2027-06-22');
+    expect(Sc.dayOfWorkdayNo(Sc.workdayNo('2026-12-04') + 1)).toBe('2026-12-07');
+  });
+  it('rechnet ColorGentlemen: kritischer Pfad wie im Report (Abb. 13), Ende ohne Feiertage 6 Tage früher', () => {
+    const ws = Sp.addSampleProject(base(), 5);
+    const g = Gt.ganttOf(ws, Sp.SAMPLE_PROJECT, '2026-11-25');
+    expect(g.start).toBe('2026-12-01');
+    expect(g.end).toBe('2027-06-22');
+    expect(g.critical).toEqual(['cg-32', 'cg-3', 'cg-10', 'cg-34', 'cg-11', 'cg-13', 'cg-24', 'cg-25', 'cg-26', 'cg-8', 'cg-40']);
+    expect(g.byId.get('cg-34')).toMatchObject({ start: '2026-12-31', critical: true });
+    expect(g.byId.get('cg-11')!.start).toBe('2027-01-01');
+    expect(g.byId.get('cg-7')).toMatchObject({ float: 8, critical: false });
+    expect(g.byId.get('cg-2')).toMatchObject({ start: '2026-12-01', end: '2027-06-22', critical: true });
+    expect(g.late).toEqual([]);
+    expect(g.loops).toEqual([]);
+    expect(Gt.predsText(g.byId.get('cg-8')!.preds)).toBe('3; 4; 5; 25AA');
+    expect(g.arrows.filter((a) => a.critical).length).toBeGreaterThan(8);
+  });
+  it('EA/AA/EE/AE mit Abstand, „nicht beginnen vor“, manuell und Stichtag (K3)', () => {
+    const { ws, pj } = proj([
+      note('a', { duration: 5 }),
+      note('b', { duration: 2, after: [{ id: 'a', rel: 'EA', lag: 1 }] }),
+      note('c', { duration: 3, after: [{ id: 'a', rel: 'AA', lag: 2 }] }),
+      note('d', { duration: 2, after: [{ id: 'a', rel: 'EE' }], due: '2026-12-03' }),
+      note('e', { duration: 1, after: [{ id: 'a', rel: 'AE' }], notBefore: '2026-12-09' }),
+      note('f', { duration: 2, manual: true, notBefore: '2026-12-01', after: [{ id: 'b', rel: 'EA' }] }),
+    ], '2026-11-30');
+    const g = Gt.ganttOf(ws, pj);
+    expect(g.byId.get('a')).toMatchObject({ start: '2026-11-30', end: '2026-12-04' });
+    expect(g.byId.get('b')).toMatchObject({ start: '2026-12-08', end: '2026-12-09' });
+    expect(g.byId.get('c')!.start).toBe('2026-12-02');
+    expect(g.byId.get('d')).toMatchObject({ start: '2026-12-03', end: '2026-12-04', late: true });
+    expect(g.byId.get('e')!.start).toBe('2026-12-09');
+    expect(g.byId.get('f')).toMatchObject({ start: '2026-12-01', manual: true, conflict: '2026-12-10' });
+    expect(g.late).toEqual(['d']);
+  });
+  it('Sammelvorgang gibt Vorgänger weiter, Kreis wird gemeldet statt zu hängen', () => {
+    let { ws, pj } = proj([note('x', { duration: 3 }), note('s', { after: [{ id: 'x', rel: 'EA' }] }), note('k', { parent: 's', duration: 2 })], '2026-11-30');
+    let g = Gt.ganttOf(ws, pj);
+    expect(g.byId.get('k')!.start).toBe('2026-12-03');
+    expect(g.byId.get('s')).toMatchObject({ start: '2026-12-03', end: '2026-12-04' });
+    ws = { ...ws, notes: ws.notes!.map((n) => (n.id === 'x' ? { ...n, after: [{ id: 'k', rel: 'EA' as const }] } : n)) };
+    g = Gt.ganttOf(ws, pj);
+    expect(g.loops.length).toBeGreaterThan(0);
+    expect(g.rows).toHaveLength(3);
+  });
+  it('liest und setzt Vorgänger wie MS Project (Nr., Art, Abstand), verhindert Kreis und Sammelvorgang', () => {
+    let { ws, pj } = proj([note('a'), note('b'), note('c'), note('k', { parent: 'c' })]);
+    const rows = Gt.ganttOf(ws, pj).rows;
+    expect(rows.map((r) => r.nr)).toEqual([1, 2, 3, 4]);
+    const inp = Gt.parsePredInput('1; 2aa+2, 9, 2 SS -1', rows);
+    expect(inp.links).toEqual([{ id: 'a', rel: 'EA', lag: 0 }, { id: 'b', rel: 'AA', lag: -1 }]);
+    expect(inp.bad).toEqual(['9']);
+    const r = Gt.setPreds(ws, pj, 'c', inp.links);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    ws = r.ws;
+    expect(ws.notes!.find((n) => n.id === 'c')!.after).toEqual([{ id: 'a', rel: 'EA' }, { id: 'b', rel: 'AA', lag: -1 }]);
+    expect(Gt.predText({ nr: 7, rel: 'EA', lag: 1 })).toBe('7EA+1');
+    expect(Gt.setPreds(ws, pj, 'a', [{ id: 'c', rel: 'EA', lag: 0 }])).toMatchObject({ ok: false, reason: 'circle' });
+    expect(Gt.setPreds(ws, pj, 'k', [{ id: 'c', rel: 'EA', lag: 0 }])).toMatchObject({ ok: false, reason: 'family' });
+    const cleared = Gt.setPreds(ws, pj, 'c', []);
+    expect(cleared.ok && cleared.ws.notes!.find((n) => n.id === 'c')!.after).toBeUndefined();
   });
 });

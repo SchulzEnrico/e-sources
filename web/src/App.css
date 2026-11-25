@@ -9026,3 +9026,63 @@ span.pj__twist { cursor: default; }
 .pj__ms { color: rgb(var(--accent-rgb)); font-size: 10px; }
 .pj__plan { font-size: 11px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line); }
 .pj__plan.is-manual { border-color: rgba(var(--accent-rgb), 0.7); color: rgb(var(--accent-rgb)); }
+
+/* ---------- V101: F-206 Schritt 10 – Gantt im Projekt-Modus ---------- */
+.pj.is-gantt .pc__body { grid-template-columns: minmax(180px, 0.3fr) minmax(0, 3fr); }
+@media (max-width: 1100px) { .pj.is-gantt .pc__body { grid-template-columns: 1fr; } }
+.pj__gantt { min-width: 0; }
+.gt { display: flex; align-items: flex-start; overflow: auto; max-height: 58vh; border: 1px solid var(--line); border-radius: 10px; position: relative; }
+.pj__gantt .gt__table { position: sticky; left: 0; z-index: 3; background: var(--panel, #1b1d22); flex: none; width: auto; min-width: 0; border-right: 1px solid var(--line); margin: 0; }
+.gt__table thead tr { height: var(--gt-head); }
+.pj__gantt .gt__table thead th { position: sticky; top: 0; z-index: 4; background: var(--panel, #1b1d22); vertical-align: bottom; }
+.gt__table tbody tr { height: var(--gt-row); }
+.gt__table td, .gt__table th { white-space: nowrap; padding-top: 0; padding-bottom: 0; }
+.gt__name { max-width: 15em; overflow: hidden; text-overflow: ellipsis; display: inline-flex; gap: 4px; align-items: center; }
+.gt__name > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.gt__preds { font-size: 11px; max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
+.gt__table tr.is-crit .pj__code, .pj__crit-tag { color: #e5484d; }
+.pj__late { color: #e5484d; font-weight: 600; }
+.gt__chart { position: relative; flex: none; }
+.gt__head { position: sticky; top: 0; z-index: 2; height: var(--gt-head); background: var(--panel, #1b1d22); border-bottom: 1px solid var(--line); }
+.gt__months, .gt__ticks { position: relative; height: 50%; }
+.gt__months span, .gt__ticks span { position: absolute; top: 0; height: 100%; display: flex; align-items: center; padding-left: 4px; box-sizing: border-box; border-left: 1px solid var(--line); font-size: 11px; color: var(--muted, inherit); overflow: hidden; white-space: nowrap; }
+.gt__ticks.is-day span { justify-content: center; padding: 0; font-size: 10px; }
+.gt__body { position: relative; background-image: repeating-linear-gradient(90deg, transparent 0 calc(var(--gt-day) * 5), rgba(127, 127, 127, 0.09) calc(var(--gt-day) * 5) calc(var(--gt-day) * 7)); }
+.gt__body.is-month { background-image: none; }
+.gt__band { position: absolute; left: 0; right: 0; height: var(--gt-row); border-bottom: 1px solid rgba(127, 127, 127, 0.08); }
+.gt__band.is-sel { background: rgba(var(--accent-rgb), 0.12); }
+.gt__today { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dotted rgba(var(--accent-rgb), 0.85); z-index: 1; pointer-events: none; }
+.gt__arrows { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; z-index: 1; }
+.gt__arrows path { fill: none; stroke: rgba(160, 170, 185, 0.8); stroke-width: 1.2; }
+.gt__arrows marker path { fill: rgba(160, 170, 185, 0.9); stroke: none; }
+.gt__arrows path.is-crit { stroke: #e5484d; }
+.gt__arrows marker path.is-crit { fill: #e5484d; }
+.gt__bar { position: absolute; height: 14px; border-radius: 4px; background: #4a8fe0; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); cursor: pointer; z-index: 2; }
+.gt__bar.is-crit { background: #e5484d; }
+.gt__bar.is-manual { background: repeating-linear-gradient(135deg, #3fa6a0 0 4px, #2c7d78 4px 8px); }
+.gt__bar.is-manual.is-crit { background: repeating-linear-gradient(135deg, #e5484d 0 4px, #b5363a 4px 8px); }
+.gt__bar.is-done { opacity: 0.45; }
+.gt__sumbar { position: absolute; height: 6px; background: var(--text, #ddd); cursor: pointer; z-index: 2; }
+.gt__sumbar::before, .gt__sumbar::after { content: ''; position: absolute; top: 0; border-top: 7px solid var(--text, #ddd); border-left: 4px solid transparent; border-right: 4px solid transparent; transform: translateY(5px); }
+.gt__sumbar::before { left: -4px; }
+.gt__sumbar::after { right: -4px; }
+.gt__sumbar.is-crit { background: #e5484d; }
+.gt__sumbar.is-crit::before, .gt__sumbar.is-crit::after { border-top-color: #e5484d; }
+.gt__ms { position: absolute; width: 12px; height: 12px; background: var(--text, #ddd); transform: rotate(45deg); cursor: pointer; z-index: 2; }
+.gt__ms.is-crit { background: #e5484d; }
+.gt__label { position: absolute; height: var(--gt-row); display: flex; align-items: center; font-size: 10px; color: var(--muted, inherit); white-space: nowrap; pointer-events: none; }
+.gt__due { position: absolute; font-size: 11px; line-height: 1; color: #46a758; z-index: 2; pointer-events: auto; }
+.gt__due.is-late { color: #e5484d; font-weight: 700; }
+.gt__due.is-legend { position: static; }
+.gt__legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.gt__lg { display: inline-block; width: 18px; height: 8px; border-radius: 3px; background: #4a8fe0; margin-left: 6px; }
+.gt__lg--crit { background: #e5484d; }
+.gt__lg--sum { height: 4px; border-radius: 0; background: var(--text, #ddd); }
+.gt__lg--ms { width: 8px; height: 8px; border-radius: 0; transform: rotate(45deg); background: var(--text, #ddd); }
+.gt__lg--manual { background: repeating-linear-gradient(135deg, #3fa6a0 0 3px, #2c7d78 3px 6px); }
+.gt__sum { margin: 0; }
+.pj__timing p { margin: 2px 0; }
+@media (forced-colors: active) {
+  .gt__bar, .gt__ms, .gt__sumbar { background: CanvasText; forced-color-adjust: none; }
+  .gt__bar.is-crit, .gt__ms.is-crit, .gt__sumbar.is-crit { background: Highlight; }
+}

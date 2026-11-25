@@ -59,6 +59,24 @@ export function endOf(start: string, duration: number): string {
   return duration <= 0 ? s : addWorkdays(s, duration - 1);
 }
 
+/**
+ * V101 (Gantt): Arbeitstage fortlaufend zählen – Nummer eines Tages = Arbeitstage vor ihm seit Mo 05.01.1970.
+ * Sa/So bekommen die Nummer des nächsten Montags. Rechnen in ganzen Arbeitstagen ohne Schleifen.
+ */
+const EPOCH = Date.UTC(1970, 0, 5);
+export function workdayNo(day: string): number {
+  const d = Math.round((toDate(day).getTime() - 12 * 3600e3 - EPOCH) / 864e5);
+  const w = Math.floor(d / 7);
+  const r = d - w * 7;
+  return w * 5 + Math.min(r, 5);
+}
+/** Gegenstück zu workdayNo: der Arbeitstag mit dieser Nummer. */
+export function dayOfWorkdayNo(n: number): string {
+  const w = Math.floor(n / 5);
+  const r = n - w * 5;
+  return toDay(new Date(EPOCH + (w * 7 + r) * 864e5 + 12 * 3600e3));
+}
+
 // ---------------------------------------------------------------- Dauer und Planungsart (K1, K2)
 
 export type DurationFrom = 'milestone' | 'set' | 'dates' | 'default';

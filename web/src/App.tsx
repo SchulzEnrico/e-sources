@@ -54,6 +54,7 @@ import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './work
 import { PROBE, PROBE_KIND } from './workspace/probe';
 import { Help } from './components/Help';
 import { Tour } from './components/Tour';
+import { ProjectCockpit } from './components/ProjectCockpit';
 import { SlotMachine } from './components/SlotMachine';
 import { type Cleanup, type InviteWhy, type RedundantSlot, INVITE_KEY, INVITE_LATER, INVITE_PAUSE, dupCount, inviteWhy } from './workspace/jackpot';
 import { TOUR_EVENT, type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace/tour';
@@ -1260,11 +1261,14 @@ function DeskApp(props: DeskProps) {
   const notesOff = phone;
   const notesMode = !notesOff && modeOf(deskModes, win, phone) === 'notes';
   notesModeRef.current = notesMode;
+  // V99 (F-206 Schritt 10): Projekt-Modus – Projektliste und Steckbrief füllen den Desk, Pads schweben wie im Desk-Modus
+  const projectsMode = !notesOff && modeOf(deskModes, win, phone) === 'projects';
+  const deskModeNow: DeskMode = notesMode ? 'notes' : projectsMode ? 'projects' : 'desk';
   const setDeskMode = (m: DeskMode) => {
     const next = withMode(deskModes, win, m);
     setDeskModes(next);
     saveModes(next);
-    const text = m === 'notes' ? DESK_MODE_TEXT.nowNotes : DESK_MODE_TEXT.nowDesk;
+    const text = m === 'notes' ? DESK_MODE_TEXT.nowNotes : m === 'projects' ? DESK_MODE_TEXT.nowProjects : DESK_MODE_TEXT.nowDesk;
     notify(text);
     sayLive(text);
     if (m === 'notes') setPadsHidden(false);
@@ -3536,12 +3540,9 @@ function DeskApp(props: DeskProps) {
         <ModeWheel
           className="tb-mode"
           label={DESK_MODE_TEXT.group}
-          value={notesMode ? 'notes' : 'desk'}
+          value={deskModeNow}
           onChange={(m) => setDeskMode(m as DeskMode)}
-          options={[
-            { id: 'desk', name: DESK_MODE_TEXT.desk, icon: 'desk', hint: DESK_MODE_TEXT.deskHint },
-            { id: 'notes', name: DESK_MODE_TEXT.notes, icon: 'note', hint: DESK_MODE_TEXT.notesHint },
-          ]}
+          options={DESK_MODE_OPTIONS}
         />
         )}
         {/* „Zum Dashboard“ nimmt außerhalb des Dashboards den Platz von „Gleich verteilen“ ein (dort ohnehin gesperrt) –
@@ -3697,12 +3698,9 @@ function DeskApp(props: DeskProps) {
                 <span className="menu__wheel-cap" aria-hidden="true">{DESK_MODE_TEXT.group}</span>
                 <ModeWheel
                   label={DESK_MODE_TEXT.group}
-                  value={notesMode ? 'notes' : 'desk'}
+                  value={deskModeNow}
                   onChange={(m) => setDeskMode(m as DeskMode)}
-                  options={[
-                    { id: 'desk', name: DESK_MODE_TEXT.desk, icon: 'desk', hint: DESK_MODE_TEXT.deskHint },
-                    { id: 'notes', name: DESK_MODE_TEXT.notes, icon: 'note', hint: DESK_MODE_TEXT.notesHint },
-                  ]}
+                  options={DESK_MODE_OPTIONS}
                 />
               </li>
               <Item icon="cockpit" hint={NT_TEXT.cockpitHint} onClick={() => (close(), openNotesCockpit())}>
@@ -4460,8 +4458,13 @@ function DeskApp(props: DeskProps) {
         </div>
       )}
       <div className="deskrow">
-        <main className={`area${notesMode ? ' is-notes' : ''}`} ref={areaRef}>
+        <main className={`area${notesMode ? ' is-notes' : ''}${projectsMode ? ' is-projects' : ''}`} ref={areaRef}>
           {content}
+          {projectsMode && (
+            <div className="projlayer">
+              <ProjectCockpit ws={ws} dispatch={dispatch} say={sayLive} />
+            </div>
+          )}
           {padLayer}
           {planPrev && (
             <div
@@ -4532,6 +4535,14 @@ function DeskApp(props: DeskProps) {
  */
 /** F-196: kurze Hinweise (Kategorie-Frage, Portal/Tab geschlossen) – Wunsch Enrico: erst 3, dann 2 Sekunden. */
 const HINT_SHORT = 2000;
+
+
+/** V99 (F-206 Schritt 10): Rad „Arbeitsweise dieses Desks“ – Desk · Notizen · Projekte (Kopfzeile und Menü gleich, NF-08) */
+const DESK_MODE_OPTIONS = [
+  { id: 'desk', name: DESK_MODE_TEXT.desk, icon: 'desk' as const, hint: DESK_MODE_TEXT.deskHint },
+  { id: 'notes', name: DESK_MODE_TEXT.notes, icon: 'note' as const, hint: DESK_MODE_TEXT.notesHint },
+  { id: 'projects', name: DESK_MODE_TEXT.projects, icon: 'project' as const, hint: DESK_MODE_TEXT.projectsHint },
+];
 
 export default function App(props: { sent?: string }) {
   const [ws, dispatch] = useWorkspace();

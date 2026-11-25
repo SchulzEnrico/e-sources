@@ -8976,3 +8976,36 @@ b.pc__week.is-warn { color: #e0a040; }
 .libnotes__title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .libnotes__meta { flex: none; font-size: 12px; color: var(--muted); }
 @media (forced-colors: active) { .libnotes__open:focus-visible { outline: 2px solid Highlight; } }
+
+/* V99 (F-206 Schritt 10): Projekt-Modus – Projektliste und Steckbrief füllen den Desk (Aufbau wie Cockpit „Personen“).
+   Portale ruhen unsichtbar dahinter (wie im Notizen-Modus), Pads schweben darüber wie im Desk-Modus. */
+.area.is-projects > :not(.projlayer):not(.padlayer):not(.planprev):not(.padgone) { visibility: hidden; }
+.projlayer { position: absolute; inset: 0; z-index: 10; overflow: auto; padding: 12px 16px 24px; background: var(--panel); }
+.projlayer .pj { max-width: 1600px; margin: 0 auto; }
+.projlayer .help__run { opacity: 1; }
+.pj .pc__body { grid-template-columns: minmax(0, 1fr) minmax(320px, 440px); }
+@media (max-width: 1100px) { .pj .pc__body { grid-template-columns: 1fr; } }
+.pj__namecell { padding-left: calc(4px + var(--depth, 0) * 18px) !important; }
+.pj__branch { color: var(--muted, inherit); opacity: 0.6; }
+.pj__prio { font-size: 10px; font-weight: 700; padding: 0 4px; border-radius: 4px; background: rgba(var(--accent-rgb), 0.22); color: var(--strong); }
+.pj__table tr.is-closed .pc__name { opacity: 0.6; }
+.pj__derived { font-style: italic; opacity: 0.6; }
+.pj__late { color: #ff8a7f; font-weight: 700; }
+.pj__state { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; border: 1px solid var(--line); }
+.pj__state.is-running { border-color: rgba(var(--accent-rgb), 0.8); color: var(--strong); }
+.pj__state.is-planned { border-style: dashed; }
+.pj__state.is-paused { color: #e0a040; border-color: #e0a04080; }
+.pj__state.is-done { opacity: 0.7; }
+.pj__state.is-stopped { opacity: 0.55; text-decoration: line-through; }
+.pj__gaps { margin: 0; font-size: 12px; color: #e0a040; }
+.pj__gaps.is-ok { color: var(--muted, inherit); }
+.pj__wheel { display: grid; gap: 2px; }
+.pj__brief .pj__text { flex-basis: 100%; display: grid; gap: 3px; }
+.pj__brief textarea { width: 100%; min-height: 2.6em; resize: vertical; font: inherit; font-size: 13px; padding: 5px 7px; }
+.pj__derived-line { flex-basis: 100%; margin: 0; font-size: 12px; font-style: italic; }
+.pj__tasks li { gap: 8px; }
+.pj__tasks .fc__task { width: auto; flex: 1; min-width: 0; }
+.pj__tasks .fc__task span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj__mile { color: rgb(var(--accent-rgb)); }
+.pj__empty { padding: 24px 4px; }
+.people__proj.is-empty { opacity: 0.6; }

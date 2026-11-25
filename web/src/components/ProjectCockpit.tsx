@@ -1,0 +1,490 @@
+/**
+ * F-206 Schritt 10 (V99): Projekt-Modus – Projektliste und Steckbrief nach dem Vorbild der Projektübersicht in
+ * MS Project (Windows) und iTaskX (Mac) sowie des Projektsteckbriefs nach IPMA ICB4; Aufbau wie das Cockpit
+ * „Personen“ (NF-08 „weitestgehend gleicher Aufbau“): links die Tabelle, rechts die Informationen der gewählten
+ * Zeile. Werkzeuge gleich: „+ Projekt“ oben mit „ähnlich: …“, F2 umbenennen, Entf löschen mit Rückfrage und
+ * „Rückgängig“ am Ort. Tastatur (NF-03): Pfeile/Pos1/Ende wandern in der Liste, Enter springt in den Steckbrief.
+ * Logik in workspace/projects.ts (V98).
+ */
+import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import type { Action } from '../workspace/useWorkspace';
+import type { Project, Workspace } from '../workspace/types';
+import * as Pj from '../workspace/projects';
+import { hoursText } from '../workspace/focusLoad';
+import { dayOf, isFinished, titleOf } from '../workspace/notes';
+import { casesOf } from '../workspace/cases';
+import { DIALOG_TEXT, NOTE_TEXT, PROJECTS_TEXT as T, TERMS } from '../workspace/terms';
+import { noticeLater } from '../workspace/flash';
+import { Icon } from './Icon';
+import { ModeWheel } from './ModeWheel';
+import { openNote } from './SourceChips';
+
+const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
+/** 2026-12-21 → 21.12.2026 */
+const dmy = (day: string) => `${day.slice(8, 10)}.${day.slice(5, 7)}.${day.slice(0, 4)}`;
+const num = (v: string): number | undefined => {
+  const x = Number(v.replace(/\./g, '').replace(',', '.').replace(/€/g, '').trim());
+  return v.trim() === '' || !Number.isFinite(x) || x < 0 ? undefined : Math.round(x * 100) / 100;
+};
+const euro = (n: number) => `${n.toLocaleString('de-DE', { maximumFractionDigits: 2 })} €`;
+const TASKS_SHOWN = 12;
+
+export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void }) {
+  const rowsAll = Pj.projectRows(ws);
+  const list = rowsAll.map((r) => r.project);
+  const [sel, setSel] = useState<string | null>(list[0]?.id ?? null);
+  const shown = list.find((p) => p.id === sel) ?? list[0];
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newParent, setNewParent] = useState('');
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState('');
+  const [note, setNote] = useState('');
+  const [undo, setUndo] = useState<{ text: string; u: Pj.ProjectUndo } | null>(null);
+  const rows = useRef(new Map<string, HTMLButtonElement>());
+  const infoRef = useRef<HTMLElement>(null);
+  const later = (f: () => void) => window.setTimeout(f, 0);
+  const focusRow = (id: string) => later(() => rows.current.get(id)?.focus());
+  useEffect(() => {
+    if (!note) return;
+    const t = noticeLater(() => setNote(''));
+    return () => window.clearTimeout(t);
+  }, [note]);
+  useEffect(() => {
+    if (!undo) return;
+    const t = noticeLater(() => setUndo(null), 3);
+    return () => window.clearTimeout(t);
+  }, [undo]);
+  const tell = (t: string) => (setNote(t), say(t));
+  const full = list.length >= Pj.PROJECTS_MAX;
+  const similar = newName.trim() ? Pj.similarProjects(ws, newName) : [];
+
+  const openAdd = (parent = '') => (setAdding(true), setNewParent(parent), setError(''));
+  const create = () => {
+    const name = newName.trim();
+    if (!name) return;
+    const same = list.find((p) => p.name.toLocaleLowerCase('de') === name.toLocaleLowerCase('de'));
+    if (same) {
+      setAdding(false);
+      setNewName('');
+      setSel(same.id);
+      tell(T.exists(same.name));
+      return focusRow(same.id);
+    }
+    const extra = newParent ? { parent: newParent } : {};
+    const r = Pj.addProject(ws, name, extra);
+    if (!r) return setError(T.full(Pj.PROJECTS_MAX));
+    dispatch({ type: 'projectAdd', name, extra });
+    setAdding(false);
+    setNewName('');
+    setSel(r.id);
+    tell(T.created(name));
+    focusRow(r.id);
+  };
+  const askRemove = (p: Project) => (setSel(p.id), setAsking(true), setError(''));
+  const remove = () => {
+    if (!shown) return;
+    const r = Pj.removeProject(ws, shown.id);
+    setAsking(false);
+    if (!r) return;
+    dispatch({ type: 'projectRemove', id: shown.id });
+    const text = T.removed(shown.name);
+    say(`${text} ${T.undo}?`);
+    setUndo({ text, u: r.undo });
+    const i = list.findIndex((p) => p.id === shown.id);
+    const next = list.filter((p) => p.id !== shown.id)[Math.max(0, i - 1)];
+    setSel(next?.id ?? null);
+    later(() => document.getElementById('pj-undo')?.focus());
+  };
+  const startRename = (p: Project) => (setRenaming(p.id), setDraft(p.name), setError(''));
+
+  const onRowKey = (e: KeyboardEvent, i: number) => {
+    let j = -1;
+    if (e.key === 'ArrowDown') j = Math.min(list.length - 1, i + 1);
+    else if (e.key === 'ArrowUp') j = Math.max(0, i - 1);
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = list.length - 1;
+    else if (e.key === 'F2') return e.preventDefault(), startRename(list[i]);
+    else if (e.key === 'Delete' || e.key === 'Backspace') return e.preventDefault(), askRemove(list[i]);
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      setSel(list[i].id);
+      return later(() => infoRef.current?.querySelector<HTMLElement>('input, select, textarea, button')?.focus());
+    }
+    if (j < 0) return;
+    e.preventDefault();
+    setSel(list[j].id);
+    setAsking(false);
+    setError('');
+    focusRow(list[j].id);
+  };
+
+  const dateCell = (d: string | undefined, derived: boolean) =>
+    !d ? <span className="lc__muted">{T.none}</span> : derived ? <span className="pj__derived" title={T.derivedHint}>{dmy(d)}<span className="sr-only"> ({T.derived})</span></span> : dmy(d);
+
+  return (
+    <section className="lc__group pc pj" aria-labelledby="pj-head">
+      <header className="lc__head lc__band">
+        <Icon name="project" size={15} className="icon icon--inline" />
+        <h3 id="pj-head" className="lc__head-title" title={explain(TERMS.projects)}>
+          {T.head}
+        </h3>
+        <span className="lc__head-tools">
+          <button type="button" id="pj-add" className="help__run" aria-expanded={adding} disabled={full} title={full ? T.full(Pj.PROJECTS_MAX) : T.addHint} onClick={() => (adding ? setAdding(false) : openAdd())}>
+            <Icon name="plus" size={13} className="icon icon--inline" /> {T.add}
+          </button>
+        </span>
+      </header>
+      <p className="help__text bt__intro">{TERMS.projects.replace(' = ', ': ')}</p>
+
+      {adding && (
+        <form
+          className="layouts__new lc__new"
+          aria-label={T.addLabel}
+          onSubmit={(e) => (e.preventDefault(), create())}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') return;
+            e.preventDefault();
+            e.stopPropagation();
+            setAdding(false);
+            later(() => document.getElementById('pj-add')?.focus());
+          }}
+        >
+          <label className="layouts__label">
+            {T.name}
+            <input autoFocus value={newName} maxLength={60} aria-describedby="pj-similar" onChange={(e) => (setNewName(e.target.value), setError(''))} />
+          </label>
+          {list.length > 0 && (
+            <label className="layouts__label">
+              {T.parent}
+              <select value={newParent} onChange={(e) => setNewParent(e.target.value)}>
+                <option value="">{T.parentNone}</option>
+                {rowsAll.map((r) => (
+                  <option key={r.project.id} value={r.project.id}>{`${'  '.repeat(r.depth)}${r.project.name}`}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <div className="layouts__tools">
+            <button type="button" className="help__run" onClick={() => (setAdding(false), later(() => document.getElementById('pj-add')?.focus()))}>{DIALOG_TEXT.cancel}</button>
+            <button type="submit" className="help__run lc__primary" disabled={!newName.trim()}>
+              <Icon name="plus" size={13} className="icon icon--inline" /> {T.create}
+            </button>
+          </div>
+          <span id="pj-similar" className="bt__hint" aria-live="polite">{similar.length ? T.similar(similar.map((p) => p.name).join(', ')) : ''}</span>
+          {error && <p className="layouts__error" role="alert">{error}</p>}
+        </form>
+      )}
+
+      {!shown ? (
+        <div className="pj__empty">
+          <p className="lc__muted">{T.empty}</p>
+          {undo && <UndoLine undo={undo} dispatch={dispatch} say={say} onBack={(id) => (setSel(id), setUndo(null), focusRow(id))} />}
+        </div>
+      ) : (
+        <div className="pc__body">
+          <div className="pc__tablewrap">
+            <table className="pc__table pj__table" aria-labelledby="pj-head" aria-describedby="pj-keys">
+              <thead>
+                <tr>
+                  <th scope="col">{T.colName}</th>
+                  <th scope="col" title={explain(TERMS.projectState)}>{T.colState}</th>
+                  <th scope="col">{T.colStart}</th>
+                  <th scope="col">{T.colEnd}</th>
+                  <th scope="col">{T.colProgress}</th>
+                  <th scope="col" title={explain(TERMS.projectTask)}>{T.colTasks}</th>
+                  <th scope="col">{T.colEffort}</th>
+                  <th scope="col">{T.colMiles}</th>
+                  <th scope="col">{T.colLate}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rowsAll.map((r, i) => {
+                  const p = r.project;
+                  const on = p.id === shown.id;
+                  return (
+                    <tr key={p.id} className={`${on ? 'is-sel' : ''}${p.state === 'done' || p.state === 'stopped' ? ' is-closed' : ''}`}>
+                      <th scope="row" style={{ '--depth': r.depth } as CSSProperties} className="pj__namecell">
+                        {renaming === p.id ? (
+                          <form
+                            className="pc__rename"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              if (draft.trim()) dispatch({ type: 'projectEdit', id: p.id, patch: { name: draft } });
+                              setRenaming(null);
+                              focusRow(p.id);
+                            }}
+                          >
+                            <input
+                              autoFocus
+                              aria-label={`${T.name}: ${p.name}`}
+                              value={draft}
+                              maxLength={60}
+                              title={DIALOG_TEXT.renameHint}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => setDraft(e.target.value)}
+                              onBlur={() => setRenaming(null)}
+                              onKeyDown={(e) => {
+                                if (e.key !== 'Escape') return;
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setRenaming(null);
+                                focusRow(p.id);
+                              }}
+                            />
+                          </form>
+                        ) : (
+                          <button
+                            type="button"
+                            ref={(el) => {
+                              if (el) rows.current.set(p.id, el);
+                              else rows.current.delete(p.id);
+                            }}
+                            className="pc__name"
+                            aria-pressed={on}
+                            aria-level={r.depth + 1}
+                            tabIndex={on ? 0 : -1}
+                            title={T.rowKeys}
+                            onClick={() => (setSel(p.id), setAsking(false), setError(''))}
+                            onDoubleClick={() => later(() => infoRef.current?.querySelector<HTMLElement>('input, select, textarea')?.focus())}
+                            onKeyDown={(e) => onRowKey(e, i)}
+                          >
+                            {r.depth > 0 && <span className="pj__branch" aria-hidden="true">└</span>}
+                            <span>{p.name}</span>
+                            {p.priority !== undefined && p.priority <= 2 && <span className="pj__prio" title={`${T.priority}: ${T.priorityName(p.priority)}`}>P{p.priority}</span>}
+                          </button>
+                        )}
+                      </th>
+                      <td><span className={`pj__state is-${p.state ?? 'idea'}`} title={T.stateHint[p.state ?? 'idea']}>{T.state[p.state ?? 'idea']}</span></td>
+                      <td className="pc__num">{dateCell(r.start, r.derived.start)}</td>
+                      <td className="pc__num">{dateCell(r.end, r.derived.end)}</td>
+                      <td className="pc__num" aria-label={T.progressLabel(r.progress)}>
+                        <span className="pc__bar" aria-hidden="true" style={{ '--f': `${r.progress}%` } as CSSProperties} />
+                        {r.progress} %
+                      </td>
+                      <td className="pc__num" aria-label={T.tasksLabel(r.done, r.tasks)}>{r.tasks ? T.tasks(r.done, r.tasks) : <span className="lc__muted">{T.none}</span>}</td>
+                      <td className="pc__num">{r.effort ? hoursText(r.effort) : <span className="lc__muted">{T.none}</span>}</td>
+                      <td className="pc__num">{r.milestones || <span className="lc__muted">{T.none}</span>}</td>
+                      <td className={`pc__num${r.late ? ' pj__late' : ''}`} aria-label={r.late ? T.lateLabel(r.late) : undefined}>{r.late || <span className="lc__muted">{T.none}</span>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p id="pj-keys" className="lc__keys">{T.rowKeys}</p>
+            {asking && (
+              <div className="layouts__ask" role="group" aria-labelledby="pj-ask">
+                <span id="pj-ask">{T.askRemove(shown.name, Pj.notesOfProject(ws, shown.id).length, list.filter((p) => p.parent === shown.id).length)}</span>
+                <button type="button" className="help__run" autoFocus onClick={remove}>{T.remove}</button>
+                <button type="button" className="help__run" onClick={() => (setAsking(false), focusRow(shown.id))}>{DIALOG_TEXT.cancel}</button>
+              </div>
+            )}
+            {undo && <UndoLine undo={undo} dispatch={dispatch} say={say} onBack={(id) => (setSel(id), setUndo(null), focusRow(id))} />}
+            {note && <p className="layouts__undo" role="status">{note}</p>}
+            {error && !adding && <p className="layouts__error" role="alert">{error}</p>}
+          </div>
+
+          <ProjectBrief key={shown.id} ws={ws} p={shown} row={rowsAll.find((r) => r.project.id === shown.id)!} dispatch={dispatch} say={say} boxRef={infoRef} onRename={() => startRename(shown)} onRemove={() => askRemove(shown)} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function UndoLine({ undo, dispatch, say, onBack }: { undo: { text: string; u: Pj.ProjectUndo }; dispatch: (a: Action) => void; say: (t: string) => void; onBack: (id: string) => void }) {
+  return (
+    <p className="layouts__undo" role="status">
+      {undo.text}{' '}
+      <button
+        type="button"
+        id="pj-undo"
+        className="help__run"
+        onClick={() => {
+          dispatch({ type: 'projectRestore', undo: undo.u });
+          say(T.restored(undo.u.project.name));
+          onBack(undo.u.project.id);
+        }}
+      >
+        {T.undo}
+      </button>
+    </p>
+  );
+}
+
+type Patch = Partial<Omit<Project, 'id' | 'created' | 'changed'>>;
+
+/** Steckbrief der gewählten Zeile (MS Project: „Projektinfo“, ICB4: Projektsteckbrief). */
+function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove }: { ws: Workspace; p: Project; row: Pj.ProjectRow; dispatch: (a: Action) => void; say: (t: string) => void; boxRef: React.RefObject<HTMLElement>; onRename: () => void; onRemove: () => void }) {
+  const edit = (patch: Patch, text: string = T.saved) => {
+    dispatch({ type: 'projectEdit', id: p.id, patch });
+    say(text);
+  };
+  const [budget, setBudget] = useState(p.budget !== undefined ? String(p.budget).replace('.', ',') : '');
+  const [brief, setBrief] = useState({ goal: p.brief?.goal ?? '', approach: p.brief?.approach ?? '', org: p.brief?.org ?? '' });
+  const state = p.state ?? 'idea';
+  const clash = Pj.datesClash(p);
+  const gaps = Pj.briefGaps(p);
+  const cases = casesOf(ws);
+  // Übergeordnetes Projekt: nur solche, die keinen Kreis ergeben
+  const parents = Pj.projectRows(ws).filter((r) => r.project.id !== p.id && !Pj.parentLoops(ws, p.id, r.project.id));
+  const tasks = Pj.notesOfProject(ws, p.id);
+  const openTasks = [...tasks].sort((a, b) => Number(isFinished(a.state)) - Number(isFinished(b.state)) || (a.due ?? '9999').localeCompare(b.due ?? '9999'));
+  const derivedNow = (row.derived.start || row.derived.end) && (!p.start || !p.end);
+  const saveBrief = (k: 'goal' | 'approach' | 'org') => {
+    const v = brief[k].trim();
+    if (v !== (p.brief?.[k] ?? '')) edit({ brief: { [k]: v } }, `${T[k]}: ${T.saved}`);
+  };
+  const today = dayOf();
+
+  return (
+    <section ref={boxRef} className="pc__info pj__info" aria-labelledby="pj-info-head">
+      <h4 id="pj-info-head" className="radar__detail-head" title={explain(TERMS.projectBrief)}>
+        <Icon name="project" size={16} className="icon icon--inline" /> {T.info(p.name)}
+      </h4>
+      <div className="pc__tools">
+        <button type="button" className="help__run" title="F2" onClick={onRename}>
+          <Icon name="rename" size={13} className="icon icon--inline" /> {T.rename}
+        </button>
+        <button type="button" className="help__run" title="Entf" onClick={onRemove}>
+          <Icon name="remove" size={13} className="icon icon--inline" /> {T.remove}
+        </button>
+      </div>
+      <p className={`pj__gaps${gaps.length ? '' : ' is-ok'}`} role="note">
+        {gaps.length ? T.gaps(gaps.map((g) => T.gapName[g]).join(', ')) : T.complete}
+      </p>
+
+      <fieldset className="pc__set">
+        <legend>{T.general}</legend>
+        <div className="layouts__label pj__wheel" title={explain(TERMS.projectState)}>
+          <span aria-hidden="true">{T.stateLabel}</span>
+          <ModeWheel
+            label={T.stateLabel}
+            value={state}
+            onChange={(s) => edit({ state: s as Pj.ProjectState }, `${T.stateLabel}: ${T.state[s as Pj.ProjectState]}`)}
+            options={Pj.PROJECT_STATES.map((s) => ({ id: s, name: T.state[s], hint: T.stateHint[s] }))}
+          />
+        </div>
+        <label className="layouts__label">
+          {T.priority}
+          <select value={p.priority ?? ''} onChange={(e) => edit({ priority: e.target.value ? Number(e.target.value) : undefined })}>
+            <option value="">{T.priorityNone}</option>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={n}>{T.priorityName(n)}</option>
+            ))}
+          </select>
+        </label>
+        <label className="layouts__label" title={explain(TERMS.projectScope)}>
+          {T.scope}
+          <select value={p.scope ?? ''} onChange={(e) => edit({ scope: e.target.value || undefined })}>
+            <option value="">{T.scopeNone}</option>
+            {cases.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="layouts__label">
+          {T.parent}
+          <select value={p.parent ?? ''} onChange={(e) => edit({ parent: e.target.value || undefined })}>
+            <option value="">{T.parentNone}</option>
+            {parents.map((r) => (
+              <option key={r.project.id} value={r.project.id}>{`${'  '.repeat(r.depth)}${r.project.name}`}</option>
+            ))}
+          </select>
+        </label>
+      </fieldset>
+
+      <fieldset className="pc__set">
+        <legend>{T.dates}</legend>
+        <label className="layouts__label">
+          {T.start}
+          <input type="date" value={p.start ?? ''} aria-invalid={clash} aria-describedby={clash ? 'pj-clash' : undefined} onChange={(e) => edit({ start: e.target.value || undefined })} />
+        </label>
+        <label className="layouts__label">
+          {T.end}
+          <input type="date" value={p.end ?? ''} min={p.start} aria-invalid={clash} aria-describedby={clash ? 'pj-clash' : undefined} onChange={(e) => edit({ end: e.target.value || undefined })} />
+        </label>
+        <label className="layouts__label">
+          {T.budget}
+          <input
+            inputMode="decimal"
+            value={budget}
+            placeholder={T.budgetNone}
+            onChange={(e) => setBudget(e.target.value)}
+            onBlur={() => {
+              const x = num(budget);
+              if (x !== p.budget) edit({ budget: x });
+              setBudget(x === undefined ? '' : String(x).replace('.', ','));
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          />
+        </label>
+        {clash && <p id="pj-clash" className="layouts__error" role="alert">{T.clash}</p>}
+        {derivedNow && (
+          <p className="pj__derived-line" title={explain(TERMS.projectDerived)}>
+            {T.derivedFrom(row.start ? dmy(row.start) : undefined, row.end ? dmy(row.end) : undefined)}{' '}
+            <button
+              type="button"
+              className="help__run"
+              title={T.takeDerivedHint}
+              onClick={() => edit({ ...(p.start ? {} : row.start ? { start: row.start } : {}), ...(p.end ? {} : row.end ? { end: row.end } : {}) })}
+            >
+              {T.takeDerived}
+            </button>
+          </p>
+        )}
+      </fieldset>
+
+      <fieldset className="pc__set pj__brief" title={explain(TERMS.projectBrief)}>
+        <legend>{T.brief}</legend>
+        {(['goal', 'approach', 'org'] as const).map((k) => (
+          <label key={k} className="layouts__label pj__text">
+            {T[k]}
+            <textarea
+              rows={2}
+              value={brief[k]}
+              maxLength={800}
+              placeholder={T[`${k}Hint` as 'goalHint']}
+              onChange={(e) => setBrief({ ...brief, [k]: e.target.value })}
+              onBlur={() => saveBrief(k)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.target as HTMLTextAreaElement).blur()}
+            />
+          </label>
+        ))}
+      </fieldset>
+
+      <fieldset className="pc__set">
+        <legend>{T.figures}</legend>
+        <p className="pc__load">
+          {T.figuresLine(row.done, row.tasks, row.progress, hoursText(row.effort), row.milestones)}
+          {row.late > 0 && <b className="pj__late"> · {T.lateLabel(row.late)}</b>}
+          {p.budget !== undefined && <> · {T.budget.replace(' (Euro)', '')}: {euro(p.budget)}</>}
+        </p>
+      </fieldset>
+
+      <fieldset className="pc__set" title={explain(TERMS.projectTask)}>
+        <legend>{T.tasksHead}</legend>
+        {!tasks.length && <p className="lc__muted">{T.tasksNone}</p>}
+        <ul className="pc__list pj__tasks">
+          {openTasks.slice(0, TASKS_SHOWN).map((n) => {
+            const fin = isFinished(n.state);
+            const late = !fin && !!n.due && n.due < today;
+            const t = titleOf(n) || NOTE_TEXT.untitled;
+            return (
+              <li key={n.id} className={fin ? 'is-past' : undefined}>
+                <button type="button" className="fc__task" title={T.openTask(t)} onClick={() => openNote(n.id)}>
+                  {n.milestone && <span className="pj__mile" aria-label="Meilenstein" title="Meilenstein">◆</span>}
+                  <span>{t}</span>
+                </button>
+                <span className="lc__muted">{NOTE_TEXT.states[n.state] ?? n.state}</span>
+                {n.due && <span className={late ? 'pj__late' : 'lc__muted'}>{dmy(n.due)}</span>}
+              </li>
+            );
+          })}
+        </ul>
+        {tasks.length > TASKS_SHOWN && <p className="lc__muted">{T.tasksMore(tasks.length - TASKS_SHOWN)}</p>}
+      </fieldset>
+    </section>
+  );
+}

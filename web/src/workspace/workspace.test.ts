@@ -4920,6 +4920,10 @@ describe('V75 Umschalter Desk | Notes', () => {
     expect(DM.parseModes('kaputt')).toEqual({});
     expect(DM.parseModes('[1]')).toEqual({});
   });
+  it('V99: Modus „Projekte“ wird gespeichert und gelesen', () => {
+    expect(DM.parseModes('{"a":"projects"}')).toEqual({ a: 'projects' });
+    expect(DM.modeOf(DM.withMode({}, 'a', 'projects'), 'a', true)).toBe('projects');
+  });
 });
 
 // ---------------------------------------------------------------- F-215 Schritt 3 (V76): Sprachnotiz

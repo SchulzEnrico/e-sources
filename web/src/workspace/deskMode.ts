@@ -5,7 +5,8 @@
  * jeder Desk von selbst im Note Mode, solange man dort nicht ausdrücklich „Desk“ gewählt hat.
  * Gespeichert je Gerät (Browser) und Desk – nicht im Abgleich, weil Telefon und Rechner verschieden arbeiten.
  */
-export type DeskMode = 'desk' | 'notes';
+/** V99 (F-206 Schritt 10): dritter Modus „Projekte“ – Projektliste und Steckbrief füllen den Desk. */
+export type DeskMode = 'desk' | 'notes' | 'projects';
 export type DeskModes = Record<string, DeskMode>;
 
 const KEY = 'esource.deskMode.v1';
@@ -25,7 +26,7 @@ export function parseModes(raw: string | null): DeskModes {
     const v = raw ? JSON.parse(raw) : null;
     if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
     const out: DeskModes = {};
-    for (const [k, m] of Object.entries(v)) if (m === 'desk' || m === 'notes') out[k] = m;
+    for (const [k, m] of Object.entries(v)) if (m === 'desk' || m === 'notes' || m === 'projects') out[k] = m;
     return out;
   } catch {
     return {};

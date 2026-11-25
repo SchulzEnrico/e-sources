@@ -15,6 +15,7 @@ import { NoteEditor } from './NoteEditor';
 import { RemindChips } from './RemindChips';
 import { AudioChips } from './AudioChips';
 import { SourceChips } from './SourceChips';
+import { ProjectChip } from './ProjectChips';
 import { PeopleRow } from './PersonChips';
 import { recentPlaces } from '../workspace/remind';
 import { Icon } from './Icon';
@@ -298,6 +299,7 @@ export function NoteTab({ ws, noteId, dispatch, draft, sheet }: NoteProps) {
         onAssign={(assignee) => edit({ assignee })}
         onEffort={(effort) => edit({ effort })}
         onCreate={(name) => dispatch({ type: 'personAdd', name })}
+        after={<ProjectChip ws={ws} note={raw} dispatch={dispatch} />}
       />
       {/* F-206 Schritt 6 (V93, Q1): Quellen der Notiz – wirken sofort, nicht Teil des Entwurfs */}
       <SourceChips ws={ws} note={raw} dispatch={dispatch} by={by} />

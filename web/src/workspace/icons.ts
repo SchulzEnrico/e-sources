@@ -33,6 +33,8 @@ export const ICONS = {
   todo: { d: ['M2 2.5h3v3H2z', 'M7 4h7', 'M2 10.5h3v3H2z', 'M7 12h7', 'M2.6 12l.8.8 1.5-1.7'] },
   kanban: { d: ['M2 2.5h3.5v11H2z', 'M6.25 2.5h3.5v7h-3.5z', 'M10.5 2.5H14v4.5h-3.5z'] },
   matrix: { d: ['M2 2h12v12H2z', 'M8 2v12', 'M2 8h12'] },
+  // V99 (F-206 Schritt 10): Projekt – Balken wie im Gantt, versetzt untereinander
+  project: { d: ['M2 2v12', 'M4 4h5', 'M6 8h6', 'M9 12h5'] },
   // F-206 Schritt 3: Pad = schwebendes Fenster über dem Desk
   // F-206 Schritt 4 (V81): Dock = Leiste am rechten Rand, einklappen zur Lasche
   dock: { d: ['M1.5 2.5h13v11h-13z', 'M10 2.5v11', 'M11.8 5h1', 'M11.8 7h1'] },
@@ -205,7 +207,7 @@ export type IconName = keyof typeof ICONS;
 
 /** Symbol je Hilfe-Eintrag (HELP, F-156) – gleiche Ids. Fehlt ein Eintrag, meldet das der Test. */
 export const HELP_ICON: Record<string, IconName> = {
-  note: 'note', dock: 'dock', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', modeWheel: 'swap', notesTasks: 'notesTasks', f6Ring: 'swap', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', findNote: 'note', todoUse: 'todo', kanbanUse: 'kanban', boardTemplates: 'kanban', sitePlan: 'slot', notesLayouts: 'layouts', matrixUse: 'matrix', cardWindow: 'todo', noteSource: 'clip', persons: 'catPeople', projectFocus: 'focus', mainStage: 'spotlight', libraryWheel: 'library',
+  note: 'note', dock: 'dock', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', modeWheel: 'swap', notesTasks: 'notesTasks', f6Ring: 'swap', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', findNote: 'note', todoUse: 'todo', kanbanUse: 'kanban', boardTemplates: 'kanban', sitePlan: 'slot', notesLayouts: 'layouts', matrixUse: 'matrix', cardWindow: 'todo', noteSource: 'clip', persons: 'catPeople', projects: 'project', projectFocus: 'focus', mainStage: 'spotlight', libraryWheel: 'library',
   devMode: 'dev',
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',

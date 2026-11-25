@@ -4,7 +4,7 @@
  * Initialen und Kennfarbe. Zuständig und Aufwand gehören zum Entwurf (F-213 S9) – im Projektfokus „vorläufig“.
  * Tastatur: Alt/⌥+Z in der Notiz öffnet die Auswahl; Pfeile, Enter, Esc. Meldungen am Ort.
  */
-import { type CSSProperties, type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
+import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import type { Note, Person, PlanActual, Workspace } from '../workspace/types';
 import * as Ps from '../workspace/persons';
 import { hoursText } from '../workspace/focusLoad';
@@ -126,6 +126,8 @@ interface RowProps {
   onEffort: (e: PlanActual | undefined) => void;
   /** Neue Person anlegen (ohne Zuweisung) – die Id ist vorher bekannt (Ps.addPerson ist rein). */
   onCreate: (name: string) => void;
+  /** V99 (F-206 Schritt 10): weitere Einträge der Zeile, z. B. der Chip „Projekt“ */
+  after?: ReactNode;
 }
 
 const QUICK = [0.5, 1, 2, 4, 8];
@@ -134,7 +136,7 @@ const num = (s: string): number | undefined => {
   return s.trim() && Number.isFinite(v) && v >= 0 && v <= 10000 ? Math.round(v * 100) / 100 : undefined;
 };
 
-export function PeopleRow({ ws, note, onAssign, onEffort, onCreate }: RowProps) {
+export function PeopleRow({ ws, note, onAssign, onEffort, onCreate, after }: RowProps) {
   const [pick, setPick] = useState(false);
   const [effort, setEffort] = useState(false);
   const [ask, setAsk] = useState<{ id: string; text: string } | null>(null);
@@ -253,6 +255,7 @@ export function PeopleRow({ ws, note, onAssign, onEffort, onCreate }: RowProps) 
           </button>
         )}
       </span>
+      {after}
       {ask && (
         <span className="srcs__gone people__ask" role="alertdialog" aria-label={ask.text}>
           {ask.text}

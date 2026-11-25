@@ -731,9 +731,10 @@ function DeskApp(props: DeskProps) {
         window.setTimeout(() => setTour('dev'), 0);
         return;
       }
-      if (id !== 'sources') return;
+      // F-217 (V98): auch „Notizen & Aufgaben“ und „Main Stage“
+      if (id !== 'sources' && id !== 'notes' && id !== 'stage') return;
       setOverview(false);
-      window.setTimeout(() => setTour('sources'), 0);
+      window.setTimeout(() => setTour(id), 0);
     };
     window.addEventListener(TOUR_EVENT, on);
     return () => window.removeEventListener(TOUR_EVENT, on);
@@ -2808,6 +2809,8 @@ function DeskApp(props: DeskProps) {
         const name = slotName(slot);
         const r = St.setStage(ws, win, on ? null : slot.id);
         dispatch({ type: 'stageSet', desk: win, area: on ? null : slot.id });
+        // F-217 (V98): bei der ersten Main Stage einmal die Tour – nach der Meldung am Ort
+        if (!on && !PROBE && tourAutoStart('stage')) window.setTimeout(() => setTour((x) => x ?? 'stage', true), 2300);
         const prev = r.undo && r.undo.area !== slot.id ? shownView.slots.find((x) => x.id === r.undo!.area) : undefined;
         const text = on ? STAGE_TEXT.cleared(name) : prev ? STAGE_TEXT.replaced(name, slotName(prev)) : STAGE_TEXT.set(name);
         return { text, undo: () => dispatch({ type: 'stageRestore', desk: win, undo: r.undo }) };
@@ -3100,6 +3103,10 @@ function DeskApp(props: DeskProps) {
       case 'tourSources':
         setOverview(false);
         return window.setTimeout(() => setTour('sources'), 0);
+      case 'tourNotes':
+      case 'tourStage':
+        setOverview(false);
+        return window.setTimeout(() => setTour(e.run === 'tourNotes' ? 'notes' : 'stage'), 0);
       case 'toursAuto':
         return switchAutoTours();
       case 'compact':
@@ -3703,6 +3710,10 @@ function DeskApp(props: DeskProps) {
               </Item>
               <OpacitySlider label={PAD_TEXT.opacityPads} hint={PAD_TEXT.opacityHint} value={display.padOpacity} onChange={setPadOpacity} />
               <OpacitySlider label={PAD_TEXT.opacityDock} hint={PAD_TEXT.opacityDockHint} value={display.dockOpacity} onChange={setDockOpacity} />
+              {/* F-217 (V98): Tour „Notizen & Aufgaben“ */}
+              <Item icon="tour" hint={NT_TEXT.tourHint} onClick={() => (close(), setOverview(false), window.setTimeout(() => setTour('notes'), 0))}>
+                {NT_TEXT.tour}
+              </Item>
               <Item icon="help" onClick={() => (close(), setHelpAt({ at: 'notesTasks' }))}>
                 {NT_TEXT.help}
               </Item>

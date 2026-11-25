@@ -30,7 +30,7 @@ export interface TourStep {
   keep?: boolean;
 }
 
-export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev' | 'sync';
+export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev' | 'sync' | 'notes' | 'stage';
 
 const t = (id: string) => helpById(id)?.text ?? '';
 
@@ -61,18 +61,23 @@ export const TOURS: Record<TourId, TourStep[]> = {
     { id: 'address', title: 'Adresse', target: 'main section[data-panel-id] input[aria-label="Adresse"]', text: 'Hier gibst du eine Adresse ein oder ziehst einen Link hinein – das Portal zeigt dann diese Source.' },
     { id: 'stackAdd', title: 'Portal stapeln', target: 'main section[data-panel-id] .win__stack-add', text: t('newPortal') + ' Die Farbe des Plus zeigt, wie die Fokusanzeige danach stünde.' },
     { id: 'stack', title: 'Stack', target: 'main .stack', expand: true, ring: '.stack__inner', text: t('stack') + ' Mit ▲/▼ oder dem Mausrad blätterst du; ein Klick auf einen Namen holt dieses Portal nach vorn.' },
+    { id: 'stage', title: 'Main Stage', target: 'main .win__stagebtn', text: 'Der Scheinwerfer im Portal-Kopf macht diesen Slot zur Main Stage – dem Slot, aus dem du arbeitest. Pads und Dock liegen nie darüber. Er erscheint, wenn du über den Portal-Kopf fährst. Eigene kurze Tour: Hilfe (?) › „Tour Main Stage“.' },
     { id: 'newSlot', title: '+ NewSlot', target: '.tb-center .tb-add, .tb-center .tb-newslot', text: t('newSlot') },
+    { id: 'notesTasks', title: 'Notizen & Aufgaben', target: '.toolbar .tb-nt', text: 'Notizen, To-do-Listen, Kanban-Boards und Eisenhower-Matrix – in Pads, die über dem Desk schweben oder im Dock liegen. Das Menü legt an, sucht und ordnet (Alt/⌥+N). Eigene kurze Tour unten im Menü.' },
+    { id: 'deskMode', title: 'Desk | Notizen', target: '.toolbar .tb-mode', text: '„Desk“ zeigt die Portale, „Notizen“ ordnet die Pads dieses Desks wie Slots als Arbeitsfläche. Das Rad gilt je Desk.' },
     { id: 'view', title: 'View', target: '.tb-center .tb-viewwheel', text: t('view') },
     { id: 'search', title: 'Suchen', target: '.tb-center .search', text: t('search') },
     { id: 'focus', title: 'Fokusanzeige', target: '.toolbar .focus-meter', text: `${t('focus')} Ein Klick öffnet das Cockpit (Strg/⌘+.) – dort gibt es eine eigene kurze Tour.` },
     { id: 'design', title: 'Design', target: '.toolbar .tb-design', text: `${t('design')} Der Knopf öffnet „Design anpassen“ – mit eigener kurzer Tour.` },
     { id: 'help', title: 'Hilfe', target: '.toolbar .tb-help', text: 'Alle Funktionen und Tastenkürzel findest du hier oder mit der Taste ?. Dort kannst du auch diese Tour wieder starten.' },
   ],
+  // F-217 (V98): je Ansicht des Cockpit-Rads (NF-08) – gleicher Anfang, dann nur die Schritte der offenen Ansicht
+  // (Klasse is-portals, is-notes, is-focus, is-persons, is-layouts, is-sources am #overview), gleiches Ende
   cockpit: [
     {
       id: 'cockpit',
       title: 'Das Cockpit',
-      text: `${t('cockpit')} Diese kurze Tour zeigt dir, was du hier siehst und tun kannst – mit → weiter, mit Esc beenden.`,
+      text: `${t('cockpit')} Diese kurze Tour zeigt dir, was du in der offenen Ansicht siehst und tun kannst – mit → weiter, mit Esc beenden.`,
     },
     {
       id: 'focus',
@@ -82,76 +87,154 @@ export const TOURS: Record<TourId, TourStep[]> = {
     },
     {
       id: 'modes',
-      title: 'Portale, Layouts, Library',
+      title: 'Was das Cockpit zeigt',
       target: `${C} .overview__mode`,
-      text: 'Hier schaltest du um, was das Cockpit zeigt: „Portale“ ist der Überblick mit Radar, „Layouts“ die gespeicherten Anordnungen dieses Desks mit ihren Cases, „Library“ deine gespeicherten Sources. Das Rad dreht mit Scrollen, Klick oder Pfeiltasten. Die Tour zeigt, was gerade offen ist.',
+      text: 'Das Rad schaltet um, was das Cockpit zeigt. Es dreht mit Scrollen, Klick oder Pfeiltasten. Jede Ansicht ist gleich aufgebaut: links das Bild, rechts die Liste mit den Werkzeugen. Die Tour zeigt, was gerade offen ist – für eine andere Ansicht dort einfach „Tour“ noch einmal wählen.',
+      list: [
+        'Portale – Radar aller Desks mit ihren Slots und Portalen',
+        'Notizen – Pads und Sheets je Desk, dazu Fokus und Regeln',
+        'Personen – Ressourcentabelle: wer wie viel Zeit hat',
+        'Layouts – gespeicherte Anordnungen des Desks mit ihren Cases',
+        'Library – deine gespeicherten Sources und alle Notizen',
+      ],
     },
+    // Ansicht „Portale“
     {
       id: 'radar',
       title: 'Radar',
-      target: `${C} .radar__maps`,
-      text: 'Jeder Desk erscheint als kleiner Bildschirm mit seinen Slots an ihrer Stelle. Die Leiste in jedem Slot zeigt in Ampelfarben, wie viele Portale darauf liegen. Pfeiltasten wandern zwischen den Slots.',
+      target: `${C}.is-portals .radar__maps`,
+      text: 'Jeder Desk erscheint als kleiner Bildschirm mit seinen Slots an ihrer Stelle. Die Leiste in jedem Slot zeigt in Ampelfarben, wie viele Portale darauf liegen; der Scheinwerfer markiert die Main Stage. Pfeiltasten wandern zwischen den Slots.',
     },
     {
       id: 'portals',
       title: 'Portale des Slots',
-      target: `${C} .radar__detail`,
-      text: 'Rechts stehen die Portale des gewählten Slots. Enter oder Klick zeigt das Portal – auch auf einem anderen Desk. F2 benennt um, Entf schließt.',
+      target: `${C}.is-portals .radar__detail`,
+      text: 'Rechts stehen die Portale des gewählten Slots. Enter oder Klick zeigt das Portal – auch auf einem anderen Desk. F2 benennt um, Entf schließt, S macht den Slot zur Main Stage.',
     },
     {
       id: 'move',
       title: 'Verschieben und Holen',
-      target: `${C} .overview__list .overview__row`,
+      target: `${C}.is-portals .overview__list .overview__row`,
       text: 'V verschiebt ein Portal auf einen anderen Slot oder Desk, Umschalt+V den ganzen Slot. H holt ein Portal von einem anderen Desk hierher. Mit der Maus ziehst du eine Zeile auf einen Slot im Radar.',
     },
     {
       id: 'arrange',
       title: 'Slots anordnen',
-      target: `${C} .radar__map:not(.lc__map)`,
-      text: 'Eine Slot-Kachel auf eine andere ziehen: in die Mitte = dort ablegen, an den Rand = an dieser Stelle einsetzen. Die Kante zwischen zwei Slots ändert die Größe. Per Tastatur: Alt+Pfeil versetzt, Alt+Umschalt+Pfeil ändert die Größe.',
+      target: `${C}.is-portals .radar__map:not(.lc__map)`,
+      text: 'Eine Slot-Kachel auf eine andere ziehen: in die Mitte = dort ablegen, an den Rand = an dieser Stelle einsetzen. Die Kante zwischen zwei Slots ändert die Größe. Per Tastatur: Alt+Pfeil versetzt, Alt+Umschalt+Pfeil ändert die Größe. Eine feste Main Stage bleibt, wo sie ist.',
     },
     {
       id: 'filter',
       title: 'Filtern',
-      target: `${C} .radar__filter`,
+      target: `${C}.is-portals .radar__filter`,
       text: 'Findet Portale, Slots, Desks und Sources auf allen Desks. Pfeil runter springt in die Treffer.',
     },
-    // V56/F-116: nur im Modus „Layouts“ (sonst fehlen die Ziele und die Schritte entfallen)
+    // Ansicht „Notizen“ (V85, weitestgehend wie „Portale“)
+    {
+      id: 'notesNew',
+      title: 'Neu anlegen',
+      target: `${C}.is-notes:not(.is-focus):not(.is-rules) .overview__new`,
+      text: 'Legt ein neues Pad (Notizblock) oder ein Sheet an – To-do-Liste, Kanban-Board oder Eisenhower-Matrix. Es erscheint auf diesem Desk und hier in der Liste.',
+    },
+    {
+      id: 'notesRadar',
+      title: 'Pads im Radar',
+      target: `${C}.is-notes:not(.is-focus) .radar__maps`,
+      text: 'Wie bei „Portale“ ist jeder Desk ein kleiner Bildschirm. Die Slots stehen nur blass als Lage darin, die schwebenden Pads als Rahmen an ihrem Platz, das Dock als geriffelter Streifen am rechten Rand.',
+    },
+    {
+      id: 'notesList',
+      title: 'Pads und Sheets',
+      target: `${C}.is-notes:not(.is-focus) .overview__list`,
+      text: 'Rechts stehen die Pads mit ihren Sheets – dieselben Werkzeuge an denselben Stellen wie bei Portalen: Enter zeigt, V verschiebt auf einen anderen Desk, H holt hierher, D legt ins Dock oder löst daraus, F2 benennt um, Entf schließt (mit Rückgängig).',
+    },
+    {
+      id: 'notesFilter',
+      title: 'Filtern',
+      target: `${C}.is-notes:not(.is-focus) .radar__filter`,
+      text: 'Findet Pads, Sheets und Desks auf allen Desks. Pfeil runter springt in die Treffer.',
+    },
+    {
+      id: 'notesWheel',
+      title: 'Notizen · Fokus · Regeln',
+      target: `${C}.is-notes .overview__rules`,
+      text: '„Fokus“ zeigt, wie viel Arbeit auf dir oder deinem Team liegt – Woche für Woche gegen die Zeit, die da ist. „Regeln“ zeigt, was E-Sources bei Notizen von selbst tut.',
+    },
+    // „Fokus“ im Cockpit „Notizen“ (V95/V96, Vorbild Auslastungsgrafik MS Project/iTaskX)
+    {
+      id: 'focusViews',
+      title: 'Darstellungen',
+      target: `${C}.is-focus .fc__views`,
+      text: 'Wähle, was du sehen willst: Fokus-Zeile im Desk-Kopf, Wochenbalken, Fokus-Ring und Auslastungs-Raster – einzeln oder zusammen.',
+    },
+    {
+      id: 'focusBars',
+      title: 'Auslastung',
+      target: `${C}.is-focus .fc__top`,
+      text: 'Bis 80 % bleibt es ruhig, bis 100 % gelb, darüber rot – immer mit Zahl, z. B. „44 von 40 h“. Vorläufige Aufgaben sind schraffiert. Pfeile wählen eine Woche, Enter zeigt ihre Aufgaben; ein Klick öffnet die Notiz.',
+    },
+    // Ansicht „Personen“ (V95, Ressourcentabelle nach MS Project/iTaskX)
+    {
+      id: 'persons',
+      title: 'Ressourcentabelle',
+      target: `${C}.is-persons .pc__tablewrap`,
+      text: 'Alle Personen und Teams mit Art, Kapazität je Woche, Abwesenheit, Befugnissen und offenen Aufgaben. Pfeile wählen, F2 benennt um, Entf löscht (mit Rückfrage und Rückgängig), Enter springt nach rechts.',
+    },
+    {
+      id: 'personInfo',
+      title: 'Ressourceninformationen',
+      target: `${C}.is-persons .pc__info`,
+      text: 'Hier stellst du die gewählte Person ein: Kapazität, Task-Limit, Kennfarbe, Mitglieder eines Teams, Befugnisse, Abwesenheiten im Ressourcenkalender und die Vertretung.',
+    },
+    // Ansicht „Library“ (V97: Library-Rad)
+    {
+      id: 'library',
+      title: 'Sources · Notizen',
+      target: `${C}.is-sources .lib-wheel`,
+      text: 'Dasselbe Rad wie in der Library jedes Portals: „Sources“ zeigt deine gespeicherten Sources nach Kategorie, „Notizen“ alle Notizen. Die Wahl bleibt auf diesem Gerät gemerkt.',
+    },
+    {
+      id: 'libraryList',
+      title: 'Die Liste',
+      target: `${C}.is-sources .srcc, ${C}.is-sources .libnotes`,
+      text: 'Oben filtern, Pfeile wandern durch die Liste. Bei Sources schaltet das Pause-Zeichen „nie pausieren“, Haken stellen mehrere auf einmal ein; bei Notizen öffnet Enter die Notiz im Pad.',
+    },
+    // Ansicht „Layouts“ (V56/F-116)
     {
       id: 'layouts',
       title: 'Layouts',
-      target: `${C} .lc__cards`,
+      target: `${C}.is-layouts .lc__cards`,
       text: `${DESK_LAYOUT_TEXT.term}. Ein Klick auf eine Karte zeigt das Layout nur an; erst „Wechseln“ baut den Desk um. „Neues Layout“ legt eins an – leer oder als Kopie.`,
     },
     {
       id: 'layoutActions',
       title: 'Aktionen des Layouts',
-      target: `${C} .lc__actions`,
+      target: `${C}.is-layouts .lc__actions`,
       text: 'Direkt unter den Karten steht, was du mit dem gewählten Layout tun kannst: wechseln, umbenennen, kopieren, löschen (mit Rückfrage und Rückgängig). Rechts daneben seine Cases.',
     },
     {
       id: 'cases',
       title: 'Spaces und Cases',
-      target: `${C} .lc__cases--inline`,
+      target: `${C}.is-layouts .lc__cases--inline`,
       text: `${CASE_TEXT.spaceTerm} ${CASE_TEXT.caseTerm} Über „${CASE_TEXT.manage}“ legst du beides an; „${CASE_TEXT.assign}“ ordnet dieses Layout zu. Gibt es Cases, kannst du oben unter „${CASE_TEXT.pick}“ einen wählen – auch über die Suche.`,
     },
     {
       id: 'preview',
       title: 'Vorschau für ein Gerät',
-      target: `${C} .lc__prevhead`,
+      target: `${C}.is-layouts .lc__prevhead`,
       text: `${DESK_LAYOUT_TEXT.deviceTerm}. Steht dort nicht dieses Gerät, ist das Bild orange gepunktet umrandet; „${DESK_LAYOUT_TEXT.thisDevice}“ holt es zurück.`,
     },
     {
       id: 'slots',
       title: 'Slots ordnen',
-      target: `${C} .lc__side`,
+      target: `${C}.is-layouts .lc__side`,
       text: 'Neben dem Bild legst du Slots an und verteilst sie gleichmäßig. Wähle einen Slot im Bild (Klick oder Pfeile), dann kannst du ihn mit einem anderen tauschen oder schließen – seine Portale kommen in den Nachbar-Slot.',
     },
     {
       id: 'rules',
       title: 'Regeln',
-      target: `${C} .overview__rules`,
-      text: 'Zeigt alles, was E-Sources von selbst tut – Farbregeln je Kategorie, Seite → Kategorie und eingebaute Regeln wie „Nach der Kategorie fragen“. Ein Häkchen schaltet eine Regel ein oder aus; ändern und löschen geht hier auch.',
+      target: `${C}.is-portals .overview__rules`,
+      text: 'Zeigt alles, was E-Sources von selbst tut – bei Portalen Farbregeln je Kategorie, Seite → Kategorie und eingebaute Regeln wie „Nach der Kategorie fragen“, bei Notizen z. B. Board-Regeln. Ein Häkchen schaltet eine Regel ein oder aus; ändern und löschen geht hier auch.',
     },
     {
       id: 'again',
@@ -215,13 +298,19 @@ export const TOURS: Record<TourId, TourStep[]> = {
       id: 'theme',
       title: 'Darstellung',
       target: `${D} .design__theme`,
-      text: 'Hell, Dunkel oder „Wie System“ – dann folgt E-Sources der Einstellung deines Geräts. Dazu gibt es zwei Stile im Look älterer Windows-Versionen.',
+      text: 'Das Rad wählt Dunkel, Hell oder „Wie System“ – dann folgt E-Sources der Einstellung deines Geräts. Es dreht mit Scrollen, Klick oder Pfeiltasten.',
+    },
+    {
+      id: 'retro',
+      title: 'Alte Systeme',
+      target: `${D} .design__oldsys`,
+      text: 'Darunter stehen Stile im Look älterer Systeme. Wählst du einen, steht das Rad oben zwischen den Rasten auf dessen Namen.',
     },
     {
       id: 'accent',
       title: 'Akzentfarbe',
-      target: `${D} .design__accent .look__swatches`,
-      text: 'Die Akzentfarbe färbt Knöpfe, Rahmen und Markierungen. Ein Klick auf einen Farbpunkt übernimmt sie sofort für alle Desks.',
+      target: `${D} .design__accent .design__wheel`,
+      text: 'Die Akzentfarbe färbt Knöpfe, Rahmen, Markierungen und den Lichtkegel der Main Stage. Dreh das Rad – die Farbe gilt sofort für alle Desks.',
     },
     {
       id: 'custom',
@@ -327,13 +416,13 @@ export const TOURS: Record<TourId, TourStep[]> = {
       id: 'library',
       title: 'Library dieses Portals',
       target: `${P} .win__coll`,
-      text: 'Zeigt die Sources dieses Portals, mit „Alle“ die ganze Library. Das Pause-Zeichen vorne an jeder Source schaltet „nie pausieren“ um (rot = nie); mit Haken stellst du mehrere auf einmal ein. Der Stern je Zeile nimmt eine Source in dieses Portal auf, ✎ bearbeitet sie.',
+      text: 'Oben schaltet das Rad zwischen „Sources“ und „Notizen“ (die Notizen zu diesem Portal). Unter „Sources“ stehen die Sources dieses Portals, mit „Alle“ die ganze Library. Das Pause-Zeichen vorne an jeder Source schaltet „nie pausieren“ um (rot = nie); mit Haken stellst du mehrere auf einmal ein. Der Stern je Zeile nimmt eine Source in dieses Portal auf, ✎ bearbeitet sie.',
     },
     {
       id: 'cockpit',
       title: 'Alle Sources im Cockpit',
       target: '.toolbar .focus-meter',
-      text: 'Ein Klick auf die Fokusanzeige öffnet das Cockpit. Unter „Sources“ stehen alle Sources nach Kategorie – mit Suchfeld, Pause-Zeichen je Zeile und Haken für mehrere auf einmal.',
+      text: 'Ein Klick auf die Fokusanzeige öffnet das Cockpit. Unter „Library“ stehen alle Sources nach Kategorie – mit Suchfeld, Pause-Zeichen je Zeile und Haken für mehrere auf einmal. Oben dasselbe Rad „Sources · Notizen“ wie im Portal.',
     },
     {
       id: 'colors',
@@ -357,6 +446,135 @@ export const TOURS: Record<TourId, TourStep[]> = {
       id: 'again',
       title: 'Tour wieder starten',
       text: 'Diese Tour findest du jederzeit in der Hilfe (?) und in der Suche („Tour Sources“).',
+    },
+  ],
+  // F-217 (V98): Notizen & Aufgaben am Desk (F-206 Schritte 3–8); Schritte ohne Ziel (kein Pad offen …) entfallen
+  notes: [
+    {
+      id: 'intro',
+      title: 'Notizen & Aufgaben',
+      text: 'Eine Notiz ist ein eigenes Ding: Du siehst sie im Notizblock, in einer To-do-Liste, auf einem Kanban-Board oder in der Eisenhower-Matrix – überall dieselbe Notiz. Diese Tour zeigt, wo du was findest. Mit → weiter, mit Esc beenden.',
+    },
+    {
+      id: 'button',
+      title: 'Der Knopf',
+      target: '.toolbar .tb-nt',
+      text: 'Neues Pad, Platz wählen (Lageplan), Notiz suchen, das Rad „Pads“ (Verteilt · Im Dock · Ausgeblendet), Im Cockpit ordnen und die Deckkraft. Alt/⌥+N öffnet das Menü; die Zahl zeigt Pads, die gerade nicht zu sehen sind.',
+    },
+    {
+      id: 'pad',
+      title: 'Pad',
+      target: '.pad:not(.pad--docked)',
+      text: 'Ein Pad schwebt über dem Desk, nie über der Main Stage. Am Kopf ziehen versetzt es, Alt+Pfeil per Tastatur, Alt+Umschalt+Pfeil ändert die Größe.',
+    },
+    {
+      id: 'sheets',
+      title: 'Sheets',
+      target: '.pad .pad__tabs',
+      text: 'Jedes Pad hat Reiter – die Sheets: Notizblock, To-do-Liste, Kanban-Board, Eisenhower-Matrix. Mit + legst du eins an; F2 benennt um. Eine Notiz lässt sich in mehreren Sheets zeigen.',
+    },
+    {
+      id: 'sources',
+      title: 'Quellen',
+      target: '.pad .srcs:not(.people)',
+      text: 'Verbindet die Notiz mit Seiten – auch mit einer Stelle darin (Minute im Video, Seite im PDF). „+ Quelle“ oder Alt/⌥+Q, oder einen Portal-Reiter hierher ziehen. Ein Klick öffnet die Seite an der Stelle.',
+    },
+    {
+      id: 'people',
+      title: 'Zuständig und Aufwand',
+      target: '.pad .people',
+      text: 'Wer die Aufgabe erledigt und wie viele Stunden sie braucht. Neue Notizen gehören erst dir. Alt/⌥+Z wählt; in Listen und Boards Z, Umschalt+Z und Q für „Nur meine“.',
+    },
+    {
+      id: 'dock',
+      title: 'Dock',
+      target: '.dock',
+      text: 'Die Leiste am rechten Rand für Pads, die immer griffbereit sein sollen. Die anderen Slots rücken dafür zusammen, die Main Stage bleibt gleich breit.',
+    },
+    {
+      id: 'mode',
+      title: 'Desk | Notizen',
+      target: '.toolbar .tb-mode',
+      text: '„Notizen“ legt die Pads dieses Desks wie Slots nebeneinander – eine Arbeitsfläche nur für Notizen. „Desk“ bringt die Portale zurück.',
+    },
+    {
+      id: 'portalNotes',
+      title: 'Notizen am Portal',
+      target: 'main .win__notes',
+      text: 'Hat eine Seite Notizen, zeigt der Portal-Kopf das Zeichen mit Zahl. Ein Klick listet sie; Enter öffnet im Pad, „Neue Notiz zu dieser Seite“ legt eine verknüpfte an.',
+    },
+    {
+      id: 'focusLine',
+      title: 'Fokus-Zeile',
+      target: '.toolbar .focusline',
+      text: 'Wie viel Arbeit diese Woche auf dir liegt, gegen deine Zeit, z. B. „32 / 40 h“ – ruhig, gelb ab 80 %, rot über 100 %. Ein Klick öffnet den Fokus im Cockpit.',
+    },
+    {
+      id: 'cockpit',
+      title: 'Ordnen im Cockpit',
+      text: 'Im Cockpit unter „Notizen“ siehst du alle Pads und Sheets aller Desks, unter „Personen“ wer wie viel Zeit hat. F6 springt reihum durch Kopfleiste, Slots, Dock und Pads.',
+    },
+    {
+      id: 'again',
+      title: 'Tour wieder starten',
+      text: 'Diese Tour findest du im Menü „Notizen & Aufgaben“, in der Hilfe (?) und in der Suche („Tour Notizen“).',
+    },
+  ],
+  // F-217 (V98): Main Stage (F-207 Stufe 1, F-206 Schritt 9)
+  stage: [
+    {
+      id: 'intro',
+      title: 'Main Stage',
+      text: 'Die Main Stage ist der Slot, auf den du schaust und aus dem du arbeitest. Je Desk gibt es eine. Pads und Dock liegen nie darüber. Mit → weiter, mit Esc beenden.',
+    },
+    {
+      id: 'spot',
+      title: 'Scheinwerfer',
+      target: 'main .win__stagebtn',
+      text: 'Ein Klick macht diesen Slot zur Main Stage; eine neue löst die alte ab, „Rückgängig“ steht direkt daneben. Ohne Stage erscheint der Scheinwerfer, wenn du über den Portal-Kopf fährst oder mit Tab hinkommst.',
+    },
+    {
+      id: 'cone',
+      title: 'Lichtkegel',
+      target: 'main .win__cone',
+      text: 'So erkennst du die Stage: Lichtkegel in der Akzentfarbe und das Wort „Stage“ am Scheinwerfer. Im Kontrastmodus steht stattdessen ein Rahmen.',
+    },
+    {
+      id: 'menu',
+      title: 'Im Menü ⋮',
+      target: `${P} button[aria-label="Portal-Optionen"]`,
+      text: '„Auf die Main Stage“ schaltet um – auch ohne Maus und auf Touch-Geräten. „Main Stage …“ öffnet die Einstellungen.',
+    },
+    {
+      id: 'settings',
+      title: 'Main Stage …',
+      text: 'Ein Klick auf den Scheinwerfer der Stage öffnet die Einstellungen am Ort:',
+      list: [
+        'Im Layout: Frei · Fest – fest heißt: nicht ziehen, nicht tauschen, nicht verschieben, nicht schließen',
+        'Mindestgröße: kleiner lässt sich die Stage nicht ziehen („Heutige Größe nehmen“)',
+        'Auf allen Desks: kommt später',
+        'Von der Main Stage nehmen',
+      ],
+    },
+    {
+      id: 'pads',
+      title: 'Pads und Dock',
+      text: 'Neue Pads legen sich neben die Stage; ziehst du eins darüber, springt es zurück. Der Lageplan sperrt Plätze über der Stage. Öffnet sich das Dock, rücken nur die anderen Slots zusammen.',
+    },
+    {
+      id: 'cockpit',
+      title: 'Im Cockpit',
+      text: 'Unter „Portale“ macht die Taste S einen Slot zur Main Stage – auch auf anderen Desks. Der Scheinwerfer im Radar zeigt, wo sie ist.',
+    },
+    {
+      id: 'source',
+      title: 'Quellen aus Notizen',
+      text: 'Klickst du in einer Notiz auf eine Quelle, die nirgends offen ist, öffnet sie in der Main Stage.',
+    },
+    {
+      id: 'again',
+      title: 'Tour wieder starten',
+      text: 'Diese Tour findest du in „Main Stage …“, in der Hilfe (?) und in der Suche („Tour Main Stage“).',
     },
   ],
   // V54: Werkbank des Entwickler-Modus (F-200 Stufe 2) mit „Untersuchen“ (F-200 e)
@@ -403,7 +621,7 @@ export function tourSteps(has: (selector: string) => boolean, steps: TourStep[] 
 }
 
 /** Speicherschlüssel je Tour; die Starttour behält ihren bisherigen Schlüssel. */
-export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1', sync: 'esource.tour.sync.v1' };
+export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1', sync: 'esource.tour.sync.v1', notes: 'esource.tour.notes.v1', stage: 'esource.tour.stage.v1' };
 
 /** Wurde die Tour schon gezeigt (beendet oder übersprungen)? */
 export function tourSeen(id: TourId = 'start'): boolean {

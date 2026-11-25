@@ -31,10 +31,11 @@ import * as Pd from './pads';
 import * as NT from './noteTree';
 import * as NL from './notesLayouts';
 import * as RS from './ruleSet';
-import type { BoardTemplate, ColState, FocusView, NoteState, NoteView, NoteViewKind, PadPlace, Person, SourceLink, SourceSpot } from './types';
+import type { BoardTemplate, ColState, FocusView, NoteState, NoteView, NoteViewKind, PadPlace, Person, Project, SourceLink, SourceSpot } from './types';
 import * as BT from './boardTemplates';
 import * as Sh from './sheets';
 import * as Ps from './persons';
+import * as Pj from './projects';
 import * as FL from './focusLoad';
 import * as St from './stage';
 import { type RuleUndo, deleteRule, restoreRule, setRuleOn, setSiteCategory } from './rules';
@@ -199,6 +200,12 @@ export type Action =
   | { type: 'stageEdit'; desk: string; patch: Partial<Pick<St.Stage, 'fixed' | 'minW' | 'minH'>> }
   | { type: 'stageRestore'; desk: string; undo: St.Stage | undefined }
   | { type: 'personRemove'; id: string }
+  /* F-206 Schritt 10 (V98): Projekte */
+  | { type: 'projectAdd'; name: string; extra?: Partial<Omit<Project, 'id' | 'created' | 'changed'>> }
+  | { type: 'projectEdit'; id: string; patch: Partial<Omit<Project, 'id' | 'created' | 'changed'>> }
+  | { type: 'projectRemove'; id: string }
+  | { type: 'projectRestore'; undo: Pj.ProjectUndo }
+  | { type: 'noteProject'; id: string; project?: string }
   | { type: 'personRestore'; undo: Ps.PersonUndo }
   | { type: 'noteAssign'; id: string; person?: string; by?: string }
   | { type: 'noteDelegate'; id: string; person: string; by?: string }
@@ -408,6 +415,16 @@ function step(ws: Workspace, a: Action): Workspace {
       return St.editStage(ws, a.desk, a.patch);
     case 'stageRestore':
       return St.restoreStage(ws, a.desk, a.undo);
+    case 'projectAdd':
+      return Pj.addProject(ws, a.name, a.extra)?.ws ?? ws;
+    case 'projectEdit':
+      return Pj.editProject(ws, a.id, a.patch);
+    case 'projectRemove':
+      return Pj.removeProject(ws, a.id)?.ws ?? ws;
+    case 'projectRestore':
+      return Pj.undoRemoveProject(ws, a.undo);
+    case 'noteProject':
+      return Pj.setNoteProject(ws, a.id, a.project);
     case 'personRemove':
       return Ps.removePerson(ws, a.id)?.ws ?? ws;
     case 'personRestore':

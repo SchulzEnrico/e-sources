@@ -861,7 +861,8 @@ export function Overview(p: OverviewProps) {
       <div
         id="overview"
         ref={box}
-        className={layouts ? 'overview is-layouts' : sources ? 'overview is-sources' : notes ? 'overview is-notes' : 'overview'}
+        // F-217 (V98): Klasse je Ansicht – die Cockpit-Tour zeigt nur die Schritte der offenen Ansicht
+        className={`overview ${layouts ? 'is-layouts' : sources ? 'is-sources' : persons ? 'is-persons' : notes ? 'is-notes' : 'is-portals'}${rules ? ' is-rules' : notes && focusView ? ' is-focus' : ''}`}
         role="dialog"
         aria-label="Cockpit: alle Portale auf einen Blick"
         aria-describedby="overview-help"

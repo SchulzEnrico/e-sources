@@ -1183,6 +1183,9 @@ export const NT_TEXT = {
   cockpit: 'Im Cockpit ordnen …',
   cockpitHint: 'Öffnet das Cockpit in der Ansicht „Notizen“: Pads aller Desks im Radar, verschieben, ins Dock, schließen',
   help: 'Hilfe zu Notizen & Aufgaben',
+  /** F-217 (V98) */
+  tour: 'Tour',
+  tourHint: 'Kurze Einführung: Pads, Sheets, Quellen, Zuständig, Dock und Desk | Notizen',
   newTodo: 'Neue To-do-Liste',
   newTodoHint: 'Als neuer Reiter im obersten Pad – Aufgaben abhaken, sortieren, Erledigte einklappen',
   newKanban: 'Neues Kanban-Board',
@@ -2043,6 +2046,9 @@ export const STAGE_TEXT = {
   undo: 'Rückgängig',
   on: 'Auf die Main Stage',
   off: 'Von der Main Stage nehmen',
+  /** F-217 (V98) */
+  tour: 'Tour',
+  tourHint: 'Kurze Einführung in die Main Stage',
   btnOn: (slot: string) => `„${slot}“ auf die Main Stage – Pads und Dock liegen dann nie darüber`,
   btnMenu: (slot: string) => `„${slot}“ ist die Main Stage – Klick öffnet „Main Stage …“ (fest im Layout, Mindestgröße, von der Stage nehmen)`,
   btnOff: (slot: string) => `„${slot}“ ist die Main Stage – Klick nimmt den Slot von der Stage`,

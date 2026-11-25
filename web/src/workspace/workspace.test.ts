@@ -9,7 +9,7 @@ import * as NLo from './notes';
 import * as NLp from './pads';
 import { parsePadDesks } from './noteObjects';
 import { keepDeviceFields, onlyDeviceChanged, parseWorkspace } from './storage';
-import type { Workspace } from './types';
+import type { Note, Workspace } from './types';
 import * as X from './transfer';
 import * as B from './bookmarks';
 import * as Pz from './pause';
@@ -26,6 +26,7 @@ import * as Probe from './probe';
 import * as S from './sizing';
 import * as H from './help';
 import * as Tour from './tour';
+import * as Pj from './projects';
 import * as Terms from './terms';
 import * as Rs from './reset';
 import * as Zm from './zoom';
@@ -5915,5 +5916,115 @@ describe('F-218 (V92): Einbau der Schalter und W1/W2 nach jeder Änderung', () =
     const withUrl = { ...ws, panels: ws.panels.map((p, i) => (i === 0 ? { ...p, tabs: [{ id: 't1', url: 'https://a.de/x' }], activeTab: 't1' } : p)) };
     expect(B.openElsewhere(withUrl, 'anderes', 'https://a.de/x')).toMatchObject({ panel: p0.id, tab: 't1' });
     expect(B.openElsewhere(withUrl, p0.id, 'https://a.de/x')).toBeNull();
+  });
+});
+
+describe('F-217 Touren prüfen (V98)', () => {
+  /** Simuliertes Cockpit: Ansicht-Klassen am #overview; alles andere gibt es. */
+  const cockpitHas = (on: string[]) => (sel: string) =>
+    sel.split(',').some((part) => {
+      const nots = [...part.matchAll(/:not\(\.is-([a-z]+)\)/g)].map((m) => m[1]);
+      const pos = [...part.replace(/:not\([^)]*\)/g, '').matchAll(/\.is-([a-z]+)/g)].map((m) => m[1]);
+      return pos.every((c) => on.includes(c)) && nots.every((c) => !on.includes(c));
+    });
+  const ids = (on: string[]) => Tour.tourSteps(cockpitHas(on), Tour.TOURS.cockpit).map((s) => s.id);
+  it('Cockpit-Tour zeigt nur die Schritte der offenen Ansicht', () => {
+    const portals = ids(['portals']);
+    expect(portals).toContain('radar');
+    expect(portals).toContain('rules');
+    expect(portals).not.toContain('notesList');
+    expect(portals).not.toContain('persons');
+    const notes = ids(['notes']);
+    expect(notes).toContain('notesList');
+    expect(notes).toContain('notesWheel');
+    expect(notes).not.toContain('portals');
+    expect(notes).not.toContain('move');
+    expect(notes).not.toContain('rules');
+    expect(notes).not.toContain('focusBars');
+    const focus = ids(['notes', 'focus']);
+    expect(focus).toContain('focusBars');
+    expect(focus).not.toContain('notesList');
+    expect(ids(['persons'])).toEqual(['cockpit', 'focus', 'modes', 'persons', 'personInfo', 'again']);
+    expect(ids(['layouts'])).toEqual(['cockpit', 'focus', 'modes', 'layouts', 'layoutActions', 'cases', 'preview', 'slots', 'again']);
+    const lib = ids(['sources']);
+    expect(lib).toContain('library');
+    expect(lib).toContain('libraryList');
+    expect(lib).not.toContain('filter');
+  });
+  it('neue Touren „Notizen & Aufgaben“ und „Main Stage“: eigene Merker, Texte, in der Suche', () => {
+    for (const id of ['notes', 'stage'] as const) {
+      const t = Tour.TOURS[id];
+      expect(t[0].target).toBe(undefined);
+      expect(new Set(t.map((s) => s.id)).size).toBe(t.length);
+      expect(t.every((s) => s.text.trim().length > 20)).toBe(true);
+      expect(Tour.TOUR_KEY[id]).toBe(`esource.tour.${id}.v1`);
+    }
+    expect(H.searchHelp('Tour Notizen')[0].id).toBe('tourNotes');
+    expect(H.searchHelp('Tour Main Stage')[0].id).toBe('tourStage');
+    expect(new Set(Object.values(Tour.TOUR_KEY)).size).toBe(Object.keys(Tour.TOURS).length);
+  });
+  it('Design-Tour zielt auf die Räder, nicht mehr auf die alten Farbpunkte', () => {
+    const d = Tour.TOURS.design;
+    expect(d.some((s) => (s.target ?? '').includes('look__swatches'))).toBe(false);
+    expect(d.find((s) => s.id === 'accent')?.target).toContain('design__wheel');
+    expect(d.some((s) => s.id === 'retro')).toBe(true);
+  });
+});
+
+describe('F-206 Schritt 10 Projekte (V98)', () => {
+  const base = (): Workspace => ({ ...W.defaultWorkspace(), notes: [] }) as Workspace;
+  const note = (id: string, extra: Partial<Note> = {}): Note => ({ id, title: id, text: '', state: 'open', trail: [], ...extra }) as Note;
+  it('anlegen: Zustand Idee, gleicher Name = dasselbe Projekt, leerer Name nicht', () => {
+    const r = Pj.addProject(base(), '  Website  Relaunch ', {}, 5)!;
+    expect(Pj.projectsOf(r.ws)).toHaveLength(1);
+    expect(Pj.projectById(r.ws, r.id)?.name).toBe('Website Relaunch');
+    expect(Pj.projectById(r.ws, r.id)?.state).toBe('idea');
+    expect(Pj.addProject(r.ws, 'website relaunch')!.id).toBe(r.id);
+    expect(Pj.addProject(r.ws, '   ')).toBeNull();
+    expect(Pj.similarProjects(r.ws, 'Website').map((p) => p.id)).toEqual([r.id]);
+  });
+  it('ändern: Datum geprüft, Priorität 1–5, Steckbrief leert sich, kein Kreis bei Unterprojekten', () => {
+    let ws = Pj.addProject(base(), 'A')!.ws;
+    const a = Pj.projectsOf(ws)[0].id;
+    const rb = Pj.addProject(ws, 'B', { parent: a })!;
+    ws = rb.ws;
+    ws = Pj.editProject(ws, a, { start: '2026-12-01', end: 'morgen', priority: 9, brief: { goal: 'Ziel', approach: ' ' } });
+    const p = Pj.projectById(ws, a)!;
+    expect(p.start).toBe('2026-12-01');
+    expect(p.end).toBeUndefined();
+    expect(p.priority).toBe(5);
+    expect(p.brief).toEqual({ goal: 'Ziel' });
+    expect(Pj.parentLoops(ws, a, rb.id)).toBe(true);
+    expect(Pj.projectById(Pj.editProject(ws, a, { parent: rb.id }), a)?.parent).toBeUndefined();
+    expect(Pj.briefGaps(p)).toEqual(['approach', 'org', 'end']);
+    expect(Pj.datesClash({ start: '2026-12-02', end: '2026-12-01' })).toBe(true);
+  });
+  it('Projektliste: Baum, Fortschritt nach Aufwand, Termine aus Vorgängen, überfällig', () => {
+    let ws = Pj.addProject(base(), 'A')!.ws;
+    const a = Pj.projectsOf(ws)[0].id;
+    ws = Pj.addProject(ws, 'A1', { parent: a })!.ws;
+    ws = Pj.addProject(ws, 'C')!.ws;
+    ws = { ...ws, notes: [note('n1', { project: a, effort: { plan: 6 }, state: 'done', notBefore: '2026-11-02' }), note('n2', { project: a, effort: { plan: 2 }, due: '2026-11-20', milestone: true }), note('n3')] };
+    const rows = Pj.projectRows(ws, '2026-11-25');
+    expect(rows.map((r) => [r.project.name, r.depth])).toEqual([['A', 0], ['A1', 1], ['C', 0]]);
+    const r = rows[0];
+    expect([r.tasks, r.done, r.progress, r.effort, r.milestones, r.late]).toEqual([2, 1, 75, 8, 1, 1]);
+    expect([r.start, r.end, r.derived.start, r.derived.end]).toEqual(['2026-11-02', '2026-11-20', true, true]);
+  });
+  it('löschen mit Rückgängig: Vorgänge bleiben, Unterprojekte rücken hoch und kommen zurück', () => {
+    let ws = Pj.addProject(base(), 'A')!.ws;
+    const a = Pj.projectsOf(ws)[0].id;
+    const b = Pj.addProject(ws, 'B', { parent: a })!;
+    ws = { ...b.ws, notes: [note('n1', { project: a })] };
+    ws = Pj.setNoteProject(ws, 'n1', a);
+    const r = Pj.removeProject(ws, a)!;
+    expect(Pj.projectsOf(r.ws).map((p) => p.id)).toEqual([b.id]);
+    expect(Pj.projectById(r.ws, b.id)?.parent).toBeUndefined();
+    expect(r.ws.notes![0].project).toBeUndefined();
+    const back = Pj.undoRemoveProject(r.ws, r.undo);
+    expect(Pj.projectsOf(back).map((p) => p.id)).toEqual([a, b.id]);
+    expect(Pj.projectById(back, b.id)?.parent).toBe(a);
+    expect(back.notes![0].project).toBe(a);
+    expect(Pj.setNoteProject(back, 'n1', 'gibt-es-nicht')).toBe(back);
   });
 });

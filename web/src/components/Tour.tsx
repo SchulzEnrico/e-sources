@@ -67,6 +67,8 @@ export function Tour({ tour = 'start', auto = false, onClose, onAutoOff, onActio
     const el = step.target ? document.querySelector<HTMLElement>(step.target) : null;
     // z. B. Stack: für diesen Schritt aufklappen, damit die Namen zu sehen sind
     if (el && step.expand) el.classList.add('is-open');
+    // F-217 (V98): Ziel sichtbar halten, auch wenn es sonst nur bei Hover erscheint (z. B. Scheinwerfer der Main Stage)
+    el?.classList.add('is-tour-target');
     // F-172: Ziel in einem scrollbaren Bereich (z. B. Cockpit auf schmalem Bildschirm) ins Bild holen
     el?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     const measure = () => {
@@ -91,6 +93,7 @@ export function Tour({ tour = 'start', auto = false, onClose, onAutoOff, onActio
       window.removeEventListener('resize', measure);
       window.removeEventListener('scroll', onScroll, true);
       if (el && step.expand) el.classList.remove('is-open');
+      el?.classList.remove('is-tour-target');
     };
   }, [step]);
 

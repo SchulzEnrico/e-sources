@@ -6,6 +6,7 @@
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { STAGE_TEXT, TERMS } from '../workspace/terms';
+import { requestTour } from '../workspace/tour';
 import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
 
@@ -158,6 +159,10 @@ export function StagePanel(p: StagePanelProps) {
         </span>
       </div>
       <div className="stagepop__foot">
+        {/* F-217 (V98): Tour „Main Stage“ */}
+        <button type="button" title={T.tourHint} onClick={() => (commit(), p.onClose(false), requestTour('stage'))}>
+          {T.tour}
+        </button>
         <button type="button" onClick={p.onOff}>
           {T.off}
         </button>

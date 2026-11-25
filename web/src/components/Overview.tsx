@@ -8,7 +8,7 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor, newId } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { NOTES_COCKPIT_TEXT, PERSONS_TEXT, FOCUS_TEXT, NT_TEXT, PAD_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, STAGE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
+import { FEEDBACK_COCKPIT_TEXT, NOTES_COCKPIT_TEXT, PERSONS_TEXT, FOCUS_TEXT, NT_TEXT, PAD_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, STAGE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import { type Action, padOpenResult } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
@@ -17,6 +17,7 @@ import { LayoutCockpit, type LayoutOps } from './DeskLayouts';
 import { ModeWheel } from './ModeWheel';
 import { NotesCockpit } from './NotesCockpit';
 import { PersonCockpit } from './PersonCockpit';
+import { FeedbackCockpit } from './FeedbackCockpit';
 import { FocusCockpit } from './FocusCockpit';
 import { Icon } from './Icon';
 import * as St from '../workspace/stage';
@@ -135,6 +136,8 @@ export interface OverviewProps {
   onShowPad?: (id: string, sheet?: string) => void;
   onPadToDesk?: (id: string, desk: string) => void;
   startNotes?: boolean;
+  /** F-221 Bau 4 (V103): gleich in der Ansicht „Feedback“ öffnen */
+  startFeedback?: boolean;
   /** V90 (Enrico): im Cockpit „Notizen“ neue Pads und Sheets anlegen (wie im Menü Notizen & Aufgaben). */
   onNotesNew?: (kind: 'pad' | 'todo' | 'kanban' | 'eisenhower') => void;
   opacity?: { pads: number; dock: number; setPads: (v: number) => void; setDock: (v: number) => void };
@@ -247,20 +250,23 @@ export function Overview(p: OverviewProps) {
   const [notes, setNotes] = useState(!!p.startNotes && canNotes);
   /** V95 (F-206 Schritt 8, Bau 4): Ansicht „Personen“ – Ressourcentabelle. */
   const [persons, setPersons] = useState(false);
+  /** F-221 Bau 4 (V103, FB8): Ansicht „Feedback“ – Board der Meldungen. */
+  const [feedback, setFeedback] = useState(!!p.startFeedback && !!p.dispatch);
   /** V95 (Bau 5): Seite „Fokus“ im Cockpit „Notizen“ (Rad Notizen · Fokus · Regeln). */
   const [focusView, setFocusView] = useState(!!p.startFocus && canNotes);
-  type Mode = 'portals' | 'notes' | 'persons' | 'layouts' | 'sources';
-  const mode: Mode = layouts ? 'layouts' : sources ? 'sources' : persons ? 'persons' : notes ? 'notes' : 'portals';
-  const modes: Mode[] = ['portals', ...(canNotes ? (['notes', 'persons'] as Mode[]) : []), ...(p.layoutOps ? (['layouts'] as Mode[]) : []), 'sources'];
+  type Mode = 'portals' | 'notes' | 'persons' | 'layouts' | 'sources' | 'feedback';
+  const mode: Mode = feedback ? 'feedback' : layouts ? 'layouts' : sources ? 'sources' : persons ? 'persons' : notes ? 'notes' : 'portals';
+  const modes: Mode[] = ['portals', ...(canNotes ? (['notes', 'persons'] as Mode[]) : []), ...(p.layoutOps ? (['layouts'] as Mode[]) : []), 'sources', ...(p.dispatch ? (['feedback'] as Mode[]) : [])];
   const setMode = (m: Mode) => {
     setLayouts(m === 'layouts');
     setSources(m === 'sources');
     setNotes(m === 'notes');
     setPersons(m === 'persons');
+    setFeedback(m === 'feedback');
     setFocusView(false);
     setRules(false);
     setQuery('');
-    setSaid(m === 'layouts' ? DESK_LAYOUT_TEXT.modeOn : m === 'sources' ? DESK_LAYOUT_TEXT.modeSourcesOn : m === 'notes' ? NOTES_COCKPIT_TEXT.modeOn : m === 'persons' ? PERSONS_TEXT.modeOn : '');
+    setSaid(m === 'layouts' ? DESK_LAYOUT_TEXT.modeOn : m === 'sources' ? DESK_LAYOUT_TEXT.modeSourcesOn : m === 'notes' ? NOTES_COCKPIT_TEXT.modeOn : m === 'persons' ? PERSONS_TEXT.modeOn : m === 'feedback' ? FEEDBACK_COCKPIT_TEXT.modeOn : '');
   };
   /** Pfeil runter im Filterfeld → erste Zeile der Notizen-Liste. */
   const notesFirst = useRef<(() => void) | null>(null);
@@ -897,8 +903,8 @@ export function Overview(p: OverviewProps) {
               onChange={(m) => setMode(m as Mode)}
               options={modes.map((m) => ({
                 id: m,
-                name: m === 'layouts' ? DESK_LAYOUT_TEXT.modeLayouts : m === 'sources' ? DESK_LAYOUT_TEXT.modeSources : m === 'notes' ? NOTES_COCKPIT_TEXT.mode : m === 'persons' ? PERSONS_TEXT.mode : DESK_LAYOUT_TEXT.modePortals,
-                icon: m === 'layouts' ? 'layouts' : m === 'sources' ? 'source' : m === 'notes' ? 'notesTasks' : m === 'persons' ? 'catPeople' : 'radar',
+                name: m === 'feedback' ? FEEDBACK_COCKPIT_TEXT.mode : m === 'layouts' ? DESK_LAYOUT_TEXT.modeLayouts : m === 'sources' ? DESK_LAYOUT_TEXT.modeSources : m === 'notes' ? NOTES_COCKPIT_TEXT.mode : m === 'persons' ? PERSONS_TEXT.mode : DESK_LAYOUT_TEXT.modePortals,
+                icon: m === 'feedback' ? 'feedback' : m === 'layouts' ? 'layouts' : m === 'sources' ? 'source' : m === 'notes' ? 'notesTasks' : m === 'persons' ? 'catPeople' : 'radar',
               }))}
             />
           )}
@@ -930,7 +936,7 @@ export function Overview(p: OverviewProps) {
             </span>
           )}
           <span className="grow" />
-          {!rules && !layouts && !sources && !persons && !focusView && <input
+          {!rules && !layouts && !sources && !persons && !feedback && !focusView && <input
             ref={filterRef}
             className="radar__filter"
             type="search"
@@ -1034,7 +1040,9 @@ export function Overview(p: OverviewProps) {
               />
             );
           })()}
-        {persons && p.dispatch ? (
+        {feedback && p.dispatch ? (
+          <FeedbackCockpit ws={p.ws} dispatch={p.dispatch} say={setSaid} />
+        ) : persons && p.dispatch ? (
           <PersonCockpit ws={p.ws} dispatch={p.dispatch} say={setSaid} />
         ) : notes && canNotes && focusView && !rules ? (
           <FocusCockpit ws={p.ws} dispatch={p.dispatch!} onOpen={p.onDismiss} onPersons={() => setMode('persons')} />

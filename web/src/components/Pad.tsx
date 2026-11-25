@@ -92,6 +92,8 @@ export interface PadProps {
    * Kopf ziehen = andocken/tauschen, Ränder = Grenze zum Nachbarn, Alt + Pfeil = mit Nachbar
    * tauschen, Alt + Umschalt + Pfeil = Grenze verschieben.
    */
+  /** V103 (Enrico): im Desk-/Projekt-Modus – Pad nur noch im Notizen-Modus zeigen */
+  toNotes?: () => void;
   tile?: {
     /** Ränder, an denen eine Grenze liegt (am Desk-Rand nicht). */
     grips: Edge[];
@@ -108,7 +110,7 @@ export interface PadProps {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say, dock, full, plan, tile, onClosed, stage }: PadProps) {
+export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say, dock, full, plan, tile, onClosed, stage, toNotes }: PadProps) {
   const [live, setLive] = useState<PadPlace | null>(null);
   const [renaming, setRenaming] = useState(false);
   /** V88 (BL3): „Als Vorlage speichern …“ – Leiste unter dem Kopf */
@@ -807,6 +809,11 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               <Item icon="dock" hint={dock ? DOCK_TEXT.undockHint : DOCK_TEXT.toDockHint} onClick={() => (close(), toDock(!dock))}>
                 {dock ? DOCK_TEXT.undock : DOCK_TEXT.toDock}
               </Item>
+              {toNotes && !dock && (
+                <Item icon="note" hint={PAD_TEXT.toNotesHint} onClick={() => (close(), toNotes())}>
+                  {PAD_TEXT.toNotes}
+                </Item>
+              )}
               {!dock && (
                 <Item icon="slot" disabled={!plan} hint={plan ? (tile ? PLAN_TEXT.notesMoveHint : PLAN_TEXT.padMoveHint) : undefined} title={plan ? undefined : PAD_TEXT.menuPlaceNotes} onClick={() => go('place')}>
                   {PAD_TEXT.menuPlace}

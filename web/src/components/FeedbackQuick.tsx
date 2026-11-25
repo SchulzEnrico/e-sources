@@ -59,6 +59,8 @@ export function FeedbackQuick(props: {
   onNeverAsk: () => void;
   /** Stufe 2 öffnen (Bau 3); fehlt = Knopf ausgeblendet */
   onElaborate?: (id: string) => void;
+  /** Bau 4: Cockpit „Feedback“ mit allen Meldungen öffnen */
+  onAll?: () => void;
   onClose: () => void;
 }) {
   const dlg = useRef<HTMLDialogElement>(null);
@@ -194,6 +196,11 @@ export function FeedbackQuick(props: {
             <span className="fbq__privacy">{T.placePrivacy}</span>
           </div>
           <div className="fbq__foot">
+            {props.onAll && (
+              <button type="button" className="fbq__all" onClick={props.onAll} title={T.allTip}>
+                {T.all}
+              </button>
+            )}
             <button type="button" className="fbq__cancel" onClick={props.onClose}>
               {T.cancel}
             </button>
@@ -258,6 +265,13 @@ export function FeedbackQuick(props: {
                 </fieldset>
               )}
               {eased && <p>{T.easeThanks}</p>}
+              {props.onAll && (
+                <p>
+                  <button type="button" className="fbq__all" onClick={props.onAll} title={T.allTip}>
+                    {T.all}
+                  </button>
+                </p>
+              )}
             </>
           )}
         </div>

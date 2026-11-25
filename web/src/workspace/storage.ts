@@ -2,6 +2,7 @@ import { CATEGORY_ICONS } from './icons';
 import { parseFit, parseZoom } from './zoom';
 import { parseBoardTemplates } from './boardTemplates';
 import { parseFeedback, parseFeedbackPrefs, parseWheels } from './feedback';
+import { parseDecisions } from './decisions';
 import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, DeskNotes, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
 import { cleanProjectRefs, cleanRefs, parseFocusViews, parsePadDesks, parsePads, parsePersons, parseProjects, personsFromDelegated } from './noteObjects';
 import { parseDeskLooks, parseLook } from './look';
@@ -358,7 +359,10 @@ function parseWorkspaceRaw(data: unknown): Workspace | null {
   const feedback = parseFeedback(data.feedback);
   const feedbackPrefs = parseFeedbackPrefs(data.feedbackPrefs);
   const wheels = parseWheels(data.wheels);
+  // F-222 (N11): Entscheidungen, Projekt-Bezug nur auf vorhandene Projekte
+  const decisions = parseDecisions(data.decisions, new Set(projects.map((p) => p.id)));
   return {
+    ...(decisions.length ? { decisions } : {}),
     ...(feedback.length ? { feedback } : {}),
     ...(feedbackPrefs ? { feedbackPrefs } : {}),
     ...(wheels ? { wheels } : {}),

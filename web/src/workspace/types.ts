@@ -279,6 +279,8 @@ export interface Workspace {
    * liegt je Gerät außerhalb der Arbeitsfläche.
    */
   wheels?: Record<string, WheelPrefs>;
+  /** F-222 (V103, Dateiformat 11, N1/N11): Entscheidungen per Nutzwertanalyse, frei oder am Projekt; fehlt = keine. */
+  decisions?: Decision[];
 }
 
 /** F-220 (R2): Einstellung eines Umschalt-Rads; fehlt ein Feld = Werk. */
@@ -669,6 +671,8 @@ export interface Pad {
   active: string;
   /** Im Dock statt schwebend. */
   docked?: boolean;
+  /** V103 (Enrico): im Notizen-Modus geöffnet – Desk- und Projekt-Modus zeigen es nicht (der Notizen-Modus zeigt alle). */
+  notes?: true;
   /** Umstieg aus Notiz-Tabs: Portal, über dessen Slot das Pad zuerst liegt (bis ein Platz gesetzt ist). */
   from?: string;
   /** F-215 (V70): zuletzt genutzt, neueste zuerst, höchstens 5 – „n:<Note-Id>“ bzw. „s:<Sheet-Id>“. */
@@ -798,3 +802,86 @@ export type FocusView = 'line' | 'week' | 'ring' | 'grid';
 export type Closed =
   | { id: string; kind: 'portal'; win: string; at: number; panel: PanelMeta; area?: string }
   | { id: string; kind: 'tab'; win: string; at: number; tab: Tab; index: number; panelId: string; panelName: string };
+
+/** F-222 (N7): Zustand einer Entscheidung. */
+export type DecisionState = 'draft' | 'rated' | 'decided';
+
+/** F-222: Kriterium mit Gewicht in % (N2), Muss-Kriterium als Vorfilter (N4). */
+export interface DecisionCriterion {
+  id: string;
+  name: string;
+  /** Gewicht in Prozent (Summe 100); fehlt = noch nicht gewichtet */
+  weight?: number;
+  /** Muss-Kriterium: wer es nicht erfüllt, „scheidet aus“ */
+  must?: true;
+  /** Wie wird geprüft? (Faustregel „prüfbar“, N12) */
+  hint?: string;
+}
+
+/** F-222: Lösung (Alternative), optional mit Bezügen wie V93 (N5). */
+export interface DecisionOption {
+  id: string;
+  name: string;
+  note?: string;
+  /** Bezüge: Notiz-, Source-, Personen- oder Feedback-Ids */
+  links?: DecisionLink[];
+  /** Muss-Kriterium nicht erfüllt (Ids der Kriterien) */
+  fails?: string[];
+}
+
+/** F-222 (N5): Bezug wie bei Notiz ↔ Quelle (V93). */
+export interface DecisionLink {
+  kind: 'note' | 'bookmark' | 'person' | 'feedback';
+  id: string;
+}
+
+/** F-222 (N4/N10): Bewertung 0–10 einer Lösung für ein Kriterium, Begründung freiwillig, `by` für Stufe 2. */
+export interface DecisionScore {
+  /** Kriterium-Id */
+  c: string;
+  /** Lösungs-Id */
+  o: string;
+  /** 0 = gar nicht · 5 = teilweise · 10 = voll */
+  v: number;
+  why?: string;
+  by?: string;
+}
+
+/** F-222 (N2): Paarvergleich – Schlüssel „a|b“ (a vor b in der Kriterienliste), 2 = a wichtiger, 1 = gleich, 0 = b wichtiger. */
+export type DecisionPairs = Record<string, 0 | 1 | 2>;
+
+/** F-222 (N7): Eintrag in der Spur. */
+export interface DecisionMark {
+  at: string;
+  text: string;
+  by?: string;
+}
+
+/** F-222 (N1): eine Entscheidung (Nutzwertanalyse). */
+export interface Decision {
+  id: string;
+  title: string;
+  state: DecisionState;
+  /** ISO-Zeitpunkt der Anlage */
+  at: string;
+  changed?: string;
+  /** Wozu / Frage der Entscheidung */
+  question?: string;
+  /** am Projekt (Id aus Workspace.projects); fehlt = frei */
+  projectId?: string;
+  criteria: DecisionCriterion[];
+  options: DecisionOption[];
+  scores?: DecisionScore[];
+  /** N2: Gewichte per Paarvergleich ermittelt; fehlt = frei */
+  pairs?: DecisionPairs;
+  /** Bezüge der Entscheidung selbst (z. B. „Entscheidung vorbereiten …“ aus der Notiz) */
+  links?: DecisionLink[];
+  /** N7: gewählte Lösung („Entscheiden …“) */
+  chosen?: string;
+  /** N7: Begründung – Pflicht nur bei Abweichung vom Sieger */
+  why?: string;
+  /** N7: gesperrt nach „Entschieden“ */
+  locked?: true;
+  /** N7: Spur */
+  marks?: DecisionMark[];
+}

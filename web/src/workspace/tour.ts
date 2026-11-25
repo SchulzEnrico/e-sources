@@ -69,6 +69,7 @@ export const TOURS: Record<TourId, TourStep[]> = {
     { id: 'search', title: 'Suchen', target: '.tb-center .search', text: t('search') },
     { id: 'focus', title: 'Fokusanzeige', target: '.toolbar .focus-meter', text: `${t('focus')} Ein Klick öffnet das Cockpit (Strg/⌘+.) – dort gibt es eine eigene kurze Tour.` },
     { id: 'design', title: 'Design', target: '.toolbar .tb-design', text: `${t('design')} Der Knopf öffnet „Design anpassen“ – mit eigener kurzer Tour.` },
+    { id: 'feedback', title: 'Feedback', target: '.toolbar .tb-fb', text: 'Fehler gefunden, Wunsch oder Frage? „Feedback“ (Alt/⌥+F) öffnet ein kleines Fenster genau hier – Titel und Art genügen, Ort und Gerät kommen automatisch mit. Alle Meldungen stehen im Cockpit am Rad „Feedback“ als Board.' },
     { id: 'help', title: 'Hilfe', target: '.toolbar .tb-help', text: 'Alle Funktionen und Tastenkürzel findest du hier oder mit der Taste ?. Dort kannst du auch diese Tour wieder starten.' },
   ],
   // F-217 (V98): je Ansicht des Cockpit-Rads (NF-08) – gleicher Anfang, dann nur die Schritte der offenen Ansicht

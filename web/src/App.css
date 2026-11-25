@@ -9123,3 +9123,93 @@ dialog.fbq::backdrop { background: rgba(0, 0, 0, 0.18); }
 .fbq__easeRow { display: flex; gap: 6px; margin: 4px 0; }
 .fbq__easeRow button { min-width: 34px; }
 .fbq__never { margin-top: 6px; font-size: 12px; }
+
+/* ================================================================ V103 F-221 Feedback – Ausarbeiten (Kartenfenster, NF-08) */
+dialog.fbc {
+  width: min(760px, calc(100vw - 24px)); height: min(860px, calc(100vh - 36px)); max-height: none; margin: auto; padding: 0; display: flex; flex-direction: column;
+  border-radius: 10px; overflow: hidden; color: var(--text); background: var(--panel-bg, rgb(var(--lo)));
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(var(--hi), 0.12); border: 1px solid rgba(var(--tint), 0.16);
+}
+dialog.fbc:not([open]) { display: none; }
+dialog.fbc > .cardwin__head, dialog.fbc > .fbc__foot { flex: none; }
+dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
+.fbc__body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 10px 14px 14px; font-size: 14px; }
+.fbc__field { display: flex; flex-direction: column; gap: 2px; }
+.fbc__field textarea, .fbc__field input[type='text'], .fbc__mark input, .fbc__drop input, .fbc__field select {
+  width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 8px; font: inherit; font-size: 14px; line-height: 1.45;
+}
+.fbc__field textarea { resize: vertical; min-height: 2.6em; }
+.fbc__fixed input { max-width: 140px; }
+.fbc__saved { font-weight: 400; color: var(--accent, #3fb950); }
+.fbc__wheels { display: flex; flex-wrap: wrap; gap: 14px 22px; }
+.fbc__wheel { display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
+.fbc__explain { margin: -4px 0 0; font-size: 12px; color: var(--muted); }
+.fbc__drop { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(var(--tint), 0.25); }
+.fbc__drop label { flex: 1 1 260px; }
+.fbc__drop .fbq__miss { flex-basis: 100%; margin: 0; }
+.fbc__missing { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 13px; color: var(--muted); }
+.fbc__missing .icon { display: inline-block; vertical-align: -1px; }
+.fbc__jump { padding: 2px 8px; font-size: 12px; border-radius: 999px; }
+.fbc__group { border: 1px solid rgba(var(--tint), 0.14); border-radius: 8px; margin: 0; padding: 6px 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+.fbc__group legend { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--strong); padding: 0 4px; }
+.fbc__all { align-self: flex-start; font-size: 12px; }
+.fbc__rel { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.fbc__rel li { display: flex; align-items: center; gap: 6px; }
+.fbc__relOpen { text-align: left; flex: 1; min-width: 0; }
+.fbc__relX, .fbc__picX { width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
+.fbc__relAdd { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.fbc__pics { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.fbc__pic { position: relative; width: 112px; height: 80px; border-radius: 6px; overflow: hidden; border: 1px solid rgba(var(--tint), 0.18); }
+.fbc__pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fbc__pic .fbc__picX { position: absolute; top: 3px; right: 3px; }
+.fbc__picMissing { display: flex; height: 100%; align-items: center; justify-content: center; font-size: 11px; color: var(--muted); text-align: center; padding: 4px; }
+.fbc__picAdd { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(var(--tint), 0.2); }
+.fbc__picAdd:focus-within { outline: 2px solid var(--focus, #4c9aff); outline-offset: 2px; }
+.fbc__mark { display: flex; flex-direction: column; gap: 4px; }
+.fbc__markRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fbc__markRow input { flex: 1 1 220px; }
+.fbc__trail ol { margin: 2px 0 0; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
+.fbc__trail time { color: var(--muted); }
+.fbc__meta { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.fbc__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 14px; border-top: 1px solid rgba(var(--tint), 0.1); }
+.fbc__remove { margin-right: auto; display: inline-flex; align-items: center; gap: 5px; }
+.fbc__remove .icon { display: inline-block; }
+.fbq__all { margin-right: auto; }
+
+/* ================================================================ V103 F-221 Feedback – Cockpit (Board wie Kanban, FB8) */
+.fbb { display: flex; flex-direction: column; gap: 8px; min-height: 0; padding: 4px 2px 8px; }
+.fbb__intro { margin: 0; font-size: 13px; color: var(--muted); }
+.fbb__bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; }
+.fbb__search input { width: 220px; padding: 6px 9px; border-radius: 8px; font: inherit; font-size: 13px; }
+.fbb__file { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.fbb__file button { display: inline-flex; align-items: center; gap: 5px; }
+.fbb__file .icon { display: inline-block; }
+.fbb__only { font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+.fbb__count { margin: 0; font-size: 12px; color: var(--muted); }
+.fbb__board { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); gap: 10px; overflow-x: auto; align-items: start; }
+.fbb__col { border-radius: 10px; padding: 6px 6px 8px; background: rgba(var(--tint), 0.05); border: 1px solid rgba(var(--tint), 0.12); min-height: 120px; }
+.fbb__col.is-over { outline: 2px dashed rgba(var(--tint), 0.5); outline-offset: -2px; }
+.fbb__head { margin: 0 2px 6px; font-size: 13px; font-weight: 600; color: var(--strong); display: flex; align-items: center; gap: 6px; }
+.fbb__n { font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 8px; background: rgba(var(--tint), 0.14); }
+.fbb__msg { margin: 0 2px 6px; }
+.fbb__cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fbb__card {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 7px 9px; border-radius: 8px; cursor: pointer;
+  background: var(--panel-bg, rgb(var(--lo))); border: 1px solid rgba(var(--tint), 0.16); border-left: 3px solid rgba(var(--tint), 0.35);
+}
+.fbb__card:hover { border-color: rgba(var(--tint), 0.32); }
+.fbb__card:focus-visible { outline: 2px solid var(--focus, #4c9aff); outline-offset: 2px; }
+.fbb__card.sev-blocks { border-left-color: #e5484d; }
+.fbb__card.sev-hinders { border-left-color: #f5a524; }
+.fbb__card.sev-minor { border-left-color: #8b8d98; }
+.fbb__kind { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.fbb__sev { font-size: 11px; padding: 0 6px; border-radius: 8px; background: rgba(var(--tint), 0.12); }
+.fbb__sev.sev-blocks { background: rgba(229, 72, 77, 0.2); }
+.fbb__sev.sev-hinders { background: rgba(245, 165, 36, 0.2); }
+.fbb__title { flex-basis: 100%; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+.fbb__signs { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 11px; color: var(--muted); }
+.fbb__signs .icon { display: inline-block; vertical-align: -1px; }
+.fbb__open { color: var(--accent); }
+.fbb__drop { margin-top: 6px; }
+.fbb__keys { margin: 0; font-size: 12px; color: var(--muted); }
+@media (forced-colors: active) { .fbb__card { border-left-width: 3px; forced-color-adjust: auto; } }

@@ -386,6 +386,7 @@ export function parsePads(v: unknown, sheetIds: ReadonlySet<string>, deskIds: Re
       sheets,
       active: typeof r.active === 'string' && sheets.includes(r.active) ? r.active : sheets[0],
       ...(r.docked === true ? { docked: true } : {}),
+      ...(r.notes === true && r.docked !== true ? { notes: true as const } : {}),
       ...(typeof r.from === 'string' && r.from ? { from: r.from } : {}),
       ...(Array.isArray(r.recent) && r.recent.length
         ? { recent: r.recent.filter((x): x is string => typeof x === 'string' && /^[ns]:./.test(x)).slice(0, 5) }
@@ -413,7 +414,7 @@ export function parsePadDesks(v: unknown, padIds: ReadonlySet<string>, deskIds: 
         edge: d.dock.edge as NonNullable<PadDesk['dock']>['edge'],
         at: d.dock.at,
         ...(typeof d.dock.w === 'number' && Number.isFinite(d.dock.w) && d.dock.w > 0 ? { w: Math.round(d.dock.w) } : {}),
-        ...(d.dock.folded === true ? { folded: true } : {}),
+        ...(d.dock.folded === false ? { folded: false } : {}),
       };
     if (d.dockOff === true) pd.dockOff = true;
     // V90 (F1): Baum der Pads im Notizen-Modus – nur bekannte Pads, jedes einmal

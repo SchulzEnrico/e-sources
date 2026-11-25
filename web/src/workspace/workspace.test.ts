@@ -32,6 +32,7 @@ import * as Psp from './psp';
 import * as Sp from './sampleProject';
 import * as Gt from './gantt';
 import * as Fb from './feedback';
+import * as Dc from './decisions';
 import * as Terms from './terms';
 import * as Rs from './reset';
 import * as Zm from './zoom';
@@ -4550,6 +4551,9 @@ describe('F-206 Schritt 3: Pads (Logik, V66)', () => {
     ws = Pd.dockPad(ws, r.pad, true);
     expect(Pd.dockedOn(ws, '').map((p) => p.id)).toEqual([r.pad]);
     expect(Pd.dockFront(ws, '')!.id).toBe(r.pad);
+    // V103 (Enrico): Normalzustand eingeklappt – ins Dock legen klappt nicht auf
+    expect(Pd.dockBand(ws, '', 1200)).toBe(Pd.DOCK_TAB_W);
+    ws = Pd.setDock(ws, '', { folded: false });
     expect(Pd.dockBand(ws, '', 1200)).toBe(Pd.DOCK_W.start);
     expect(Pd.dockPad(ws, r.pad, true)).toBe(ws); // schon drin
     // D6: heraus – der alte Platz ist noch da
@@ -4575,13 +4579,14 @@ describe('F-206 Schritt 3: Pads (Logik, V66)', () => {
     ws = Pd.setDockOff(ws, '', true);
     expect(Pd.dockBand(ws, '', 1200)).toBe(0);
     expect(Pd.dockOf(ws, '')).toEqual({ edge: 'right', w: 420, folded: true, off: true });
-    // ins Dock schaltet ein und klappt auf
+    // ins Dock schaltet ein, bleibt aber eingeklappt (V103)
     ws = Pd.dockPad(ws, 'p2', true);
-    expect(Pd.dockOf(ws, '')).toEqual({ edge: 'right', w: 420, folded: false, off: false });
+    expect(Pd.dockOf(ws, '')).toEqual({ edge: 'right', w: 420, folded: true, off: false });
     expect(Pd.dockFront(ws, '')!.id).toBe('p2');
     // Speicher: Breite und Lasche überstehen das Einlesen, Unsinn fällt weg
-    const back = parseWorkspace(JSON.parse(JSON.stringify(Pd.setDock(ws, '', { folded: true }))));
-    expect(back?.padDesks?.['']?.dock).toEqual({ edge: 'right', at: 0, w: 420, folded: true });
+    const back = parseWorkspace(JSON.parse(JSON.stringify(Pd.setDock(ws, '', { folded: false }))));
+    expect(back?.padDesks?.['']?.dock).toEqual({ edge: 'right', at: 0, w: 420, folded: false });
+    expect(Pd.dockOf(parseWorkspace(JSON.parse(JSON.stringify(ws)))!, '').folded).toBe(true);
     expect(back?.pads?.filter((p) => p.docked)).toHaveLength(2);
   });
 
@@ -6402,5 +6407,115 @@ describe('F-221 Feedback (V102, FB1–FB12)', () => {
     const plain = parseWorkspace(JSON.parse(JSON.stringify(W.defaultWorkspace())))!;
     expect(plain.feedback).toBeUndefined();
     expect(plain.wheels).toBeUndefined();
+  });
+});
+
+describe('F-222 Entscheidungen (V103, N1–N12, Dateiformat 11)', () => {
+  const now = new Date('2026-11-25T18:00:00Z');
+  const base = (): import('./types').Decision => ({
+    id: 'd1',
+    title: 'Neue Wohnung',
+    state: 'draft',
+    at: now.toISOString(),
+    criteria: [
+      { id: 'k1', name: 'Miete', weight: 50 },
+      { id: 'k2', name: 'Lage', weight: 30 },
+      { id: 'k3', name: 'Größe', weight: 20 },
+      { id: 'k4', name: 'Balkon', must: true },
+    ],
+    options: [
+      { id: 'a', name: 'Altona' },
+      { id: 'b', name: 'Barmbek' },
+      { id: 'c', name: 'Eimsbüttel', fails: ['k4'] },
+    ],
+    scores: [
+      { c: 'k1', o: 'a', v: 4 }, { c: 'k2', o: 'a', v: 9 }, { c: 'k3', o: 'a', v: 6 },
+      { c: 'k1', o: 'b', v: 8 }, { c: 'k2', o: 'b', v: 5 },
+      { c: 'k1', o: 'c', v: 10 }, { c: 'k2', o: 'c', v: 10 }, { c: 'k3', o: 'c', v: 10 },
+    ],
+  });
+
+  it('rechnet Nutzwert, Rangliste, Muss-Kriterium und Sieger', () => {
+    const r = Dc.ranking(base());
+    expect(r.map((x) => [x.option.id, x.total, x.rank, x.out, x.missing])).toEqual([
+      ['a', 590, 1, false, 0],
+      ['b', 550, 2, false, 1],
+      ['c', 1000, undefined, true, 0],
+    ]);
+    expect(r[0].parts).toEqual([{ c: 'k1', points: 200 }, { c: 'k2', points: 270 }, { c: 'k3', points: 120 }]);
+    expect(Dc.winner(base())?.id).toBe('a');
+    expect(Dc.needsWhy(base(), 'a')).toBe(false);
+    expect(Dc.needsWhy(base(), 'b')).toBe(true);
+    const tie = { ...base(), scores: [{ c: 'k1', o: 'a', v: 5 }, { c: 'k1', o: 'b', v: 5 }] };
+    expect(Dc.ranking(tie).filter((x) => x.rank === 1).length).toBe(2);
+    expect(Dc.winner(tie)).toBeNull();
+    expect(Dc.weightSum(base())).toBe(100);
+  });
+
+  it('Paarvergleich 2 · 1 · 0 und „auf 100 % verteilen“', () => {
+    const c = base().criteria.slice(0, 3);
+    expect(Dc.pairWeights(c.slice(0, 1))).toBeNull();
+    // ohne Angaben alles gleich
+    expect(Dc.pairWeights(c)).toEqual({ k1: 33.4, k2: 33.3, k3: 33.3 });
+    // k1 wichtiger als k2 und k3, k2 gleich k3: 4 · 1 · 1 von 6
+    expect(Dc.pairWeights(c, { 'k1|k2': 2, 'k1|k3': 2, 'k2|k3': 1 })).toEqual({ k1: 66.6, k2: 16.7, k3: 16.7 });
+    expect(Dc.normalizeWeights([{ id: 'x', name: 'x', weight: 30 }, { id: 'y', name: 'y', weight: 10 }])).toEqual({ x: 75, y: 25 });
+    expect(Dc.normalizeWeights([{ id: 'x', name: 'x' }, { id: 'y', name: 'y' }])).toEqual({ x: 50, y: 50 });
+  });
+
+  it('Dateiformat 11 – decisions hin und zurück, Unbrauchbares fällt weg', () => {
+    const d = { ...base(), pairs: { 'k1|k2': 2 as const }, links: [{ kind: 'note' as const, id: 'n1' }], marks: [{ at: now.toISOString(), text: 'angelegt' }] };
+    const ws = { ...W.defaultWorkspace(), decisions: [d] };
+    const file = X.toTransferFile(ws, 'Mac', now);
+    expect(file.version).toBe(11);
+    const r = X.readTransferFile(JSON.stringify(file));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.file.workspace.decisions).toEqual([d]);
+    const bad = Dc.parseDecisions([
+      { id: 'x', title: 'ohne Zeit', at: 'nie', criteria: [], options: [] },
+      {
+        id: 'y', title: 'Rest', at: now.toISOString(), state: 'fertig', projectId: 'fehlt',
+        criteria: [{ id: 'k', name: 'K', weight: 140 }, { id: 'k', name: 'doppelt' }, { id: 'l', name: '  ' }, { id: 'm', name: 'M' }],
+        options: [{ id: 'o', name: 'O', fails: ['weg', 'k'], links: [{ kind: 'note', id: 'n' }, { kind: 'note', id: 'n' }, { kind: 'x', id: 'z' }] }],
+        scores: [{ c: 'k', o: 'o', v: 7.6 }, { c: 'k', o: 'o', v: 3 }, { c: 'k', o: 'weg', v: 1 }, { c: 'm', o: 'o', v: 11 }],
+        pairs: { 'm|k': 2, 'k|m': 0, 'k|m|x': 1 },
+        chosen: 'weg',
+      },
+    ], new Set(['p1']));
+    expect(bad).toEqual([{
+      id: 'y', title: 'Rest', state: 'draft', at: now.toISOString(),
+      criteria: [{ id: 'k', name: 'K' }, { id: 'm', name: 'M' }],
+      options: [{ id: 'o', name: 'O', fails: ['k'], links: [{ kind: 'note', id: 'n' }] }],
+      scores: [{ c: 'k', o: 'o', v: 8 }],
+      pairs: { 'k|m': 0 },
+    }]);
+    const plain = parseWorkspace(JSON.parse(JSON.stringify(W.defaultWorkspace())))!;
+    expect(plain.decisions).toBeUndefined();
+  });
+});
+
+describe('V103 Pads je Modus und Dock eingeklappt (Wunsch Enrico)', () => {
+  it('Pads aus dem Notizen-Modus fehlen im Desk; ins Dock = Desk; alle ins Dock lässt sie stehen', () => {
+    let ws = W.defaultWorkspace();
+    const a = No.createView(ws, 'block', 'A', { id: 'sa' });
+    ws = Pd.createPad(a.ws, '', ['sa'], { id: 'pa' }).ws;
+    const b = No.createView(ws, 'block', 'B', { id: 'sb' });
+    ws = Pd.createPad(b.ws, '', ['sb'], { id: 'pb' }).ws;
+    ws = Pd.setNotesOnly(ws, ['pb'], true);
+    expect(Pd.deskPadsOn(ws, '').map((p) => p.id)).toEqual(['pa']);
+    expect(Pd.padsOn(ws, '').map((p) => p.id)).toEqual(['pa', 'pb']);
+    expect(Pd.setNotesOnly(ws, ['pb'], true)).toBe(ws);
+    const all = Pd.dockAll(ws, '', true);
+    expect(Pd.dockedOn(all, '').map((p) => p.id)).toEqual(['pa']);
+    const docked = Pd.dockPad(ws, 'pb', true);
+    expect(Pd.deskPadsOn(docked, '').map((p) => p.id)).toEqual(['pa', 'pb']);
+    expect(Pd.setNotesOnly(docked, ['pb'], true)).toBe(docked);
+    // Datei: Vermerk bleibt erhalten
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(back.pads?.find((p) => p.id === 'pb')?.notes).toBe(true);
+    ws = Pd.setNotesOnly(ws, ['pb'], false);
+    expect(Pd.deskPadsOn(ws, '')).toHaveLength(2);
+    expect(Pd.dockOf(W.defaultWorkspace(), '').folded).toBe(true);
   });
 });

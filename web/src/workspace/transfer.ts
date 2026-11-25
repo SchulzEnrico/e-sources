@@ -11,7 +11,8 @@ import type { Workspace } from './types';
 export const FILE_FORMAT = 'e-sources-arbeitsflaeche';
 /**
  * Version 11: Feedback (F-221, V102, FB11) in `feedback` und `feedbackPrefs`, Ordnung der Umschalt-Räder
- * (F-220 R5) in `wheels` – angeheftet, ausgeblendet, „Automatisch ordnen“.
+ * (F-220 R5) in `wheels` – angeheftet, ausgeblendet, „Automatisch ordnen“; Entscheidungen (F-222, V103,
+ * N11) in `decisions` – noch vor der Testphase im selben Format.
  * Version 10: Projekte planen (F-206 Schritt 10, V100, K1–K8) – Dauer `duration` und Planungsart `manual`
  * am Vorgang, Basisplan `baseline` und PSP-Ordnung `order` am Projekt.
  * Version 9: Personen mit Kennfarbe und Ressourcenkalender (F-206 Schritt 8, V94).

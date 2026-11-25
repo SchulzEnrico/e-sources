@@ -20,7 +20,7 @@ import { PAD_SHEETS_MAX } from './workspace/noteObjects';
 import { type PlanPreview, SitePlan } from './components/SitePlan';
 import { type PlanPick, type PlanSide, type PlanTile, pickName, pickRect } from './workspace/sitePlan';
 import { useF6 } from './components/useF6';
-import { DOCK_TAB_W, PAD_MIN, PAD_START, clampDockW, dockFront, dockOf, dockedOn, padsOn, padsShow, placeOf, zonePlace } from './workspace/pads';
+import { DOCK_TAB_W, PAD_MIN, PAD_START, clampDockW, deskPadsOn, dockFront, dockOf, dockedOn, padsOn, padsShow, placeOf, zonePlace } from './workspace/pads';
 import {
   type Lines,
   type Orientation,
@@ -105,6 +105,7 @@ import { Icon } from './components/Icon';
 import { ModeWheel } from './components/ModeWheel';
 import { SyncDialog } from './components/Sync';
 import { type Anchor as FbAnchor, FEEDBACK_EVENT, FeedbackQuick, domPlace, mainView } from './components/FeedbackQuick';
+import { FeedbackCard } from './components/FeedbackCard';
 import { askEase as fbAskEase, envOf as fbEnvOf, newCount as fbNewCount } from './workspace/feedback';
 import type { FeedbackEnv, FeedbackKind, FeedbackPlace } from './workspace/types';
 import { restoreBackup, useGistState, useGistSync } from './workspace/useGistSync';
@@ -371,6 +372,7 @@ function DeskApp(props: DeskProps) {
   const toggleOverview = useCallback(() => {
     setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
     setOverviewFocus(false);
+    setOverviewFeedback(false);
     setOverviewNotes(notesModeRef.current); // V85: Fokus-Knopf öffnet die Portale – V90: im Notizen-Modus die Notizen
     setOverview((o) => !o);
   }, []);
@@ -389,6 +391,8 @@ function DeskApp(props: DeskProps) {
   const [helpAt, setHelpAt] = useState<{ at: string | null } | null>(null);
   // F-221 (V102, FB4/FB5): Feedback „Schnell erfassen“ am Ort des Geschehens
   const [fbAt, setFbAt] = useState<{ anchor: FbAnchor | null; place: FeedbackPlace; env: FeedbackEnv; kind?: FeedbackKind } | null>(null);
+  // F-221 Bau 3 (V103): Feedback ausarbeiten – Kartenfenster
+  const [fbCard, setFbCard] = useState<string | null>(null);
   /** F-95: Tour – beim ersten Start einmal von selbst (nicht in der Testbelegung, nicht in Zusatz-Desks). */
   const [tour, setTourId] = useState<TourId | null>(null);
   /** F-173: Tour von selbst gestartet (zeigt „Nicht mehr automatisch anzeigen“). */
@@ -496,6 +500,8 @@ function DeskApp(props: DeskProps) {
   const [overviewLayouts, setOverviewLayouts] = useState(false);
   /** V85 (F-206 Schritt 5, N8): Cockpit gleich in der Ansicht „Notizen“ öffnen („Im Cockpit ordnen …“). */
   const [overviewNotes, setOverviewNotes] = useState(false);
+  /** F-221 Bau 4 (V103): Cockpit gleich in „Feedback“ */
+  const [overviewFeedback, setOverviewFeedback] = useState(false);
   /** V95 (Bau 5): Fokus-Zeile öffnet „Notizen“ › „Fokus“. */
   const [overviewFocus, setOverviewFocus] = useState(false);
   const [layoutUndo, setLayoutUndo] = useState<DeletedLayout | null>(null);
@@ -1175,7 +1181,8 @@ function DeskApp(props: DeskProps) {
   // ---------------------------------------------------------------- F-206 Schritt 3: Pads
 
   /** Schwebende Pads dieses Desks (Reihenfolge = Stapel, zuletzt = oben). */
-  const deskPads = padsOn(ws, win).filter((p) => !p.docked);
+  // V103 (Enrico): Pads aus dem Notizen-Modus bleiben dort – Desk- und Projekt-Modus zeigen sie nicht
+  const deskPads = deskPadsOn(ws, win).filter((p) => !p.docked);
   const slotRectOf = (panelId: string | null) => (panelId ? shownView.slots.find((s) => s.panels.some((m) => m.id === panelId))?.rect : undefined);
   /** F-207 (V97, M4/M9): Lage der Main Stage auf dem Desk (Anteile) – nur im Desk-Modus. */
   const stageRect = (): T.FRect | undefined => {
@@ -1315,6 +1322,27 @@ function DeskApp(props: DeskProps) {
   useEffect(() => {
     if (notesMode && allPads.length === 0) dispatch({ type: 'padNew', desk: win, id: newId(), sheet: newId(), place: padHome() });
   }, [notesMode, allPads.length, win]); // eslint-disable-line react-hooks/exhaustive-deps
+  // V103 (Enrico): Pads gehören zu dem Modus, in dem sie geöffnet wurden. Neu im Notizen-Modus = nur dort;
+  // im Desk- oder Projekt-Modus neu geöffnet bzw. ein Sheet darin geöffnet = gehört (wieder) zum Desk.
+  const padSnap = useRef<{ win: string; pads: Map<string, string>; top?: string } | null>(null);
+  useEffect(() => {
+    const cur = new Map(allPads.map((p) => [p.id, `${p.active}|${p.sheets.join()}`]));
+    const prev = padSnap.current;
+    padSnap.current = { win, pads: cur, top: allPads.at(-1)?.id };
+    if (!prev || prev.win !== win) return;
+    const fresh = allPads.filter((p) => !prev.pads.has(p.id));
+    if (notesMode) {
+      const ids = fresh.filter((p) => !p.notes && !p.docked).map((p) => p.id);
+      if (ids.length) dispatch({ type: 'padNotes', ids, on: true });
+    } else {
+      // geändertes Sheet oder nach oben geholt (z. B. Suche öffnet eine Notiz in diesem Pad)
+      const top = allPads.at(-1)?.id;
+      const raised = top && top !== prev.top ? top : null;
+      const touched = allPads.filter((p) => prev.pads.has(p.id) && (prev.pads.get(p.id) !== cur.get(p.id) || p.id === raised));
+      const ids = [...fresh, ...touched].filter((p) => p.notes).map((p) => p.id);
+      if (ids.length) dispatch({ type: 'padNotes', ids, on: false });
+    }
+  }, [allPads, notesMode, win]); // eslint-disable-line react-hooks/exhaustive-deps
   const FULL = { x: 0, y: 0, w: 1, h: 1 };
   // V87 (Enrico): Vollbild je Pad (in beiden Modi) – Knopf im Kopf des Pads, zurück zur Übersicht
   const [fullPad, setFullPad] = useState<string | null>(null);
@@ -1565,6 +1593,16 @@ function DeskApp(props: DeskProps) {
                       : undefined
                     : padPlan(PLAN_TEXT.movePad(viewById(ws, p.active)?.name ?? 'Pad'), (pick) => movePadTo(p.id, pick))
               }
+              toNotes={
+                notesMode
+                  ? undefined
+                  : () => {
+                      dispatch({ type: 'padNotes', ids: [p.id], on: true });
+                      const t = PAD_TEXT.toNotesDone(padName(p));
+                      notify(t);
+                      sayLive(t);
+                    }
+              }
               tile={
                 tiled
                   ? {
@@ -1594,6 +1632,10 @@ function DeskApp(props: DeskProps) {
   const dockedAll = dockedOn(ws, win);
   const docked = notesOff || notesMode ? [] : dockedAll;
   const dockSt = dockOf(ws, win);
+  // V103 (Enrico): Das Dock ist im Normalzustand eingeklappt – beim Start, beim Wechsel des Desks und des Modus
+  useEffect(() => {
+    if (!dockOf(ws, win).folded) dispatch({ type: 'dockSet', desk: win, folded: true });
+  }, [win, deskModeNow]); // eslint-disable-line react-hooks/exhaustive-deps
   /** D8: Zahl am NewPad-Knopf – ausgeblendete Pads und Pads im weggeschalteten Dock. */
   const padsAway = (padsHidden ? deskPads.length : 0) + (dockSt.off ? dockedAll.length : 0);
   const dockFrontPad = dockFront(ws, win);
@@ -1780,7 +1822,19 @@ function DeskApp(props: DeskProps) {
 
   // ---------------------------------------------------------------- F-51/F-187 Layouts (Cockpit-Modus)
   /** V85 (N4/N8): „Im Cockpit ordnen …“ – Cockpit in der Ansicht „Notizen“. */
+  /** F-221 Bau 4 (V103, FB8): Cockpit „Feedback“ (aus dem Feedback-Fenster, der Hilfe und der Suche). */
+  const openFeedbackCockpit = () => {
+    setOverviewRules(false);
+    setOverviewLayouts(false);
+    setOverviewNotes(false);
+    setOverviewFocus(false);
+    setOverviewFeedback(true);
+    setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
+    setOverview(false);
+    window.setTimeout(() => setOverview(true), 0);
+  };
   const openNotesCockpit = () => {
+    setOverviewFeedback(false);
     setOverviewRules(false);
     setOverviewLayouts(false);
     setOverviewNotes(true);
@@ -3101,6 +3155,8 @@ function DeskApp(props: DeskProps) {
         return setHelpAt({ at: null });
       case 'feedback':
         return openFeedback(document.querySelector('.tb-fb'));
+      case 'feedbackCockpit':
+        return openFeedbackCockpit();
       case 'cockpit':
         setOverviewRules(false);
         return toggleOverview();
@@ -4411,9 +4467,12 @@ function DeskApp(props: DeskProps) {
           onUndo={(id) => dispatch({ type: 'fbRemove', id })}
           onEase={(id, n) => dispatch({ type: 'fbEdit', id, patch: { ease: n } })}
           onNeverAsk={() => dispatch({ type: 'fbAskEase', on: false })}
+          onElaborate={(id) => (setFbAt(null), setFbCard(id))}
+          onAll={() => (setFbAt(null), openFeedbackCockpit())}
           onClose={() => setFbAt(null)}
         />
       )}
+      {fbCard && <FeedbackCard ws={ws} dispatch={dispatch} id={fbCard} onOpen={setFbCard} onClose={() => setFbCard(null)} />}
       {overview && (
         <Overview
           ws={ws}
@@ -4458,6 +4517,7 @@ function DeskApp(props: DeskProps) {
             setOverviewLayouts(false);
             setOverviewNotes(false);
             setOverviewFocus(false);
+            setOverviewFeedback(false);
             setLayoutUndo(null);
             setResetUndo(null);
           }}
@@ -4475,6 +4535,7 @@ function DeskApp(props: DeskProps) {
           onNotesApplied={notesOff ? undefined : () => { if (!notesModeRef.current) setDeskMode('notes'); }}
           startLayouts={overviewLayouts}
           startNotes={overviewNotes}
+          startFeedback={overviewFeedback}
           startFocus={overviewFocus}
           onNotesNew={notesOff ? undefined : (kind) => (kind === 'pad' ? newPad(false) : newNoteHere(kind, undefined, false))}
           onShowPad={notesOff ? undefined : showPad}

@@ -255,6 +255,7 @@ export type Action =
   | { type: 'padRaise'; id: string }
   /** F-206 Schritt 4 (V81): Dock – Pad hinein/heraus, alle, Breite/Lasche, ein/aus (geräteeigen außer `docked`). */
   | { type: 'padDock'; id: string; on: boolean }
+  | { type: 'padNotes'; ids: string[]; on: boolean }
   | { type: 'padDockAll'; desk: string; on: boolean }
   | { type: 'dockSet'; desk: string; w?: number; folded?: boolean }
   | { type: 'dockOff'; desk: string; off: boolean }
@@ -595,6 +596,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return Pd.dockPad(ws, a.id, a.on);
     case 'padDockAll':
       return Pd.dockAll(ws, a.desk, a.on);
+    case 'padNotes':
+      return Pd.setNotesOnly(ws, a.ids, a.on);
     case 'dockSet':
       return Pd.setDock(ws, a.desk, { w: a.w, folded: a.folded });
     case 'dockOff':

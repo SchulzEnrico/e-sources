@@ -324,6 +324,21 @@ export const DOCK_TAB_W = 40;
 
 /** Pads im Dock dieses Desks (Reihenfolge = Stapel, zuletzt = gezeigt). */
 export const dockedOn = (ws: Workspace, desk: string): Pad[] => padsOn(ws, desk).filter((p) => p.docked);
+/** V103 (Enrico): Pads für Desk- und Projekt-Modus – ohne die aus dem Notizen-Modus. */
+export const deskPadsOn = (ws: Workspace, desk: string): Pad[] => padsOn(ws, desk).filter((p) => !p.notes);
+/** V103: Pads als „aus dem Notizen-Modus“ markieren bzw. in den Desk holen (ins Dock gelegte gehören immer zum Desk). */
+export function setNotesOnly(ws: Workspace, ids: readonly string[], on: boolean): Workspace {
+  const set = new Set(ids);
+  let changed = false;
+  const pads = padsOf(ws).map((p) => {
+    if (!set.has(p.id) || !!p.notes === on || (on && p.docked)) return p;
+    changed = true;
+    if (on) return { ...p, notes: true as const };
+    const { notes: _n, ...rest } = p; // eslint-disable-line @typescript-eslint/no-unused-vars
+    return rest;
+  });
+  return changed ? withPads(ws, pads) : ws;
+}
 /** D1: Das Dock zeigt ein Pad – das zuletzt nach oben geholte. */
 export const dockFront = (ws: Workspace, desk: string): Pad | undefined => dockedOn(ws, desk).at(-1);
 
@@ -337,7 +352,7 @@ export interface DockState {
 /** Zustand des Docks auf diesem Gerät (D3: vorerst immer rechts). */
 export function dockOf(ws: Workspace, desk: string): DockState {
   const d = ws.padDesks?.[desk];
-  return { edge: 'right', w: d?.dock?.w ?? DOCK_W.start, folded: d?.dock?.folded === true, off: d?.dockOff === true };
+  return { edge: 'right', w: d?.dock?.w ?? DOCK_W.start, folded: d?.dock?.folded !== false, off: d?.dockOff === true };
 }
 
 /** D4: Breite in die Grenzen rücken (260 px bis halbe Desk-Breite; ist der Desk zu schmal, gilt die Hälfte). */
@@ -364,8 +379,9 @@ export function setDock(ws: Workspace, desk: string, patch: { w?: number; folded
     const cur = d.dock ?? { edge: 'right' as const, at: 0 };
     const next = { ...cur, ...(patch.w !== undefined ? { w: Math.round(patch.w) } : {}) };
     if (patch.folded !== undefined) {
-      if (patch.folded) next.folded = true;
-      else delete next.folded;
+      // V103 (Enrico): eingeklappt ist der Normalzustand (fehlt = eingeklappt), ausgeklappt wird gemerkt
+      if (patch.folded) delete next.folded;
+      else next.folded = false;
     }
     return { ...d, dock: next };
   });
@@ -388,17 +404,20 @@ export function dockPad(ws: Workspace, padId: string, on: boolean): Workspace {
   const p = padById(ws, padId);
   if (!p || !!p.docked === on) return ws;
   let next = patchPad(ws, padId, (x) => {
-    const { docked: _d, ...rest } = x;
-    return on ? { ...rest, docked: true } : rest;
+    const { docked: _d, notes: _n, ...rest } = x; // eslint-disable-line @typescript-eslint/no-unused-vars
+    // V103: ins Dock gelegt = gehört zum Desk
+    return on ? { ...rest, docked: true } : x.notes ? { ...rest, notes: true } : rest;
   });
   next = raisePad(next, padId);
-  if (on) next = setDock(setDockOff(next, p.desk, false), p.desk, { folded: false });
+  // V103 (Enrico): Das Dock bleibt im Normalzustand eingeklappt – ins Dock legen klappt es nicht mehr auf
+  if (on) next = setDockOff(next, p.desk, false);
   return next;
 }
 
 /** D5/D6: alle Pads eines Desks ins Dock bzw. alle verteilen. Ins Dock: das bisher oberste bleibt vorn. */
 export function dockAll(ws: Workspace, desk: string, on: boolean): Workspace {
-  const list = padsOn(ws, desk).filter((p) => !!p.docked !== on);
+  // V103: Pads aus dem Notizen-Modus bleiben dort
+  const list = padsOn(ws, desk).filter((p) => !!p.docked !== on && !p.notes);
   if (!list.length) return ws;
   const ids = new Set(list.map((p) => p.id));
   let next = withPads(
@@ -409,7 +428,7 @@ export function dockAll(ws: Workspace, desk: string, on: boolean): Workspace {
       return on ? { ...rest, docked: true } : rest;
     }),
   );
-  if (on) next = setDock(setDockOff(next, desk, false), desk, { folded: false });
+  if (on) next = setDockOff(next, desk, false);
   return next;
 }
 

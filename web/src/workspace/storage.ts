@@ -17,6 +17,10 @@ import { PROBE, probeWorkspace } from './probe';
 import { parseLayoutKey } from './screen';
 import { fixDelegated, parseNoteViews, parseNotes } from './notes';
 import type { DeskLayout, DeskLayouts } from './deskLayouts';
+import { parseRuleSet } from './ruleSet';
+import { type NotesLayout, type NotesLayouts, adoptOldTree } from './notesLayouts';
+import { isNode, leaves as treeLeaves } from './tree';
+import { linesKey } from './screen';
 
 /**
  * Stufe 1: Die Arbeitsfläche liegt nur im Browser (localStorage). Später kommt der Server dazu.
@@ -194,14 +198,43 @@ function parseDeskLayouts(v: unknown, winIds: Set<string>): Record<string, DeskL
 }
 
 /** F-206 v8: Note Mode, Board-Layouts und Main Stage je Desk ('' = Main Desk). */
-function parseDeskNotes(v: unknown, winIds: Set<string>): Record<string, DeskNotes> | undefined {
+/**
+ * F-210 Schritt 5 (V91): Notizen-Layouts eines Desks – Namen, Bäume je Einstellung (jedes Pad
+ * einmal), gespeicherte Pads mit bekannten Sheets. Ohne gültiges aktives Layout fällt alles weg.
+ */
+function parseNotesLayouts(v: unknown, sheetIds: ReadonlySet<string>, winIds: Set<string>): NotesLayouts | undefined {
+  if (!isObj(v) || typeof v.active !== 'string' || !Array.isArray(v.list)) return undefined;
+  const list: NotesLayout[] = [];
+  for (const l of v.list) {
+    if (!isObj(l) || typeof l.id !== 'string' || !l.id || typeof l.name !== 'string' || !l.name.trim() || list.some((x) => x.id === l.id)) continue;
+    const out: NotesLayout = { id: l.id, name: l.name.trim() };
+    if (isObj(l.trees)) {
+      const trees: Record<string, NonNullable<NotesLayout['trees']>[string]> = {};
+      for (const [k, t] of Object.entries(l.trees)) {
+        if (!isNode(t)) continue;
+        const ids = treeLeaves(t);
+        if (ids.length && ids.length === new Set(ids).size) trees[k] = t;
+      }
+      if (Object.keys(trees).length) out.trees = trees;
+    }
+    if (l.id !== v.active) {
+      const saved = isObj(l.saved) ? l.saved : {};
+      out.saved = { pads: parsePads(saved.pads, sheetIds, winIds).map(({ desk: _d, ...p }) => p) };
+    }
+    list.push(out);
+  }
+  if (!list.some((l) => l.id === v.active)) return undefined;
+  return { active: v.active, list };
+}
+
+function parseDeskNotes(v: unknown, winIds: Set<string>, sheetIds: ReadonlySet<string>): Record<string, DeskNotes> | undefined {
   if (!isObj(v)) return undefined;
   const out: Record<string, DeskNotes> = {};
   for (const [desk, d] of Object.entries(v)) {
     if (!(desk === '' || winIds.has(desk)) || !isObj(d)) continue;
     const dn: DeskNotes = {};
     if (d.noteMode === true) dn.noteMode = true;
-    const board = parseDeskLayouts({ [desk]: d.board }, winIds)?.[desk];
+    const board = parseNotesLayouts(d.board, sheetIds, winIds);
     if (board) dn.board = board;
     const st = d.stage;
     if (isObj(st) && typeof st.area === 'string' && st.area) {
@@ -219,6 +252,17 @@ function parseDeskNotes(v: unknown, winIds: Set<string>): Record<string, DeskNot
 }
 
 export function parseWorkspace(data: unknown): Workspace | null {
+  const ws = parseWorkspaceRaw(data);
+  if (!ws) return null;
+  // V91 (F-210 Schritt 5): Baum aus V90 (geräteeigen) in das aktive Notizen-Layout übernehmen
+  if (!Object.values(ws.padDesks ?? {}).some((d) => d.notes)) return ws;
+  return adoptOldTree(ws, (desk) => {
+    const s = ws.winSetup[desk] ? parseLayoutKey(ws.winSetup[desk]) : null;
+    return s ? linesKey(s.cls, s.orientation) : 'any';
+  });
+}
+
+function parseWorkspaceRaw(data: unknown): Workspace | null {
   if (!isObj(data) || !Array.isArray(data.panels)) return null;
   const panels = data.panels.map(parsePanel);
   if (panels.some((p) => !p)) return null;
@@ -305,7 +349,7 @@ export function parseWorkspace(data: unknown): Workspace | null {
   const notes = cleanRefs(moved.notes, new Set(projects.map((p) => p.id)), new Set(persons.map((p) => p.id)));
   const pads = parsePads(data.pads, new Set(noteViews.map((v) => v.id)), winIds);
   const padDesks = parsePadDesks(data.padDesks, new Set(pads.map((p) => p.id)), winIds);
-  const deskNotes = parseDeskNotes(data.deskNotes, winIds);
+  const deskNotes = parseDeskNotes(data.deskNotes, winIds, new Set(noteViews.map((v) => v.id)));
   const focusViews = parseFocusViews(data.focusViews);
   // V88 (BL1): eigene Board-Vorlagen
   const boardTemplates = parseBoardTemplates(data.boardTemplates);
@@ -337,6 +381,7 @@ export function parseWorkspace(data: unknown): Workspace | null {
     ...(Object.keys(siteCategory).length ? { siteCategory } : {}),
     ...(rulesOff.length ? { rulesOff } : {}),
     ...(rulesOn.length ? { rulesOn } : {}),
+    ...(parseRuleSet(data.ruleSet) ? { ruleSet: parseRuleSet(data.ruleSet) } : {}),
     ruler: isObj(data.ruler)
       ? {
           on: data.ruler.on === true,

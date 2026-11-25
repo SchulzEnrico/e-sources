@@ -1,4 +1,6 @@
 import type { DeskLayouts } from './deskLayouts';
+import type { NotesLayouts } from './notesLayouts';
+import type { RuleSet } from './ruleSet';
 import type { FocusRule } from './focus';
 import type { Look } from './look';
 import type { Profile } from './profile';
@@ -216,6 +218,8 @@ export interface Workspace {
   rulesOff?: string[];
   /** F-164: eingeschaltete Regeln, die ab Werk aus sind (DEFAULT_OFF, z. B. offer). */
   rulesOn?: string[];
+  /** F-218 (V91, v8): Schalter A1–A9 und eingeschaltete Wenn-dann-Regeln (nur Abweichungen vom Werk). */
+  ruleSet?: RuleSet;
   /** F-125: Lineal (F-15). */
   ruler: RulerSettings;
   /** F-128: Namen der Areas (Stapel). */
@@ -561,7 +565,8 @@ export interface PadDesk {
   dock?: { edge: 'left' | 'right' | 'top' | 'bottom'; at: number; w?: number; folded?: boolean };
   /** Dock ganz weggeschaltet. */
   dockOff?: boolean;
-  /** F-210 Schritt 4 (V90, F1): Teilungsbaum der Pads im Notizen-Modus (Blätter = Pad-Ids). */
+  /** F-210 Schritt 4 (V90, F1): Teilungsbaum der Pads im Notizen-Modus – seit V91 nur noch beim Laden
+   *  gelesen und in das aktive Notizen-Layout übernommen (`adoptOldTree`). */
   notes?: Node;
 }
 
@@ -619,8 +624,8 @@ export interface Person {
 export interface DeskNotes {
   /** Note Mode: Desk ist ein Board. */
   noteMode?: boolean;
-  /** Board-Layouts (wie deskLayouts). */
-  board?: DeskLayouts;
+  /** F-210 Schritt 5 (V91, Z1–Z4): Notizen-Layouts – Pads mit Sheets und Baum je Bildschirm (wie deskLayouts). */
+  board?: NotesLayouts;
   /** F-207 Main Stage: Slot (Area-Id) und Verhalten. */
   stage?: { area: string; fixed?: boolean; allDesks?: boolean; minW?: number; minH?: number };
 }

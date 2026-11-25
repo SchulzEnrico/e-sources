@@ -10,6 +10,8 @@
  */
 import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { BoardTemplateGroup } from './BoardTemplates';
+import { NotesLayoutGroup } from './NotesLayouts';
+import { linesKey } from '../workspace/screen';
 import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
 import * as DL from '../workspace/deskLayouts';
@@ -18,7 +20,7 @@ import { setupFor, DEFAULT_MIN } from '../workspace/workspace';
 import { arrangeText } from '../workspace/focus';
 import { DOCK_BAND, MAP_BAND_PX, arrangeStep, nearestSide, sameTree } from '../workspace/arrange';
 import * as T from '../workspace/tree';
-import { ARRANGE_TEXT as AT, DESK_LAYOUT_TEXT as LT, DIALOG_TEXT } from '../workspace/terms';
+import { ARRANGE_TEXT as AT, DESK_LAYOUT_TEXT as LT, DIALOG_TEXT, NOTES_LAYOUT_TEXT } from '../workspace/terms';
 import { DialogFoot } from './DialogFoot';
 import type { Workspace } from '../workspace/types';
 import * as Cs from '../workspace/cases';
@@ -60,6 +62,8 @@ interface Props {
   say: (text: string) => void;
   /** V88 (BL): neues Kanban-Board aus einer Vorlage anlegen und zeigen; fehlt = ohne Notizen. */
   onNewBoard?: (tpl: string) => void;
+  /** V91 (F-210 Schritt 5): nach Wechsel/Anlegen eines Notizen-Layouts in den Notizen-Modus; fehlt = ohne Notizen. */
+  onNotesApplied?: () => void;
 }
 
 /** Kleine Anordnung als Kästchen (nur Bild; Zahlen stehen daneben als Text). */
@@ -83,7 +87,7 @@ const deviceText = (s: ScreenSetup) => {
   return `${screenClass(s.cls).label}, ${s.orientation === 'landscape' ? LT.landscape : LT.portrait}${allowsTwoLines(s.cls) ? `, ${LT.lines(spec.lines)}` : ''}`;
 };
 
-export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say, onNewBoard }: Props) {
+export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say, onNewBoard, onNotesApplied }: Props) {
   const d = DL.layoutsOf(ws, win);
   /** F-187 Stufe 2: gewählte Einstellung; null = dieses Gerät. */
   const [dev, setDev] = useState<{ cls: ScreenClassId; orientation: Orientation; lines: Lines } | null>(null);
@@ -714,6 +718,18 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say, 
           </div>
         </div>
       </section>
+      {/* V91 (F-210 Schritt 5, Z3): Notizen-Layouts zwischen Desk-Layouts und Board-Vorlagen – Anordnung für die oben gewählte Einstellung */}
+      {onNotesApplied && (
+        <NotesLayoutGroup
+          ws={ws}
+          win={win}
+          screenKey={linesKey(setup.cls, setup.orientation)}
+          screenName={`${screenClass(setup.cls).label}, ${setup.orientation === 'landscape' ? LT.landscape : LT.portrait}${foreign ? '' : ` (${NOTES_LAYOUT_TEXT.thisScreen})`}`}
+          dispatch={dispatch}
+          say={say}
+          onApplied={onNotesApplied}
+        />
+      )}
       {/* V88 (BL1): Board-Vorlagen als eigene Gruppe unter den Desk-Layouts – dieselben Werkzeuge an denselben Stellen */}
       <BoardTemplateGroup ws={ws} win={win} dispatch={dispatch} say={say} onNewBoard={onNewBoard} />
       {casesOpen && <CasesDialog ws={ws} dispatch={dispatch} say={say} onClose={() => setCasesOpen(false)} />}

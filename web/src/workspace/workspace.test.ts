@@ -3,6 +3,10 @@ import { type ScreenSetup, detectScreen, specOf } from './screen';
 import * as T from './tree';
 import * as Plan from './sitePlan';
 import * as NT from './noteTree';
+import * as NL from './notesLayouts';
+import * as RS from './ruleSet';
+import * as NLo from './notes';
+import * as NLp from './pads';
 import { parsePadDesks } from './noteObjects';
 import { keepDeviceFields, onlyDeviceChanged, parseWorkspace } from './storage';
 import type { Workspace } from './types';
@@ -663,7 +667,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (r.ok) expect(W.panelUrl(r.file.workspace.panels[0])).toBe('https://a.de');
-    expect(X.FILE_VERSION).toBe(7);
+    expect(X.FILE_VERSION).toBe(8);
   });
 
   it('Bereich und Szenario bleiben erhalten (F-116, vorbereitet)', () => {
@@ -5660,9 +5664,9 @@ describe('F-210 Schritt 4 (V90): Notizen-Modus als Baum', () => {
   it('Speichern je Desk, Lesen prüft Pads', () => {
     const ws0 = W.defaultWorkspace();
     const tree: T.Node = { dir: 'row', children: [{ id: 'p1' }, { id: 'p2' }], sizes: [0.5, 0.5] };
-    const ws = NT.setNoteTree(ws0, '', tree);
-    expect(NT.noteTreeOf(ws, '')).toEqual(tree);
-    expect(NT.noteTreeOf(NT.setNoteTree(ws, '', null), '')).toBeUndefined();
+    const ws = NT.setNoteTree(ws0, '', tree, 'laptop:landscape');
+    expect(NT.noteTreeOf(ws, '', 'laptop:landscape')).toEqual(tree);
+    expect(NT.noteTreeOf(NT.setNoteTree(ws, '', null, 'laptop:landscape'), '', 'laptop:landscape')).toBeUndefined();
     const raw = { places: {}, notes: tree };
     // nur bekannte Pads; unbekanntes Blatt fällt heraus
     expect(parsePadDesks({ '': raw }, new Set(['p1']), new Set())).toEqual({ '': { places: {}, notes: { id: 'p1' } } });
@@ -5686,7 +5690,178 @@ describe('F-210 Schritt 4 (V90): Notizen-Modus als Baum', () => {
     expect(NT.noteTilesOf(t, (id) => id.toUpperCase()).map((x) => x.name)).toEqual(['A', 'B', 'C']);
   });
   it('Reducer setzt den Baum', () => {
-    const ws = reducer(W.defaultWorkspace(), { type: 'noteTree', desk: '', tree: { id: 'x' } });
-    expect(ws.padDesks?.['']?.notes).toEqual({ id: 'x' });
+    const ws = reducer(W.defaultWorkspace(), { type: 'noteTree', desk: '', tree: { id: 'x' }, key: 'laptop:landscape' });
+    expect(ws.deskNotes?.['']?.board?.list[0].trees).toEqual({ 'laptop:landscape': { id: 'x' } });
+  });
+});
+
+describe('F-210 Schritt 5 (V91): Notizen-Layouts (Z1–Z4)', () => {
+  let n = 0;
+  const make = () => `id${++n}`;
+  /** Main Desk mit zwei Pads: Kanban (Notiz darin) und To-do. */
+  const twoPads = () => {
+    let ws = W.defaultWorkspace();
+    const note = NLo.createNote(ws, { title: 'Angebot' }, { id: 'n1' });
+    ws = note.ws;
+    ws = NLo.createView(ws, 'kanban', 'Vertrieb', { id: 'vk', makeId: make }).ws;
+    ws = NLo.createView(ws, 'todo', 'Heute', { id: 'vt', makeId: make }).ws;
+    const placed = NLo.placeNote(ws, 'n1', { view: 'vk' });
+    if (placed.ok) ws = placed.ws;
+    ws = NLp.createPad(ws, '', ['vk'], { id: 'p1' }).ws;
+    ws = NLp.createPad(ws, '', ['vt'], { id: 'p2' }).ws;
+    const tree: T.Node = { dir: 'row', children: [{ id: 'p1' }, { id: 'p2' }], sizes: [0.7, 0.3] };
+    return NT.setNoteTree(ws, '', tree, 'laptop:landscape');
+  };
+  it('ohne Eintrag ein Layout; Baum je Einstellung, sonst der zuletzt gespeicherte', () => {
+    const ws = twoPads();
+    const d = NL.notesLayoutsOf(ws, '');
+    expect(d.list.map((l) => l.name)).toEqual(['Notizen-Layout 1']);
+    expect(NL.noteTreeFor(ws, '', 'laptop:landscape')).toMatchObject({ sizes: [0.7, 0.3] });
+    // andere Einstellung ohne eigenen Baum = zuletzt gespeicherter
+    expect(NL.noteTreeFor(ws, '', 'tablet:portrait')).toMatchObject({ sizes: [0.7, 0.3] });
+    const two = NT.setNoteTree(ws, '', { id: 'p1' }, 'tablet:portrait');
+    expect(NL.noteTreeFor(two, '', 'laptop:landscape')).toMatchObject({ sizes: [0.7, 0.3] });
+    expect(NL.noteTreeFor(two, '', 'tablet:portrait')).toEqual({ id: 'p1' });
+  });
+  it('Wechsel legt Pads in den Vorrat und holt sie zurück (F-50)', () => {
+    const ws = twoPads();
+    const empty = NL.addNotesLayout(ws, '', 'empty', { key: 'laptop:landscape', id: 'L2' });
+    expect(NL.notesLayoutsOf(empty, '').active).toBe('L2');
+    expect(NLp.padsOn(empty, '')).toHaveLength(0);
+    // Sheets bleiben in der Library
+    expect(NLo.viewsOf(empty).map((v) => v.id)).toEqual(['vk', 'vt']);
+    const back = NL.switchNotesLayout(empty, '', 'first');
+    expect(NLp.padsOn(back, '').map((p) => p.id)).toEqual(['p1', 'p2']);
+    expect(NL.noteTreeFor(back, '', 'laptop:landscape')).toMatchObject({ sizes: [0.7, 0.3] });
+    // Sheet inzwischen in einem anderen Pad → fällt beim Zurückholen weg (ein Sheet, ein Pad)
+    const moved = NLp.createPad(empty, '', ['vt'], { id: 'p9' }).ws;
+    const again = NL.switchNotesLayout(moved, '', 'first');
+    expect(NLp.padsOn(again, '').map((p) => p.id)).toEqual(['p1']);
+    expect(NL.notesContentOf(again, '', 'L2')!.pads.map((p) => p.id)).toEqual(['p9']);
+  });
+  it('mitgeliefert: Fokus und Tagesplanung mit neuen, leeren Sheets (Z4)', () => {
+    const ws = twoPads();
+    const f = NL.addNotesLayout(ws, '', 'focus', { key: 'laptop:landscape', id: 'LF', makeId: make });
+    const pads = NLp.padsOn(f, '');
+    expect(pads.map((p) => NLo.viewById(f, p.active)!.kind)).toEqual(['kanban', 'todo']);
+    expect(NLo.viewById(f, pads[0].active)!.ids).toEqual([]);
+    expect(NL.activeNotesLayout(f, '').name).toBe('Fokus');
+    const r = T.rects(NL.noteTreeFor(f, '', 'laptop:landscape')!);
+    expect(+r.get(pads[0].id)!.w.toFixed(3)).toBe(0.667);
+    const d = NL.addNotesLayout(f, '', 'day', { key: 'laptop:landscape', makeId: make });
+    expect(NLp.padsOn(d, '').map((p) => NLo.viewById(d, p.active)!.kind)).toEqual(['todo', 'eisenhower', 'block']);
+    const dr = T.rects(NL.noteTreeFor(d, '', 'laptop:landscape')!);
+    expect([...dr.values()].map((x) => +x.w.toFixed(1))).toEqual([0.4, 0.6, 0.6]);
+    // zweimal „Fokus“ bekommt einen freien Namen
+    const f2 = NL.addNotesLayout(d, '', 'focus', { key: 'laptop:landscape', makeId: make });
+    expect(NL.activeNotesLayout(f2, '').name).toBe('Fokus (Kopie)');
+  });
+  it('Kopieren: eigene Sheets mit denselben Notizen, Baum umgeschrieben; aus aktuellem anlegen', () => {
+    const ws = twoPads();
+    const c = NL.copyNotesLayout(ws, '', 'first', { makeId: make });
+    const d = NL.notesLayoutsOf(c, '');
+    expect(d.list.map((l) => l.name)).toEqual(['Notizen-Layout 1', 'Notizen-Layout 1 (Kopie)']);
+    expect(d.active).toBe('first');
+    const copy = d.list[1];
+    const sheets = copy.saved!.pads.flatMap((p) => p.sheets);
+    expect(sheets).not.toContain('vk');
+    const k = NLo.viewById(c, copy.saved!.pads[0].active)!;
+    expect(k.name).toBe('Vertrieb (Kopie)');
+    expect(NLo.idsIn(k)).toEqual(['n1']);
+    expect(T.leaves(copy.trees!['laptop:landscape']).sort()).toEqual(copy.saved!.pads.map((p) => p.id).sort());
+    const cur = NL.addNotesLayout(ws, '', 'current', { key: 'laptop:landscape', makeId: make });
+    expect(NLp.padsOn(cur, '')).toHaveLength(2);
+    expect(NLp.padsOn(cur, '').map((p) => p.id)).not.toContain('p1');
+  });
+  it('Umbenennen, Löschen (aktiv → Nachbar) und Rückgängig', () => {
+    const ws = NL.addNotesLayout(twoPads(), '', 'empty', { key: 'k', id: 'L2', name: 'Leer' });
+    expect(NL.renameNotesLayout(ws, '', 'L2', 'Notizen-Layout 1')).toBe(ws);
+    const rn = NL.renameNotesLayout(ws, '', 'L2', ' Morgen ');
+    expect(NL.activeNotesLayout(rn, '').name).toBe('Morgen');
+    const del = NL.deleteNotesLayout(rn, '', 'L2');
+    expect(NL.notesLayoutsOf(del.ws, '').active).toBe('first');
+    expect(NLp.padsOn(del.ws, '').map((p) => p.id)).toEqual(['p1', 'p2']);
+    expect(NL.deleteNotesLayout(del.ws, '', 'first').deleted).toBeNull();
+    const back = NL.restoreNotesLayout(del.ws, del.deleted!);
+    expect(NL.notesLayoutsOf(back, '').list.map((l) => l.id)).toEqual(['first', 'L2']);
+  });
+  it('Lesen prüft Layouts; Baum aus V90 wandert ins aktive Layout', () => {
+    const ws = NL.addNotesLayout(twoPads(), '', 'empty', { key: 'laptop:landscape', id: 'L2' });
+    const back = NL.switchNotesLayout(ws, '', 'first');
+    const read = parseWorkspace(JSON.parse(JSON.stringify(back)))!;
+    expect(NL.notesLayoutsOf(read, '')).toEqual(NL.notesLayoutsOf(back, ''));
+    // gespeicherte Pads mit unbekanntem Sheet fallen heraus
+    const broken = JSON.parse(JSON.stringify(ws));
+    broken.deskNotes[''].board.list[0].saved.pads[0].sheets = ['weg'];
+    expect(NL.notesContentOf(parseWorkspace(broken)!, '', 'first')!.pads.map((p) => p.id)).toEqual(['p2']);
+    // V90: Baum lag in padDesks – kommt unter dem Schlüssel der Einstellung ins Layout
+    const old = JSON.parse(JSON.stringify(W.defaultWorkspace()));
+    old.noteViews = [{ id: 'v', kind: 'block', name: 'N', ids: [] }];
+    old.pads = [{ id: 'p', desk: '', sheets: ['v'], active: 'v' }];
+    old.padDesks = { '': { places: {}, notes: { id: 'p' } } };
+    old.winSetup = { '': 'laptop:landscape:1' };
+    const up = parseWorkspace(old)!;
+    expect(up.padDesks?.['']?.notes).toBeUndefined();
+    expect(NL.activeNotesLayout(up, '').trees).toEqual({ 'laptop:landscape': { id: 'p' } });
+  });
+  it('Vorschau: Kacheln mit Art und Name, ohne Baum als Raster', () => {
+    const ws = twoPads();
+    const tiles = NL.notesLayoutView(ws, '', 'first', 'laptop:landscape');
+    expect(tiles.map((t) => [t.name, t.kind, +t.rect.w.toFixed(1)])).toEqual([['Vertrieb', 'kanban', 0.7], ['Heute', 'todo', 0.3]]);
+    const e = NL.addNotesLayout(ws, '', 'empty', { key: 'k', id: 'L2' });
+    expect(NL.notesLayoutView(e, '', 'first', 'x')).toHaveLength(2);
+    expect(NL.notesLayoutView(e, '', 'L2', 'x')).toEqual([]);
+  });
+});
+
+describe('F-218 (V91): Schalter A1–A9 und Wenn-dann-Regeln W1–W4', () => {
+  it('Werk = erste Wahl, nur Abweichungen gespeichert, Lesen prüft', () => {
+    const ws = W.defaultWorkspace();
+    expect(RS.switchOf(ws, 'notice')).toBe('2');
+    expect(RS.noticeMs(ws)).toBe(2000);
+    const a = RS.setSwitch(ws, 'notice', 'click');
+    expect(RS.noticeMs(a)).toBeNull();
+    expect(a.ruleSet).toEqual({ sw: { notice: 'click' } });
+    expect(RS.setSwitch(a, 'notice', '2').ruleSet).toBeUndefined();
+    const b = RS.setWhen(RS.setWhen(a, 'dueUrgent', true), 'doneChecks', true);
+    expect(b.ruleSet!.when).toEqual(['doneChecks', 'dueUrgent']);
+    expect(RS.parseRuleSet({ sw: { notice: 'click', wip: 'ask', fold: 'quatsch', x: 'y' }, when: ['dueUrgent', 'nix'] })).toEqual({ sw: { notice: 'click' }, when: ['dueUrgent'] });
+    expect(parseWorkspace(JSON.parse(JSON.stringify(b)))!.ruleSet).toEqual(b.ruleSet);
+  });
+  it('Checkliste: zählen, abhaken (W1), alle fertig (W2)', () => {
+    const t = 'Titel\n- [ ] eins\n- [x] zwei\n  * [ ] drei';
+    expect(RS.checksOf(t)).toEqual({ total: 3, done: 1 });
+    expect(RS.checkAll(t)).toBe('Titel\n- [x] eins\n- [x] zwei\n  * [x] drei');
+    expect(RS.allChecked(RS.checkAll(t))).toBe(true);
+    expect(RS.allChecked('kein Kästchen')).toBe(false);
+  });
+  it('W1 hakt ab und schreibt die Spur; aus = nichts', () => {
+    let ws = NLo.createNote(W.defaultWorkspace(), { title: 'A', text: '- [ ] a' }, { id: 'a' }).ws;
+    expect(RS.onDone(ws, 'a')).toBe(ws);
+    ws = RS.setWhen(ws, 'doneChecks', true);
+    const d = RS.onDone(ws, 'a', 5);
+    const n = NLo.noteById(d, 'a')!;
+    expect(n.text).toBe('- [x] a');
+    expect(n.trail.at(-1)!.by).toBe('Regel W1 · Erledigt hakt ab');
+  });
+  it('W3 archiviert nach 30 Tagen, W4 macht Fälliges dringend', () => {
+    const day = 864e5;
+    const now = Date.UTC(2026, 10, 25, 12);
+    let ws = W.defaultWorkspace();
+    ws = NLo.createNote(ws, { title: 'alt' }, { id: 'alt', now: now - 40 * day }).ws;
+    ws = NLo.setState(ws, 'alt', 'done', { now: now - 31 * day });
+    ws = NLo.createNote(ws, { title: 'neu' }, { id: 'neu', now }).ws;
+    ws = NLo.setState(ws, 'neu', 'done', { now: now - 2 * day });
+    ws = NLo.createNote(ws, { title: 'fällig', due: '2026-11-26' }, { id: 'f', now }).ws;
+    ws = NLo.createNote(ws, { title: 'später', due: '2026-12-20' }, { id: 's', now }).ws;
+    expect(RS.sweep(ws, now)).toMatchObject({ archived: 0, urgent: 0 });
+    ws = RS.setWhen(RS.setWhen(ws, 'archiveOld', true), 'dueUrgent', true);
+    const r = RS.sweep(ws, now);
+    expect([r.archived, r.urgent]).toEqual([1, 1]);
+    expect(NLo.noteById(r.ws, 'alt')!.state).toBe('archived');
+    expect(NLo.noteById(r.ws, 'neu')!.state).toBe('done');
+    expect(NLo.noteById(r.ws, 'f')!.urgent).toBe(true);
+    expect(NLo.noteById(r.ws, 's')!.urgent).toBeUndefined();
+    expect(RS.sweep(r.ws, now)).toMatchObject({ archived: 0, urgent: 0 });
   });
 });

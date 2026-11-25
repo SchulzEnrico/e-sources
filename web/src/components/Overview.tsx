@@ -121,6 +121,8 @@ export interface OverviewProps {
   startRules?: boolean;
   /** F-187: Modus „Layouts“ – Bedienung der Layouts und gleich in diesem Modus öffnen. */
   layoutOps?: LayoutOps;
+  /** V91 (F-210 Schritt 5): nach Wechsel eines Notizen-Layouts in den Notizen-Modus schalten. */
+  onNotesApplied?: () => void;
   startLayouts?: boolean;
   /** F-206 Schritt 5 (V85, N8): Ansicht „Notizen“ – Pad zeigen, Pad auf einen Desk (N10), gleich so öffnen, Deckkraft. */
   onShowPad?: (id: string, sheet?: string) => void;
@@ -1010,6 +1012,7 @@ export function Overview(p: OverviewProps) {
             ops={p.layoutOps}
             dispatch={p.dispatch}
             say={setSaid}
+            onNotesApplied={canNotes ? p.onNotesApplied : undefined}
             onNewBoard={
               canNotes
                 ? (tpl) => {

@@ -28,6 +28,7 @@ import * as Cs from './cases';
 import * as No from './notes';
 import * as Pd from './pads';
 import * as NT from './noteTree';
+import * as NL from './notesLayouts';
 import type { BoardTemplate, ColState, NoteState, NoteView, NoteViewKind, PadPlace } from './types';
 import * as BT from './boardTemplates';
 import * as Sh from './sheets';
@@ -188,7 +189,14 @@ export type Action =
   | { type: 'padNew'; desk: string; id: string; sheet: string; place?: PadPlace }
   | { type: 'padPlace'; desk: string; id: string; place: PadPlace }
   /** F-210 Schritt 4 (V90): Baum der Pads im Notizen-Modus setzen. */
-  | { type: 'noteTree'; desk: string; tree: Node | null }
+  | { type: 'noteTree'; desk: string; tree: Node | null; key: string }
+  /** F-210 Schritt 5 (V91, Z1–Z4): Notizen-Layouts je Desk. */
+  | { type: 'notesSwitch'; desk: string; id: string }
+  | { type: 'notesAdd'; desk: string; from: NL.NotesFrom; key: string; name?: string; id: string }
+  | { type: 'notesCopy'; desk: string; id: string }
+  | { type: 'notesRename'; desk: string; id: string; name: string }
+  | { type: 'notesDelete'; desk: string; id: string }
+  | { type: 'notesRestore'; deleted: NL.DeletedNotesLayout }
   | { type: 'padRaise'; id: string }
   /** F-206 Schritt 4 (V81): Dock – Pad hinein/heraus, alle, Breite/Lasche, ein/aus (geräteeigen außer `docked`). */
   | { type: 'padDock'; id: string; on: boolean }
@@ -421,7 +429,19 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'padPlace':
       return Pd.setPlace(ws, a.desk, a.id, a.place);
     case 'noteTree':
-      return NT.setNoteTree(ws, a.desk, a.tree);
+      return NT.setNoteTree(ws, a.desk, a.tree, a.key);
+    case 'notesSwitch':
+      return NL.switchNotesLayout(ws, a.desk, a.id);
+    case 'notesAdd':
+      return NL.addNotesLayout(ws, a.desk, a.from, { key: a.key, name: a.name, id: a.id });
+    case 'notesCopy':
+      return NL.copyNotesLayout(ws, a.desk, a.id);
+    case 'notesRename':
+      return NL.renameNotesLayout(ws, a.desk, a.id, a.name);
+    case 'notesDelete':
+      return NL.deleteNotesLayout(ws, a.desk, a.id).ws;
+    case 'notesRestore':
+      return NL.restoreNotesLayout(ws, a.deleted);
     case 'padRaise':
       return Pd.raisePad(ws, a.id);
     case 'padDock':

@@ -8201,3 +8201,12 @@ h3.cases__name { font-size: 1.05em; }
 @media (forced-colors: active) {
   .padgone { border: 1px solid CanvasText; }
 }
+
+/* ---------------------------------------------------------------- V91 (F-210 Schritt 5): Notizen-Layouts im Cockpit „Layouts“ */
+.nl__mini { position: relative; display: block; width: 100%; aspect-ratio: 1.6; max-height: 70px; border: 1px solid var(--line); border-radius: 5px; }
+.nl__minipad { position: absolute; box-sizing: border-box; display: flex; align-items: flex-start; justify-content: center; padding-top: 3px; border: 1px solid rgba(var(--tint, 127, 127, 127), 0.3); border-radius: 3px; background: rgba(127, 127, 127, 0.14); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.28); }
+.nl__minipad .icon { display: inline-block; opacity: 0.8; }
+.nl__minipad.is-kanban { background: rgba(var(--accent-rgb), 0.14); }
+.nl__minipad.is-empty { border-style: dashed; background: transparent; box-shadow: none; }
+.lc__card.is-active .lc__card-meta b { color: var(--accent); }
+@media (forced-colors: active) { .nl__minipad { border-color: CanvasText; } }

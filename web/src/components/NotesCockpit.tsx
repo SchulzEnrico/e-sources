@@ -62,7 +62,7 @@ export function NotesCockpit(p: NotesCockpitProps) {
   const notesOn = (desk: string) => modes[desk] === 'notes';
   const treeOf = (desk: string) => {
     const ids = padsOn(ws, desk).map((x) => x.id).sort();
-    return treeRects(syncNoteTree(noteTreeOf(ws, desk), ids, { min: { w: 0, h: 0 }, aspect: 16 / 10 }).tree);
+    return treeRects(syncNoteTree(noteTreeOf(ws, desk, ''), ids, { min: { w: 0, h: 0 }, aspect: 16 / 10 }).tree);
   };
   const placeOf = (w: Workspace, desk: string, id: string): PadPlace | undefined => (notesOn(desk) ? treeOf(desk).get(id) : floatOf(w, desk, id));
   // Desks: alle aus dem Radar, dazu Desks, auf denen nur Pads liegen (ohne Portale fallen sie dort weg)

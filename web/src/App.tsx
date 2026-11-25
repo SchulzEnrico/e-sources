@@ -9,6 +9,7 @@ import { Item, Menu, MenuHead, MenuPages, PanelFrame } from './components/PanelF
 import { TemplatePick } from './components/BoardTemplates';
 import { OpacitySlider, Pad as PadView, type Edge as PadEdge, type PadSide } from './components/Pad';
 import * as NT from './workspace/noteTree';
+import { activeNotesLayout } from './workspace/notesLayouts';
 import { type PadUndo } from './workspace/pads';
 import { PAD_SHEETS_MAX } from './workspace/noteObjects';
 import { type PlanPreview, SitePlan } from './components/SitePlan';
@@ -22,6 +23,7 @@ import {
   SCREEN_CLASSES,
   allowsTwoLines,
   detectScreen,
+  linesKey,
   screenClass,
   slotSize,
 } from './workspace/screen';
@@ -59,7 +61,7 @@ import { importSlot, isSlotFile, readSlotFile, slotFileName, slotToFile } from '
 import { type NoteHit, tabShowing, titleOf as noteTitleOf, viewById } from './workspace/notes';
 import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, VIEW_TEXT } from './workspace/terms';
+import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_LAYOUT_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, VIEW_TEXT } from './workspace/terms';
 import { type DeskMode, PHONE_MQ, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
 import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
@@ -1187,9 +1189,10 @@ function DeskApp(props: DeskProps) {
   const padOrder = [...deskPads].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
   // ---------------------------------------------------------------- F-210 Schritt 4 (V90): Notizen-Modus als Baum (F1–F5)
-  // Pads liegen lückenlos im Teilungsbaum wie Slots; der Baum gilt je Desk und Gerät (padDesks[desk].notes).
+  // Pads liegen lückenlos im Teilungsbaum wie Slots; seit V91 (Z2) liegt der Baum im aktiven Notizen-Layout je Bildschirm.
   const noteMin: T.Min = { w: Math.min(1, PAD_MIN.w / iw), h: Math.min(1, PAD_MIN.h / ih) };
-  const storedNotes = NT.noteTreeOf(ws, win);
+  const noteKey = linesKey(setup.cls, setup.orientation);
+  const storedNotes = NT.noteTreeOf(ws, win, noteKey);
   // F3: ein neues Pad kommt rechts neben das zuletzt aktive Pad, das schon im Baum liegt
   const noteNear = [...allPads].reverse().find((p) => storedNotes && T.hasLeaf(storedNotes, p.id))?.id;
   const noteSync = NT.syncNoteTree(storedNotes, noteOrder.map((p) => p.id), { near: noteNear, min: noteMin, aspect: deskAr });
@@ -1202,9 +1205,9 @@ function DeskApp(props: DeskProps) {
   };
   const noteAdd = notesMode && noteSync.added && iw > 0 ? T.leaves(noteSync.tree).join() : '';
   useEffect(() => {
-    if (noteAdd) dispatch({ type: 'noteTree', desk: win, tree: noteSync.tree });
+    if (noteAdd) dispatch({ type: 'noteTree', desk: win, tree: noteSync.tree, key: noteKey });
   }, [noteAdd]); // eslint-disable-line react-hooks/exhaustive-deps
-  const saveNotes = (t: T.Node | null) => dispatch({ type: 'noteTree', desk: win, tree: t });
+  const saveNotes = (t: T.Node | null) => dispatch({ type: 'noteTree', desk: win, tree: t, key: noteKey });
   const focusPadHead = (id: string) => window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .pad__tab.is-on`)?.focus(), 60);
   /** Ränder mit einer Grenze zum Nachbarn (am Desk-Rand gibt es nichts zu ziehen). */
   const noteGrips = (id: string): PadEdge[] => {
@@ -1365,7 +1368,7 @@ function DeskApp(props: DeskProps) {
     if (pick.zone === 'full') return;
     const id = newId();
     dispatch({ type: 'padNew', desk: win, id, sheet: newId(), place: padHome() });
-    dispatch({ type: 'noteTree', desk: win, tree: NT.addInTree(noteTree, id, pick.tile, pick.zone) });
+    dispatch({ type: 'noteTree', desk: win, tree: NT.addInTree(noteTree, id, pick.tile, pick.zone), key: noteKey });
     notify(`${PAD_TEXT.created} ${where}`);
     sayLive(`${PAD_TEXT.created} ${where}`);
     window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .nblock__new`)?.focus(), 60);
@@ -3531,15 +3534,21 @@ function DeskApp(props: DeskProps) {
                 {PICKER_TEXT.menu}
               </Item>
               <li className="menu__sep" role="separator" />
-              {/* F-51: Layouts dieses Desks */}
+              {/* F-51: Layouts dieses Desks; V91 (F-210 Schritt 5, Z3): im Notizen-Modus die Notizen-Layouts */}
               <Item icon="layouts"
                 onClick={() => {
                   close();
                   openLayouts();
+                  if (notesMode)
+                    window.setTimeout(() => {
+                      const g = document.querySelector<HTMLElement>('.lc__group.nl');
+                      g?.scrollIntoView({ block: 'start' });
+                      g?.querySelector<HTMLElement>('.lc__card.is-sel')?.focus({ preventScroll: true });
+                    }, 120);
                 }}
               >
-                {DESK_LAYOUT_TEXT.menu}
-                <span className="menu__hint"> {activeLayout(ws, win ?? '').name}</span>
+                {notesMode ? NOTES_LAYOUT_TEXT.menu : DESK_LAYOUT_TEXT.menu}
+                <span className="menu__hint"> {notesMode ? activeNotesLayout(ws, win ?? '').name : activeLayout(ws, win ?? '').name}</span>
               </Item>
               <Item icon="dashboard"
                 onClick={() => {
@@ -4123,6 +4132,7 @@ function DeskApp(props: DeskProps) {
           shown={shownTheme}
           startRules={overviewRules}
           layoutOps={layoutOps}
+          onNotesApplied={notesOff ? undefined : () => { if (!notesModeRef.current) setDeskMode('notes'); }}
           startLayouts={overviewLayouts}
           startNotes={overviewNotes}
           onNotesNew={notesOff ? undefined : (kind) => (kind === 'pad' ? newPad(false) : newNoteHere(kind, undefined, false))}

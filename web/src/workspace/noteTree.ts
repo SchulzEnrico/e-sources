@@ -10,15 +10,16 @@
  *    nächste Mal ändert – so kommt das Pad mit „Rückgängig“ genau an seinen alten Platz zurück.
  * F5 Vollbild je Pad bleibt (nur Anzeige, ändert den Baum nicht).
  *
- * Der Baum liegt vorerst je Desk und Gerät (`padDesks[desk].notes`, DEVICE_FIELDS); ab Schritt 5
- * in den Notizen-Layouts. Alles hier ist rein.
+ * Seit V91 (Schritt 5) liegt der Baum im aktiven Notizen-Layout, je Bildschirm-Einstellung
+ * (notesLayouts.ts, abgeglichen); vorher je Desk und Gerät in `padDesks[desk].notes`. Alles hier ist rein.
  */
 import * as T from './tree';
-import type { PadDesk, Workspace } from './types';
+import type { Workspace } from './types';
+import { noteTreeFor, setNoteTreeFor } from './notesLayouts';
 import { type PlanSide, type PlanTile, neighbour } from './sitePlan';
 
-/** Gespeicherter Baum des Desks (kann geschlossene Pads noch enthalten, siehe F4). */
-export const noteTreeOf = (ws: Workspace, desk: string): T.Node | undefined => ws.padDesks?.[desk]?.notes;
+/** Gespeicherter Baum des Desks für diese Einstellung (kann geschlossene Pads noch enthalten, siehe F4). */
+export const noteTreeOf = (ws: Workspace, desk: string, key: string): T.Node | undefined => noteTreeFor(ws, desk, key);
 
 /** F2: Startbaum wie das Raster – ⌈√n⌉ Spalten, Reihen übereinander, die letzte Reihe breiter. */
 export function gridTree(ids: readonly string[]): T.Node | null {
@@ -86,12 +87,9 @@ export function syncNoteTree(
   return { tree: t, added };
 }
 
-/** Baum des Desks setzen (`null` entfernt ihn). */
-export function setNoteTree(ws: Workspace, desk: string, tree: T.Node | null): Workspace {
-  const d: PadDesk = ws.padDesks?.[desk] ?? { places: {} };
-  const { notes: _old, ...rest } = d;
-  const next: PadDesk = tree ? { ...rest, notes: tree } : rest;
-  return { ...ws, padDesks: { ...ws.padDesks, [desk]: next } };
+/** Baum des Desks für diese Einstellung setzen (`null` entfernt ihn). */
+export function setNoteTree(ws: Workspace, desk: string, tree: T.Node | null, key: string): Workspace {
+  return setNoteTreeFor(ws, desk, key, tree);
 }
 
 /** Kacheln für Lageplan und Nachbarsuche. */

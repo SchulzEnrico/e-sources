@@ -116,7 +116,7 @@ export const DESK_LAYOUT_TEXT = {
   modeLayouts: 'Layouts',
   modeGroup: 'Ansicht im Cockpit',
   /** F-202 Stufe 3 */
-  modeSources: 'Sources',
+  modeSources: 'Library', // V82/V83: „Sources“ im Cockpit heißt jetzt „Library“
   modeSourcesOn: 'Sources: alle gespeicherten Sources der Library. Haken setzen und gemeinsam einstellen, z. B. „nie pausieren“. Esc oder „Portale“ führt zurück.',
   sourcesFilter: 'Titel, Adresse, Kategorie oder #Tag',
   sourcesFilterLabel: 'Sources durchsuchen',
@@ -1077,6 +1077,31 @@ export const DRAFT_TEXT = {
   listDraft: 'Entwurf',
 };
 
+/** V83 (F-206 Schritt 5): Knopf „Notizen & Aufgaben“ (im Code/in der Hilfe „Notes & Tasks“) – ersetzt NewPad */
+export const NT_TEXT = {
+  name: 'Notizen & Aufgaben',
+  label: 'Notizen & Aufgaben (Alt/⌥+N): neues Pad, Notiz suchen, Pads verteilen, ins Dock oder ausblenden, Desk | Notizen',
+  find: 'Notiz suchen …',
+  findHint: 'Öffnet die Suche oben für deine Notizen',
+  pads: 'Pads',
+  spread: 'Verteilt',
+  spreadHint: 'alle Pads schweben über dem Desk',
+  dock: 'Im Dock',
+  dockHint: 'alle Pads im Dock am rechten Rand',
+  hidden: 'Ausgeblendet',
+  hiddenHint: 'Pads und Dock sind weg, nichts wird gelöscht',
+  mixed: 'Gemischt',
+  none: 'Keine Pads',
+  noPads: 'Noch keine Pads auf diesem Desk – „Neues Pad“ legt eins an.',
+  padsNotes: 'Im Notizen-Modus füllt ein Pad den Desk – kein Dock.',
+  nowSpread: 'Pads verteilt über dem Desk.',
+  nowDock: 'Alle Pads liegen im Dock.',
+  nowHidden: 'Pads ausgeblendet – über das Rad „Pads“ wieder zeigen.',
+  cockpit: 'Im Cockpit ordnen …',
+  cockpitHint: 'Kommt mit der Cockpit-Ansicht „Notizen“ (nächster Bauschritt)',
+  help: 'Hilfe zu Notizen & Aufgaben',
+};
+
 export const PAD_TEXT = {
   newPad: 'NewPad',
   newPadLabel: 'Neues Pad anlegen',
@@ -1086,7 +1111,7 @@ export const PAD_TEXT = {
   menuPlaceHint: 'Kommt mit dem Lageplan (nächster Bauschritt)',
   hide: 'Pads ausblenden',
   show: (n: number) => `Pads einblenden (${n})`,
-  hidden: (n: number) => `${n === 1 ? 'Ein Pad ist' : `${n} Pads sind`} ausgeblendet – NewPad › Pads einblenden.`,
+  hidden: (n: number) => `${n === 1 ? 'Ein Pad ist' : `${n} Pads sind`} ausgeblendet – Notizen & Aufgaben › Rad „Pads“.`,
   shown: 'Pads sind wieder sichtbar.',
   created: 'Neues Pad mit Notizblock angelegt.',
   region: (sheet: string, where: string) => `Pad: ${sheet} – ${where}`,
@@ -1156,7 +1181,7 @@ export const DOCK_TEXT = {
   undocked: (pad: string) => `„${pad}“ schwebt wieder über dem Desk.`,
   allDocked: (n: number) => `${n === 1 ? 'Ein Pad liegt' : `${n} Pads liegen`} jetzt im Dock.`,
   allUndocked: 'Alle Pads schweben wieder über dem Desk.',
-  isOff: (n: number) => `Dock weggeschaltet – ${n === 1 ? 'ein Pad liegt' : `${n} Pads liegen`} darin. NewPad › Dock zeigen.`,
+  isOff: (n: number) => `Dock weggeschaltet – ${n === 1 ? 'ein Pad liegt' : `${n} Pads liegen`} darin. Notizen & Aufgaben › Rad „Pads“.`,
   isOn: 'Dock ist wieder da.',
   folded: 'Dock eingeklappt.',
   unfolded: 'Dock ausgeklappt.',
@@ -1173,6 +1198,19 @@ export const DESK_MODE_TEXT = {
   notesHint: 'Notizen: ein Pad füllt den ganzen Desk zum Schreiben – die Portale ruhen unsichtbar dahinter. Auf dem Telefon startet jeder Desk so.',
   nowDesk: 'Desk Mode: Portale und Slots.',
   nowNotes: 'Notizen: das Pad füllt den Desk.',
+};
+
+/** V83 (F-216): View als Umschalt-Rad – kurze Namen auf dem Rad, ausführlich im Tooltip */
+export const VIEW_TEXT = {
+  label: 'View',
+  short: { area: 'Dashboard', '4': '2 × 2', '2': '2', '1': 'Solo' } as Record<string, string>,
+};
+
+/** V83 (F-216): Umschalt-Rad – gleiche Bedienung an allen Umschaltern */
+export const WHEEL_TEXT = {
+  role: 'Umschalt-Rad',
+  hint: 'Drehen: Scrollen oder Wischen hoch/runter · Klick: nächster · Umschalt+Klick: voriger · Pfeiltasten, Pos1/Ende',
+  between: (name: string, a: string, b: string) => `${name}, zwischen ${a} und ${b}`,
 };
 
 /** F-215 (V69): Fußleiste mit Home-Knopf im Pad */

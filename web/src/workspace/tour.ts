@@ -62,7 +62,7 @@ export const TOURS: Record<TourId, TourStep[]> = {
     { id: 'stackAdd', title: 'Portal stapeln', target: 'main section[data-panel-id] .win__stack-add', text: t('newPortal') + ' Die Farbe des Plus zeigt, wie die Fokusanzeige danach stünde.' },
     { id: 'stack', title: 'Stack', target: 'main .stack', expand: true, ring: '.stack__inner', text: t('stack') + ' Mit ▲/▼ oder dem Mausrad blätterst du; ein Klick auf einen Namen holt dieses Portal nach vorn.' },
     { id: 'newSlot', title: '+ NewSlot', target: '.tb-center .tb-add, .tb-center .tb-newslot', text: t('newSlot') },
-    { id: 'view', title: 'View', target: '.tb-center .tb-view', text: t('view') },
+    { id: 'view', title: 'View', target: '.tb-center .tb-viewwheel', text: t('view') },
     { id: 'search', title: 'Suchen', target: '.tb-center .search', text: t('search') },
     { id: 'focus', title: 'Fokusanzeige', target: '.toolbar .focus-meter', text: `${t('focus')} Ein Klick öffnet das Cockpit (Strg/⌘+.) – dort gibt es eine eigene kurze Tour.` },
     { id: 'design', title: 'Design', target: '.toolbar .tb-design', text: `${t('design')} Der Knopf öffnet „Design anpassen“ – mit eigener kurzer Tour.` },
@@ -82,9 +82,9 @@ export const TOURS: Record<TourId, TourStep[]> = {
     },
     {
       id: 'modes',
-      title: 'Portale, Layouts, Sources',
+      title: 'Portale, Layouts, Library',
       target: `${C} .overview__mode`,
-      text: 'Hier schaltest du um, was das Cockpit zeigt: „Portale“ ist der Überblick mit Radar, „Layouts“ die gespeicherten Anordnungen dieses Desks mit ihren Cases, „Sources“ deine Library. Pfeiltasten wechseln. Die Tour zeigt, was gerade offen ist.',
+      text: 'Hier schaltest du um, was das Cockpit zeigt: „Portale“ ist der Überblick mit Radar, „Layouts“ die gespeicherten Anordnungen dieses Desks mit ihren Cases, „Library“ deine gespeicherten Sources. Das Rad dreht mit Scrollen, Klick oder Pfeiltasten. Die Tour zeigt, was gerade offen ist.',
     },
     {
       id: 'radar',

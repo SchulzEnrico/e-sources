@@ -4725,7 +4725,7 @@ button.is-off:hover,
 .toolbar .tb-fit { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 
 /* F-187: Cockpit im Modus „Layouts“ – eindeutig erkennbar (Band, gestrichelter Rahmen) */
-.overview__mode { display: inline-flex; flex-shrink: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.overview__mode:not(.mwheel) { display: inline-flex; flex-shrink: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .overview__mode button { border: 0; border-radius: 0; padding: 3px 10px; font-size: 12px; background: transparent; box-shadow: none; display: inline-flex; align-items: center; gap: 5px; }
 .overview__mode button.is-on { background: rgba(var(--accent-rgb), 0.22); color: var(--strong); font-weight: 700; }
 .overview.is-layouts { box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), 0.55), 0 12px 40px rgba(0, 0, 0, 0.45); }
@@ -5236,7 +5236,7 @@ button.is-off:hover,
   /* Zeilenumbruch nach dem × */
   .overview__head::after { content: ''; order: 4; flex-basis: 100%; height: 0; }
   .overview__head > .overview__name { order: 0; }
-  .overview__head > .overview__mode { order: 1; }
+  /* V83: Rad bleibt links (nicht mehr nach hinten umsortieren) */
   .overview__head > .grow { order: 2; }
   .overview__head > .overview__x { order: 3; }
   .overview__head > .radar__filter { order: 10; flex-basis: 100%; }
@@ -7237,11 +7237,7 @@ h3.cases__name { font-size: 1.05em; }
 }
 
 /* V75 (F-215): Umschalter Desk | Notes in der Kopfzeile – zwei Knöpfe als Gruppe, der aktive eingedrückt */
-.tb-mode { display: inline-flex; gap: 0; border-radius: 8px; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45); }
-.tb-mode__btn { display: inline-flex; align-items: center; gap: 5px; border-radius: 0; }
-.tb-mode__btn:first-child { border-radius: 8px 0 0 8px; }
-.tb-mode__btn:last-child { border-radius: 0 8px 8px 0; }
-.tb-mode__btn.on { background: rgba(var(--accent-rgb), 0.25); color: var(--strong); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45); }
+/* V83 (F-216): Desk | Notizen ist jetzt ein Umschalt-Rad (.mwheel.tb-mode), Gestaltung siehe unten bei .mwheel */
 /* Note Mode: Portale ruhen unsichtbar (nicht bedienbar, für Bildschirmleser weg), das Pad füllt den Desk */
 .area.is-notes > :not(.padlayer) { visibility: hidden; }
 .padlayer.is-notes .pad { border-radius: 0; }
@@ -7456,3 +7452,153 @@ h3.cases__name { font-size: 1.05em; }
 .dock__mono.is-on { border-color: rgba(var(--accent-rgb), 0.7); color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .dock__tab { transition: none; } }
 @media (forced-colors: active) { .dock__tab { opacity: 1; } }
+
+/* V83 (F-216, Wunsch Enrico V82): Umschalt-Rad – Daumenrad der MX Master: breite, geriffelte Metallwalzen links und
+   rechts, Symbol + Name in der Mitte. V83 (Enrico): Drehgefühl wie das Überschrift-Rad – echtes Scrollband mit
+   Einrasten und Wölbung (.mwheel__win), Walzen laufen stufenlos mit (--mw-turn = gedrehte Rasten, auch Bruchteile).
+   Höhe wie die Knöpfe der Kopfleiste; beim Hover, Fokus und Drehen öffnet sich das Band über und unter den Knopf. */
+.mwheel {
+  --mw-turn: 0;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px; /* Mulde 22 + 2 × 2 + Rand = 28 px wie die Knöpfe der Kopfleiste */
+  border-radius: 10px;
+  color: var(--text);
+  /* V83 (Enrico): Knopf wie „Überschrift H1“ im Pad – Neumorphism, erhaben, ohne Rand */
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow:
+    -3px -3px 7px rgba(var(--hi), 0.09),
+    4px 4px 9px rgba(0, 0, 0, 0.55);
+  cursor: var(--cur-hand);
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
+  transition: box-shadow 0.15s ease, color 0.15s ease, filter 0.15s ease;
+}
+.mwheel:hover,
+.mwheel:focus-visible {
+  color: var(--strong, var(--text));
+  filter: brightness(1.15);
+  box-shadow:
+    -3px -3px 8px rgba(var(--hi), 0.12),
+    5px 5px 11px rgba(0, 0, 0, 0.6),
+    0 0 0 1.5px rgba(var(--accent-rgb), 0.95),
+    0 0 16px rgba(var(--accent-rgb), 0.5);
+}
+/* Mulde mittig im Knopf wie beim Überschrift-Rad: schwarzer Rand mit Schatten, Clay-Hintergrund; darin Walzen + Band */
+.mwheel__dial {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px; /* V83 (Enrico): wenig Abstand zwischen Walzen und Symbol/Text */
+  height: 22px;
+  padding: 0 2px;
+  border: 1px solid #000;
+  border-radius: 7px;
+  background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 14%, rgba(var(--hi), 0.14)), color-mix(in srgb, rgb(var(--accent-rgb)) 6%, rgba(var(--lo), 0.2)));
+  box-shadow:
+    inset 3px 3px 6px rgba(var(--hi), 0.22),
+    inset -4px -5px 9px rgba(var(--lo), 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.65);
+}
+/* Walze: gebürstetes Metall, quer gerieft; Zylinder-Licht oben, Schatten an den Enden; Riefen laufen mit dem Band.
+   V83 (Enrico, NF-08): dieselben Walzen im Überschrift-Rad des Pads (::before/::after der Mulde) */
+.mwheel__roll,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap::before,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap::after {
+  flex: none;
+  width: 22px; /* V83 (Enrico): Walzen noch breiter */
+  height: 18px;
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.15) 22%, rgba(255, 255, 255, 0.28) 38%, rgba(255, 255, 255, 0.05) 55%, rgba(0, 0, 0, 0.2) 78%, rgba(0, 0, 0, 0.75) 100%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.45), rgba(255, 255, 255, 0.08) 30%, rgba(255, 255, 255, 0.08) 70%, rgba(0, 0, 0, 0.45)),
+    repeating-linear-gradient(180deg, #eef1f4 0 0.8px, #a7adb5 0.8px 1.6px, #5a6068 1.6px 2.4px, #2c3036 2.4px 3px);
+  background-size: 100% 100%, 100% 100%, 100% 3px;
+  background-position: 0 0, 0 0, 0 calc(var(--mw-turn) * -9px);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(var(--hi), 0.22), 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+.mwheel:is(:hover, :focus-visible, .is-turning) .mwheel__roll { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(var(--hi), 0.22), 0 0 6px rgba(var(--accent-rgb), 0.35); }
+.mwheel__core { position: relative; display: inline-grid; perspective: 140px; }
+.mwheel__sizer { display: grid; visibility: hidden; }
+.mwheel__sizer > * { grid-area: 1 / 1; }
+.mwheel__item {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 1px;
+  white-space: nowrap;
+  scroll-snap-align: center;
+  transform-origin: center center;
+  backface-visibility: hidden;
+}
+.mwheel__item .icon { display: inline-block; flex: none; }
+.mwheel__item.is-on { color: var(--strong); }
+.mwheel__item.is-mid { font-style: italic; color: var(--muted); }
+/* Band: ragt 12 px über und unter den Knopf; in Ruhe nur der Knopf sichtbar (clip-path – auch die Trefferfläche) */
+.mwheel__win {
+  position: absolute;
+  inset: -12px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  touch-action: pan-y;
+  z-index: 2;
+  clip-path: inset(12px 0);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 32%, #000 68%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 32%, #000 68%, transparent);
+  transition: clip-path 0.18s ease;
+}
+.mwheel__win::-webkit-scrollbar { display: none; }
+.mwheel__spacer { height: 12px; }
+.mwheel:is(:hover, :focus-visible, .is-turning) .mwheel__win { clip-path: inset(0 -4px round 8px); }
+/* schmal: nur Symbol + Walzen (der Name bleibt im Tooltip und für Bildschirmleser) – wie die Knöpfe der Kopfleiste */
+.toolbar .mwheel .tb-label { position: static; width: auto; height: auto; clip-path: none; }
+@media (max-width: 1100px) {
+  .toolbar .mwheel .mwheel__name { display: none; }
+}
+.app--compact .mwheel .mwheel__name { display: none; }
+.mwheel.is-off { opacity: 0.5; cursor: default; }
+.mwheel.is-off .mwheel__win { overflow: hidden; clip-path: inset(12px 0); }
+@media (prefers-reduced-motion: reduce) {
+  .mwheel__win { scroll-behavior: auto; transition: none; }
+}
+@media (forced-colors: active) {
+  .mwheel, .mwheel__dial { border: 1px solid ButtonText; }
+  .mwheel:focus-visible { outline: 2px solid Highlight; }
+  .mwheel__roll { background: ButtonText; }
+  .mwheel__win { mask-image: none; -webkit-mask-image: none; }
+}
+/* V83 (F-206 Schritt 5, N4): Räder im Menü „Notizen & Aufgaben“ – Beschriftung links, Rad rechts (wie Regler-Zeilen) */
+.menu__wheel { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-top: 1px solid rgba(var(--tint), 0.1); }
+.menu__wheel-cap { font-size: 13px; }
+.menu__wheel .mwheel { flex: none; }
+/* V83 (Enrico): View-Rad nur mit Symbolen – Name im Tooltip und für Bildschirmleser (aria-valuetext) */
+.mwheel--icons .mwheel__name { display: none; }
+.mwheel--icons .mwheel__item .icon { width: 20px; height: 14px; }
+/* V83 (Enrico): Überschrift-Rad wie das Umschalt-Rad – Walzen links und rechts in der Mulde, Text dazwischen */
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap::before,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  z-index: 3;
+  pointer-events: none;
+}
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap::before { left: 4px; }
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap::after { right: 4px; }
+.nedit__hbtn .nedit__hwheel .rpick__val { padding: 0 30px; }
+/* V83 (Enrico): View – etwas mehr Abstand zwischen Walzen und Symbol */
+.mwheel--icons .mwheel__item { padding: 0 5px; }
+/* V83: Räder im Design-Dialog – Gruppe klein vor dem Namen, Farbpunkt bei der Akzentfarbe */
+.design__wheel { display: inline-flex; margin: 4px 0 8px; }
+.mwheel__group { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.mwheel__dot { width: 12px; height: 12px; border-radius: 50%; background: var(--swatch); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.35); flex: none; }
+/* V83 (Enrico): Das Rad im Cockpit-Kopf zeigt die Ansicht – die Überschrift „Layouts“ ist nur noch für Bildschirmleser da */
+.lc__band > .icon, .lc__band > .lc__head-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

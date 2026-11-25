@@ -7,7 +7,7 @@ import logoUrl from './assets/e-sources-logo.svg';
 import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, MenuHead, PanelFrame } from './components/PanelFrame';
 import { OpacitySlider, Pad as PadView } from './components/Pad';
-import { DOCK_TAB_W, PAD_START, clampDockW, dockFront, dockOf, dockedOn, padsOn, placeOf, zonePlace } from './workspace/pads';
+import { DOCK_TAB_W, PAD_START, clampDockW, dockFront, dockOf, dockedOn, padsOn, padsShow, placeOf, zonePlace } from './workspace/pads';
 import {
   type Lines,
   type Orientation,
@@ -52,7 +52,7 @@ import { importSlot, isSlotFile, readSlotFile, slotFileName, slotToFile } from '
 import { type NoteHit, tabShowing, titleOf as noteTitleOf, viewById } from './workspace/notes';
 import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { DESK_MODE_TEXT, DOCK_TEXT } from './workspace/terms';
+import { DESK_MODE_TEXT, DOCK_TEXT, NT_TEXT, VIEW_TEXT } from './workspace/terms';
 import { type DeskMode, PHONE_MQ, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
 import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
@@ -87,6 +87,7 @@ import { BOOKMARKS_FILE_NAME, type BrowserBookmark, bookmarkFileOf, looksLikeBoo
 import { closedOf, restoreClosed, restoredSaid } from './workspace/closed';
 import { PORTAL_ALONE, nextTabOf, portalSaid, stepIn, tabAlone, tabSaid } from './workspace/cycle';
 import { Icon } from './components/Icon';
+import { ModeWheel } from './components/ModeWheel';
 import { SyncDialog } from './components/Sync';
 import { restoreBackup, useGistState, useGistSync } from './workspace/useGistSync';
 import { FLASH_EVENT, type FlashRequest } from './workspace/flash';
@@ -1084,13 +1085,6 @@ function DeskApp(props: DeskProps) {
     sayLive(PAD_TEXT.created);
     window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .nblock__new`)?.focus(), 60);
   };
-  const togglePads = () => {
-    const hide = !padsHidden;
-    setPadsHidden(hide);
-    const text = hide ? PAD_TEXT.hidden(deskPads.length) : PAD_TEXT.shown;
-    notify(text);
-    sayLive(text);
-  };
   // V75 (F-215): Note Mode – das oberste Pad füllt den Desk; fehlt eins, legt E-Sources es an
   // V76 (Enrico: „Schalte die Notizen in der Mobilansicht vorerst weg“): auf dem Telefon keine Pads, kein NewPad
   // und kein Umschalter – erst alle Funktionen, die Mobilansicht der Notizen kommt später
@@ -1267,10 +1261,30 @@ function DeskApp(props: DeskProps) {
     // sichtbar: Dock verschwindet bzw. kommt, die Zahl am NewPad-Knopf; Meldung nur für Bildschirmleser
     sayLive(off ? DOCK_TEXT.isOff(dockedAll.length) : DOCK_TEXT.isOn);
   };
-  const dockAllPads = (on: boolean) => {
-    const n = (on ? deskPads : dockedAll).length;
-    dispatch({ type: 'padDockAll', desk: win, on });
-    sayLive(on ? DOCK_TEXT.allDocked(n) : DOCK_TEXT.allUndocked);
+  // V83 (F-206 Schritt 5, N4): Rad „Pads“ – Verteilt · Im Dock · Ausgeblendet (ersetzt vier Menüeinträge);
+  // die sichtbare Änderung ist die Rückmeldung, angesagt wird für Bildschirmleser
+  const padsNow = padsShow(deskPads.length, dockedAll.length, padsHidden, dockSt.off);
+  const setPadsShow = (m: string) => {
+    if (m === 'spread') {
+      if (dockedAll.length) dispatch({ type: 'padDockAll', desk: win, on: false });
+      if (dockSt.off) dispatch({ type: 'dockOff', desk: win, off: false });
+      setPadsHidden(false);
+      sayLive(NT_TEXT.nowSpread);
+    } else if (m === 'dock') {
+      if (deskPads.length) dispatch({ type: 'padDockAll', desk: win, on: true });
+      if (dockSt.off) dispatch({ type: 'dockOff', desk: win, off: false });
+      setPadsHidden(false);
+      sayLive(NT_TEXT.nowDock);
+    } else if (m === 'hidden') {
+      setPadsHidden(true);
+      if (dockedAll.length && !dockSt.off) dispatch({ type: 'dockOff', desk: win, off: true });
+      sayLive(NT_TEXT.nowHidden);
+    }
+  };
+  /** N4: „Notiz suchen …“ – Suche oben mit Filter „Notizen“ (Chip folgt mit dem Umbau der Suche) */
+  const findNotes = () => {
+    window.dispatchEvent(new CustomEvent('esource:find', { detail: { kind: 'notes' } }));
+    document.querySelector<HTMLElement>('.toolbar [role="combobox"]')?.focus();
   };
 
   // ---------------------------------------------------------------- F-171 Stufe 2 Tour „Farben“
@@ -1988,6 +2002,16 @@ function DeskApp(props: DeskProps) {
       else notify(text);
     };
     if (e.altKey && !e.metaKey && e.code === 'KeyG' && !e.repeat) return evenly();
+    // V83 (F-206 Schritt 5, N11): Alt/⌥+N öffnet das Menü „Notizen & Aufgaben“
+    if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyN' && !e.repeat && !document.querySelector('[aria-modal="true"], dialog:modal')) {
+      const b = document.querySelector<HTMLButtonElement>('.tb-nt');
+      if (b) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (b.getAttribute('aria-expanded') !== 'true') b.click();
+        return;
+      }
+    }
     if (sizeMode && !e.ctrlKey && !e.metaKey && e.code === 'KeyG') return evenly();
     // Alt+A (Mac ⌥A) startet und beendet – linke oder rechte Alt-Taste (AltGr meldet zusätzlich Strg).
     if (e.altKey && !e.metaKey && e.code === 'KeyA' && !e.repeat) {
@@ -2423,8 +2447,10 @@ function DeskApp(props: DeskProps) {
 
   /** F-127: View weiterschalten – Dashboard → 2 × 2 → 2 → Solo → Dashboard (Knopf und Hilfe). */
   const viewNow: ViewKind = mode.kind === 'max' ? 1 : mode.kind === 'split' ? mode.count : 'area';
-  const cycleView = () => {
-    const next = VIEW_NEXT[viewNow];
+  const cycleView = () => setView(VIEW_NEXT[viewNow]);
+  /** V83 (F-216): View direkt wählen (Umschalt-Rad) */
+  const setView = (next: ViewKind) => {
+    if (next === viewNow) return;
     if (next === 'area') return setMode({ kind: 'area' });
     if (next === 1) {
       const id = (active && ws.panels.some((x) => x.id === active) ? active : null) ?? shownView.slots[0]?.front.id;
@@ -2915,41 +2941,27 @@ function DeskApp(props: DeskProps) {
             </button>
           </>
         )}
-        {/* F-127: Knopf „Ansicht“ – jeder Klick schaltet weiter: Arbeitsfläche → 2 × 2 → 2 → 1 → Arbeitsfläche */}
-        {(() => {
-          const now = viewNow;
-          const next = VIEW_NEXT[now];
-          const go = cycleView;
-          return (
-            <button
-              type="button"
-              className={now === 'area' ? 'tb-view' : 'on tb-view'}
-              onClick={go}
-              title={`View: ${VIEW_NAME[now]} · Klick: ${VIEW_NAME[next]}${next === 'area' ? ' (Esc)' : ''} · ${TERMS.view}`}
-              aria-label={`View: ${VIEW_NAME[now]}. Weiter zu: ${VIEW_NAME[next]}`}
-              aria-pressed={now !== 'area'}
-            >
-              <ViewIcon view={now} />
-            </button>
-          );
-        })()}
-        {/* V75 (F-215, Entscheidung Enrico V72): Umschalter Desk | Notes bei den Layout-Ansichten, je Desk */}
+        {/* F-127: Knopf „Ansicht“ – Arbeitsfläche → 2 × 2 → 2 → 1; V83 (F-216): als Umschalt-Rad (Anschlag) */}
+        <ModeWheel
+          className="tb-viewwheel mwheel--icons"
+          label={VIEW_TEXT.label}
+          value={String(viewNow)}
+          onChange={(v) => setView(v === 'area' ? 'area' : (Number(v) as ViewKind))}
+          options={(['area', 4, 2, 1] as ViewKind[]).map((k) => ({ id: String(k), name: VIEW_TEXT.short[String(k)], glyph: <ViewIcon view={k} />, hint: `${VIEW_NAME[k]}${k === 'area' ? ' (Esc)' : ''} · ${TERMS.view}` }))}
+        />
+        {/* V75 (F-215, Entscheidung Enrico V72): Umschalter Desk | Notes bei den Layout-Ansichten, je Desk;
+            V83 (F-216): als Umschalt-Rad */}
         {!notesOff && (
-        <span className="tb-mode" role="group" aria-label={DESK_MODE_TEXT.group}>
-          {(['desk', 'notes'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={`tb-mode__btn${(m === 'notes') === notesMode ? ' on' : ''}`}
-              aria-pressed={(m === 'notes') === notesMode}
-              title={m === 'notes' ? DESK_MODE_TEXT.notesHint : DESK_MODE_TEXT.deskHint}
-              onClick={() => setDeskMode(m)}
-            >
-              <Icon name={m === 'notes' ? 'note' : 'desk'} size={14} />
-              <span className="tb-label">{m === 'notes' ? DESK_MODE_TEXT.notes : DESK_MODE_TEXT.desk}</span>
-            </button>
-          ))}
-        </span>
+        <ModeWheel
+          className="tb-mode"
+          label={DESK_MODE_TEXT.group}
+          value={notesMode ? 'notes' : 'desk'}
+          onChange={(m) => setDeskMode(m as DeskMode)}
+          options={[
+            { id: 'desk', name: DESK_MODE_TEXT.desk, icon: 'desk', hint: DESK_MODE_TEXT.deskHint },
+            { id: 'notes', name: DESK_MODE_TEXT.notes, icon: 'note', hint: DESK_MODE_TEXT.notesHint },
+          ]}
+        />
         )}
         {/* „Zum Dashboard“ nimmt außerhalb des Dashboards den Platz von „Gleich verteilen“ ein (dort ohnehin gesperrt) –
             so verschiebt sich beim Durchschalten nichts und der View-Knopf bleibt unter Finger und Maus */}
@@ -3019,12 +3031,14 @@ function DeskApp(props: DeskProps) {
             <Icon name="newSlot" size={15} className="icon tb-plus" /><span className="tb-label"> NewSlot</span>
           </button>
         )}
-        {/* F-206 Schritt 3 (P6): NewPad neben NewSlot – „Behandeln wie Slot“ */}
+        {/* F-206 Schritt 3 (P6): NewPad neben NewSlot – „Behandeln wie Slot“;
+            V83 (Schritt 5, N1–N4): Knopf „Notizen & Aufgaben“ an der Stelle von NewPad, Menü mit Rad „Pads“ */}
         {/* V76 (Enrico): Notizen auf dem Telefon vorerst ausgeblendet – erst alle Funktionen, die Mobilansicht später */}
         {!notesOff && (
         <Menu
-          icon={<span className="tb-add tb-newpad"><Icon name="newPad" size={15} className="icon tb-plus" /><span className="tb-label"> {PAD_TEXT.newPad}</span>{padsAway > 0 && <span className="tb-newpad__n" aria-hidden="true">{padsAway}</span>}</span>}
-          label={`${PAD_TEXT.newPadLabel} – ${TERMS.pad}${padsHidden && deskPads.length ? ` – ${PAD_TEXT.hidden(deskPads.length)}` : ''}${dockSt.off && dockedAll.length ? ` – ${DOCK_TEXT.isOff(dockedAll.length)}` : ''}`}
+          className="tb-nt"
+          icon={<span className="tb-add tb-newpad"><Icon name="notesTasks" size={15} className="icon tb-plus" /><span className="tb-label"> {NT_TEXT.name}</span>{padsAway > 0 && <span className="tb-newpad__n" aria-hidden="true">{padsAway}</span>}</span>}
+          label={`${NT_TEXT.label} – ${TERMS.pad}${padsHidden && deskPads.length ? ` – ${PAD_TEXT.hidden(deskPads.length)}` : ''}${dockSt.off && dockedAll.length ? ` – ${DOCK_TEXT.isOff(dockedAll.length)}` : ''}`}
         >
           {(close) => (
             <>
@@ -3034,21 +3048,45 @@ function DeskApp(props: DeskProps) {
               <Item icon="slot" disabled title={PAD_TEXT.menuPlaceHint} hint={PAD_TEXT.menuPlaceHint} onClick={() => undefined}>
                 {PAD_TEXT.menuPlace}
               </Item>
-              <Item icon="show" disabled={!deskPads.length} checked={!padsHidden && deskPads.length > 0} onClick={() => (close(), togglePads())}>
-                {padsHidden ? PAD_TEXT.show(deskPads.length) : PAD_TEXT.hide}
+              <Item icon="search" hint={NT_TEXT.findHint} onClick={() => (close(), window.setTimeout(findNotes, 0))}>
+                {NT_TEXT.find}
               </Item>
-              {/* F-206 Schritt 4 (V81, D5/D6/D8): Dock */}
-              <Item icon="dock" disabled={!deskPads.length || notesMode} hint={DOCK_TEXT.toDockHint} onClick={() => (close(), dockAllPads(true))}>
-                {DOCK_TEXT.allIn}
-              </Item>
-              <Item icon="spread" disabled={!dockedAll.length || notesMode} hint={DOCK_TEXT.allOutHint} onClick={() => (close(), dockAllPads(false))}>
-                {DOCK_TEXT.allOut}
-              </Item>
-              <Item icon="dock" disabled={!dockedAll.length || notesMode} checked={!dockSt.off && dockedAll.length > 0} hint={notesMode ? DOCK_TEXT.notesMode : DOCK_TEXT.offHint} onClick={() => (close(), toggleDock())}>
-                {dockSt.off ? DOCK_TEXT.on : DOCK_TEXT.off}
+              <li role="none" className="menu__wheel">
+                <span className="menu__wheel-cap" aria-hidden="true">{NT_TEXT.pads}</span>
+                <ModeWheel
+                  label={NT_TEXT.pads}
+                  value={padsNow}
+                  onChange={setPadsShow}
+                  between={{ name: padsNow === 'none' ? NT_TEXT.none : NT_TEXT.mixed, after: 0 }}
+                  disabled={padsNow === 'none' || notesMode}
+                  disabledHint={notesMode ? NT_TEXT.padsNotes : NT_TEXT.noPads}
+                  options={[
+                    { id: 'spread', name: NT_TEXT.spread, icon: 'spread', hint: NT_TEXT.spreadHint },
+                    { id: 'dock', name: NT_TEXT.dock, icon: 'dock', hint: NT_TEXT.dockHint },
+                    { id: 'hidden', name: NT_TEXT.hidden, icon: 'hide', hint: NT_TEXT.hiddenHint },
+                  ]}
+                />
+              </li>
+              <li role="none" className="menu__wheel">
+                <span className="menu__wheel-cap" aria-hidden="true">{DESK_MODE_TEXT.group}</span>
+                <ModeWheel
+                  label={DESK_MODE_TEXT.group}
+                  value={notesMode ? 'notes' : 'desk'}
+                  onChange={(m) => setDeskMode(m as DeskMode)}
+                  options={[
+                    { id: 'desk', name: DESK_MODE_TEXT.desk, icon: 'desk', hint: DESK_MODE_TEXT.deskHint },
+                    { id: 'notes', name: DESK_MODE_TEXT.notes, icon: 'note', hint: DESK_MODE_TEXT.notesHint },
+                  ]}
+                />
+              </li>
+              <Item icon="cockpit" disabled title={NT_TEXT.cockpitHint} hint={NT_TEXT.cockpitHint} onClick={() => undefined}>
+                {NT_TEXT.cockpit}
               </Item>
               <OpacitySlider label={PAD_TEXT.opacityPads} hint={PAD_TEXT.opacityHint} value={display.padOpacity} onChange={setPadOpacity} />
               <OpacitySlider label={PAD_TEXT.opacityDock} hint={PAD_TEXT.opacityDockHint} value={display.dockOpacity} onChange={setDockOpacity} />
+              <Item icon="help" onClick={() => (close(), setHelpAt({ at: 'notesTasks' }))}>
+                {NT_TEXT.help}
+              </Item>
             </>
           )}
         </Menu>

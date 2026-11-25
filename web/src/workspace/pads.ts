@@ -409,3 +409,20 @@ export function dockAll(ws: Workspace, desk: string, on: boolean): Workspace {
   if (on) next = setDock(setDockOff(next, desk, false), desk, { folded: false });
   return next;
 }
+
+/** V83 (F-206 Schritt 5, N4): Lage der Pads eines Desks für das Rad „Pads“ (Verteilt · Im Dock · Ausgeblendet). */
+export type PadsShow = 'spread' | 'dock' | 'hidden' | 'mixed' | 'none';
+/**
+ * `loose` = schwebende Pads, `docked` = Pads im Dock, `hidden` = schwebende ausgeblendet, `dockOff` = Dock weggeschaltet.
+ * Verteilt: nichts im Dock, schwebende sichtbar. Im Dock: alle im Dock, Dock da. Ausgeblendet: nichts sichtbar.
+ * Alles andere (z. B. einige verteilt, andere im Dock) = Gemischt – das Rad steht dann zwischen den Rasten.
+ */
+export function padsShow(loose: number, docked: number, hidden: boolean, dockOff: boolean): PadsShow {
+  if (loose + docked === 0) return 'none';
+  const looseSeen = loose > 0 && !hidden;
+  const dockSeen = docked > 0 && !dockOff;
+  if (!looseSeen && !dockSeen) return 'hidden';
+  if (docked === 0) return 'spread';
+  if (loose === 0 && dockSeen) return 'dock';
+  return 'mixed';
+}

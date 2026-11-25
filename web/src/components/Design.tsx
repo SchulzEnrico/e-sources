@@ -5,6 +5,7 @@
  * der Fokus zurück zum Auslöser (NF-03). Die Tour „Design“ (F-171) läuft in diesem Dialog.
  */
 import { Icon } from './Icon';
+import { ModeWheel } from './ModeWheel';
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react';
 import { DialogFoot } from './DialogFoot';
 import { type DesignSnap, designChanged } from '../workspace/reset';
@@ -41,7 +42,7 @@ interface Props {
 
 export function Design({ look, warning, onLook, desk, main, own, onFollowMain, tinted, onResetTints, now, onRestore, onClose, onTour, children }: Props) {
   const dlg = useRef<HTMLDialogElement>(null);
-  const first = useRef<HTMLButtonElement>(null);
+  const first = useRef<HTMLDivElement>(null); // V83: Rad „Darstellung“ (erstes Bedienelement)
   // F-191: Stand beim Öffnen – „Zurücksetzen“ nur, wenn sich seitdem etwas geändert hat
   const [start] = useState(now);
   const changed = designChanged(start, now);
@@ -51,7 +52,7 @@ export function Design({ look, warning, onLook, desk, main, own, onFollowMain, t
     if (!d) return;
     const back = document.activeElement as HTMLElement | null;
     if (!d.open) d.showModal();
-    first.current?.focus();
+    first.current?.querySelector<HTMLElement>('.mwheel')?.focus();
     return () => back?.focus?.();
   }, []);
 
@@ -91,7 +92,7 @@ export function Design({ look, warning, onLook, desk, main, own, onFollowMain, t
             onClick={() => {
               onFollowMain();
               // der Knopf verschwindet – Fokus auf die erste Wahl, damit er nicht verloren geht (NF-03)
-              first.current?.focus();
+              first.current?.querySelector<HTMLElement>('.mwheel')?.focus();
             }}
           >
             {DESK_LOOK_TEXT.follow}
@@ -103,39 +104,31 @@ export function Design({ look, warning, onLook, desk, main, own, onFollowMain, t
           <h3 id="design-theme" className="help__group">
             Darstellung
           </h3>
-          {/* F-176: Modern und Retro getrennt, damit die lange Liste übersichtlich bleibt */}
-          {(['Modern', 'Retro'] as const).map((g) => (
-            <div key={g} className="design__sub">
-              <h4 id={`design-theme-${g}`} className="design__subhead">
-                {g}
-              </h4>
-              <span className="seg seg--wrap" role="group" aria-labelledby={`design-theme design-theme-${g}`}>
-                {THEMES.filter((t) => t.group === g).map((t) => (
-                  <button key={t.id} ref={t.id === THEMES[0].id ? first : undefined} type="button" className={look.theme === t.id ? 'on' : ''} aria-pressed={look.theme === t.id} onClick={() => onLook({ theme: t.id })}>
-                    {t.label}
-                  </button>
-                ))}
-              </span>
-            </div>
-          ))}
+          {/* V83 (F-216, U6): Darstellung als Umschalt-Rad, ringsum; Gruppe (Modern/Retro) klein über dem Namen */}
+          <div ref={first} className="design__wheel">
+            <ModeWheel
+              label="Darstellung"
+              value={look.theme}
+              wrap
+              onChange={(id) => onLook({ theme: id as Look['theme'] })}
+              options={THEMES.map((t) => ({ id: t.id, name: t.label, glyph: <small className="mwheel__group">{t.group}</small>, hint: t.group }))}
+            />
+          </div>
         </section>
         <section className="design__group design__accent" aria-labelledby="design-accent">
           <h3 id="design-accent" className="help__group">
             Akzentfarbe
           </h3>
-          <span className="look__swatches" role="group" aria-labelledby="design-accent">
-            {ACCENTS.map((a) => (
-              <button
-                key={a.hex}
-                type="button"
-                className={look.accent === a.hex ? 'look__swatch on' : 'look__swatch'}
-                style={{ '--swatch': a.hex } as CSSProperties}
-                title={a.name}
-                aria-label={a.name}
-                aria-pressed={look.accent === a.hex}
-                onClick={() => onLook({ accent: a.hex })}
-              />
-            ))}
+          {/* V83 (F-216, U6): Akzentfarbe als Umschalt-Rad, ringsum – Farbpunkt + Name; „Eigene Farbe“ daneben */}
+          <span className="design__wheel">
+            <ModeWheel
+              label="Akzentfarbe"
+              value={ACCENTS.some((a) => a.hex === look.accent) ? look.accent : '-'}
+              between={ACCENTS.some((a) => a.hex === look.accent) ? undefined : { name: 'Eigene Farbe', after: 0 }}
+              wrap
+              onChange={(hex) => onLook({ accent: hex })}
+              options={ACCENTS.map((a) => ({ id: a.hex, name: a.name, glyph: <span className="mwheel__dot" style={{ '--swatch': a.hex } as CSSProperties} /> }))}
+            />
           </span>
           <label className="look__custom">
             Eigene Farbe

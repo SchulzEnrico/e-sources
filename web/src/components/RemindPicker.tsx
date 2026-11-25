@@ -61,6 +61,8 @@ export function Wheel(props: { label: string; value: number; count: number; big:
       it.style.transform = `rotateX(${-a}deg) scale(${1 - Math.min(Math.abs(d), 3) * 0.06})`;
       it.style.opacity = String(Math.max(0.15, 1 - Math.abs(d) * 0.32));
     });
+    // V83 (F-216): Walzen am Überschrift-Rad laufen mit (wie beim Umschalt-Rad)
+    el.parentElement?.style.setProperty('--mw-turn', String(el.scrollTop / ROW));
   };
   useLayoutEffect(() => {
     const el = box.current;

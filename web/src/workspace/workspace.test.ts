@@ -5016,3 +5016,75 @@ describe('F-215 V79: Bild im Text (B1–B3)', () => {
     expect(back[1]).toMatchObject({ ref: 'p-1', text: 'Hund' });
   });
 });
+
+// ---------------------------------------------------------------- V83 (F-216): Umschalt-Rad
+import * as MW from './modeWheel';
+describe('Umschalt-Rad (F-216)', () => {
+  it('sammelt Scroll-Weg zu Rasten, Rest bleibt, Umkehr verwirft den Rest', () => {
+    let r = MW.addTravel(0, 15, 40);
+    expect(r).toEqual({ steps: 0, acc: 15 });
+    r = MW.addTravel(r.acc, 30, 40);
+    expect(r).toEqual({ steps: 1, acc: 5 });
+    r = MW.addTravel(r.acc, -10, 40);
+    expect(r).toEqual({ steps: 0, acc: -10 });
+    expect(MW.addTravel(0, 100, 40).steps).toBe(2);
+    expect(MW.addTravel(0, 1000, 40).steps).toBe(3); // großer Ruck: höchstens 3
+    expect(MW.addTravel(0, -45, 40).steps).toBe(-1);
+  });
+  it('rechnet Zeilen und Seiten in Pixel um', () => {
+    expect(MW.deltaPx(3, 1)).toBe(48);
+    expect(MW.deltaPx(1, 2, 500)).toBe(500);
+    expect(MW.deltaPx(7)).toBe(7);
+  });
+  it('Anschlag bei 2–5 Modi, ringsum bei vielen', () => {
+    expect(MW.turn(1, 1, 2, false)).toBe(1);
+    expect(MW.turn(0, -1, 2, false)).toBe(0);
+    expect(MW.turn(15, 1, 16, true)).toBe(0);
+    expect(MW.turn(0, -2, 16, true)).toBe(14);
+    expect(MW.wrapsFor(2)).toBe(false);
+    expect(MW.wrapsFor(5)).toBe(false);
+    expect(MW.wrapsFor(16)).toBe(true);
+    expect(MW.wrapsFor(2, true)).toBe(true);
+  });
+  it('Klick = nächster, Umschalt+Klick = voriger, am Ende wieder vorn', () => {
+    expect(MW.clickTurn(0, 2, false)).toBe(1);
+    expect(MW.clickTurn(1, 2, false)).toBe(0);
+    expect(MW.clickTurn(0, 4, true)).toBe(3);
+    expect(MW.clickTurn(0, 1, false)).toBe(0);
+  });
+  it('Tasten: Pfeile, Pos1/Ende, Enter/Leertaste, sonst null', () => {
+    expect(MW.keyTurn('ArrowDown', 0, 4, false)).toBe(1);
+    expect(MW.keyTurn('ArrowRight', 3, 4, false)).toBe(3);
+    expect(MW.keyTurn('ArrowUp', 0, 4, true)).toBe(3);
+    expect(MW.keyTurn('End', 0, 4, false)).toBe(3);
+    expect(MW.keyTurn('Home', 2, 4, false)).toBe(0);
+    expect(MW.keyTurn('Enter', 1, 2, false)).toBe(0);
+    expect(MW.keyTurn('a', 1, 2, false)).toBeNull();
+  });
+  it('Ansage und Nachbarn', () => {
+    expect(MW.valueText('Notizen', 1, 2)).toBe('Notizen, 2 von 2');
+    expect(MW.neighbours(0, 2, false)).toEqual({ prev: null, next: 1 });
+    expect(MW.neighbours(0, 3, true)).toEqual({ prev: 2, next: 1 });
+    expect(MW.neighbours(0, 1, true)).toEqual({ prev: null, next: null });
+    expect(MW.COMMIT_MS).toBe(300);
+  });
+});
+describe('Rad „Pads“ und Zwischenlage (F-206 Schritt 5, N4)', () => {
+  it('erkennt Verteilt, Im Dock, Ausgeblendet und Gemischt', () => {
+    expect(Pd.padsShow(0, 0, false, false)).toBe('none');
+    expect(Pd.padsShow(2, 0, false, false)).toBe('spread');
+    expect(Pd.padsShow(0, 2, false, false)).toBe('dock');
+    expect(Pd.padsShow(2, 0, true, false)).toBe('hidden');
+    expect(Pd.padsShow(0, 2, false, true)).toBe('hidden');
+    expect(Pd.padsShow(1, 1, true, true)).toBe('hidden');
+    expect(Pd.padsShow(1, 1, false, false)).toBe('mixed');
+    expect(Pd.padsShow(1, 1, true, false)).toBe('mixed');
+  });
+  it('dreht aus der Zwischenlage auf die Nachbar-Rasten', () => {
+    expect(MW.turnFrom(-1, 1, 3, false, 0)).toBe(1);
+    expect(MW.turnFrom(-1, -1, 3, false, 0)).toBe(0);
+    expect(MW.turnFrom(-1, 3, 3, false, 0)).toBe(2);
+    expect(MW.turnFrom(-1, 0, 3, false, 0)).toBe(-1);
+    expect(MW.turnFrom(1, 1, 3, false, 0)).toBe(2);
+  });
+});

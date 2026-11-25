@@ -39,6 +39,8 @@ export const ICONS = {
   dockFold: { d: ['M10 2.5v11', 'M5 5l3 3-3 3'] },
   dockOpen: { d: ['M6 2.5v11', 'M11 5L8 8l3 3'] },
   pad: { d: ['M1.5 1.5h9v8h-9z', 'M5.5 5.5h9v9h-9z', 'M5.5 8h9'] },
+  // V83 (F-206 Schritt 5, N1): Notizen & Aufgaben – Blatt mit Zeile und Haken
+  notesTasks: { d: ['M3 1.5h7l3 3v10H3z', 'M10 1.5v3h3', 'M5.5 6.5h5', 'M5.5 10.5l1.5 1.5 3-3.5'] },
   newPad: { d: ['M1.5 1.5h9v8h-9z', 'M5.5 5.5h9v9h-9z', 'M10 9.5v3.5', 'M8.25 11.25h3.5'] },
   // V68: Deckkraft (halb gefüllter Kreis)
   contrast: { d: ['M8 2a6 6 0 1 0 0 12a6 6 0 1 0 0-12z', 'M8 2v12', 'M8 4.5h4', 'M8 7h5.6', 'M8 9.5h5.6', 'M8 12h4'] },
@@ -139,6 +141,8 @@ export const ICONS = {
   newWindow: { d: ['M1.5 3.5h9v8h-9z', 'M1.5 6h9', 'M12.5 6v8h-9', 'M14.5 4v6'] },
   blocked: { d: [ring(8, 8, 6), 'M3.8 12.2l8.4-8.4'] },
   show: { d: ['M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z', ring(8, 8, 2)] },
+  // V83: Ausgeblendet (Rad „Pads“) – Auge durchgestrichen
+  hide: { d: ['M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z', ring(8, 8, 2), 'M2.5 13.5l11-11'] },
   // F-183 Stufe 2: Zeichen zur Wahl je Kategorie (F-163)
   catEditor: { d: ['M3.5 1.5h6l3 3v10h-9z', 'M9.5 1.5v3h3', 'M5.5 8h5', 'M5.5 10.5h5', 'M5.5 13h3'] },
   catMail: { d: ['M1.5 3.5h13v9h-13z', 'M1.5 4l6.5 5 6.5-5'] },
@@ -189,7 +193,7 @@ export type IconName = keyof typeof ICONS;
 
 /** Symbol je Hilfe-Eintrag (HELP, F-156) – gleiche Ids. Fehlt ein Eintrag, meldet das der Test. */
 export const HELP_ICON: Record<string, IconName> = {
-  note: 'note', dock: 'dock', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', findNote: 'note',
+  note: 'note', dock: 'dock', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', modeWheel: 'swap', notesTasks: 'notesTasks', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', findNote: 'note',
   devMode: 'dev',
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',

@@ -13,6 +13,7 @@ import type { Shown } from '../workspace/look';
 import type { Action } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
 import { LayoutCockpit, type LayoutOps } from './DeskLayouts';
+import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
 
 /**
@@ -225,7 +226,6 @@ export function Overview(p: OverviewProps) {
   const [layouts, setLayouts] = useState(!!p.startLayouts && !!p.layoutOps && !!p.dispatch);
   /** F-202 Stufe 3: Modus „Sources“ (Mehrfachauswahl aller Sources). */
   const [sources, setSources] = useState(false);
-  const modeBtns = useRef<(HTMLButtonElement | null)[]>([]);
   type Mode = 'portals' | 'layouts' | 'sources';
   const mode: Mode = layouts ? 'layouts' : sources ? 'sources' : 'portals';
   const modes: Mode[] = ['portals', ...(p.layoutOps ? (['layouts'] as Mode[]) : []), 'sources'];
@@ -818,39 +818,30 @@ export function Overview(p: OverviewProps) {
             // F-187: Esc führt aus den Layout-Einstellungen erst zurück zu den Portalen.
             if (layouts || sources) {
               setMode('portals');
-              window.setTimeout(() => modeBtns.current[0]?.focus(), 0);
+              window.setTimeout(() => document.querySelector<HTMLElement>('.overview__mode')?.focus(), 0);
             } else dismiss();
           }
         }}
       >
         <div className="overview__head">
           <strong className="overview__name" title={TERMS.cockpit}>Cockpit</strong>
-          <span className="grow" />
+          {/* V83 (Enrico): Rad ganz links, direkt nach „Cockpit“ – verspringt nicht und zeigt, welche Ansicht offen ist */}
           {/* F-187/F-202: Umschalter Portale | Layouts | Sources (Pfeiltasten wechseln) */}
           {p.dispatch && (
-            <div className="overview__mode" role="group" aria-label={DESK_LAYOUT_TEXT.modeGroup}>
-              {modes.map((m, i) => (
-                <button
-                  key={m}
-                  ref={(el) => (modeBtns.current[i] = el)}
-                  type="button"
-                  className={mode === m ? 'is-on' : undefined}
-                  aria-pressed={mode === m}
-                  onClick={() => setMode(m)}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-                    e.preventDefault();
-                    const j = (i + (e.key === 'ArrowRight' ? 1 : modes.length - 1)) % modes.length;
-                    setMode(modes[j]);
-                    modeBtns.current[j]?.focus();
-                  }}
-                >
-                  <Icon name={m === 'layouts' ? 'layouts' : m === 'sources' ? 'source' : 'radar'} size={13} className="icon icon--inline" />{' '}
-                  {m === 'layouts' ? DESK_LAYOUT_TEXT.modeLayouts : m === 'sources' ? DESK_LAYOUT_TEXT.modeSources : DESK_LAYOUT_TEXT.modePortals}
-                </button>
-              ))}
-            </div>
+            /* V83 (F-216, U6): Umschalter als Umschalt-Rad – Portale · Layouts · Library („Notizen“ kommt mit Schritt 5) */
+            <ModeWheel
+              className="overview__mode"
+              label={DESK_LAYOUT_TEXT.modeGroup}
+              value={mode}
+              onChange={(m) => setMode(m as Mode)}
+              options={modes.map((m) => ({
+                id: m,
+                name: m === 'layouts' ? DESK_LAYOUT_TEXT.modeLayouts : m === 'sources' ? DESK_LAYOUT_TEXT.modeSources : DESK_LAYOUT_TEXT.modePortals,
+                icon: m === 'layouts' ? 'layouts' : m === 'sources' ? 'source' : 'radar',
+              }))}
+            />
           )}
+          <span className="grow" />
           {!rules && !layouts && !sources && <input
             ref={filterRef}
             className="radar__filter"

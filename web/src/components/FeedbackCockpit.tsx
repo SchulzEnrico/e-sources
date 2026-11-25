@@ -31,6 +31,9 @@ function download(name: string, text: string, type: string) {
 
 export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Action>; say: (t: string) => void; startId?: string; onTourAuto?: () => void; /** F-225 (V105, P7): nur Meldungen dieses Projekts */ project?: string }) {
   const { ws, dispatch, say } = props;
+  // F-225 (V106, P4): im Projekt heißen die Arten so, wie das Formular des Projekts sie nennt
+  const formRaw = props.project ? ws.projects?.find((x) => x.id === props.project)?.feedbackForm : undefined;
+  const kn = (k: Feedback['kind']) => (formRaw ? Fb.kindName(formRaw, k) : T.kinds[k]);
   const [kind, setKind] = useState<string>(ALL);
   const [sev, setSev] = useState<string>(ALL);
   const [q, setQ] = useState('');
@@ -113,6 +116,20 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
     say(K.fileSaved(n));
   };
 
+  // F-224 R7 (V106): Feedback-Dateien von Anwendern einlesen – nur mit Befugnis, Meldung mit Rückgängig am Ort
+  const fileIn = useRef<HTMLInputElement>(null);
+  const [inMsg, setInMsg] = useState<{ text: string; before?: Feedback[] } | null>(null);
+  const readFile = async (file: File | undefined) => {
+    if (!file) return;
+    const r = Fb.mergeFeedbackFile(ws, await file.text());
+    if (!r.ok) return (setInMsg({ text: K.inError[r.error] }), say(K.inError[r.error]));
+    const before = Fb.feedbackOf(ws);
+    if (r.added || r.updated) dispatch({ type: 'fbList', list: r.list });
+    const text = K.inDone(r.added, r.updated, r.same, r.full);
+    setInMsg({ text, ...(r.added || r.updated ? { before } : {}) });
+    say(text);
+  };
+
   const cardKey = (e: KeyboardEvent<HTMLElement>, f: Feedback, ci: number, ri: number) => {
     const col = (i: number) => cols[i]?.items;
     if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
@@ -162,7 +179,7 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
           <span className="fbq__label">{K.kindFilter}</span>
           <ModeWheel
             label={K.kindFilter}
-            options={[{ id: ALL, name: K.all }, ...Fb.FEEDBACK_KINDS.map((k) => ({ id: k, name: T.kinds[k], hint: T.kindHints[k] }))]}
+            options={[{ id: ALL, name: K.all }, ...Fb.FEEDBACK_KINDS.map((k) => ({ id: k, name: kn(k), hint: T.kindHints[k] }))]}
             value={kind}
             onChange={setKind}
           />
@@ -190,6 +207,22 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
           <button type="button" onClick={saveFile} title={K.fileHint}>
             <Icon name="download" size={13} /> {K.file}
           </button>
+          {may && (
+            <>
+              <button type="button" className="fbb__in" onClick={() => fileIn.current?.click()} title={K.inHint}>
+                <Icon name="import" size={13} /> {K.inBtn}
+              </button>
+              <input ref={fileIn} type="file" accept=".json,application/json" hidden onChange={(e) => (void readFile(e.target.files?.[0]), (e.target.value = ''))} />
+            </>
+          )}
+          {inMsg && (
+            <p className="layouts__undo fbb__inmsg" role="status">
+              {inMsg.text}
+              {inMsg.before && (
+                <button type="button" className="note__undo" onClick={() => (dispatch({ type: 'fbList', list: inMsg.before! }), setInMsg({ text: K.inUndone }), say(K.inUndone))}>{K.inUndo}</button>
+              )}
+            </p>
+          )}
         </div>
       </div>
       <p className="fbb__count" role="status">
@@ -220,12 +253,12 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
                     tabIndex={0}
                     data-fb={f.id}
                     className={`fbb__card is-${f.kind}${f.severity ? ` sev-${f.severity}` : ''}`}
-                    aria-label={K.cardLabel(T.kinds[f.kind], f.title, f.severity ? C.sevs[f.severity] : '', miss)}
+                    aria-label={K.cardLabel(kn(f.kind), f.title, f.severity ? C.sevs[f.severity] : '', miss)}
                     aria-describedby="fbb-keys"
                     onClick={() => setCard(f.id)}
                     onKeyDown={(e) => listKey(e, f, ri)}
                   >
-                    <span className="fbb__kind">{T.kinds[f.kind]}</span>
+                    <span className="fbb__kind">{kn(f.kind)}</span>
                     {f.severity && <span className={`fbb__sev sev-${f.severity}`}>{C.sevs[f.severity]}</span>}
                     <span className="fbb__title">{f.title}</span>
                     <span className="fbb__signs">
@@ -278,13 +311,13 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
                       data-fb={f.id}
                       draggable
                       className={`fbb__card is-${f.kind}${f.severity ? ` sev-${f.severity}` : ''}`}
-                      aria-label={K.cardLabel(T.kinds[f.kind], f.title, f.severity ? C.sevs[f.severity] : '', miss)}
+                      aria-label={K.cardLabel(kn(f.kind), f.title, f.severity ? C.sevs[f.severity] : '', miss)}
                       aria-describedby="fbb-keys"
                       onClick={() => setCard(f.id)}
                       onKeyDown={(e) => cardKey(e, f, ci, ri)}
                       onDragStart={(e) => (e.dataTransfer.setData('text/x-feedback', f.id), (e.dataTransfer.effectAllowed = 'move'))}
                     >
-                      <span className="fbb__kind">{T.kinds[f.kind]}</span>
+                      <span className="fbb__kind">{kn(f.kind)}</span>
                       {f.severity && <span className={`fbb__sev sev-${f.severity}`}>{C.sevs[f.severity]}</span>}
                       <span className="fbb__title">{f.title}</span>
                       <span className="fbb__signs">

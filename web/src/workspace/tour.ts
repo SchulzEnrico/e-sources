@@ -30,7 +30,7 @@ export interface TourStep {
   keep?: boolean;
 }
 
-export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev' | 'sync' | 'notes' | 'stage' | 'feedback';
+export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev' | 'sync' | 'notes' | 'stage' | 'feedback' | 'projects';
 
 const t = (id: string) => helpById(id)?.text ?? '';
 
@@ -44,6 +44,8 @@ const K = 'dialog.colors';
 /** F-202 Stufe 4: vorderes Portal auf dem Desk */
 const P = 'main section[data-panel-id]';
 /** V54: sichtbares Portal im Entwickler-Modus (F-200) */
+/** V106: Projekt-Modus */
+const PJ = '.projlayer .pj';
 const V = 'main .tile:not(.is-back) section.win--dev';
 /** V59: Dialog „Abgleich zwischen Geräten“ (F-169 Stufe 2) */
 const Y = 'dialog.sync';
@@ -578,6 +580,62 @@ export const TOURS: Record<TourId, TourStep[]> = {
       text: 'Diese Tour findest du in „Main Stage …“, in der Hilfe (?) und in der Suche („Tour Main Stage“).',
     },
   ],
+  // V106 (F-225 Rest, F-217): Projekt-Modus – Liste, Ansichten, Steckbrief, Instanzen, Meldungen
+  projects: [
+    {
+      id: 'intro',
+      title: 'Projekte',
+      text: 'Der Projekt-Modus zeigt deine Projekte wie die Projektübersicht in MS Project bzw. iTaskX – aufgebaut nach IPMA ICB4. Diese Tour zeigt, wo du was findest. Mit → weiter, mit Esc beenden.',
+    },
+    {
+      id: 'list',
+      title: 'Projektliste',
+      target: `${PJ} .pj__table`,
+      text: 'Name (Unterprojekte eingerückt), Zustand, Termine, Fortschritt, Vorgänge, Aufwand, Meilensteine und Verzug. Pfeile wählen ein Projekt, F2 benennt um, Entf löscht – mit Rückgängig am Ort.',
+    },
+    {
+      id: 'views',
+      title: 'Ansicht',
+      target: `${PJ} .pj__viewwheel`,
+      text: 'Das Rad wählt, was rechts zum gewählten Projekt steht: Steckbrief, PSP (Projektstrukturplan), Gantt (Balkenplan), Entscheidungen (Nutzwertanalyse) und Meldungen. Maus darüber und scrollen oder klicken; mit der Tastatur Pfeile.',
+    },
+    {
+      id: 'brief',
+      title: 'Steckbrief',
+      target: `${PJ} .pj__brief`,
+      text: 'Ziel, Termine, Budget und Organisation des Projekts – wie der Projektsteckbrief nach IPMA ICB4. Darüber steht, welche Angaben noch fehlen.',
+    },
+    {
+      id: 'roles',
+      title: 'Instanzen',
+      target: `${PJ} .pj__roles`,
+      text: 'Instanzen sind die Stellen, an die Meldungen zum Projekt gehen – ab Werk Projektleitung, Lenkungskreis und Auftraggeber. Du kannst sie umbenennen, bis zu 12 anlegen und je eine Person oder ein Team zuordnen.',
+    },
+    {
+      id: 'report',
+      title: 'Etwas melden',
+      target: '.toolbar .tb-fb',
+      text: 'Ein Problem, ein Wunsch oder eine Frage zum Projekt? Knopf „Feedback“ oder Alt/⌥+F: Im Projekt-Modus zeigt das Rad „An“ schon das gewählte Projekt, das Rad „Instanz“ wählt, wer die Meldung bekommt.',
+    },
+    {
+      id: 'inbox',
+      title: 'Meldungen',
+      target: `${PJ} .pj__viewwheel`,
+      text: 'Unter Ansicht › „Meldungen“ stehen alle Meldungen an dieses Projekt; die Zahl am Rad zeigt neue. Mit der Befugnis „Feedback bearbeiten“ (Cockpit „Personen“) siehst du sie als Board und stellst über „Formular einstellen“ ein, welche Felder das Formular zeigt und welche Pflicht sind.',
+    },
+    {
+      id: 'add',
+      title: 'Neues Projekt',
+      target: '#pj-add',
+      text: '„+ Projekt“ legt ein Projekt an – auf Wunsch als Unterprojekt. Ähnliche Namen zeigt E-Sources schon beim Tippen.',
+    },
+    {
+      id: 'again',
+      title: 'Tour wieder starten',
+      target: `${PJ} .pj__tour`,
+      text: 'Über den Knopf „Tour“ hier oben, die Hilfe (?) oder die Suche („Tour Projekte“) startest du diese Tour jederzeit wieder.',
+    },
+  ],
   // V104 (F-217): Cockpit „Feedback“ (F-221) – Anwender sehen „Meine Meldungen“, mit „Bearbeitung“ das Board
   feedback: [
     {
@@ -673,7 +731,7 @@ export function tourSteps(has: (selector: string) => boolean, steps: TourStep[] 
 }
 
 /** Speicherschlüssel je Tour; die Starttour behält ihren bisherigen Schlüssel. */
-export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1', sync: 'esource.tour.sync.v1', notes: 'esource.tour.notes.v1', stage: 'esource.tour.stage.v1', feedback: 'esource.tour.feedback.v1' };
+export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1', sync: 'esource.tour.sync.v1', notes: 'esource.tour.notes.v1', stage: 'esource.tour.stage.v1', feedback: 'esource.tour.feedback.v1', projects: 'esource.tour.projects.v1' };
 
 /** Wurde die Tour schon gezeigt (beendet oder übersprungen)? */
 export function tourSeen(id: TourId = 'start'): boolean {
@@ -767,7 +825,11 @@ export function sendTour(browser: BrowserName | null, mod: string): TourStep[] {
 
 /** F-203: Touren aus jedem Bauteil starten (App hört auf das Ereignis). */
 export const TOUR_EVENT = 'esource:tour';
-export function requestTour(id: TourId): void {
+let requestedAuto = false;
+/** V106: Wurde die zuletzt angeforderte Tour von selbst gestartet (zeigt „Nicht mehr automatisch anzeigen“)? */
+export const tourRequestedAuto = (): boolean => requestedAuto;
+export function requestTour(id: TourId, auto = false): void {
+  requestedAuto = auto;
   window.dispatchEvent(new CustomEvent<TourId>(TOUR_EVENT, { detail: id }));
 }
 

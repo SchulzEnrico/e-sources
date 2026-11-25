@@ -7,7 +7,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import type { FeedbackEnv, FeedbackKind, FeedbackPlace, Workspace } from '../workspace/types';
-import { FEEDBACK_KINDS, similarFeedback } from '../workspace/feedback';
+import { FEEDBACK_KINDS, kindName, similarFeedback } from '../workspace/feedback';
 import { FEEDBACK_TEXT as T } from '../workspace/terms';
 import { ModeWheel } from './ModeWheel';
 import * as Pj from '../workspace/projects';
@@ -164,7 +164,7 @@ export function FeedbackQuick(props: {
             <span className="fbq__label" id="fbq-kind">{T.kindLabel}</span>
             <ModeWheel
               label={T.kindLabel}
-              options={FEEDBACK_KINDS.map((k) => ({ id: k, name: T.kinds[k], hint: T.kindHints[k] }))}
+              options={FEEDBACK_KINDS.map((k) => ({ id: k, name: toProject ? kindName(toProject.feedbackForm, k) : T.kinds[k], hint: T.kindHints[k] }))}
               value={kind}
               onChange={(id) => setKind(id as FeedbackKind)}
             />

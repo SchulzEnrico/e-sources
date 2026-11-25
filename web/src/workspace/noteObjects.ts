@@ -24,6 +24,7 @@ import type {
   SourceSpot,
 } from './types';
 import { type Node, isNode, leaves, removeLeaf } from './tree';
+import { parseFeedbackForm } from './feedback';
 
 /** Höchstens so viele Sheets je Pad (Antwort 20). */
 export const PAD_SHEETS_MAX = 9;
@@ -173,11 +174,8 @@ export function parseProjects(v: unknown, scopeIds: ReadonlySet<string>): Projec
         .filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i);
       if (roles.length) p.roles = roles;
     }
-    if (isObj(r.feedbackForm)) {
-      const keys = (v: unknown) => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string' && /^[a-zA-Z]{2,20}$/.test(x)))] : []);
-      const off = keys(r.feedbackForm.off), required = keys(r.feedbackForm.required);
-      if (off.length || required.length) p.feedbackForm = { ...(off.length ? { off } : {}), ...(required.length ? { required } : {}) };
-    }
+    const form = parseFeedbackForm(r.feedbackForm);
+    if (form) p.feedbackForm = form;
     if (isDay(r.start)) p.start = r.start;
     if (isDay(r.end)) p.end = r.end;
     if (isNum(r.budget) && r.budget >= 0) p.budget = r.budget;

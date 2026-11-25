@@ -9293,6 +9293,20 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 .pjf__table th, .pjf__table td { padding: 3px 10px 3px 0; text-align: left; font-weight: normal; }
 .pjf__table thead th { font-weight: 600; color: var(--muted, inherit); }
 .pjf__table td { text-align: center; }
+.pjf__custom, .pjf__kinds, .pjf__tpl { margin-top: 10px; }
+.pjf__custom legend, .pjf__kinds legend, .pjf__tpl legend { font-size: 12px; font-weight: 600; }
+.pjf__table input:not([type='checkbox']) { font: inherit; padding: 2px 6px; max-width: 16em; }
+.pjf__opts { display: block; margin-top: 3px; width: 100%; }
+.pjf__tools { white-space: nowrap; }
+.pjf__tools button { min-width: 24px; min-height: 24px; margin-left: 2px; }
+.pjf__tools button:focus-visible, .pjf__add button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pjf__add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin-top: 8px; }
+.pjf__add .layouts__error { flex-basis: 100%; margin: 0; }
+.pjf__kindrow { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.pjf__kindrow input { font: inherit; padding: 2px 6px; width: 10em; }
+.fbc__req { color: var(--accent); }
+.fbb__inmsg { flex-basis: 100%; margin: 4px 0 0; }
+.fbc__bool { flex-direction: row; align-items: center; gap: 6px; }
 .pj__roles { flex-direction: column; align-items: stretch; }
 .pj__rolesIntro { margin: 0; font-size: 11px; }
 .pj__roleList { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }

@@ -9,6 +9,9 @@
 import type {
   Feedback,
   FeedbackEnv,
+  FeedbackFieldDef,
+  FeedbackFieldType,
+  FeedbackFormRaw,
   FeedbackKind,
   FeedbackMark,
   FeedbackPlace,
@@ -18,7 +21,7 @@ import type {
 } from './types';
 
 /** App-Stand für die Meldung (FB6) – bei jedem Chat mitzählen. */
-export const APP_VERSION = 'V105';
+export const APP_VERSION = 'V106';
 export const FEEDBACK_MAX = 2000;
 export const TITLE_MAX = 200;
 export const TEXT_MAX = 8000;
@@ -152,7 +155,7 @@ export function addFeedback(ws: Workspace, v: NewFeedback, opts: { id: string; n
   return { ws: withFeedback(ws, [...feedbackOf(ws), f]), id: f.id };
 }
 
-export type FeedbackPatch = Partial<Pick<Feedback, FeedbackText | 'title' | 'kind' | 'severity' | 'refs' | 'related' | 'pics' | 'fixedIn'>> & { ease?: number | null };
+export type FeedbackPatch = Partial<Pick<Feedback, FeedbackText | 'title' | 'kind' | 'severity' | 'refs' | 'related' | 'pics' | 'fixedIn'>> & { ease?: number | null; extra?: Record<string, string | number | boolean | null> };
 
 function applyPatch(f: Feedback, patch: FeedbackPatch): Feedback {
   const out: Feedback = { ...f };
@@ -192,6 +195,18 @@ function applyPatch(f: Feedback, patch: FeedbackPatch): Feedback {
     if (m) out.fixedIn = `V${m[1]}`;
     else delete out.fixedIn;
   }
+  // F-225 (V106): eigene Felder – null bzw. leer entfernt den Wert
+  if (patch.extra) {
+    const ex: Record<string, string | number | boolean> = { ...(f.extra ?? {}) };
+    for (const [k, v] of Object.entries(patch.extra)) {
+      if (!/^[a-zA-Z0-9_-]{1,40}$/.test(k)) continue;
+      const c = extraValue(v);
+      if (c === undefined) delete ex[k];
+      else ex[k] = c;
+    }
+    if (Object.keys(ex).length) out.extra = ex;
+    else delete out.extra;
+  }
   if ('ease' in patch) {
     const e = patch.ease;
     if (typeof e === 'number' && Number.isInteger(e) && e >= 1 && e <= 5) out.ease = e as Feedback['ease'];
@@ -220,6 +235,18 @@ export function setFeedbackState(ws: Workspace, id: string, state: FeedbackState
   const why = opts.why ? clean(opts.why, 500) : '';
   const text = `${f.state} → ${state}${why ? `: ${why}` : ''}`;
   return put(ws, mark({ ...f, state, changed: at }, { at, kind: 'state', text, ...(opts.by ? { by: opts.by } : {}) }));
+}
+
+/**
+ * F-225 (V106, P9): Projektmeldung an eine andere Instanz weitergeben (Eskalation nach ICB4) – mit Spur
+ * „Projektleitung → Lenkungskreis“. Nur Projektmeldungen; gleiche Instanz = unverändert.
+ */
+export function forwardFeedback(ws: Workspace, id: string, to: string, names: { from: string; to: string }, opts: { now?: Date; by?: string } = {}): Workspace {
+  const f = feedbackById(ws, id);
+  if (!f || !f.project || !to || f.to === to) return ws;
+  const at = (opts.now ?? new Date()).toISOString();
+  const text = `${clean(names.from, 60)} → ${clean(names.to, 60)}`;
+  return put(ws, mark({ ...f, to, changed: at }, { at, kind: 'to', text, ...(opts.by ? { by: opts.by } : {}) }));
 }
 
 /** FB9: Vermerk anhängen (Notiz, Entscheidung, Bezug). Entscheidung setzt zusätzlich `decision`. */
@@ -277,13 +304,13 @@ export interface FeedbackForm {
   required: (FeedbackText | 'severity')[];
 }
 const FORM_KEYS: readonly (FeedbackText | 'severity')[] = [...FEEDBACK_TEXTS, 'severity'];
-export function formOf(raw: { off?: string[]; required?: string[] } | undefined): FeedbackForm {
+export function formOf(raw: FeedbackFormRaw | undefined): FeedbackForm {
   const off = FEEDBACK_TEXTS.filter((k) => raw?.off?.includes(k) && k !== 'what');
   const required = FORM_KEYS.filter((k) => raw?.required?.includes(k) && !off.includes(k as FeedbackText));
   return { off, required };
 }
 /** F-225 (P4): Feld an/aus bzw. Pflicht umschalten – „Was ist passiert“ bleibt immer an. */
-export function toggleForm(raw: { off?: string[]; required?: string[] } | undefined, key: FeedbackText | 'severity', what: 'off' | 'required'): { off?: string[]; required?: string[] } | undefined {
+export function toggleForm(raw: FeedbackFormRaw | undefined, key: FeedbackText | 'severity', what: 'off' | 'required'): FeedbackFormRaw | undefined {
   const f = formOf(raw);
   if (what === 'off') {
     if (key === 'severity' || key === 'what') return raw;
@@ -292,8 +319,202 @@ export function toggleForm(raw: { off?: string[]; required?: string[] } | undefi
   } else {
     f.required = f.required.includes(key) ? f.required.filter((k) => k !== key) : [...f.required, key];
   }
-  const out = { ...(f.off.length ? { off: [...f.off] } : {}), ...(f.required.length ? { required: [...f.required] } : {}) };
+  return packForm({ ...raw, off: f.off, required: f.required });
+}
+
+// ---- F-225 Rest (V106, P4): eigene Felder und Arten umbenennen ----
+
+export const CUSTOM_TYPES: readonly FeedbackFieldType[] = ['text', 'number', 'date', 'choice', 'bool'];
+export const CUSTOM_MAX = 12;
+export const OPTIONS_MAX = 12;
+export const CUSTOM_NAME_MAX = 60;
+
+/** Leere Teile weglassen – ganz leer = kein Formular (undefined). */
+function packForm(f: FeedbackFormRaw): FeedbackFormRaw | undefined {
+  const out: FeedbackFormRaw = {
+    ...(f.off?.length ? { off: [...f.off] } : {}),
+    ...(f.required?.length ? { required: [...f.required] } : {}),
+    ...(f.custom?.length ? { custom: f.custom } : {}),
+    ...(f.kinds && Object.keys(f.kinds).length ? { kinds: f.kinds } : {}),
+  };
   return Object.keys(out).length ? out : undefined;
+}
+
+/** Wert eines eigenen Felds säubern: Text gekürzt, Zahl endlich, Ja/Nein; leer = undefined. */
+function extraValue(v: unknown): string | number | boolean | undefined {
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+  if (typeof v === 'string') {
+    const t = cleanText(v).slice(0, 2000);
+    return t || undefined;
+  }
+  return undefined;
+}
+
+const cleanName = (v: unknown, max = CUSTOM_NAME_MAX): string => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
+
+function cleanOptions(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const x of v) {
+    const n = cleanName(x);
+    if (n && !out.some((o) => o.toLowerCase() === n.toLowerCase())) out.push(n);
+  }
+  return out.slice(0, OPTIONS_MAX);
+}
+
+/** Eigene Felder des Formulars (Reihenfolge wie angelegt). */
+export const customOf = (raw: FeedbackFormRaw | undefined): FeedbackFieldDef[] => raw?.custom ?? [];
+
+/** Eigenes Feld anlegen; Auswahl ohne Möglichkeiten bekommt „Ja“/„Nein“ nicht – sie braucht mind. 2. */
+export function addCustom(raw: FeedbackFormRaw | undefined, def: { name: string; type: FeedbackFieldType; options?: string[] }, id: string): { form: FeedbackFormRaw | undefined; error?: 'name' | 'full' | 'options' | 'twice' } {
+  const list = customOf(raw);
+  const name = cleanName(def.name);
+  if (!name) return { form: raw, error: 'name' };
+  if (list.length >= CUSTOM_MAX) return { form: raw, error: 'full' };
+  if (list.some((c) => c.name.toLowerCase() === name.toLowerCase())) return { form: raw, error: 'twice' };
+  const type = CUSTOM_TYPES.includes(def.type) ? def.type : 'text';
+  const options = cleanOptions(def.options);
+  if (type === 'choice' && options.length < 2) return { form: raw, error: 'options' };
+  const field: FeedbackFieldDef = { id, name, type, ...(type === 'choice' ? { options } : {}) };
+  return { form: packForm({ ...raw, custom: [...list, field] }) };
+}
+
+/** Eigenes Feld ändern (Name, Pflicht, Möglichkeiten); der Typ bleibt, damit vorhandene Werte stimmen. */
+export function editCustom(raw: FeedbackFormRaw | undefined, id: string, patch: { name?: string; required?: boolean; options?: string[] }): FeedbackFormRaw | undefined {
+  const list = customOf(raw);
+  const i = list.findIndex((c) => c.id === id);
+  if (i < 0) return raw;
+  const c = { ...list[i] };
+  if (patch.name !== undefined) {
+    const n = cleanName(patch.name);
+    if (n && !list.some((o) => o.id !== id && o.name.toLowerCase() === n.toLowerCase())) c.name = n;
+  }
+  if (patch.required !== undefined) {
+    if (patch.required) c.required = true;
+    else delete c.required;
+  }
+  if (patch.options !== undefined && c.type === 'choice') {
+    const o = cleanOptions(patch.options);
+    if (o.length >= 2) c.options = o;
+  }
+  const next = [...list];
+  next[i] = c;
+  return packForm({ ...raw, custom: next });
+}
+
+/** Eigenes Feld entfernen – gibt es zurück (für Rückgängig); Werte in den Meldungen bleiben liegen. */
+export function removeCustom(raw: FeedbackFormRaw | undefined, id: string): { form: FeedbackFormRaw | undefined; removed?: { field: FeedbackFieldDef; index: number } } {
+  const list = customOf(raw);
+  const index = list.findIndex((c) => c.id === id);
+  if (index < 0) return { form: raw };
+  return { form: packForm({ ...raw, custom: list.filter((c) => c.id !== id) }), removed: { field: list[index], index } };
+}
+export function restoreCustom(raw: FeedbackFormRaw | undefined, r: { field: FeedbackFieldDef; index: number }): FeedbackFormRaw | undefined {
+  const list = customOf(raw);
+  if (list.some((c) => c.id === r.field.id) || list.length >= CUSTOM_MAX) return raw;
+  const next = [...list];
+  next.splice(Math.min(r.index, next.length), 0, r.field);
+  return packForm({ ...raw, custom: next });
+}
+/** Eigenes Feld eine Stelle nach oben (-1) oder unten (+1). */
+export function moveCustom(raw: FeedbackFormRaw | undefined, id: string, by: -1 | 1): FeedbackFormRaw | undefined {
+  const list = [...customOf(raw)];
+  const i = list.findIndex((c) => c.id === id);
+  const j = i + by;
+  if (i < 0 || j < 0 || j >= list.length) return raw;
+  [list[i], list[j]] = [list[j], list[i]];
+  return packForm({ ...raw, custom: list });
+}
+
+/** Wert eines eigenen Felds als Text (Karte, Datei). */
+export function extraText(def: FeedbackFieldDef, v: string | number | boolean | undefined): string {
+  if (v === undefined) return '';
+  if (def.type === 'bool') return v === true ? FILE_LABELS.yes : FILE_LABELS.no;
+  if (def.type === 'date' && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v.slice(8, 10)}.${v.slice(5, 7)}.${v.slice(0, 4)}`;
+  return String(v);
+}
+
+/** Pflichtfelder unter den eigenen Feldern, die noch leer sind (für „noch offen: …“). */
+export const missingCustom = (f: Feedback, raw: FeedbackFormRaw | undefined): FeedbackFieldDef[] =>
+  customOf(raw).filter((c) => c.required && (f.extra?.[c.id] === undefined || (c.type === 'bool' ? false : f.extra?.[c.id] === '')));
+
+/** Name einer Art im Projekt – umbenannt oder wie ab Werk. */
+export const kindName = (raw: FeedbackFormRaw | undefined, k: FeedbackKind): string => raw?.kinds?.[k] || FILE_LABELS.kind[k];
+/** Art im Projekt umbenennen; leer oder wie ab Werk = zurück auf Werk. */
+export function renameKind(raw: FeedbackFormRaw | undefined, k: FeedbackKind, name: string): FeedbackFormRaw | undefined {
+  const n = cleanName(name, 30);
+  const kinds = { ...(raw?.kinds ?? {}) };
+  if (!n || n === FILE_LABELS.kind[k]) delete kinds[k];
+  else kinds[k] = n;
+  return packForm({ ...raw, kinds });
+}
+
+/** F-225 Rest (V106, P6): Vorlagen fürs Formular – Standard (alles an), IPMA-Problemmeldung (ICB4), Kurz. */
+export type FormTemplateId = 'standard' | 'ipma' | 'short';
+export const FORM_TEMPLATES: readonly FormTemplateId[] = ['standard', 'ipma', 'short'];
+const TEMPLATE_DEFS: Record<FormTemplateId, { off: FeedbackText[]; required: (FeedbackText | 'severity')[]; custom: Omit<FeedbackFieldDef, 'id'>[] }> = {
+  standard: { off: [], required: [], custom: [] },
+  ipma: {
+    off: ['nonGoals'],
+    required: ['what', 'affected', 'impact', 'severity'],
+    custom: [
+      { name: 'Vorgang / Arbeitspaket', type: 'text' },
+      { name: 'Auswirkung auf', type: 'choice', options: ['Termin', 'Kosten', 'Leistung/Qualität', 'Umfang'], required: true },
+      { name: 'Entscheidung nötig bis', type: 'date' },
+    ],
+  },
+  short: { off: ['steps', 'expected', 'actual', 'workaround', 'goals', 'nonGoals', 'impact', 'guess', 'open', 'decision'], required: [], custom: [] },
+};
+/**
+ * Vorlage übernehmen: Felder an/aus und Pflicht wie in der Vorlage, ihre eigenen Felder kommen dazu (gleichnamige
+ * bleiben, wie sie sind); vorhandene eigene Felder und umbenannte Arten bleiben. `ids` liefert neue Ids.
+ */
+export function applyTemplate(raw: FeedbackFormRaw | undefined, t: FormTemplateId, ids: () => string): FeedbackFormRaw | undefined {
+  const d = TEMPLATE_DEFS[t];
+  const list = [...customOf(raw)];
+  for (const c of d.custom) {
+    if (list.length >= CUSTOM_MAX || list.some((x) => x.name.toLowerCase() === c.name.toLowerCase())) continue;
+    list.push({ id: ids(), ...c, ...(c.options ? { options: [...c.options] } : {}) });
+  }
+  return packForm({ ...raw, off: [...d.off], required: [...d.required], custom: list });
+}
+/** Welche Vorlage das Formular gerade genau trifft (für die Anzeige) – sonst null („angepasst“). */
+export function templateOf(raw: FeedbackFormRaw | undefined): FormTemplateId | null {
+  const f = formOf(raw);
+  const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x) => b.includes(x));
+  for (const t of FORM_TEMPLATES) {
+    const d = TEMPLATE_DEFS[t];
+    if (!same(f.off, d.off) || !same(f.required, d.required)) continue;
+    const names = customOf(raw).map((c) => c.name.toLowerCase());
+    if (same(names, d.custom.map((c) => c.name.toLowerCase()))) return t;
+  }
+  return null;
+}
+
+/** Formular eines Projekts aus der Datei lesen (Format 11, nur optionale Felder). */
+export function parseFeedbackForm(v: unknown): FeedbackFormRaw | undefined {
+  if (!isObj(v)) return undefined;
+  const keys = (x: unknown) => (Array.isArray(x) ? [...new Set(x.filter((y): y is string => typeof y === 'string' && /^[a-zA-Z]{2,20}$/.test(y)))] : []);
+  const custom: FeedbackFieldDef[] = [];
+  if (Array.isArray(v.custom)) {
+    for (const c of v.custom) {
+      if (custom.length >= CUSTOM_MAX) break;
+      if (!isObj(c) || typeof c.id !== 'string' || !/^[a-zA-Z0-9_-]{1,40}$/.test(c.id) || custom.some((x) => x.id === c.id)) continue;
+      const name = cleanName(c.name);
+      const type = CUSTOM_TYPES.includes(c.type as FeedbackFieldType) ? (c.type as FeedbackFieldType) : null;
+      if (!name || !type) continue;
+      const options = cleanOptions(c.options);
+      if (type === 'choice' && options.length < 2) continue;
+      custom.push({ id: c.id, name, type, ...(type === 'choice' ? { options } : {}), ...(c.required === true ? { required: true } : {}) });
+    }
+  }
+  const kinds: Partial<Record<FeedbackKind, string>> = {};
+  if (isObj(v.kinds)) for (const k of FEEDBACK_KINDS) {
+    const n = cleanName(v.kinds[k], 30);
+    if (n) kinds[k] = n;
+  }
+  return packForm({ off: keys(v.off), required: keys(v.required), custom, kinds });
 }
 
 /** FB3: Ähnliche Meldungen nach gemeinsamen Wörtern im Titel (≥ 4 Zeichen, mind. die Hälfte). */
@@ -392,6 +613,8 @@ export const FILE_LABELS = {
     decision: 'Entscheidung',
     severity: 'Schweregrad',
   } as Record<FeedbackText | 'severity', string>,
+  yes: 'Ja',
+  no: 'Nein',
 };
 
 const dt = (iso: string) => {
@@ -414,9 +637,9 @@ function placeLine(f: Feedback): string {
 }
 
 /** Eine Meldung als Problemstellung (Gliederung nach Enricos Vorlage). */
-export function feedbackMarkdown(f: Feedback, all: Feedback[] = []): string {
+export function feedbackMarkdown(f: Feedback, all: Feedback[] = [], form?: FeedbackFormRaw): string {
   const L = FILE_LABELS;
-  const out: string[] = [`## ${L.kind[f.kind]}: ${f.title}`, ''];
+  const out: string[] = [`## ${kindName(form, f.kind)}: ${f.title}`, ''];
   out.push(`- **Zustand:** ${L.state[f.state]}${f.fixedIn ? ` (behoben in ${f.fixedIn})` : ''}`);
   out.push(`- **Gemeldet:** ${dt(f.at)}${f.changed ? ` · geändert ${dt(f.changed)}` : ''}`);
   const pl = placeLine(f);
@@ -437,6 +660,9 @@ export function feedbackMarkdown(f: Feedback, all: Feedback[] = []): string {
   sec('Lösungsansatz', ['goals', 'nonGoals']);
   sec('Relevanz', ['severity', 'impact']);
   sec('Hypothesen', ['guess']);
+  // F-225 (V106): eigene Felder des Projekts
+  const extra = customOf(form).filter((c) => f.extra?.[c.id] !== undefined).map((c) => `- **${c.name}:** ${extraText(c, f.extra?.[c.id])}`);
+  if (extra.length) out.push('', '### Angaben für das Projekt', '', ...extra);
   const notes: string[] = [];
   if (f.refs?.length) notes.push(`- Bezug: ${f.refs.join(', ')}`);
   const rel = (f.related ?? []).map((id) => all.find((x) => x.id === id)).filter((x): x is Feedback => !!x);
@@ -454,7 +680,7 @@ function markLabel(m: FeedbackMark): string {
     const [, from, to, why] = /^(\w+) → (\w+)(?:: (.*))?$/.exec(m.text) ?? [];
     if (from && to) return `Zustand ${FILE_LABELS.state[from as FeedbackState] ?? from} → ${FILE_LABELS.state[to as FeedbackState] ?? to}${why ? `: ${why}` : ''}`;
   }
-  const head = { note: 'Vermerk', decision: 'Entscheidung', ref: 'Bezug', fixed: 'Behoben in', state: 'Zustand' }[m.kind];
+  const head = { note: 'Vermerk', decision: 'Entscheidung', ref: 'Bezug', fixed: 'Behoben in', state: 'Zustand', to: 'Weiter an' }[m.kind];
   return `${head}: ${m.text}`;
 }
 
@@ -480,7 +706,8 @@ export function feedbackFileMarkdown(ws: Workspace, o: ExportOpts = {}): string 
   const counts = FEEDBACK_STATES.map((s) => [s, list.filter((f) => f.state === s).length] as const).filter(([, n]) => n);
   if (counts.length) head.push('', counts.map(([s, n]) => `${FILE_LABELS.state[s]} ${n}`).join(' · '));
   const order = feedbackBoard({ ...ws, feedback: list }).flatMap((c) => c.items);
-  return [...head, ...order.flatMap((f) => ['', feedbackMarkdown(f, feedbackOf(ws))]), ''].join('\n');
+  const formFor = (f: Feedback) => (f.project ? ws.projects?.find((p) => p.id === f.project)?.feedbackForm : undefined);
+  return [...head, ...order.flatMap((f) => ['', feedbackMarkdown(f, feedbackOf(ws), formFor(f))]), ''].join('\n');
 }
 
 export const FEEDBACK_FILE_FORMAT = 'e-sources-feedback';
@@ -490,6 +717,56 @@ export function feedbackFileJson(ws: Workspace, o: ExportOpts = {}): string {
   const now = o.now ?? new Date();
   return JSON.stringify({ format: FEEDBACK_FILE_FORMAT, version: 1, app: APP_VERSION, savedAt: now.toISOString(), onlyNew: !!o.onlyNew, feedback: pickExport(ws, o) }, null, 2);
 }
+
+/**
+ * F-224 R7 (V106): Feedback-Datei eines Anwenders einlesen und nach Id zusammenführen. Neue Meldungen kommen dazu;
+ * bekannte nur, wenn die Datei neuer ist – dann gelten ihre Angaben (Titel, Art, Texte, Schweregrad, eigene Felder,
+ * Bilder-Verweise), unsere Bearbeitung bleibt (Zustand, Instanz, Bezüge, Vermerke, Entscheidung, „Behoben in“),
+ * Vermerke beider Seiten werden vereint. Gibt die neue Liste und Zahlen zurück – oder einen Fehler.
+ */
+export type MergeResult = { ok: true; list: Feedback[]; added: number; updated: number; same: number; full: number } | { ok: false; error: 'json' | 'format' | 'empty' };
+export function mergeFeedbackFile(ws: Workspace, text: string): MergeResult {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return { ok: false, error: 'json' };
+  }
+  if (!isObj(raw) || raw.format !== FEEDBACK_FILE_FORMAT) return { ok: false, error: 'format' };
+  const incoming = parseFeedback(raw.feedback);
+  if (!incoming.length) return { ok: false, error: 'empty' };
+  const list = [...feedbackOf(ws)];
+  let added = 0, updated = 0, same = 0, full = 0;
+  const stamp = (f: Feedback) => f.changed ?? f.at;
+  for (const g of incoming) {
+    const i = list.findIndex((f) => f.id === g.id);
+    if (i < 0) {
+      if (list.length >= FEEDBACK_MAX) {
+        full++;
+        continue;
+      }
+      list.push(g);
+      added++;
+      continue;
+    }
+    const f = list[i];
+    if (stamp(g) <= stamp(f)) {
+      same++;
+      continue;
+    }
+    const keys = new Set((f.marks ?? []).map((m) => `${m.at}|${m.kind}|${m.text}`));
+    const marks = [...(f.marks ?? []), ...(g.marks ?? []).filter((m) => !keys.has(`${m.at}|${m.kind}|${m.text}`))].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)).slice(-MARKS_MAX);
+    const theirs: Feedback = { ...g };
+    for (const k of ['state', 'to', 'refs', 'related', 'decision', 'fixedIn', 'marks'] as const) delete theirs[k];
+    const ours: Partial<Feedback> = {};
+    for (const k of ['state', 'to', 'refs', 'related', 'decision', 'fixedIn'] as const) if (f[k] !== undefined) (ours as Record<string, unknown>)[k] = f[k];
+    list[i] = { ...theirs, ...ours, ...(f.project ? { project: f.project } : {}), ...(marks.length ? { marks } : {}) };
+    updated++;
+  }
+  return { ok: true, list, added, updated, same, full };
+}
+/** Liste nach dem Einlesen übernehmen bzw. für Rückgängig zurücksetzen. */
+export const setFeedbackList = (ws: Workspace, list: Feedback[]): Workspace => withFeedback(ws, list.slice(0, FEEDBACK_MAX));
 
 /** Dateiname „Feedback-2026-12-07-1830.md“ bzw. „.json“. */
 export function feedbackFileName(now: Date, ext: 'md' | 'json'): string {
@@ -522,7 +799,7 @@ function parseEnv(v: unknown): FeedbackEnv | undefined {
   return Object.keys(e).length ? e : undefined;
 }
 
-const MARK_KINDS: readonly FeedbackMark['kind'][] = ['note', 'decision', 'ref', 'fixed', 'state'];
+const MARK_KINDS: readonly FeedbackMark['kind'][] = ['note', 'decision', 'ref', 'fixed', 'state', 'to'];
 
 /** Liest `Workspace.feedback` – Unbrauchbares fällt weg, Bezüge nur auf Vorhandenes. */
 export function parseFeedback(v: unknown): Feedback[] {
@@ -544,6 +821,14 @@ export function parseFeedback(v: unknown): Feedback[] {
     if (typeof r.project === 'string' && r.project) {
       f.project = r.project;
       if (typeof r.to === 'string' && r.to) f.to = r.to;
+    }
+    if (isObj(r.extra)) {
+      const ex: Record<string, string | number | boolean> = {};
+      for (const [k, v] of Object.entries(r.extra)) {
+        const c = /^[a-zA-Z0-9_-]{1,40}$/.test(k) ? extraValue(v) : undefined;
+        if (c !== undefined) ex[k] = c;
+      }
+      if (Object.keys(ex).length) f.extra = ex;
     }
     const place = parsePlace(r.place);
     if (place) f.place = place;

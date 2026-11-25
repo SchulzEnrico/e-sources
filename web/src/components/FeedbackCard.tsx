@@ -8,13 +8,16 @@
  */
 import { type ClipboardEvent, type Dispatch, useEffect, useRef, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
-import type { Feedback, FeedbackKind, FeedbackSeverity, FeedbackState, Workspace } from '../workspace/types';
+import type { Feedback, FeedbackFieldDef, FeedbackKind, FeedbackSeverity, FeedbackState, Workspace } from '../workspace/types';
 import * as Fb from '../workspace/feedback';
 import * as Ps from '../workspace/persons';
 import * as Pj from '../workspace/projects';
 import { getPic, putPic, shrinkImage } from '../workspace/imageStore';
 import { newId } from '../workspace/workspace';
-import { FEEDBACK_CARD_TEXT as C, FEEDBACK_TEXT as T } from '../workspace/terms';
+import { FEEDBACK_CARD_TEXT as C, FEEDBACK_TEXT as T, PROJECT_FEEDBACK_TEXT as PF } from '../workspace/terms';
+
+/** F-225 (V106): „keine Auswahl“ im Rad eines eigenen Auswahl-Felds */
+const NONE = '__none';
 import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
 import { placeText } from './FeedbackQuick';
@@ -175,6 +178,7 @@ export function FeedbackCard(props: {
   const proj = f.project ? Pj.projectById(ws, f.project) : undefined;
   const form = proj ? Fb.formOf(proj.feedbackForm) : undefined;
   const role = proj ? Pj.roleOf(proj, f.to) : undefined;
+  const kn = (k: FeedbackKind) => (proj ? Fb.kindName(proj.feedbackForm, k) : T.kinds[k]);
   const missing = Fb.missingOf(f, form);
   const label = (k: Field | 'severity') => Fb.FILE_LABELS.field[k];
   const jump = (k: Field | 'severity') => {
@@ -182,6 +186,80 @@ export function FeedbackCard(props: {
     window.setTimeout(() => document.getElementById(fieldId(id, k))?.focus(), 0);
   };
   const shown = (k: Field) => !form?.off.includes(k) && (all || SHOWN[f.kind].includes(k) || !!f[k] || !!form?.required.includes(k));
+
+  // F-225 (V106, P4): eigene Felder des Projekts – speichern beim Verlassen bzw. sofort (Datum, Auswahl, Ja/Nein)
+  const custom = proj ? Fb.customOf(proj.feedbackForm) : [];
+  const missCustom = proj ? Fb.missingCustom(f, proj.feedbackForm) : [];
+  const setExtra = (cid: string, v: string | number | boolean | null) => edit({ extra: { [cid]: v } }, `x-${cid}`);
+  const customField = (c: FeedbackFieldDef) => {
+    const v = f.extra?.[c.id];
+    const fid = fieldId(id, `x-${c.id}`);
+    const head = (
+      <span className="fbq__label">
+        {c.name}
+        {c.required && <span className="fbc__req" title={PF.requiredHint}> *</span>}
+        {savedAt === `x-${c.id}` && <span className="fbc__saved" role="status"> · {C.saved}</span>}
+      </span>
+    );
+    if (c.type === 'bool')
+      return (
+        <label key={`${id}-${c.id}`} className="fbc__field fbc__bool">
+          <input id={fid} type="checkbox" checked={v === true} onChange={(e) => setExtra(c.id, e.target.checked ? true : null)} />
+          {head}
+        </label>
+      );
+    if (c.type === 'choice')
+      return (
+        <div key={`${id}-${c.id}`} className="fbc__field">
+          {head}
+          <span id={fid} tabIndex={-1}>
+            <ModeWheel
+              label={c.name}
+              options={[{ id: NONE, name: PF.choiceNone }, ...(c.options ?? []).map((o) => ({ id: o, name: o }))]}
+              value={typeof v === 'string' && c.options?.includes(v) ? v : NONE}
+              onChange={(o) => setExtra(c.id, o === NONE ? null : o)}
+            />
+          </span>
+        </div>
+      );
+    if (c.type === 'date')
+      return (
+        <label key={`${id}-${c.id}`} className="fbc__field">
+          {head}
+          <input id={fid} type="date" defaultValue={typeof v === 'string' ? v : ''} onBlur={(e) => e.target.value !== (v ?? '') && setExtra(c.id, e.target.value || null)} />
+        </label>
+      );
+    if (c.type === 'number')
+      return (
+        <label key={`${id}-${c.id}`} className="fbc__field">
+          {head}
+          <input
+            id={fid}
+            type="number"
+            inputMode="decimal"
+            defaultValue={typeof v === 'number' ? String(v) : ''}
+            onBlur={(e) => {
+              const t = e.target.value.trim();
+              const n = t === '' ? null : Number(t.replace(',', '.'));
+              if (n !== null && !Number.isFinite(n)) return;
+              if (n !== (v ?? null)) setExtra(c.id, n);
+            }}
+          />
+        </label>
+      );
+    return (
+      <label key={`${id}-${c.id}`} className="fbc__field">
+        {head}
+        <textarea
+          id={fid}
+          rows={2}
+          maxLength={2000}
+          defaultValue={typeof v === 'string' ? v : ''}
+          onBlur={(e) => e.target.value.trim() !== (v ?? '') && setExtra(c.id, e.target.value.trim() || null)}
+        />
+      </label>
+    );
+  };
 
   const textField = (k: Field) => {
     const long = k !== 'expected' && k !== 'actual';
@@ -281,7 +359,7 @@ export function FeedbackCard(props: {
     >
       <header className="cardwin__head">
         <span className="cardwin__where">
-          <Icon name="feedback" size={13} /> {C.head} · {T.kinds[f.kind]}{proj ? ` · ${proj.name}${role ? ` › ${role.name}` : ''}` : ''}{triage ? ` · ${C.states[f.state]}` : ''}
+          <Icon name="feedback" size={13} /> {C.head} · {kn(f.kind)}{proj ? ` · ${proj.name}${role ? ` › ${role.name}` : ''}` : ''}{triage ? ` · ${C.states[f.state]}` : ''}
         </span>
         <button type="button" className="cardwin__x" onClick={finish} title={C.close} aria-label={C.close}>
           <Icon name="close" size={14} />
@@ -314,7 +392,7 @@ export function FeedbackCard(props: {
             <span className="fbq__label">{C.kindLabel}</span>
             <ModeWheel
               label={C.kindLabel}
-              options={Fb.FEEDBACK_KINDS.map((k) => ({ id: k, name: T.kinds[k], hint: T.kindHints[k] }))}
+              options={Fb.FEEDBACK_KINDS.map((k) => ({ id: k, name: kn(k), hint: T.kindHints[k] }))}
               value={f.kind}
               onChange={(k) => edit({ kind: k as FeedbackKind }, 'kind')}
             />
@@ -334,6 +412,27 @@ export function FeedbackCard(props: {
             />
             <span className="fbq__hint">{C.stateHints[dropping ? 'dropped' : f.state]}</span>
           </div>}
+          {/* V106 (F-225 P9): Eskalation – an eine andere Instanz des Projekts weitergeben, mit Spur */}
+          {triage && proj && Pj.rolesOf(proj).length > 1 && (
+            <div className="fbc__wheel">
+              <span className="fbq__label">
+                {PF.forward}
+                {savedAt === 'to' && <span className="fbc__saved" role="status"> · {PF.forwarded(role?.name ?? '')}</span>}
+              </span>
+              <ModeWheel
+                label={PF.forward}
+                options={Pj.rolesOf(proj).map((r) => ({ id: r.id, name: r.name }))}
+                value={role?.id ?? Pj.rolesOf(proj)[0].id}
+                onChange={(to) => {
+                  const next = Pj.roleOf(proj, to);
+                  if (!next || next.id === role?.id) return;
+                  dispatch({ type: 'fbTo', id, to, from: role?.name ?? PF.noRole, toName: next.name, by });
+                  said('to');
+                }}
+              />
+              <span className="fbq__hint">{PF.forwardHint}</span>
+            </div>
+          )}
           {f.kind !== 'praise' && (
             <div className="fbc__wheel">
               <span className="fbq__label">
@@ -378,13 +477,19 @@ export function FeedbackCard(props: {
         )}
 
         <div className="fbc__missing" role="status">
-          {missing.length ? (
+          {missing.length + missCustom.length ? (
             <>
               <span>{C.missing('')}</span>
               {missing.map((k, i) => (
                 <button key={k} type="button" className="fbc__jump" onClick={() => jump(k)} title={C.missingJump(label(k))}>
                   {label(k)}
-                  {i < missing.length - 1 ? ',' : ''}
+                  {i < missing.length - 1 || missCustom.length ? ',' : ''}
+                </button>
+              ))}
+              {missCustom.map((c, i) => (
+                <button key={c.id} type="button" className="fbc__jump" onClick={() => document.getElementById(fieldId(id, `x-${c.id}`))?.focus()} title={C.missingJump(c.name)}>
+                  {c.name}
+                  {i < missCustom.length - 1 ? ',' : ''}
                 </button>
               ))}
             </>
@@ -405,6 +510,12 @@ export function FeedbackCard(props: {
             </fieldset>
           );
         })}
+        {custom.length > 0 && (
+          <fieldset className="fbc__group fbc__custom">
+            <legend>{PF.customLegend}</legend>
+            {custom.map(customField)}
+          </fieldset>
+        )}
         <button type="button" className="fbc__all" aria-expanded={all} onClick={() => setAll(!all)}>
           {all ? C.fewFields : C.allFields}
         </button>
@@ -446,10 +557,10 @@ export function FeedbackCard(props: {
                   <li key={r.id}>
                     {props.onOpen ? (
                       <button type="button" className="fbc__relOpen" onClick={() => (finish(), props.onOpen!(r.id))} title={C.relatedOpen(r.title)}>
-                        {T.kinds[r.kind]}: „{r.title}“
+                        {kn(r.kind)}: „{r.title}“
                       </button>
                     ) : (
-                      <span>{T.kinds[r.kind]}: „{r.title}“</span>
+                      <span>{kn(r.kind)}: „{r.title}“</span>
                     )}
                     <button type="button" className="fbc__relX" onClick={() => link(r.id, false)} aria-label={C.relatedRemove(r.title)} title={C.relatedRemove(r.title)}>
                       <Icon name="close" size={11} />
@@ -485,7 +596,7 @@ export function FeedbackCard(props: {
                   .filter((o) => !f.related?.includes(o.id))
                   .map((o) => (
                     <option key={o.id} value={o.id}>
-                      {T.kinds[o.kind]}: {o.title}
+                      {kn(o.kind)}: {o.title}
                     </option>
                   ))}
               </select>

@@ -58,7 +58,7 @@ import { Tour } from './components/Tour';
 import { ProjectCockpit, shownProjectId } from './components/ProjectCockpit';
 import { SlotMachine } from './components/SlotMachine';
 import { type Cleanup, type InviteWhy, type RedundantSlot, INVITE_KEY, INVITE_LATER, INVITE_PAUSE, dupCount, inviteWhy } from './workspace/jackpot';
-import { TOUR_EVENT, type TourId, setToursAuto, tourAutoStart, toursAuto } from './workspace/tour';
+import { TOUR_EVENT, type TourId, setToursAuto, tourAutoStart, tourRequestedAuto, toursAuto } from './workspace/tour';
 import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
@@ -761,6 +761,13 @@ function DeskApp(props: DeskProps) {
         window.setTimeout(() => setTour('dev'), 0);
         return;
       }
+      // V106 (F-225 Rest): Tour „Projekte“ – im Projekt-Modus, Cockpit bleibt zu
+      if (id === 'projects') {
+        const auto = tourRequestedAuto();
+        setOverview(false);
+        window.setTimeout(() => setTour((x) => (auto && x ? x : 'projects'), auto), 0);
+        return;
+      }
       // F-217 (V98): auch „Notizen & Aufgaben“ und „Main Stage“
       if (id !== 'sources' && id !== 'notes' && id !== 'stage') return;
       setOverview(false);
@@ -1322,6 +1329,12 @@ function DeskApp(props: DeskProps) {
     notify(text);
     sayLive(text);
     if (m === 'notes') setPadsHidden(false);
+  };
+  /** V106 (F-225 Rest): Tour „Projekte“ aus Hilfe/Suche – wechselt erst in den Projekt-Modus. */
+  const openProjectsTour = () => {
+    setOverview(false);
+    if (!projectsMode && !notesOff) setDeskMode('projects');
+    window.setTimeout(() => setTour('projects'), projectsMode ? 0 : 400);
   };
   // V81 (D12): im Notizen-Modus gibt es kein Dock – dort zählen alle Pads, auch die aus dem Dock
   const allPads = padsOn(ws, win);
@@ -3217,6 +3230,8 @@ function DeskApp(props: DeskProps) {
         return window.setTimeout(() => setTour('sources'), 0);
       case 'tourFeedback':
         return startFeedbackTour();
+      case 'tourProjects':
+        return openProjectsTour();
       case 'tourNotes':
       case 'tourStage':
         setOverview(false);

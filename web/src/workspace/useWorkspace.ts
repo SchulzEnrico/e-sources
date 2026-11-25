@@ -224,6 +224,8 @@ export type Action =
   | { type: 'fbEdit'; id: string; patch: Fb.FeedbackPatch }
   | { type: 'fbState'; id: string; state: Fb.FeedbackStateName; why?: string; by?: string }
   | { type: 'fbMark'; id: string; kind: 'note' | 'decision' | 'ref'; text: string; by?: string }
+  | { type: 'fbTo'; id: string; to: string; from: string; toName: string; by?: string }
+  | { type: 'fbList'; list: import('./types').Feedback[] }
   | { type: 'fbRemove'; id: string }
   | { type: 'fbRestore'; undo: Fb.FeedbackUndo }
   // F-222 (V104): Nutzwertanalyse
@@ -487,6 +489,10 @@ function step(ws: Workspace, a: Action): Workspace {
       return Fb.setFeedbackState(ws, a.id, a.state, { why: a.why, by: a.by });
     case 'fbMark':
       return Fb.addMark(ws, a.id, a.kind, a.text, { by: a.by });
+    case 'fbList':
+      return Fb.setFeedbackList(ws, a.list);
+    case 'fbTo':
+      return Fb.forwardFeedback(ws, a.id, a.to, { from: a.from, to: a.toName }, { by: a.by });
     case 'fbRemove':
       return Fb.removeFeedback(ws, a.id)?.ws ?? ws;
     case 'fbRestore':

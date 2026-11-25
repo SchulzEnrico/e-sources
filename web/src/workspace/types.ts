@@ -332,13 +332,32 @@ export interface FeedbackEnv {
 export interface FeedbackMark {
   /** ISO-Zeitpunkt */
   at: string;
-  kind: 'note' | 'decision' | 'ref' | 'fixed' | 'state';
+  /** V106 (F-225 P9): 'to' = weitergegeben an eine andere Instanz */
+  kind: 'note' | 'decision' | 'ref' | 'fixed' | 'state' | 'to';
   text: string;
   /** Person-Id oder Name */
   by?: string;
 }
 
 /** F-221 (FB11): eine Meldung – Problemstellung in zwei Stufen (FB3). */
+/** F-225 (V106, P4): eigenes Feld im Formular eines Projekts. */
+export type FeedbackFieldType = 'text' | 'number' | 'date' | 'choice' | 'bool';
+export interface FeedbackFieldDef {
+  id: string;
+  name: string;
+  type: FeedbackFieldType;
+  /** nur „Auswahl“: die Möglichkeiten */
+  options?: string[];
+  required?: boolean;
+}
+/** F-225 (P4/P5): Formular für Projektmeldungen – Felder aus, Pflichtfelder, eigene Felder, Arten umbenannt. */
+export interface FeedbackFormRaw {
+  off?: string[];
+  required?: string[];
+  custom?: FeedbackFieldDef[];
+  kinds?: Partial<Record<FeedbackKind, string>>;
+}
+
 export interface Feedback {
   id: string;
   kind: FeedbackKind;
@@ -348,6 +367,8 @@ export interface Feedback {
   project?: string;
   /** F-225 (P3): Empfänger – Id der Instanz (Rolle) im Projekt */
   to?: string;
+  /** F-225 (V106, P4): Werte der eigenen Felder des Projekts (Schlüssel = Id des Felds) */
+  extra?: Record<string, string | number | boolean>;
   /** ISO-Zeitpunkt der Meldung */
   at: string;
   /** ISO-Zeitpunkt der letzten Änderung */
@@ -737,7 +758,7 @@ export interface Project {
   /** F-225 (V105, P3): Instanzen der Projektorganisation (ICB4 Governance) – fehlt = Vorgabe Projektleitung, Lenkungskreis, Auftraggeber. */
   roles?: ProjectRole[];
   /** F-225 (P4/P5): Formular für Projektmeldungen – Felder aus und Pflichtfelder. */
-  feedbackForm?: { off?: string[]; required?: string[] };
+  feedbackForm?: FeedbackFormRaw;
   created: number;
   changed: number;
 }

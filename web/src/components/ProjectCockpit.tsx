@@ -15,6 +15,8 @@ import { dayOf, isFinished, titleOf } from '../workspace/notes';
 import { casesOf } from '../workspace/cases';
 import { DIALOG_TEXT, NOTE_TEXT, PROJECTS_TEXT as T, TERMS } from '../workspace/terms';
 import { noticeLater } from '../workspace/flash';
+import { newCountOf } from '../workspace/feedback';
+import { requestTour, tourAutoStart } from '../workspace/tour';
 import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
 import { openNote } from './SourceChips';
@@ -68,6 +70,14 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
   const [note, setNote] = useState('');
   const [undo, setUndo] = useState<{ text: string; u: Pj.ProjectUndo } | null>(null);
   const [view, setViewState] = useState<ProjectView>(loadView);
+  // V106 (F-225 Rest, F-217): Tour „Projekte“ startet einmal von selbst beim ersten Öffnen des Projekt-Modus
+  useEffect(() => {
+    if (!tourAutoStart('projects')) return;
+    const t = window.setTimeout(() => requestTour('projects', true), 700);
+    return () => window.clearTimeout(t);
+  }, []);
+  /** V106: neue Meldungen am gezeigten Projekt – Zahl am Rad „Ansicht“ (Eintrag „Meldungen“). */
+  const fresh = shown ? newCountOf(ws, shown.id) : 0;
   const setView = (v: ProjectView) => {
     setViewState(v);
     try {
@@ -168,8 +178,11 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
         <span className="lc__head-tools">
           <span className="layouts__label pj__wheel pj__viewwheel">
             <span aria-hidden="true">{PSP_TEXT.view}</span>
-            <ModeWheel label={PSP_TEXT.viewLabel} value={view} onChange={(v) => setView(v as ProjectView)} options={VIEWS.map((v) => ({ id: v, name: PSP_TEXT.views[v], hint: PSP_TEXT.viewHint[v] }))} />
+            <ModeWheel label={PSP_TEXT.viewLabel} value={view} onChange={(v) => setView(v as ProjectView)} options={VIEWS.map((v) => (v === 'feedback' && fresh > 0 ? { id: v, name: PROJECT_FEEDBACK_TEXT.viewFresh(PSP_TEXT.views[v], fresh), hint: `${PSP_TEXT.viewHint[v]} – ${PROJECT_FEEDBACK_TEXT.freshHint(fresh)}` } : { id: v, name: PSP_TEXT.views[v], hint: PSP_TEXT.viewHint[v] }))} />
           </span>
+          <button type="button" className="help__run pj__tour" title={T.tourHint} aria-label={T.tourHint} onClick={() => requestTour('projects')}>
+            <Icon name="tour" size={13} className="icon icon--inline" /> {T.tour}
+          </button>
           <button type="button" id="pj-add" className="help__run" aria-expanded={adding} disabled={full} title={full ? T.full(Pj.PROJECTS_MAX) : T.addHint} onClick={() => (adding ? setAdding(false) : openAdd())}>
             <Icon name="plus" size={13} className="icon icon--inline" /> {T.add}
           </button>

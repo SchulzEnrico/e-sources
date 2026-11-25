@@ -18,7 +18,7 @@ import type {
 } from './types';
 
 /** App-Stand für die Meldung (FB6) – bei jedem Chat mitzählen. */
-export const APP_VERSION = 'V103';
+export const APP_VERSION = 'V104';
 export const FEEDBACK_MAX = 2000;
 export const TITLE_MAX = 200;
 export const TEXT_MAX = 8000;
@@ -311,6 +311,13 @@ export function feedbackBoard(ws: Workspace, flt: FeedbackFilter = {}): { state:
       .filter((f) => f.state === state)
       .sort((a, b) => (SEV_RANK[a.severity ?? 'minor'] + (a.severity ? 0 : 0.5)) - (SEV_RANK[b.severity ?? 'minor'] + (b.severity ? 0 : 0.5)) || b.at.localeCompare(a.at)),
   }));
+}
+
+/** V104 (Enrico): Liste „Meine Meldungen“ für Anwender – ohne Zustand, neueste oben. */
+export function feedbackList(ws: Workspace, flt: FeedbackFilter = {}): Feedback[] {
+  return feedbackOf(ws)
+    .filter((f) => matches(f, flt))
+    .sort((a, b) => b.at.localeCompare(a.at));
 }
 
 /** Zahl neuer Meldungen (Abzeichen am Knopf „Feedback“). */

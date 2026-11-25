@@ -20,6 +20,7 @@ import { ModeWheel } from './ModeWheel';
 import { openNote } from './SourceChips';
 import { ProjectPsp } from './ProjectPsp';
 import { ProjectGantt } from './ProjectGantt';
+import { ProjectDecisions } from './ProjectDecisions';
 import { PSP_TEXT } from '../workspace/terms';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
@@ -33,8 +34,8 @@ const euro = (n: number) => `${n.toLocaleString('de-DE', { maximumFractionDigits
 const TASKS_SHOWN = 12;
 
 /** V100 (J2): Ansicht rechts neben der Projektliste – je Gerät gemerkt; weitere (Gantt …) folgen. */
-type ProjectView = 'brief' | 'psp' | 'gantt';
-const VIEWS: ProjectView[] = ['brief', 'psp', 'gantt'];
+type ProjectView = 'brief' | 'psp' | 'gantt' | 'decide';
+const VIEWS: ProjectView[] = ['brief', 'psp', 'gantt', 'decide'];
 const VIEW_KEY = 'esource.projectView.v1';
 function loadView(): ProjectView {
   try {
@@ -151,7 +152,7 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
     !d ? <span className="lc__muted">{T.none}</span> : derived ? <span className="pj__derived" title={T.derivedHint}>{dmy(d)}<span className="sr-only"> ({T.derived})</span></span> : dmy(d);
 
   return (
-    <section className={`lc__group pc pj${view === 'psp' ? ' is-psp' : view === 'gantt' ? ' is-gantt' : ''}`} aria-labelledby="pj-head">
+    <section className={`lc__group pc pj${view === 'psp' ? ' is-psp' : view === 'gantt' || view === 'decide' ? ' is-gantt' : ''}`} aria-labelledby="pj-head">
       <header className="lc__head lc__band">
         <Icon name="project" size={15} className="icon icon--inline" />
         <h3 id="pj-head" className="lc__head-title" title={explain(TERMS.projects)}>
@@ -316,7 +317,9 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
             {error && !adding && <p className="layouts__error" role="alert">{error}</p>}
           </div>
 
-          {view === 'gantt' ? (
+          {view === 'decide' ? (
+            <ProjectDecisions key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
+          ) : view === 'gantt' ? (
             <ProjectGantt key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} onPickProject={(id) => (setSel(id), setViewState('brief'), focusRow(id))} />
           ) : view === 'psp' ? (
             <ProjectPsp key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} onPickProject={(id) => (setSel(id), setViewState('brief'), focusRow(id))} />

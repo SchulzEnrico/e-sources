@@ -40,6 +40,7 @@ import * as Psp from './psp';
 import * as Sc from './schedule';
 import * as Gt from './gantt';
 import * as Fb from './feedback';
+import * as Dc from './decisions';
 import * as Sp from './sampleProject';
 import * as FL from './focusLoad';
 import * as St from './stage';
@@ -225,6 +226,12 @@ export type Action =
   | { type: 'fbMark'; id: string; kind: 'note' | 'decision' | 'ref'; text: string; by?: string }
   | { type: 'fbRemove'; id: string }
   | { type: 'fbRestore'; undo: Fb.FeedbackUndo }
+  // F-222 (V104): Nutzwertanalyse
+  | { type: 'dcAdd'; id: string; ids: string[]; title: string; projectId?: string; at: string; names: { criterion: string[]; option: string[] } }
+  | { type: 'dcExample'; id: string; ids: string[]; which: 'flat' | 'painter'; projectId?: string; at: string }
+  | { type: 'dc'; id: string; o: Dc.DecisionOp; at: string }
+  | { type: 'dcRemove'; id: string }
+  | { type: 'dcRestore'; undo: Dc.DecisionUndo }
   | { type: 'fbAskEase'; on: boolean }
   | { type: 'personRestore'; undo: Ps.PersonUndo }
   | { type: 'noteAssign'; id: string; person?: string; by?: string }
@@ -464,6 +471,18 @@ function step(ws: Workspace, a: Action): Workspace {
       return Fb.addFeedback(ws, a.v, { id: a.id, now: new Date(a.at) })?.ws ?? ws;
     case 'fbEdit':
       return Fb.editFeedback(ws, a.id, a.patch);
+    case 'dcAdd':
+      return Dc.addDecision(ws, { title: a.title, projectId: a.projectId }, { id: a.id, ids: a.ids, now: new Date(a.at), names: { criterion: (n) => a.names.criterion[n - 1] ?? `${n}`, option: (n) => a.names.option[n - 1] ?? `${n}` } })?.ws ?? ws;
+    case 'dcExample': {
+      const ids = [...a.ids];
+      return Dc.addExample(ws, a.which, { id: a.id, newId: () => ids.shift() ?? `${a.id}-${ids.length}`, projectId: a.projectId, now: new Date(a.at) })?.ws ?? ws;
+    }
+    case 'dc':
+      return Dc.editDecision(ws, a.id, a.o, new Date(a.at));
+    case 'dcRemove':
+      return Dc.removeDecision(ws, a.id)?.ws ?? ws;
+    case 'dcRestore':
+      return Dc.undoRemoveDecision(ws, a.undo);
     case 'fbState':
       return Fb.setFeedbackState(ws, a.id, a.state, { why: a.why, by: a.by });
     case 'fbMark':

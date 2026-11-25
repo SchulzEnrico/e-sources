@@ -413,10 +413,10 @@ function DeskApp(props: DeskProps) {
   useEffect(() => {
     if (!overview) {
       // Cockpit zu → seine Tour endet mit (ihre Ziele sind weg)
-      setTour((t) => (t === 'cockpit' ? null : t));
+      setTour((t) => (t === 'cockpit' || t === 'feedback' ? null : t));
       return;
     }
-    if (PROBE || tour || !tourAutoStart('cockpit')) return;
+    if (PROBE || tour || overviewFeedback || !tourAutoStart('cockpit')) return;
     const t = window.setTimeout(() => setTour((x) => x ?? 'cockpit', true), 450);
     return () => window.clearTimeout(t);
   }, [overview]);
@@ -470,6 +470,12 @@ function DeskApp(props: DeskProps) {
     if (!overview) toggleOverview();
     window.setTimeout(() => setTour('cockpit'), overview ? 0 : 250);
   };
+  /** V104 (F-217): Tour „Feedback“ – Cockpit „Feedback“ öffnen, dann die Tour. */
+  const startFeedbackTour = () => {
+    openFeedbackCockpitRef.current();
+    window.setTimeout(() => setTour('feedback'), 300);
+  };
+  const openFeedbackCockpitRef = useRef<() => void>(() => {});
   // F-156: „?“ (außerhalb von Eingabefeldern) öffnet die Hilfe.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1823,7 +1829,8 @@ function DeskApp(props: DeskProps) {
   // ---------------------------------------------------------------- F-51/F-187 Layouts (Cockpit-Modus)
   /** V85 (N4/N8): „Im Cockpit ordnen …“ – Cockpit in der Ansicht „Notizen“. */
   /** F-221 Bau 4 (V103, FB8): Cockpit „Feedback“ (aus dem Feedback-Fenster, der Hilfe und der Suche). */
-  const openFeedbackCockpit = () => {
+  openFeedbackCockpitRef.current = () => openFeedbackCockpit();
+  function openFeedbackCockpit() {
     setOverviewRules(false);
     setOverviewLayouts(false);
     setOverviewNotes(false);
@@ -1832,7 +1839,7 @@ function DeskApp(props: DeskProps) {
     setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
     setOverview(false);
     window.setTimeout(() => setOverview(true), 0);
-  };
+  }
   const openNotesCockpit = () => {
     setOverviewFeedback(false);
     setOverviewRules(false);
@@ -3208,6 +3215,8 @@ function DeskApp(props: DeskProps) {
       case 'tourSources':
         setOverview(false);
         return window.setTimeout(() => setTour('sources'), 0);
+      case 'tourFeedback':
+        return startFeedbackTour();
       case 'tourNotes':
       case 'tourStage':
         setOverview(false);
@@ -4522,12 +4531,16 @@ function DeskApp(props: DeskProps) {
             setResetUndo(null);
           }}
           onTour={startCockpitTour}
+          onFeedbackTour={(auto) => {
+            if (!auto) return setTour('feedback');
+            if (!PROBE) setTour((x) => x ?? 'feedback', true);
+          }}
           onJackpot={() => {
             setOverview(false);
             setOverviewRules(false);
             setJackpot(true);
           }}
-          keepOpen={tour === 'cockpit'}
+          keepOpen={tour === 'cockpit' || tour === 'feedback'}
           dispatch={dispatch}
           shown={shownTheme}
           startRules={overviewRules}

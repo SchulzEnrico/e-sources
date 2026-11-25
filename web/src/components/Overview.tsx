@@ -117,6 +117,8 @@ export interface OverviewProps {
   onDismiss: () => void;
   /** F-172: Cockpit-Tour starten (Knopf im Kopf). */
   onTour?: () => void;
+  /** V104 (F-217): Tour „Feedback“ – im Cockpit „Feedback“ statt der Cockpit-Tour; auto = beim ersten Öffnen. */
+  onFeedbackTour?: (auto: boolean) => void;
   /** F-170: Slotmaschine öffnen. */
   onJackpot?: () => void;
   /** F-172: Während einer Tour nicht einklappen, wenn der Fokus ins Hinweisfenster wandert. */
@@ -868,7 +870,7 @@ export function Overview(p: OverviewProps) {
         id="overview"
         ref={box}
         // F-217 (V98): Klasse je Ansicht – die Cockpit-Tour zeigt nur die Schritte der offenen Ansicht
-        className={`overview ${layouts ? 'is-layouts' : sources ? 'is-sources' : persons ? 'is-persons' : notes ? 'is-notes' : 'is-portals'}${rules ? ' is-rules' : notes && focusView ? ' is-focus' : ''}`}
+        className={`overview ${feedback ? 'is-feedback' : layouts ? 'is-layouts' : sources ? 'is-sources' : persons ? 'is-persons' : notes ? 'is-notes' : 'is-portals'}${rules ? ' is-rules' : notes && focusView ? ' is-focus' : ''}`}
         role="dialog"
         aria-label="Cockpit: alle Portale auf einen Blick"
         aria-describedby="overview-help"
@@ -995,7 +997,7 @@ export function Overview(p: OverviewProps) {
             />
           )}
           {p.onTour && (
-            <button type="button" className="overview__tour overview__restart" onClick={p.onTour} title="Kurze Einführung ins Cockpit" aria-label="Tour durch das Cockpit starten">
+            <button type="button" className="overview__tour overview__restart" onClick={feedback && p.onFeedbackTour ? () => p.onFeedbackTour!(false) : p.onTour} title={feedback && p.onFeedbackTour ? 'Kurze Einführung ins Feedback' : 'Kurze Einführung ins Cockpit'} aria-label={feedback && p.onFeedbackTour ? 'Tour „Feedback“ starten' : 'Tour durch das Cockpit starten'}>
               <Icon name="tour" />
               <span className="c-label">Tour</span>
             </button>
@@ -1041,7 +1043,7 @@ export function Overview(p: OverviewProps) {
             );
           })()}
         {feedback && p.dispatch ? (
-          <FeedbackCockpit ws={p.ws} dispatch={p.dispatch} say={setSaid} />
+          <FeedbackCockpit ws={p.ws} dispatch={p.dispatch} say={setSaid} onTourAuto={p.onFeedbackTour ? () => p.onFeedbackTour!(true) : undefined} />
         ) : persons && p.dispatch ? (
           <PersonCockpit ws={p.ws} dispatch={p.dispatch} say={setSaid} />
         ) : notes && canNotes && focusView && !rules ? (

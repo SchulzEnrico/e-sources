@@ -274,7 +274,7 @@ export function FeedbackCard(props: {
     >
       <header className="cardwin__head">
         <span className="cardwin__where">
-          <Icon name="feedback" size={13} /> {C.head} · {T.kinds[f.kind]} · {C.states[f.state]}
+          <Icon name="feedback" size={13} /> {C.head} · {T.kinds[f.kind]}{triage ? ` · ${C.states[f.state]}` : ''}
         </span>
         <button type="button" className="cardwin__x" onClick={finish} title={C.close} aria-label={C.close}>
           <Icon name="close" size={14} />
@@ -313,7 +313,8 @@ export function FeedbackCard(props: {
             />
             <span className="fbq__hint">{T.kindHints[f.kind]}</span>
           </div>
-          <div className="fbc__wheel">
+          {/* V104 (Enrico): Zustand nur auf unserer Seite – mit „Bearbeitung“ */}
+          {triage && <div className="fbc__wheel">
             <span className="fbq__label">
               {C.stateLabel}
               {savedAt === 'state' && <span className="fbc__saved" role="status"> · {C.saved}</span>}
@@ -325,7 +326,7 @@ export function FeedbackCard(props: {
               onChange={(s) => setState(s as FeedbackState)}
             />
             <span className="fbq__hint">{C.stateHints[dropping ? 'dropped' : f.state]}</span>
-          </div>
+          </div>}
           {f.kind !== 'praise' && (
             <div className="fbc__wheel">
               <span className="fbq__label">
@@ -345,7 +346,7 @@ export function FeedbackCard(props: {
         </div>
         {f.kind !== 'praise' && <p className="fbc__explain">{C.sevExplain}</p>}
 
-        {dropping && (
+        {triage && dropping && (
           <div className="fbc__drop" role="group" aria-label={C.dropWhy}>
             <label>
               <span className="fbq__label">{C.dropWhy}</span>

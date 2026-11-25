@@ -30,7 +30,7 @@ export interface TourStep {
   keep?: boolean;
 }
 
-export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev' | 'sync' | 'notes' | 'stage';
+export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev' | 'sync' | 'notes' | 'stage' | 'feedback';
 
 const t = (id: string) => helpById(id)?.text ?? '';
 
@@ -69,7 +69,7 @@ export const TOURS: Record<TourId, TourStep[]> = {
     { id: 'search', title: 'Suchen', target: '.tb-center .search', text: t('search') },
     { id: 'focus', title: 'Fokusanzeige', target: '.toolbar .focus-meter', text: `${t('focus')} Ein Klick öffnet das Cockpit (Strg/⌘+.) – dort gibt es eine eigene kurze Tour.` },
     { id: 'design', title: 'Design', target: '.toolbar .tb-design', text: `${t('design')} Der Knopf öffnet „Design anpassen“ – mit eigener kurzer Tour.` },
-    { id: 'feedback', title: 'Feedback', target: '.toolbar .tb-fb', text: 'Fehler gefunden, Wunsch oder Frage? „Feedback“ (Alt/⌥+F) öffnet ein kleines Fenster genau hier – Titel und Art genügen, Ort und Gerät kommen automatisch mit. Alle Meldungen stehen im Cockpit am Rad „Feedback“ als Board.' },
+    { id: 'feedback', title: 'Feedback', target: '.toolbar .tb-fb', text: 'Fehler gefunden, Wunsch oder Frage? „Feedback“ (Alt/⌥+F) öffnet ein kleines Fenster genau hier – Titel und Art genügen, Ort und Gerät kommen automatisch mit. Alle deine Meldungen stehen im Cockpit am Rad „Feedback“ – mit eigener kurzer Tour.' },
     { id: 'help', title: 'Hilfe', target: '.toolbar .tb-help', text: 'Alle Funktionen und Tastenkürzel findest du hier oder mit der Taste ?. Dort kannst du auch diese Tour wieder starten.' },
   ],
   // F-217 (V98): je Ansicht des Cockpit-Rads (NF-08) – gleicher Anfang, dann nur die Schritte der offenen Ansicht
@@ -578,6 +578,57 @@ export const TOURS: Record<TourId, TourStep[]> = {
       text: 'Diese Tour findest du in „Main Stage …“, in der Hilfe (?) und in der Suche („Tour Main Stage“).',
     },
   ],
+  // V104 (F-217): Cockpit „Feedback“ (F-221) – Anwender sehen „Meine Meldungen“, mit „Bearbeitung“ das Board
+  feedback: [
+    {
+      id: 'intro',
+      title: 'Feedback',
+      text: 'Hier stehen alle deine Meldungen – Fehler, Wünsche, Fragen und Lob. Neue meldest du mit dem Knopf „Feedback“ oben neben „?“ oder Alt/⌥+F, direkt an der Stelle, um die es geht. Mit → weiter, mit Esc beenden.',
+    },
+    {
+      id: 'filter',
+      title: 'Filtern und suchen',
+      target: `${C}.is-feedback .fbb__bar`,
+      text: 'Die Räder zeigen nur eine Art (Fehler, Wunsch, Frage, Lob) oder einen Schweregrad – wie stark etwas die Arbeit stört: stört kaum, behindert, blockiert. Die Suche findet Titel und Text.',
+    },
+    {
+      id: 'list',
+      title: 'Meine Meldungen',
+      target: `${C}.is-feedback .fbb__mine`,
+      text: 'Die neueste steht oben, mit Art, Schweregrad und Datum. „2 offen“ heißt: Zwei Angaben könnten noch helfen. Pfeile hoch/runter wandern, Entf löscht – mit Rückgängig direkt über der Liste.',
+    },
+    {
+      id: 'board',
+      title: 'Board (Bearbeitung)',
+      target: `${C}.is-feedback .fbb__board`,
+      text: 'Mit „Bearbeitung“ siehst du die Meldungen als Board wie Kanban: Neu, Gesichtet, Geplant, Erledigt, Verworfen. Ziehen oder Alt/⌥+Pfeil links/rechts verschiebt, Verworfen fragt am Ort nach dem Grund.',
+    },
+    {
+      id: 'card',
+      title: 'Genauer beschreiben',
+      target: `${C}.is-feedback .fbb__card`,
+      text: 'Klick oder Enter öffnet die Meldung: Was ist passiert, was hast du erwartet, warum ist es wichtig? „Noch offen: …“ springt zu den Feldern, die noch fehlen. Bilder hängst du an oder fügst sie mit Strg/⌘+V ein. Alles speichert von selbst.',
+    },
+    {
+      id: 'file',
+      title: 'Als Datei speichern',
+      target: `${C}.is-feedback .fbb__file`,
+      text: 'Speichert deine Meldungen als zwei Dateien in den Downloads – Markdown zum Lesen und JSON zum Weitergeben. So kommen sie zu uns.',
+    },
+    {
+      id: 'triage',
+      title: 'Bearbeitung',
+      target: `${C}.is-feedback .fbb__triage`,
+      when: `${C}.is-feedback .fbb__board`,
+      text: 'Für die Entwicklung: zeigt das Board mit dem Zustand und in den Karten Zustand, Bezüge, Vermerke und „Behoben in“. Gilt nur auf diesem Gerät.',
+    },
+    {
+      id: 'again',
+      title: 'Tour wieder starten',
+      target: `${C} .overview__restart`,
+      text: 'Über den Knopf „Tour“ im Cockpit „Feedback“, die Hilfe (?) oder die Suche („Tour Feedback“) startest du diese Tour jederzeit wieder. Esc schließt das Cockpit.',
+    },
+  ],
   // V54: Werkbank des Entwickler-Modus (F-200 Stufe 2) mit „Untersuchen“ (F-200 e)
   dev: [
     {
@@ -622,7 +673,7 @@ export function tourSteps(has: (selector: string) => boolean, steps: TourStep[] 
 }
 
 /** Speicherschlüssel je Tour; die Starttour behält ihren bisherigen Schlüssel. */
-export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1', sync: 'esource.tour.sync.v1', notes: 'esource.tour.notes.v1', stage: 'esource.tour.stage.v1' };
+export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1', sync: 'esource.tour.sync.v1', notes: 'esource.tour.notes.v1', stage: 'esource.tour.stage.v1', feedback: 'esource.tour.feedback.v1' };
 
 /** Wurde die Tour schon gezeigt (beendet oder übersprungen)? */
 export function tourSeen(id: TourId = 'start'): boolean {

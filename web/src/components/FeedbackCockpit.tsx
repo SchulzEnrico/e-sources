@@ -5,7 +5,8 @@
  * am Ort nach dem Grund. Löschen mit Rückgängig am Ort. „Als Datei speichern“: Markdown + JSON, wahlweise nur Neue.
  * Tastatur: Pfeile wandern zwischen Karten und Spalten, Enter öffnet, Entf löscht.
  */
-import { type Dispatch, type DragEvent, type KeyboardEvent, useRef, useState } from 'react';
+import { type Dispatch, type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { tourAutoStart } from '../workspace/tour';
 import type { Action } from '../workspace/useWorkspace';
 import type { Feedback, FeedbackState, Workspace } from '../workspace/types';
 import * as Fb from '../workspace/feedback';
@@ -27,7 +28,7 @@ function download(name: string, text: string, type: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Action>; say: (t: string) => void; startId?: string }) {
+export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Action>; say: (t: string) => void; startId?: string; onTourAuto?: () => void }) {
   const { ws, dispatch, say } = props;
   const [kind, setKind] = useState<string>(ALL);
   const [sev, setSev] = useState<string>(ALL);
@@ -39,8 +40,15 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
   const [drop, setDrop] = useState<{ id: string; why: string; miss: boolean } | null>(null);
   const [msg, setMsg] = useState<{ state: FeedbackState; text: string; undo?: () => void } | null>(null);
   const [over, setOver] = useState<FeedbackState | null>(null);
-  const board = useRef<HTMLDivElement>(null);
+  const board = useRef<HTMLElement>(null);
   const by = ws.profile?.name || undefined;
+  // V104 (F-217): beim ersten Öffnen einmal die Tour „Feedback“
+  useEffect(() => {
+    if (!props.onTourAuto || !tourAutoStart('feedback')) return;
+    const t = window.setTimeout(() => props.onTourAuto?.(), 450);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const flt: Fb.FeedbackFilter = {
     ...(kind !== ALL ? { kinds: [kind as Feedback['kind']] } : {}),
@@ -50,6 +58,9 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
   const cols = Fb.feedbackBoard(ws, flt);
   const total = Fb.feedbackOf(ws).length;
   const shown = cols.reduce((s, c) => s + c.items.length, 0);
+  // V104 (Enrico): Anwender sehen keinen Zustand – ohne „Bearbeitung“ eine Liste „Meine Meldungen“, neueste oben
+  const list = triage ? [] : Fb.feedbackList(ws, flt);
+  const fileOnlyNew = triage && onlyNew;
 
   const focusCard = (id: string) => window.setTimeout(() => board.current?.querySelector<HTMLElement>(`[data-fb="${id}"]`)?.focus(), 0);
   const tell = (state: FeedbackState, text: string, undo?: () => void) => {
@@ -89,10 +100,10 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
   };
   const saveFile = () => {
     const now = new Date();
-    const n = onlyNew ? Fb.newCount(ws) : total;
+    const n = fileOnlyNew ? Fb.newCount(ws) : total;
     if (!n) return say(K.fileEmpty);
-    download(Fb.feedbackFileName(now, 'md'), Fb.feedbackFileMarkdown(ws, { onlyNew }), 'text/markdown');
-    download(Fb.feedbackFileName(now, 'json'), Fb.feedbackFileJson(ws, { onlyNew }), 'application/json');
+    download(Fb.feedbackFileName(now, 'md'), Fb.feedbackFileMarkdown(ws, { onlyNew: fileOnlyNew }), 'text/markdown');
+    download(Fb.feedbackFileName(now, 'json'), Fb.feedbackFileJson(ws, { onlyNew: fileOnlyNew }), 'application/json');
     say(K.fileSaved(n));
   };
 
@@ -122,6 +133,14 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
     if (e.key === 'Delete' || e.key === 'Backspace') return void (e.preventDefault(), remove(f.id));
   };
 
+  const listKey = (e: KeyboardEvent<HTMLElement>, f: Feedback, ri: number) => {
+    const go = (r: number) => list[r] && focusCard(list[r].id);
+    if (e.key === 'ArrowDown') return void (e.preventDefault(), go(ri + 1));
+    if (e.key === 'ArrowUp') return void (e.preventDefault(), go(ri - 1));
+    if (e.key === 'Enter' || e.key === ' ') return void (e.preventDefault(), setCard(f.id));
+    if (e.key === 'Delete' || e.key === 'Backspace') return void (e.preventDefault(), remove(f.id));
+  };
+
   const onDrop = (e: DragEvent, to: FeedbackState) => {
     e.preventDefault();
     setOver(null);
@@ -131,7 +150,7 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
 
   return (
     <section className="fbb" aria-label={K.region}>
-      <p className="fbb__intro">{K.intro}</p>
+      <p className="fbb__intro">{triage ? K.intro : K.introUser}</p>
       <div className="fbb__bar">
         <div className="fbc__wheel">
           <span className="fbq__label">{K.kindFilter}</span>
@@ -159,9 +178,9 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
           <input type="checkbox" checked={triage} onChange={(e) => setTriage(e.target.checked)} /> {K.triage}
         </label>
         <div className="fbb__file" role="group" aria-label={K.fileGroup}>
-          <label className="fbb__only">
+          {triage && <label className="fbb__only">
             <input type="checkbox" checked={onlyNew} onChange={(e) => setOnlyNew(e.target.checked)} /> {K.onlyNew}
-          </label>
+          </label>}
           <button type="button" onClick={saveFile} title={K.fileHint}>
             <Icon name="download" size={13} /> {K.file}
           </button>
@@ -170,7 +189,56 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
       <p className="fbb__count" role="status">
         {total ? K.count(shown, total) : K.empty}
       </p>
-      <div className="fbb__board" ref={board}>
+      {!triage && (
+        <section className="fbb__mine" ref={board} aria-label={K.mine}>
+          <h3 className="fbb__head">
+            {K.mine} <span className="fbb__n">{list.length}</span>
+          </h3>
+          {msg && (
+            <p className="sheet__msg fbb__msg" role="status">
+              {msg.text}
+              {msg.undo && (
+                <button type="button" className="note__undo" onClick={() => (msg.undo!(), setMsg(null))}>
+                  {T.undo}
+                </button>
+              )}
+            </p>
+          )}
+          <ul className="fbb__cards">
+            {list.map((f, ri) => {
+              const miss = Fb.missingOf(f).length;
+              return (
+                <li key={f.id}>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    data-fb={f.id}
+                    className={`fbb__card is-${f.kind}${f.severity ? ` sev-${f.severity}` : ''}`}
+                    aria-label={K.cardLabel(T.kinds[f.kind], f.title, f.severity ? C.sevs[f.severity] : '', miss)}
+                    aria-describedby="fbb-keys"
+                    onClick={() => setCard(f.id)}
+                    onKeyDown={(e) => listKey(e, f, ri)}
+                  >
+                    <span className="fbb__kind">{T.kinds[f.kind]}</span>
+                    {f.severity && <span className={`fbb__sev sev-${f.severity}`}>{C.sevs[f.severity]}</span>}
+                    <span className="fbb__title">{f.title}</span>
+                    <span className="fbb__signs">
+                      <time dateTime={f.at}>{K.when(f.at)}</time>
+                      {f.pics?.length ? (
+                        <span title={K.pics(f.pics.length)}>
+                          <Icon name="image" size={11} /> {f.pics.length}
+                        </span>
+                      ) : null}
+                      {miss ? <span className="fbb__open">{K.open(miss)}</span> : null}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+      {triage && <div className="fbb__board" ref={board as React.RefObject<HTMLDivElement>}>
         {cols.map((c, ci) => (
           <section
             key={c.state}
@@ -252,8 +320,9 @@ export function FeedbackCockpit(props: { ws: Workspace; dispatch: Dispatch<Actio
             </ul>
           </section>
         ))}
-      </div>
-      <p id="fbb-keys" className="fbb__keys">{K.keys}</p>
+      
+      </div>}
+      <p id="fbb-keys" className="fbb__keys">{triage ? K.keys : K.keysUser}</p>
       {card && (
         <FeedbackCard
           ws={ws}

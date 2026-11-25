@@ -5977,6 +5977,27 @@ describe('F-217 Touren prüfen (V98)', () => {
     expect(H.searchHelp('Tour Main Stage')[0].id).toBe('tourStage');
     expect(new Set(Object.values(Tour.TOUR_KEY)).size).toBe(Object.keys(Tour.TOURS).length);
   });
+  it('V104: Tour „Feedback“ – eigener Merker, im Cockpit „Feedback“, Board-Schritte nur mit Bearbeitung, in der Suche', () => {
+    const t = Tour.TOURS.feedback;
+    expect(t[0].target).toBe(undefined);
+    expect(new Set(t.map((s) => s.id)).size).toBe(t.length);
+    expect(Tour.TOUR_KEY.feedback).toBe('esource.tour.feedback.v1');
+    expect(t.filter((s) => s.target && s.id !== 'again').every((s) => s.target!.includes('.is-feedback'))).toBe(true);
+    const user = (sel: string) => sel.includes('.is-feedback') && !sel.includes('fbb__board') && !sel.includes('fbb__triage');
+    const ids = Tour.tourSteps(user, t).map((s) => s.id);
+    expect(ids).toEqual(['intro', 'filter', 'list', 'card', 'file']);
+    expect(H.searchHelp('Tour Feedback')[0].id).toBe('tourFeedback');
+  });
+  it('V104: Feedback ohne Zustand für Anwender – Liste neueste oben, Filter gelten', () => {
+    let w: Workspace = W.defaultWorkspace();
+    w = Fb.addFeedback(w, { kind: 'bug', title: 'Alt' }, { id: 'a', now: new Date('2026-11-20T10:00:00Z') })!.ws;
+    w = Fb.addFeedback(w, { kind: 'wish', title: 'Neu' }, { id: 'b', now: new Date('2026-11-24T10:00:00Z') })!.ws;
+    w = Fb.setFeedbackState(w, 'b', 'done');
+    expect(Fb.feedbackList(w).map((f) => f.id)).toEqual(['b', 'a']);
+    expect(Fb.feedbackList(w, { kinds: ['bug'] }).map((f) => f.id)).toEqual(['a']);
+    expect(H.helpById('feedbackCockpit')!.text.startsWith('Im Cockpit')).toBe(true);
+    expect(H.helpById('feedbackCockpit')!.text.indexOf('Meine Meldungen')).toBeGreaterThan(-1);
+  });
   it('Design-Tour zielt auf die Räder, nicht mehr auf die alten Farbpunkte', () => {
     const d = Tour.TOURS.design;
     expect(d.some((s) => (s.target ?? '').includes('look__swatches'))).toBe(false);
@@ -6517,5 +6538,84 @@ describe('V103 Pads je Modus und Dock eingeklappt (Wunsch Enrico)', () => {
     ws = Pd.setNotesOnly(ws, ['pb'], false);
     expect(Pd.deskPadsOn(ws, '')).toHaveLength(2);
     expect(Pd.dockOf(W.defaultWorkspace(), '').folded).toBe(true);
+  });
+});
+
+describe('F-222 Werkzeug (V104): Bearbeiten, Zustand, Beispiele, Ausgabe', () => {
+  const at = new Date('2026-12-01T10:00:00Z');
+  const names = { criterion: (n: number) => `Kriterium ${n}`, option: (n: number) => `Lösung ${n}` };
+  const base = () => {
+    const ws0 = { ...W.defaultWorkspace(), projects: [{ id: 'p1', name: 'Büro' }] } as Workspace;
+    return Dc.addDecision(ws0, { title: ' Malerbetrieb ', projectId: 'p1' }, { id: 'd', ids: ['c1', 'c2', 'c3', 'o1', 'o2'], now: at, names })!.ws;
+  };
+  const d = (ws: Workspace) => Dc.decisionsOf(ws).find((x) => x.id === 'd')!;
+  const ed = (ws: Workspace, o: Dc.DecisionOp) => Dc.editDecision(ws, 'd', o, at);
+
+  it('neu: 3 Kriterien, 2 Lösungen, Entwurf, am Projekt; leerer Titel geht nicht', () => {
+    const ws = base();
+    expect(d(ws)).toMatchObject({ title: 'Malerbetrieb', state: 'draft', projectId: 'p1' });
+    expect(d(ws).criteria.map((c) => c.name)).toEqual(['Kriterium 1', 'Kriterium 2', 'Kriterium 3']);
+    expect(d(ws).options).toHaveLength(2);
+    expect(Dc.addDecision(ws, { title: '  ' }, { id: 'x', ids: ['a', 'b', 'c', 'd', 'e'], names })).toBeNull();
+  });
+  it('Gewichte, Bewertung, Zustand „Bewertet“, Muss-Kriterium, Entscheiden mit Begründung, Sperre', () => {
+    let ws = base();
+    ws = ed(ws, { op: 'normalize' });
+    expect(d(ws).criteria.map((c) => c.weight)).toEqual([33.4, 33.3, 33.3]);
+    ws = ed(ws, { op: 'critMust', c: 'c3', must: true });
+    expect(d(ws).criteria[2].weight).toBeUndefined();
+    ws = ed(ws, { op: 'normalize' });
+    expect(Dc.weightSum(d(ws))).toBe(100);
+    for (const [c, o, v] of [['c1', 'o1', 8], ['c2', 'o1', 4], ['c1', 'o2', 5], ['c2', 'o2', 12]] as const) ws = ed(ws, { op: 'score', c, o, v });
+    expect(Dc.scoreOf(d(ws), 'c2', 'o2')!.v).toBe(10);
+    expect(d(ws).state).toBe('rated');
+    expect(Dc.winner(d(ws))!.id).toBe('o2');
+    ws = ed(ws, { op: 'fails', o: 'o2', c: 'c3', fails: true });
+    expect(Dc.winner(d(ws))!.id).toBe('o1');
+    ws = ed(ws, { op: 'fails', o: 'o2', c: 'c3', fails: false });
+    expect(ed(ws, { op: 'decide', o: 'o1' })).toBe(ws); // Abweichung ohne Begründung
+    ws = ed(ws, { op: 'decide', o: 'o1', why: 'Kennen den Betrieb' });
+    expect(d(ws)).toMatchObject({ state: 'decided', chosen: 'o1', locked: true });
+    expect(ed(ws, { op: 'title', title: 'Neu' })).toBe(ws); // gesperrt
+    ws = ed(ws, { op: 'reopen' });
+    expect(d(ws).chosen).toBeUndefined();
+    expect(d(ws).state).toBe('rated');
+    expect(d(ws).marks!.map((m) => m.text)).toEqual(['Entschieden: Lösung 1 – Kennen den Betrieb', 'Wieder geöffnet']);
+  });
+  it('Paarvergleich: Schlüssel in Listenreihenfolge, übernehmen, Abweichung erkennen; Entfernen räumt auf', () => {
+    let ws = base();
+    ws = ed(ws, { op: 'pair', a: 'c2', b: 'c1', v: 2 }); // c2 wichtiger als c1
+    expect(d(ws).pairs).toEqual({ 'c1|c2': 0 });
+    ws = ed(ws, { op: 'pairApply' });
+    expect(d(ws).criteria.map((c) => c.weight)).toEqual([16.7, 50, 33.3]);
+    expect(Dc.pairsDiffer(d(ws))).toBe(false);
+    ws = ed(ws, { op: 'critWeight', c: 'c1', weight: 30 });
+    expect(Dc.pairsDiffer(d(ws))).toBe(true);
+    ws = ed(ws, { op: 'score', c: 'c2', o: 'o1', v: 3 });
+    ws = ed(ws, { op: 'critRemove', c: 'c2' });
+    expect(d(ws).pairs).toBeUndefined();
+    expect(d(ws).scores).toEqual([]);
+    ws = ed(ws, { op: 'critMove', c: 'c3', to: 0 });
+    expect(d(ws).criteria.map((c) => c.id)).toEqual(['c3', 'c1']);
+    const r = Dc.removeDecision(ws, 'd')!;
+    expect(Dc.decisionsOf(r.ws)).toHaveLength(0);
+    expect(d(Dc.undoRemoveDecision(r.ws, r.undo)).title).toBe('Malerbetrieb');
+  });
+  it('Beispiele Wohnung und Malerbetrieb: vollständig bewertet, einer scheidet aus; Markdown und CSV', () => {
+    let n = 0;
+    for (const which of ['flat', 'painter'] as const) {
+      const r = Dc.addExample(W.defaultWorkspace(), which, { id: 'e', newId: () => `i${n++}`, now: at })!;
+      const e = Dc.decisionsOf(r.ws)[0];
+      expect(e.state).toBe('rated');
+      expect(Dc.weightSum(e)).toBe(100);
+      const rk = Dc.ranking(e);
+      expect(rk.filter((x) => x.out)).toHaveLength(1);
+      expect(Dc.winner(e)).toBeDefined();
+      const md = Dc.decisionMarkdown(e);
+      expect(md).toContain('## Ergebnis');
+      expect(md).toContain('scheidet aus');
+      expect(Dc.decisionCsv(e).split('\n')[0].startsWith('Lösung;')).toBe(true);
+    }
+    expect(Dc.decisionFileName({ title: 'Beispiel: Welche Wohnung?' } as never, 'md')).toBe('Entscheidung_Beispiel_Welche_Wohnung.md');
   });
 });

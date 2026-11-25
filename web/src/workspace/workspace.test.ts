@@ -5019,6 +5019,7 @@ describe('F-215 V79: Bild im Text (B1–B3)', () => {
 
 // ---------------------------------------------------------------- V83 (F-216): Umschalt-Rad
 import * as MW from './modeWheel';
+import * as SR from './searchRank';
 describe('Umschalt-Rad (F-216)', () => {
   it('sammelt Scroll-Weg zu Rasten, Rest bleibt, Umkehr verwirft den Rest', () => {
     let r = MW.addTravel(0, 15, 40);
@@ -5086,5 +5087,49 @@ describe('Rad „Pads“ und Zwischenlage (F-206 Schritt 5, N4)', () => {
     expect(MW.turnFrom(-1, 3, 3, false, 0)).toBe(2);
     expect(MW.turnFrom(-1, 0, 3, false, 0)).toBe(-1);
     expect(MW.turnFrom(1, 1, 3, false, 0)).toBe(2);
+  });
+});
+
+describe('V84 Suche: Passung über alle Arten (F-206 N6)', () => {
+  it('bewertet Titel vor Beiwerk', () => {
+    expect(SR.fitOf('hamburg', 'Hamburg')).toBe(100);
+    expect(SR.fitOf('ham', 'Hamburg Hafen')).toBe(85);
+    expect(SR.fitOf('haf', 'Hamburg Hafen')).toBe(70);
+    expect(SR.fitOf('burg', 'Hamburg')).toBe(55);
+    expect(SR.fitOf('hafen hamburg', 'Hamburg Hafen')).toBe(45);
+    expect(SR.fitOf('wiki', 'Elbphilharmonie', ['de.wikipedia.org'])).toBe(20);
+    expect(SR.fitOf('de.wiki', 'Elbphilharmonie', ['de.wikipedia.org'])).toBe(30);
+    expect(SR.fitOf('xyz', 'Elbphilharmonie')).toBe(5);
+    expect(SR.fitOf('cafe', 'Café Paris')).toBe(85);
+    expect(SR.fitOf('  ', 'x')).toBe(0);
+  });
+  it('sortiert beste Treffer nach oben, egal welcher Art; gleiche Passung behält die Reihenfolge', () => {
+    const items: SR.Rankable[] = [
+      { kind: 'portal', title: 'Mail' },
+      { kind: 'source', title: 'Notizblock online', extra: ['notes.example.com'] },
+      { kind: 'note', title: 'Notiz' },
+      { kind: 'function', title: 'Neue Notiz' },
+    ];
+    expect(SR.rankHits(items, 'notiz').map((x) => x.title)).toEqual(['Notiz', 'Notizblock online', 'Neue Notiz', 'Mail']);
+    const q: SR.Rankable[] = [
+      { kind: 'function', title: 'Wie' },
+      { kind: 'question', title: 'Wie lege ich einen Slot an?' },
+    ];
+    expect(SR.rankHits(q, 'wie', true)[0].kind).toBe('question');
+    expect(SR.rankHits(q, 'wie', false)[0].kind).toBe('function');
+  });
+  it('zählt je Chip und filtert', () => {
+    const items = [{ kind: 'case' as const }, { kind: 'portal' as const }, { kind: 'source' as const }, { kind: 'view' as const }, { kind: 'question' as const }, { kind: 'term' as const }];
+    expect(SR.chipCounts(items)).toEqual({ all: 6, portals: 2, library: 1, notes: 1, functions: 2 });
+    expect(SR.byChip(items, 'notes')).toHaveLength(1);
+    expect(SR.byChip(items, 'all')).toHaveLength(6);
+  });
+  it('Strg/⌃+Pfeil springt ringsum zum nächsten Chip mit Treffern', () => {
+    const c = { all: 3, portals: 0, library: 2, notes: 0, functions: 1 };
+    expect(SR.chipStep('all', 1, c)).toBe('library');
+    expect(SR.chipStep('library', 1, c)).toBe('functions');
+    expect(SR.chipStep('functions', 1, c)).toBe('all');
+    expect(SR.chipStep('all', -1, c)).toBe('functions');
+    expect(SR.chipStep('all', 1, { all: 0, portals: 0, library: 0, notes: 0, functions: 0 })).toBe('all');
   });
 });

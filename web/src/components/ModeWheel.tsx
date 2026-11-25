@@ -34,6 +34,8 @@ export function ModeWheel(props: {
   /** ringsum statt Anschlag (ab Werk: ab 6 Modi) */
   wrap?: boolean;
   className?: string;
+  /** V84: feste Id, z. B. damit ein Hinweis das Rad fokussieren kann („set-pause“) */
+  id?: string;
   /** Wert passt zu keiner Raste (z. B. Rad „Pads“ = Gemischt): Name dafür; steht zwischen `after` und `after + 1` */
   between?: { name: string; after: number };
   /** gesperrt (z. B. keine Pads): bleibt fokussierbar und sagt im Tooltip, warum */
@@ -201,6 +203,7 @@ export function ModeWheel(props: {
     <div
       ref={el}
       className={`mwheel${turning ? ' is-turning' : ''}${mixed && cur < 0 ? ' is-between' : ''}${props.disabled ? ' is-off' : ''}${props.className ? ` ${props.className}` : ''}`}
+      id={props.id}
       role="slider"
       tabIndex={0}
       aria-label={props.label}

@@ -10,6 +10,7 @@
  */
 import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
+import { ModeWheel } from './ModeWheel';
 import * as DL from '../workspace/deskLayouts';
 import { SCREEN_CLASSES, allowsTwoLines, screenClass, specOf, type Lines, type Orientation, type ScreenClassId, type ScreenSetup } from '../workspace/screen';
 import { setupFor, DEFAULT_MIN } from '../workspace/workspace';
@@ -526,26 +527,39 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
           </h3>
           {/* F-187 Stufe 2: Gerät wählbar – Anordnung festlegen, ohne das Gerät zu haben */}
           <span className="lc__device" role="group" aria-label={LT.deviceTerm}>
-            <select aria-label={LT.deviceLabel} value={setup.cls} onChange={(e) => pickDevice({ cls: e.target.value as ScreenClassId, orientation: setup.orientation })}>
-              {SCREEN_CLASSES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                  {c.id === real.cls ? ` · ${LT.device}` : ''}
-                </option>
-              ))}
-            </select>
+            {/* V84 (F-216, U6): Gerät · Ausrichtung · Reihen als Umschalt-Räder (Anschlag – die Geräte stehen der Größe nach) */}
+            <ModeWheel
+              className="lc__wheel"
+              label={LT.deviceLabel}
+              wrap={false}
+              value={setup.cls}
+              onChange={(id) => pickDevice({ cls: id as ScreenClassId, orientation: setup.orientation })}
+              options={SCREEN_CLASSES.map((c) => ({ id: c.id, name: c.id === real.cls ? `${c.label} · ${LT.device}` : c.label }))}
+            />
             <span aria-hidden="true">·</span>
-            <select aria-label={LT.orientLabel} value={setup.orientation} onChange={(e) => pickDevice({ cls: setup.cls, orientation: e.target.value as Orientation })}>
-              <option value="landscape">{LT.landscape}</option>
-              <option value="portrait">{LT.portrait}</option>
-            </select>
+            <ModeWheel
+              className="lc__wheel"
+              label={LT.orientLabel}
+              value={setup.orientation}
+              onChange={(id) => pickDevice({ cls: setup.cls, orientation: id as Orientation })}
+              options={[
+                { id: 'landscape', name: LT.landscape },
+                { id: 'portrait', name: LT.portrait },
+              ]}
+            />
             {allowsTwoLines(setup.cls) && (
               <>
                 <span aria-hidden="true">·</span>
-                <select aria-label={LT.linesLabel} title={LT.linesTerm} value={spec.lines} onChange={(e) => pickDevice({ cls: setup.cls, orientation: setup.orientation, lines: Number(e.target.value) as Lines })}>
-                  <option value={1}>{LT.lines(1)}</option>
-                  <option value={2}>{LT.lines(2)}</option>
-                </select>
+                <ModeWheel
+                  className="lc__wheel"
+                  label={LT.linesLabel}
+                  value={String(spec.lines)}
+                  onChange={(id) => pickDevice({ cls: setup.cls, orientation: setup.orientation, lines: Number(id) as Lines })}
+                  options={[
+                    { id: '1', name: LT.lines(1), hint: LT.linesTerm },
+                    { id: '2', name: LT.lines(2), hint: LT.linesTerm },
+                  ]}
+                />
               </>
             )}
             {foreign && (

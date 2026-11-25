@@ -5,6 +5,7 @@
  * F-205: Begrüßung wählbar – Wahl mit Vorschau, gespeichert mit „Übernehmen“ (oder „Fertig“, damit nichts verloren geht).
  */
 import { Icon } from './Icon';
+import { ModeWheel } from './ModeWheel';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { NAME_MAX, PROFILE_COLORS, type Profile, initialsOf } from '../workspace/profile';
 import { TERMS, WELCOME_TEXT as W } from '../workspace/terms';
@@ -161,16 +162,15 @@ function WelcomePick({ draft, setDraft, name, pending, onApply }: { draft: Welco
   return (
     <fieldset className="welcome">
       <legend>{W.legend}</legend>
-      <div className="welcome__modes" role="radiogroup" aria-label={W.legend}>
-        {MODES.map((m) => (
-          <label key={m} className="welcome__mode" title={W.modeHints[m]}>
-            <input type="radio" name="welcome-mode" checked={draft.mode === m} onChange={() => set({ mode: m })} aria-describedby={`welcome-hint-${m}`} />
-            <span>{W.modes[m]}</span>
-            <span id={`welcome-hint-${m}`} className="sr-only">
-              {W.modeHints[m]}
-            </span>
-          </label>
-        ))}
+      {/* V84 (F-216, U6): Art der Begrüßung als Umschalt-Rad; Erklärung der gewählten Art steht darunter */}
+      <div className="welcome__wheel">
+        <span className="welcome__label" aria-hidden="true">{W.legend}</span>
+        <ModeWheel
+          label={W.legend}
+          value={draft.mode}
+          onChange={(m) => set({ mode: m as WelcomeMode })}
+          options={MODES.map((m) => ({ id: m, name: W.modes[m], hint: W.modeHints[m] }))}
+        />
       </div>
       <p className="welcome__hint">{W.modeHints[draft.mode]}</p>
 
@@ -199,33 +199,25 @@ function WelcomePick({ draft, setDraft, name, pending, onApply }: { draft: Welco
       )}
 
       {(draft.mode === 'quote' || (draft.mode === 'random' && draft.pool.some((k) => k.startsWith('q:')))) && (
-        <div className="welcome__forms" role="radiogroup" aria-label={W.form}>
-          <span className="welcome__label" aria-hidden="true">
-            {W.form}
-          </span>
-          {FORMS.map((f) => (
-            <label key={f}>
-              <input type="radio" name="welcome-form" checked={draft.form === f} onChange={() => set({ form: f })} />
-              {W.forms[f]}
-            </label>
-          ))}
+        <div className="welcome__wheel">
+          <span className="welcome__label" aria-hidden="true">{W.form}</span>
+          <ModeWheel label={W.form} value={draft.form} onChange={(f) => set({ form: f as QuoteForm })} options={FORMS.map((f) => ({ id: f, name: W.forms[f] }))} />
         </div>
       )}
 
       {draft.mode === 'random' && (
         <>
-          <div className="welcome__forms" role="radiogroup" aria-label={W.every}>
-            <span className="welcome__label" aria-hidden="true">
-              {W.every}
-            </span>
-            <label>
-              <input type="radio" name="welcome-every" checked={draft.every === 'day'} onChange={() => set({ every: 'day' })} />
-              {W.everyDay}
-            </label>
-            <label>
-              <input type="radio" name="welcome-every" checked={draft.every === 'open'} onChange={() => set({ every: 'open' })} />
-              {W.everyOpen}
-            </label>
+          <div className="welcome__wheel">
+            <span className="welcome__label" aria-hidden="true">{W.every}</span>
+            <ModeWheel
+              label={W.every}
+              value={draft.every}
+              onChange={(v) => set({ every: v as typeof draft.every })}
+              options={[
+                { id: 'day', name: W.everyDay },
+                { id: 'open', name: W.everyOpen },
+              ]}
+            />
           </div>
           <fieldset className="welcome__pool">
             <legend>

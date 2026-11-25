@@ -221,7 +221,6 @@ export function Overview(p: OverviewProps) {
   const [said, setSaid] = useState('');
   /** F-164: Regelübersicht statt Radar. */
   const [rules, setRules] = useState(!!p.startRules && !!p.dispatch);
-  const rulesBtn = useRef<HTMLButtonElement>(null);
   /** F-187: Modus „Layouts“ statt Portale. */
   const [layouts, setLayouts] = useState(!!p.startLayouts && !!p.layoutOps && !!p.dispatch);
   /** F-202 Stufe 3: Modus „Sources“ (Mehrfachauswahl aller Sources). */
@@ -880,24 +879,19 @@ export function Overview(p: OverviewProps) {
               <Icon name="jackpot" />
             </button>
           )}
-          {p.dispatch && (
-            <button
-              ref={rulesBtn}
-              type="button"
-              className="overview__tour overview__rules"
-              aria-pressed={rules}
-              aria-label={rules ? RULES_TEXT.back : RULES_TEXT.open}
-              title={rules ? RULES_TEXT.backTitle : RULES_TEXT.openTitle}
-              onClick={() => {
-                setRules(!rules);
-                setLayouts(false);
-                setSources(false);
-                if (rules) window.setTimeout(() => rulesBtn.current?.focus(), 0);
-              }}
-            >
-              <Icon name={rules ? 'radar' : 'rules'} />
-              <span className="c-label">{rules ? RULES_TEXT.back : RULES_TEXT.open}</span>
-            </button>
+          {/* V84 (F-216, U6): Regeln | Radar als Umschalt-Rad – nur in der Ansicht „Portale“ (dort sind Radar und Regeln zwei
+              Seiten derselben Ansicht); verspringt nicht, weil es an der Stelle des alten Knopfs sitzt */}
+          {p.dispatch && !layouts && !sources && (
+            <ModeWheel
+              className="overview__rules"
+              label={RULES_TEXT.wheel}
+              value={rules ? 'rules' : 'radar'}
+              onChange={(v) => setRules(v === 'rules')}
+              options={[
+                { id: 'radar', name: RULES_TEXT.back, icon: 'radar', hint: RULES_TEXT.backTitle },
+                { id: 'rules', name: RULES_TEXT.open, icon: 'rules', hint: RULES_TEXT.openTitle },
+              ]}
+            />
           )}
           {p.onTour && (
             <button type="button" className="overview__tour overview__restart" onClick={p.onTour} title="Kurze Einführung ins Cockpit" aria-label="Tour durch das Cockpit starten">

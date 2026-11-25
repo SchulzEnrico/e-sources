@@ -3191,18 +3191,19 @@ function DeskApp(props: DeskProps) {
                 Beispiel-Sources anlegen
               </Item>
               <li className="menu__sep" role="separator" />
-              <li className="menu__field">
-                <label>
-                  Bildschirm
-                  <select value={clsOverride} onChange={(e) => setClsOverride(e.target.value as ScreenClassId | 'auto')}>
-                    <option value="auto">Automatisch ({screenClass(detected.cls).label})</option>
-                    {SCREEN_CLASSES.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label} – {c.capacity} sichtbar
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              {/* V84 (F-216, NF-08): Bildschirm als Umschalt-Rad wie das Gerät in der Layouts-Vorschau (Anschlag, der Größe nach) */}
+              <li role="none" className="menu__wheel">
+                <span className="menu__wheel-cap" aria-hidden="true">Bildschirm</span>
+                <ModeWheel
+                  label="Bildschirm"
+                  wrap={false}
+                  value={clsOverride}
+                  onChange={(v) => setClsOverride(v as ScreenClassId | 'auto')}
+                  options={[
+                    { id: 'auto', name: `Automatisch (${screenClass(detected.cls).label})` },
+                    ...SCREEN_CLASSES.map((c) => ({ id: c.id, name: c.label, hint: `${c.capacity} sichtbar` })),
+                  ]}
+                />
               </li>
               {/* F-189: Suchmaschine für „Im Web suchen“ */}
               <li className="menu__field">
@@ -3266,73 +3267,60 @@ function DeskApp(props: DeskProps) {
                   {SEND_TEXT.dragHint}
                 </span>
               </li>
-              {/* F-06: Verdecktes pausieren */}
-              <li className="menu__field">
-                <label title={PAUSE_TEXT.settingHint}>
-                  {PAUSE_TEXT.setting}
-                  <select
-                    id="set-pause"
-                    value={pauseMinutes(ws)}
-                    aria-description={PAUSE_TEXT.settingHint}
-                    onChange={(e) => {
-                      const min = Number(e.target.value);
-                      dispatch({ type: 'pause', minutes: min });
-                      sayLive(PAUSE_TEXT.changed(min));
-                    }}
-                  >
-                    {PAUSE_CHOICES.map((m) => (
-                      <option key={m} value={m}>
-                        {PAUSE_TEXT.choice(m)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              {/* F-06: Verdecktes pausieren – V84 (F-216, U6): als Umschalt-Rad (Anschlag) */}
+              <li role="none" className="menu__wheel" title={PAUSE_TEXT.settingHint}>
+                <span className="menu__wheel-cap" aria-hidden="true">{PAUSE_TEXT.setting}</span>
+                <ModeWheel
+                  id="set-pause"
+                  label={PAUSE_TEXT.setting}
+                  wrap={false}
+                  value={String(pauseMinutes(ws))}
+                  onChange={(v) => {
+                    const min = Number(v);
+                    dispatch({ type: 'pause', minutes: min });
+                    sayLive(PAUSE_TEXT.changed(min));
+                  }}
+                  options={PAUSE_CHOICES.map((m) => ({ id: String(m), name: PAUSE_TEXT.choice(m), hint: PAUSE_TEXT.settingHint }))}
+                />
               </li>
-              {/* F-06 Stufe 2: Sichtbares pausieren */}
-              <li className="menu__field">
-                <label title={PAUSE_TEXT.shownHint}>
-                  {PAUSE_TEXT.shownSetting}
-                  <select
-                    value={shownMinutes(ws)}
-                    aria-description={PAUSE_TEXT.shownHint}
-                    onChange={(e) => {
-                      const min = Number(e.target.value);
-                      dispatch({ type: 'pauseShown', minutes: min });
-                      sayLive(PAUSE_TEXT.shownChanged(min));
-                    }}
-                  >
-                    {SHOWN_CHOICES.map((m) => (
-                      <option key={m} value={m}>
-                        {PAUSE_TEXT.shownChoice(m)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              {/* F-06 Stufe 2: Sichtbares pausieren – V84 (F-216, U6): als Umschalt-Rad */}
+              <li role="none" className="menu__wheel" title={PAUSE_TEXT.shownHint}>
+                <span className="menu__wheel-cap" aria-hidden="true">{PAUSE_TEXT.shownSetting}</span>
+                <ModeWheel
+                  label={PAUSE_TEXT.shownSetting}
+                  wrap={false}
+                  value={String(shownMinutes(ws))}
+                  onChange={(v) => {
+                    const min = Number(v);
+                    dispatch({ type: 'pauseShown', minutes: min });
+                    sayLive(PAUSE_TEXT.shownChanged(min));
+                  }}
+                  options={SHOWN_CHOICES.map((m) => ({ id: String(m), name: PAUSE_TEXT.shownChoice(m), hint: PAUSE_TEXT.shownHint }))}
+                />
               </li>
-              <li className="menu__field">
-                <label>
-                  Ausrichtung
-                  <select value={oriOverride} onChange={(e) => setOriOverride(e.target.value as Orientation | 'auto')}>
-                    <option value="auto">Automatisch ({detected.orientation === 'landscape' ? 'quer' : 'hoch'})</option>
-                    <option value="landscape">Querformat</option>
-                    <option value="portrait">Hochformat</option>
-                  </select>
-                </label>
+              {/* V84 (F-216, U6): Ausrichtung und Reihen als Umschalt-Räder */}
+              <li role="none" className="menu__wheel">
+                <span className="menu__wheel-cap" aria-hidden="true">Ausrichtung</span>
+                <ModeWheel
+                  label="Ausrichtung"
+                  value={oriOverride}
+                  onChange={(v) => setOriOverride(v as Orientation | 'auto')}
+                  options={[
+                    { id: 'auto', name: `Automatisch (${detected.orientation === 'landscape' ? 'quer' : 'hoch'})` },
+                    { id: 'landscape', name: 'Querformat' },
+                    { id: 'portrait', name: 'Hochformat' },
+                  ]}
+                />
               </li>
               {canTwoLines && (
-                <li className="menu__field">
-                  <span className="seg" role="group" aria-label="Reihen">
-                    {([1, 2] as Lines[]).map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        className={setup.lines === n ? 'on' : ''}
-                        onClick={() => dispatch({ type: 'setLines', cls, orientation, lines: n })}
-                      >
-                        {lineWord[n - 1]}
-                      </button>
-                    ))}
-                  </span>
+                <li role="none" className="menu__wheel">
+                  <span className="menu__wheel-cap" aria-hidden="true">Reihen</span>
+                  <ModeWheel
+                    label="Reihen"
+                    value={String(setup.lines)}
+                    onChange={(v) => dispatch({ type: 'setLines', cls, orientation, lines: Number(v) as Lines })}
+                    options={([1, 2] as Lines[]).map((n) => ({ id: String(n), name: lineWord[n - 1] }))}
+                  />
                 </li>
               )}
               <li className="menu__sep" role="separator" />

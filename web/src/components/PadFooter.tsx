@@ -19,6 +19,7 @@ import { VOICE_DWELL_MS, type VoiceTarget, defaultTarget, voiceGesture, voicePro
 import { type AudioTake, useVoice } from './useVoice';
 import type { IconName } from '../workspace/icons';
 import { Icon } from './Icon';
+import { ModeWheel } from './ModeWheel';
 import { aimItem, nearness, arcPos, firstItem, stepItem, type SwipeDir, swipeDir } from '../workspace/footArc';
 
 /** V71 (Wunsch Enrico, Bild mit gestaffelten Winkeln): Pfeil aus Winkeln in Akzentfarbe. Er baut sich beim
@@ -580,13 +581,14 @@ export function PadFooter(props: {
                 )}
               </p>
               {props.voice?.noteOpen() && (
-                <div className="padvoice__target" role="group" aria-label={VOICE_TEXT.target}>
-                  {(['here', 'new'] as VoiceTarget[]).map((t) => (
-                    <button key={t} type="button" className={`padvoice__seg${target === t ? ' is-on' : ''}`} aria-pressed={target === t} onClick={() => setTarget(t)}>
-                      {VOICE_TEXT[t]}
-                    </button>
-                  ))}
-                </div>
+                /* V84 (F-216, U6): In diese Notiz | Neue Notiz als Umschalt-Rad */
+                <ModeWheel
+                  className="padvoice__target"
+                  label={VOICE_TEXT.target}
+                  value={target}
+                  onChange={(v) => setTarget(v as VoiceTarget)}
+                  options={(['here', 'new'] as VoiceTarget[]).map((t) => ({ id: t, name: VOICE_TEXT[t], icon: t === 'new' ? 'plus' : 'note' }))}
+                />
               )}
               {vmode === 'hold' ? (
                 <p className="padvoice__hints" aria-hidden="true">

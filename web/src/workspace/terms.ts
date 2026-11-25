@@ -274,6 +274,8 @@ export const RULES_TEXT = {
   openTitle: 'Regeln: was E-Sources von selbst tut – ansehen, ändern, ein- und ausschalten',
   back: 'Radar',
   backTitle: 'Zurück zum Radar',
+  /** V84 (F-216): Name des Rads Radar | Regeln für Bildschirmleser */
+  wheel: 'Radar oder Regeln',
   head: 'Regeln',
   intro: 'Regel = etwas, das E-Sources von selbst tut. Häkchen = Regel gilt (fast alle sind ab Werk an). Ausgeschaltete Regeln bleiben gespeichert und lassen sich jederzeit wieder einschalten.',
   tintHead: 'Farbregeln je Kategorie',
@@ -1379,3 +1381,15 @@ export const REMIND_TEXT = {
   apply: 'Übernehmen',
   cancel: 'Abbrechen',
 };
+
+/** V84 (F-206 Schritt 5, N6): Suche über alle Arten – Chips, Art-Kennung, Ansage. */
+export const SEARCH_TEXT = {
+  chips: { all: 'Alle', portals: 'Portale', library: 'Library', notes: 'Notizen', functions: 'Funktionen' } as Record<'all' | 'portals' | 'library' | 'notes' | 'functions', string>,
+  chipTitle: 'Nach Art filtern – Tastatur: Strg/⌃+← und → im Suchfeld',
+  kind: { case: 'Case', portal: 'Portal', source: 'Source', note: 'Notiz', view: 'Ansicht', function: 'Funktion', term: 'Begriff', question: 'Frage' } as Record<'case' | 'portal' | 'source' | 'note' | 'view' | 'function' | 'term' | 'question', string>,
+  filter: (chip: string) => `Filter ${chip}.`,
+  placeholder: (chip: string) => `${chip} durchsuchen …`,
+  noneIn: (chip: string, all: number) => `Nichts unter „${chip}“ – ${all === 1 ? '1 Treffer' : `${all} Treffer`} unter „Alle“ (Strg/⌃+←/→).`,
+  countLine: (n: { all: number; portals: number; library: number; notes: number; functions: number }) =>
+    `${n.all === 1 ? '1 Treffer' : `${n.all} Treffer`}: ${n.portals} Portale, ${n.library} in der Library, ${n.notes} ${n.notes === 1 ? 'Notiz' : 'Notizen'}, ${n.functions} ${n.functions === 1 ? 'Funktion' : 'Funktionen'}.`,
+} as const;

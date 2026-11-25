@@ -1,4 +1,5 @@
 import { Icon } from './Icon';
+import { ModeWheel } from './ModeWheel';
 import { SiteIcon, useDisplay } from './SiteIcon';
 import { categoryIcon } from '../workspace/icons';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
@@ -295,14 +296,17 @@ export function CollectionDrawer(props: {
       }
     >
       <div className="bm-tools">
-        <div className="bm-seg" role="radiogroup" aria-label="Anzeigen">
-          <button type="button" aria-pressed={scope === 'panel'} onClick={() => setScope('panel')}>
-            Dieses Panel ({own})
-          </button>
-          <button type="button" aria-pressed={scope === 'all'} onClick={() => setScope('all')}>
-            Alle ({ws.bookmarks.length})
-          </button>
-        </div>
+        {/* V84 (F-216, U6): Dieses Portal | Alle als Umschalt-Rad („Panel“ heißt seit F-183 „Portal“) */}
+        <ModeWheel
+          className="bm-scope"
+          label="Anzeigen"
+          value={scope}
+          onChange={(v) => setScope(v as typeof scope)}
+          options={[
+            { id: 'panel', name: `Dieses Portal (${own})`, icon: 'portal' },
+            { id: 'all', name: `Alle (${ws.bookmarks.length})`, icon: 'source' },
+          ]}
+        />
         <input className="bm-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Suchen: Titel, Adresse, Kategorie, #Tag" aria-label="Library durchsuchen" />
         {props.onSaveCurrent && (
           <button type="button" className="bm-save-current" onClick={props.onSaveCurrent}>

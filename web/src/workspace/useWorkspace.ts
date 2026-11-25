@@ -31,10 +31,12 @@ import * as Pd from './pads';
 import * as NT from './noteTree';
 import * as NL from './notesLayouts';
 import * as RS from './ruleSet';
-import type { BoardTemplate, ColState, NoteState, NoteView, NoteViewKind, PadPlace, Person, SourceLink, SourceSpot } from './types';
+import type { BoardTemplate, ColState, FocusView, NoteState, NoteView, NoteViewKind, PadPlace, Person, SourceLink, SourceSpot } from './types';
 import * as BT from './boardTemplates';
 import * as Sh from './sheets';
 import * as Ps from './persons';
+import * as FL from './focusLoad';
+import * as St from './stage';
 import { type RuleUndo, deleteRule, restoreRule, setRuleOn, setSiteCategory } from './rules';
 
 type S = { setup: ScreenSetup };
@@ -191,6 +193,11 @@ export type Action =
   /** F-206 Schritt 8 (V94): Personen und Zuständig */
   | { type: 'personAdd'; name: string; kind?: Person['kind']; extra?: Partial<Person>; assignTo?: string; by?: string }
   | { type: 'personEdit'; id: string; patch: Partial<Omit<Person, 'id' | 'me'>> }
+  | { type: 'focusView'; view: FocusView; on: boolean }
+  // F-207 (V96): Main Stage je Desk
+  | { type: 'stageSet'; desk: string; area: string | null }
+  | { type: 'stageEdit'; desk: string; patch: Partial<Pick<St.Stage, 'fixed' | 'minW' | 'minH'>> }
+  | { type: 'stageRestore'; desk: string; undo: St.Stage | undefined }
   | { type: 'personRemove'; id: string }
   | { type: 'personRestore'; undo: Ps.PersonUndo }
   | { type: 'noteAssign'; id: string; person?: string; by?: string }
@@ -393,6 +400,14 @@ function step(ws: Workspace, a: Action): Workspace {
     }
     case 'personEdit':
       return Ps.editPerson(ws, a.id, a.patch);
+    case 'focusView':
+      return FL.setFocusView(ws, a.view, a.on) ?? ws;
+    case 'stageSet':
+      return St.setStage(ws, a.desk, a.area).ws;
+    case 'stageEdit':
+      return St.editStage(ws, a.desk, a.patch);
+    case 'stageRestore':
+      return St.restoreStage(ws, a.desk, a.undo);
     case 'personRemove':
       return Ps.removePerson(ws, a.id)?.ws ?? ws;
     case 'personRestore':

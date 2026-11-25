@@ -9,9 +9,10 @@
  * P11: dringend zählt für den Ton ×1,5, die Stunden bleiben echt. P12: unter 80 % ruhig, ab 80 %
  * gelb, über 100 % rot.
  */
-import type { Note, Person, Workspace } from './types';
+import type { FocusView, Note, Person, Workspace } from './types';
+import { FOCUS_VIEWS } from './noteObjects';
 import { notesOf, isFinished, shownNote, hasDraft } from './notes';
-import { assigneeOf, capacityOn, personById } from './persons';
+import { assigneeOf, capacityOn, personById, personList } from './persons';
 
 export const URGENT_WEIGHT = 1.5;
 export const WARN_AT = 0.8;
@@ -208,4 +209,99 @@ export function teamSplit(ws: Workspace, teamId: string, o: LoadOpts): { id: str
 export function scaleOf(weeks: Pick<WeekLoad, 'hours' | 'draft' | 'capacity'>[]): number {
   const top = Math.max(1, ...weeks.map((w) => Math.max(w.capacity * 1.25, w.hours + w.draft)));
   return Math.ceil(top / 4) * 4;
+}
+
+// ---------- V96 (Bau 7, P13/C2): Darstellungen, Fokus-Ring, Auslastungs-Raster ----------
+
+/** Darstellungen, die die Wochen zeigen – eine davon bleibt immer an. */
+export const FOCUS_CHARTS: readonly FocusView[] = ['week', 'ring', 'grid'];
+
+/** Gewählte Darstellungen; fehlt = Werk = alle (Lastenheft: „alle wählbar und kombinierbar“). */
+export const focusViewsOf = (ws: Workspace): FocusView[] => ws.focusViews ?? [...FOCUS_VIEWS];
+export const showsView = (ws: Workspace, v: FocusView): boolean => focusViewsOf(ws).includes(v);
+
+/** Darstellung ein-/ausschalten. null = abgelehnt (die letzte Wochen-Darstellung bleibt an). Werk wird nicht gespeichert. */
+export function setFocusView(ws: Workspace, v: FocusView, on: boolean): Workspace | null {
+  const cur = focusViewsOf(ws);
+  const next = FOCUS_VIEWS.filter((x) => (x === v ? on : cur.includes(x)));
+  if (!next.some((x) => FOCUS_CHARTS.includes(x))) return null;
+  if (next.length === FOCUS_VIEWS.length) {
+    const { focusViews: _f, ...rest } = ws; // eslint-disable-line @typescript-eslint/no-unused-vars
+    return rest;
+  }
+  return { ...ws, focusViews: next };
+}
+
+export type RingKind = 'hours' | 'urgent' | 'member' | 'draft';
+export interface RingArc { kind: RingKind; id?: string; from: number; to: number }
+export interface Ring {
+  /** Bögen als Anteil des Kreises (0–1); voller Kreis = Kapazität */
+  arcs: RingArc[];
+  /** Überlast als zweiter, äußerer Bogen (0–1 = bis doppelte Kapazität) */
+  over: number;
+  pct?: number;
+}
+
+/**
+ * Fokus-Ring (wie ein Füllstand): voller Kreis = Kapazität der Woche. Reihenfolge geplant → dringend
+ * (bzw. je Mitglied) → vorläufig. Was über die Kapazität geht, läuft als äußerer Bogen weiter.
+ */
+export function ringOf(w: Pick<WeekLoad, 'hours' | 'urgent' | 'draft' | 'capacity'>, members?: { id: string; hours: number }[]): Ring {
+  const parts: { kind: RingKind; id?: string; value: number }[] = members?.length
+    ? members.map((m) => ({ kind: 'member' as const, id: m.id, value: m.hours }))
+    : [{ kind: 'hours', value: w.hours - w.urgent }, { kind: 'urgent', value: w.urgent }];
+  parts.push({ kind: 'draft', value: w.draft });
+  const total = w.capacity > 0 ? w.capacity : Math.max(1, w.hours + w.draft);
+  const arcs: RingArc[] = [];
+  let at = 0;
+  for (const x of parts) {
+    if (x.value <= 0 || at >= 1) continue;
+    const to = Math.min(1, at + x.value / total);
+    arcs.push({ kind: x.kind, ...(x.id ? { id: x.id } : {}), from: round(at), to: round(to) });
+    at = to;
+  }
+  const over = w.capacity > 0 && w.hours > w.capacity ? Math.min(1, round((w.hours - w.capacity) / w.capacity)) : w.capacity <= 0 && w.hours > 0 ? 1 : 0;
+  return { arcs, over, pct: percentOf(w) };
+}
+
+export interface GridCell { hours: number; capacity: number; draft: number; count: number; noEffort: number; tone: Tone; pct?: number }
+export interface GridRow {
+  /** Person bzw. Team; null = Summe aller Zeilen */
+  id: string | null;
+  /** Summenzeile (Team selbst bzw. „Summe“) */
+  sum: boolean;
+  cells: GridCell[];
+}
+
+const cellOf = (w: WeekLoad): GridCell => ({ hours: w.hours, capacity: w.capacity, draft: w.draft, count: w.notes.length, noEffort: w.noEffort, tone: toneOf(w), pct: percentOf(w) });
+
+/**
+ * Auslastungs-Raster (wie „Ressource: Einsatz“ in MS Project bzw. die Ressourcen-Auslastung in iTaskX):
+ * Zeilen = Personen, Spalten = Wochen, Zelle im Ton. Gewähltes Team mit Mitgliedern → Mitglieder + Team als
+ * Summenzeile; sonst alle Personen und Rollen mit Kapazität oder Last (P2) + „Summe“ (ab zwei Zeilen).
+ */
+export function gridOf(ws: Workspace, selId: string, o: LoadOpts): GridRow[] {
+  const sel = personById(ws, selId);
+  if (sel?.kind === 'team' && sel.members?.length) {
+    const rows = sel.members.filter((m) => personById(ws, m)).map((m) => ({ id: m, sum: false, cells: loadOf(ws, m, o).weeks.map(cellOf) }));
+    return [...rows, { id: sel.id, sum: true, cells: loadOf(ws, sel.id, o).weeks.map(cellOf) }];
+  }
+  const rows: GridRow[] = personList(ws)
+    .filter((p) => p.kind !== 'team')
+    .map((p) => ({ id: p.id, sum: false, cells: loadOf(ws, p.id, o).weeks.map(cellOf) }))
+    .filter((r) => r.cells.some((c) => c.capacity > 0 || c.hours > 0 || c.count > 0));
+  if (rows.length < 2) return rows;
+  const cells = rows[0].cells.map((_, i) => {
+    const w = { hours: 0, urgent: 0, capacity: 0, draft: 0, noEffort: 0, count: 0 };
+    for (const r of rows) {
+      const c = r.cells[i];
+      w.hours = round(w.hours + c.hours);
+      w.capacity = round(w.capacity + c.capacity);
+      w.draft = round(w.draft + c.draft);
+      w.noEffort += c.noEffort;
+      w.count += c.count;
+    }
+    return { ...w, tone: toneOf(w), pct: percentOf(w) };
+  });
+  return [...rows, { id: null, sum: true, cells: cells.map(({ urgent: _u, ...c }) => c) }]; // eslint-disable-line @typescript-eslint/no-unused-vars
 }

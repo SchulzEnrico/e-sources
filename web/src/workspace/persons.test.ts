@@ -186,3 +186,52 @@ describe('V95 Fokus: Team-Aufteilung und Skala', () => {
     expect(F.scaleOf([{ hours: 70, draft: 3, capacity: 40 }])).toBe(76);
   });
 });
+
+describe('V96 Fokus: Darstellungen, Ring, Raster', () => {
+  it('focusViews: Werk = alle, letzte Wochen-Darstellung bleibt an', () => {
+    let ws = defaultWorkspace();
+    expect(F.focusViewsOf(ws)).toEqual(['line', 'week', 'ring', 'grid']);
+    ws = F.setFocusView(ws, 'ring', false)!;
+    expect(ws.focusViews).toEqual(['line', 'week', 'grid']);
+    ws = F.setFocusView(ws, 'grid', false)!;
+    expect(F.setFocusView(ws, 'week', false)).toBeNull();
+    ws = F.setFocusView(ws, 'line', false)!;
+    expect(F.showsView(ws, 'line')).toBe(false);
+    ws = F.setFocusView(F.setFocusView(F.setFocusView(ws, 'line', true)!, 'ring', true)!, 'grid', true)!;
+    expect(ws.focusViews).toBeUndefined();
+  });
+  it('ringOf: voller Kreis = Kapazität, Überlast außen', () => {
+    const r = F.ringOf({ hours: 20, urgent: 10, draft: 4, capacity: 40 });
+    expect(r.arcs).toEqual([
+      { kind: 'hours', from: 0, to: 0.25 },
+      { kind: 'urgent', from: 0.25, to: 0.5 },
+      { kind: 'draft', from: 0.5, to: 0.6 },
+    ]);
+    expect(r.over).toBe(0);
+    expect(r.pct).toBe(50);
+    const o = F.ringOf({ hours: 50, urgent: 0, draft: 0, capacity: 40 });
+    expect(o.arcs).toEqual([{ kind: 'hours', from: 0, to: 1 }]);
+    expect(o.over).toBe(0.25);
+    expect(F.ringOf({ hours: 3, urgent: 0, draft: 0, capacity: 0 }).over).toBe(1);
+    const m = F.ringOf({ hours: 8, urgent: 0, draft: 0, capacity: 16 }, [{ id: 'a', hours: 4 }, { id: 'b', hours: 0 }, { id: 't', hours: 4 }]);
+    expect(m.arcs.map((x) => x.id)).toEqual(['a', 't']);
+  });
+  it('gridOf: Personen × Wochen mit Summe; Team = Mitglieder + Team', () => {
+    let ws = defaultWorkspace();
+    ws = P.addPerson(ws, 'Anna')!.ws;
+    ws = P.addPerson(ws, 'Ben')!.ws;
+    const [a, b] = ['Anna', 'Ben'].map((n) => P.personList(ws).find((p) => p.name === n)!.id);
+    const t = P.addPerson(ws, 'Team', 'team', { members: [a, b] })!;
+    ws = t.ws;
+    ws = note(ws, 'n1', { assignee: a, due: '2026-12-04', effort: { plan: 36 } });
+    ws = note(ws, 'n2', { assignee: b, due: '2026-12-04', effort: { plan: 10 } });
+    const o = { from: '2026-11-30', weeks: 2 };
+    const g = F.gridOf(ws, P.meId(ws), o);
+    expect(g.map((r) => r.id)).toEqual([P.meId(ws), a, b, null]);
+    expect(g[1].cells[0]).toMatchObject({ hours: 36, capacity: 40, tone: 'warn', pct: 90, count: 1 });
+    expect(g[3].cells[0]).toMatchObject({ hours: 46, capacity: 120, tone: 'calm' });
+    const tg = F.gridOf(ws, t.id, o);
+    expect(tg.map((r) => [r.id, r.sum])).toEqual([[a, false], [b, false], [t.id, true]]);
+    expect(tg[2].cells[0].hours).toBe(46);
+  });
+});

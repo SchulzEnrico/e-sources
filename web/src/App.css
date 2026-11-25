@@ -8849,3 +8849,46 @@ b.pc__week.is-warn { color: #e0a040; }
 .fc__tag { font-size: 11px; color: var(--muted, inherit); }
 .fc__tag.is-urgent { color: #ff8a7f; font-weight: 600; }
 @media (forced-colors: active) { .fc__seg, .fc__key { forced-color-adjust: none; } .fc__week.is-sel { outline: 2px solid Highlight; } }
+/* V96 (Bau 7): Darstellungen wählen, Fokus-Ring, Auslastungs-Raster */
+.fc__views { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 12px; }
+.fc__views-label { color: var(--muted, inherit); }
+.fc__view { padding: 3px 10px; font-size: 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; box-shadow: none; color: inherit; }
+.fc__view[aria-pressed='true'] { border-color: rgba(var(--accent-rgb), 0.9); background: rgba(var(--accent-rgb), 0.16); color: var(--strong); font-weight: 600; }
+.fc__view[aria-pressed='true']::before { content: '✓ '; }
+.fc__said { font-size: 11px; color: var(--muted, inherit); }
+.fc__top { display: flex; gap: 12px; align-items: stretch; }
+.fc__top > .fc__chart { flex: 1 1 auto; min-width: 0; }
+.fc__ring { position: relative; flex: 0 0 auto; display: grid; place-items: center; width: 140px; margin: 0; padding: 4px; border-radius: 10px; border: 1px solid var(--line); background: rgba(var(--tint), 0.03); color: rgb(var(--accent-rgb)); }
+.fc__ring.is-warn { color: #e0a040; }
+.fc__ring.is-over { color: #e2554a; }
+.fc__ring svg { display: block; }
+.fc__ring-track { stroke: rgba(var(--tint), 0.12); }
+.fc__arc.is-urgent { filter: brightness(0.7); }
+.fc__ring figcaption { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 1px; font-size: 11px; color: var(--muted, inherit); font-variant-numeric: tabular-nums; pointer-events: none; }
+.fc__ring-pct { font-size: 20px; color: var(--strong); }
+.fc__ring.is-warn .fc__ring-pct { color: #e0a040; }
+.fc__ring.is-over .fc__ring-pct { color: #ff8a7f; }
+.fc__ring-kw { font-weight: 600; }
+.fc__grid-wrap { margin-top: 10px; overflow-x: auto; }
+.fc__grid { border-collapse: separate; border-spacing: 3px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.fc__grid th { font-weight: 600; text-align: left; white-space: nowrap; padding: 2px 6px; color: var(--strong); }
+.fc__grid thead th { text-align: center; font-size: 11px; }
+.fc__grid thead th.is-now { color: var(--accent); }
+.fc__grid thead .fc__span { display: block; font-weight: 400; }
+.fc__grid tbody th { display: flex; align-items: center; gap: 6px; min-width: 120px; }
+.fc__grid tr.is-sum th { font-style: italic; }
+.fc__grid tr.is-sum td { border-top: 1px solid rgba(var(--tint), 0.3); padding-top: 3px; }
+.fc__grid td { padding: 0; }
+.fc__cell { position: relative; display: flex; align-items: baseline; justify-content: center; gap: 3px; width: 100%; min-width: 72px; padding: 6px 8px; font-size: 12px; border-radius: 6px; border: 1px solid var(--line); background: rgba(var(--accent-rgb), 0.08); box-shadow: none; color: inherit; }
+.fc__cell.is-warn { background: rgba(224, 160, 64, 0.22); border-color: rgba(224, 160, 64, 0.7); }
+.fc__cell.is-over { background: rgba(226, 85, 74, 0.26); border-color: rgba(226, 85, 74, 0.85); font-weight: 700; }
+.fc__cell.is-empty { background: transparent; opacity: 0.55; }
+.fc__cell.is-sel { outline: 2px solid rgba(var(--accent-rgb), 0.95); outline-offset: 1px; }
+.fc__cell:focus-visible { outline: 2px solid var(--strong); outline-offset: 1px; }
+.fc__cell-h { color: var(--strong); }
+.fc__cell-cap { font-size: 10px; color: var(--muted, inherit); }
+.fc__cell-draft { position: absolute; right: 3px; top: 3px; width: 7px; height: 7px; border-radius: 2px; background: repeating-linear-gradient(135deg, rgba(var(--accent-rgb), 0.8) 0 2px, transparent 2px 4px); }
+:root[data-theme='light'] .fc__cell.is-warn .fc__cell-h, :root[data-theme='light'] .fc__ring.is-warn .fc__ring-pct { color: #8a5a00; }
+:root[data-theme='light'] .fc__cell.is-over .fc__cell-h, :root[data-theme='light'] .fc__ring.is-over .fc__ring-pct { color: #b3261e; }
+@media (max-width: 760px) { .fc__top { flex-direction: column; } .fc__ring { align-self: center; } }
+@media (forced-colors: active) { .fc__ring, .fc__arc { forced-color-adjust: none; } .fc__cell.is-sel { outline: 2px solid Highlight; } .fc__view[aria-pressed='true'] { outline: 2px solid Highlight; } }

@@ -265,7 +265,7 @@ export interface Workspace {
   persons?: Person[];
   /** F-206 (v8): Note Mode, Board, Main Stage je Desk ('' = Main Desk). */
   deskNotes?: Record<string, DeskNotes>;
-  /** F-206 (v8): gewählte Darstellungen des Projektfokus; fehlt = keine. */
+  /** F-206 (v8): gewählte Darstellungen des Projektfokus; fehlt = alle (Werk, V96 `focusViewsOf`). */
   focusViews?: FocusView[];
   /** V88 (BL1): eigene Board-Vorlagen (Spalten ohne Karten); mitgelieferte stehen im Code (BUILTIN_TEMPLATES). */
   boardTemplates?: BoardTemplate[];

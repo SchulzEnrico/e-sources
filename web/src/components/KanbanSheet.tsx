@@ -428,7 +428,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
           <p className="sheet__msg kcard__ask" role="alert">
             {K.noRight}
             <button type="button" className="note__undo" autoFocus onClick={() => (setAsk(null), focusCard(n.id))}>
-              {K.cancel}
+              {K.noRightOk}
             </button>
           </p>
         )}

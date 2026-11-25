@@ -1003,7 +1003,7 @@ export function Overview(p: OverviewProps) {
         {persons && p.dispatch ? (
           <PersonCockpit ws={p.ws} dispatch={p.dispatch} say={setSaid} />
         ) : notes && canNotes && focusView && !rules ? (
-          <FocusCockpit ws={p.ws} onOpen={p.onDismiss} onPersons={() => setMode('persons')} />
+          <FocusCockpit ws={p.ws} dispatch={p.dispatch!} onOpen={p.onDismiss} onPersons={() => setMode('persons')} />
         ) : notes && canNotes && !rules ? (
           <NotesCockpit
             ws={p.ws}

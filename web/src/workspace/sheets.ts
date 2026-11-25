@@ -91,6 +91,28 @@ export function moveCard(ws: Workspace, viewId: string, noteId: string, colId: s
   return { ok: true, ws: next };
 }
 
+/** V88 (F/K4 „V“): Ziele für „Verschieben nach …“ – alle anderen Sheets außer der Matrix (die ordnet nach wichtig/dringend). */
+export function moveTargets(ws: Workspace, from: string): NoteView[] {
+  return No.viewsOf(ws).filter((v) => v.id !== from && v.kind !== 'eisenhower');
+}
+
+/**
+ * V88: Notiz aus einem Sheet in ein anderes verschieben. Im Kanban landet sie in der ersten Spalte,
+ * die zu ihrem Zustand passt (erledigt → erste Erledigt-Spalte, in Arbeit → erste In-Arbeit-Spalte),
+ * sonst in der ersten Spalte; der Zustand bleibt dabei, wo er passt.
+ */
+export function moveToSheet(ws: Workspace, noteId: string, from: string, to: string, act: No.Act = {}): CardResult {
+  const n = No.noteById(ws, noteId);
+  const v = No.viewById(ws, to);
+  if (!n || !v) return { ok: false, reason: 'missing' };
+  if (v.kind !== 'kanban') return No.placeNote(ws, noteId, { view: to }, { ...act, from });
+  const cols = v.cols ?? [];
+  const st: ColState = n.state === 'done' || n.state === 'archived' ? 'done' : n.state === 'review' ? 'review' : n.state === 'doing' ? 'doing' : 'open';
+  const col = cols.find((c) => colStateOf(c) === st) ?? (st === 'review' ? cols.find((c) => colStateOf(c) === 'done') : undefined) ?? cols[0];
+  if (!col) return { ok: false, reason: 'missing' };
+  return moveCard(ws, to, noteId, col.id, undefined, { ...act, from });
+}
+
 /** „in Prüfung“ zählt in einer Erledigt-Spalte als passend (Abnahme läuft). */
 function matches(state: NoteState, want: NoteState): boolean {
   return state === want || (want === 'done' && state === 'review');

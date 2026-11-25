@@ -6,11 +6,11 @@ import { ARROWS, DOCK_BAND, MAP_BAND_PX, arrangeStep, nearestSide, sameTree } fr
 import * as T from '../workspace/tree';
 import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
-import { DEFAULT_MIN, NEW_AREA, loadColor } from '../workspace/workspace';
+import { DEFAULT_MIN, NEW_AREA, loadColor, newId } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
 import { NOTES_COCKPIT_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
-import type { Action } from '../workspace/useWorkspace';
+import { type Action, padOpenResult } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
 import { LayoutCockpit, type LayoutOps } from './DeskLayouts';
 import { ModeWheel } from './ModeWheel';
@@ -973,7 +973,29 @@ export function Overview(p: OverviewProps) {
         ) : sources && p.dispatch ? (
           <SourceCockpit ws={p.ws} dispatch={p.dispatch} />
         ) : layouts && p.layoutOps && p.dispatch ? (
-          <LayoutCockpit ws={p.ws} win={p.win} desk={windowName(p.ws, p.win)} setup={p.setup} ops={p.layoutOps} dispatch={p.dispatch} say={setSaid} />
+          <LayoutCockpit
+            ws={p.ws}
+            win={p.win}
+            desk={windowName(p.ws, p.win)}
+            setup={p.setup}
+            ops={p.layoutOps}
+            dispatch={p.dispatch}
+            say={setSaid}
+            onNewBoard={
+              canNotes
+                ? (tpl) => {
+                    // V88 (BL): Board aus der Vorlage im obersten Pad dieses Desks anlegen und zeigen
+                    const ids = [newId(), newId(), newId()];
+                    const r = padOpenResult(p.ws, { desk: p.win, create: 'kanban', ids, tpl });
+                    p.dispatch!({ type: 'padCreate', desk: p.win, kind: 'kanban', ids, tpl });
+                    if (r.result !== 'missing' && r.pad) {
+                      const pad = r.pad;
+                      window.setTimeout(() => (p.onShowPad!(pad, r.sheet), p.onDismiss()), 0);
+                    }
+                  }
+                : undefined
+            }
+          />
         ) : rules && p.dispatch ? (
           <Rules ws={p.ws} shown={p.shown ?? 'dark'} dispatch={p.dispatch} say={setSaid} />
         ) : tiles.length === 0 ? (

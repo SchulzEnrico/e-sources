@@ -27,7 +27,8 @@ import { setCategoryIcon, setCategoryTint, setPanelCategory, setPanelNewCategory
 import * as Cs from './cases';
 import * as No from './notes';
 import * as Pd from './pads';
-import type { ColState, NoteState, NoteView, NoteViewKind, PadPlace } from './types';
+import type { BoardTemplate, ColState, NoteState, NoteView, NoteViewKind, PadPlace } from './types';
+import * as BT from './boardTemplates';
 import * as Sh from './sheets';
 import { type RuleUndo, deleteRule, restoreRule, setRuleOn, setSiteCategory } from './rules';
 
@@ -193,7 +194,7 @@ export type Action =
   | { type: 'dockOff'; desk: string; off: boolean }
   | { type: 'padShow'; id: string; sheet: string }
   | { type: 'padRecent'; id: string; note?: string; sheet?: string }
-  | { type: 'padAddSheet'; id: string; kind: NoteViewKind; sheet: string }
+  | { type: 'padAddSheet'; id: string; kind: NoteViewKind; sheet: string; tpl?: string }
   | { type: 'padMoveSheet'; id: string; sheet: string; to: number }
   | { type: 'padCloseSheet'; id: string; sheet: string }
   | { type: 'padClose'; id: string }
@@ -210,6 +211,7 @@ export type Action =
   | { type: 'sheetRemove'; view: string; note: string; by?: string }
   | { type: 'sheetRestore'; view: NoteView }
   | { type: 'cardMove'; view: string; note: string; col: string; index?: number; from?: string; by?: string }
+  | { type: 'sheetMoveTo'; note: string; from: string; to: string; by?: string }
   | { type: 'colAdd'; view: string; name: string; col: string }
   | { type: 'colRename'; view: string; col: string; name: string }
   | { type: 'colMove'; view: string; col: string; index: number }
@@ -229,19 +231,31 @@ export type Action =
   | { type: 'noteDiscard'; id: string }
   | { type: 'noteUndoDiscard'; undo: No.DraftUndo; by?: string }
   | { type: 'padOpen'; desk: string; ref: No.NoteRef; ids: string[] }
-  | { type: 'padCreate'; desk: string; kind: 'note' | NoteViewKind; ids: string[]; by?: string };
+  | { type: 'padCreate'; desk: string; kind: 'note' | NoteViewKind; ids: string[]; by?: string; tpl?: string }
+  // V88 (BL): Board-Vorlagen
+  | { type: 'tplFromBoard'; view: string; name: string; id: string }
+  | { type: 'tplAdd'; tpl: Omit<BoardTemplate, 'id'>; id: string }
+  | { type: 'tplRename'; id: string; name: string }
+  | { type: 'tplDelete'; id: string }
+  | { type: 'tplRestore'; undo: BT.TemplateUndo };
 
 /**
  * F-206 Schritt 3: Note/Sheet in einem Pad öffnen bzw. neu anlegen und öffnen (P3). Aufrufer und
  * Reducer rechnen mit denselben Ids, damit die Oberfläche weiß, welches Pad und Sheet entsteht.
  */
-export function padOpenResult(ws: Workspace, a: { desk: string; ref?: No.NoteRef; create?: 'note' | NoteViewKind; ids: string[]; by?: string }): Pd.OpenInPadResult & { id?: string } {
+export function padOpenResult(ws: Workspace, a: { desk: string; ref?: No.NoteRef; create?: 'note' | NoteViewKind; ids: string[]; by?: string; tpl?: string }): Pd.OpenInPadResult & { id?: string } {
   const make = idSeq(a.ids);
   // V87 (E3): genau eine Eisenhower-Matrix – eine zweite anlegen öffnet die vorhandene
   const matrix = a.create === 'eisenhower' ? Sh.theMatrix(ws) : undefined;
   if (matrix) return Pd.openSheetInPad(ws, a.desk, matrix.id, { makeId: make });
   if (a.create) {
-    const made = a.create === 'note' ? No.createNote(ws, { unsaved: true }, { by: a.by, id: make() }) : No.createView(ws, a.create, No.defaultViewName(ws, a.create), { id: make() });
+    // V88 (BL2): Kanban aus einer Vorlage – Spalten-Ids kommen danach zufällig (Aufrufer braucht nur die Sheet-Id)
+    const made =
+      a.create === 'note'
+        ? No.createNote(ws, { unsaved: true }, { by: a.by, id: make() })
+        : a.create === 'kanban' && a.tpl
+          ? BT.createBoard(ws, a.tpl, { id: make() })
+          : No.createView(ws, a.create, No.defaultViewName(ws, a.create), { id: make() });
     const r = a.create === 'note' ? Pd.openNoteInPad(made.ws, a.desk, made.id, { makeId: make }) : Pd.openSheetInPad(made.ws, a.desk, made.id, { makeId: make });
     return { ...r, id: made.id };
   }
@@ -347,6 +361,10 @@ function step(ws: Workspace, a: Action): Workspace {
       return No.removeFromView(ws, a.note, a.view, { by: a.by });
     case 'sheetRestore':
       return { ...ws, noteViews: No.viewsOf(ws).map((v) => (v.id === a.view.id ? a.view : v)) };
+    case 'sheetMoveTo': {
+      const r = Sh.moveToSheet(ws, a.note, a.from, a.to, { by: a.by });
+      return r.ok ? r.ws : ws;
+    }
     case 'cardMove': {
       const r = Sh.moveCard(ws, a.view, a.note, a.col, a.index, { by: a.by, from: a.from });
       return r.ok ? r.ws : ws;
@@ -414,7 +432,7 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'padRecent':
       return Pd.touchRecent(ws, a.id, { note: a.note, sheet: a.sheet });
     case 'padAddSheet': {
-      const v = No.createView(ws, a.kind, No.defaultViewName(ws, a.kind), { id: a.sheet });
+      const v = a.kind === 'kanban' && a.tpl ? BT.createBoard(ws, a.tpl, { id: a.sheet }) : No.createView(ws, a.kind, No.defaultViewName(ws, a.kind), { id: a.sheet });
       const r = Pd.addSheet(v.ws, a.id, a.sheet);
       return r.ok ? Pd.raisePad(r.ws, a.id) : ws;
     }
@@ -441,7 +459,21 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'padOpen':
       return padOpenResult(ws, { desk: a.desk, ref: a.ref, ids: a.ids }).ws;
     case 'padCreate':
-      return padOpenResult(ws, { desk: a.desk, create: a.kind, ids: a.ids, by: a.by }).ws;
+      return padOpenResult(ws, { desk: a.desk, create: a.kind, ids: a.ids, by: a.by, tpl: a.tpl }).ws;
+    case 'tplFromBoard': {
+      const r = BT.templateFromBoard(ws, a.view, a.name, { id: a.id });
+      return r.ok ? r.ws : ws;
+    }
+    case 'tplAdd': {
+      const r = BT.addTemplate(ws, a.tpl, { id: a.id });
+      return r.ok ? r.ws : ws;
+    }
+    case 'tplRename':
+      return BT.renameTemplate(ws, a.id, a.name);
+    case 'tplDelete':
+      return BT.deleteTemplate(ws, a.id)?.ws ?? ws;
+    case 'tplRestore':
+      return BT.restoreTemplate(ws, a.undo);
     case 'selectTab':
       return W.selectTab(ws, a.id, a.tab);
     case 'moveTab':

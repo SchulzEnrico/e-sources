@@ -7,7 +7,9 @@ import { type Dispatch, type KeyboardEvent, type ReactNode, useEffect, useId, us
 import type { Action } from '../workspace/useWorkspace';
 import type { NoteState, NoteViewKind, Workspace } from '../workspace/types';
 import * as No from '../workspace/notes';
-import { DRAFT_TEXT, NOTE_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
+import { DRAFT_TEXT, NOTE_TEXT, PAUSE_TEXT, SHEET_TEXT, TERMS } from '../workspace/terms';
+import * as Sh from '../workspace/sheets';
+import { newId } from '../workspace/workspace';
 import { flash } from '../workspace/flash';
 import { NoteEditor } from './NoteEditor';
 import { RemindChips } from './RemindChips';
@@ -39,6 +41,8 @@ interface NoteProps {
    * (alter Notiz-Tab bis zum Umstieg).
    */
   draft?: { onClose: () => void; say: (text: string) => void; notice: (n: Notice) => void; shown?: Notice | null; above?: ReactNode };
+  /** V88 (L1 „überall“): Sheet, in dem die Note gerade gezeigt wird – dort gilt kein Schloss (z. B. das Kanban selbst). */
+  sheet?: string;
 }
 
 /** V68 (Wunsch Enrico, „perfekte Fokussierung“): Meldung am Ort des Geschehens statt unten am Bildschirmrand. */
@@ -53,11 +57,12 @@ export interface Notice {
 export const freshNotes = new Set<string>();
 const coarsePointer = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
-export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
+export function NoteTab({ ws, noteId, dispatch, draft, sheet }: NoteProps) {
   const raw = No.noteById(ws, noteId);
   const by = ws.profile?.name || undefined;
   const [ask, setAsk] = useState(0);
   const [askClose, setAskClose] = useState(false);
+  const [lockMsg, setLockMsg] = useState(false);
   const delBtn = useRef<HTMLButtonElement>(null);
   const askFirst = useRef<HTMLButtonElement>(null);
   const closeFirst = useRef<HTMLButtonElement>(null);
@@ -76,10 +81,23 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
   const title = No.titleOf(n);
   const edit = (patch: No.NotePatch & No.DraftPatch) =>
     draft ? dispatch({ type: 'noteDraft', id: n.id, patch: patch as No.DraftPatch, by }) : dispatch({ type: 'noteEdit', id: n.id, patch, by });
-  const changeState = (state: NoteState, reason?: string) =>
+  // V88 (L1 „überall“): liegt die Note auf einem Kanban bzw. einem Sheet mit Abnahme, wird erledigt dort gesetzt
+  const lock = Sh.lockOf(ws, n.id, sheet);
+  const doneLike = (s: NoteState) => s === 'done' || s === 'review';
+  const toBoard = (board: string) => {
+    setLockMsg(false);
+    const desk = (ws.pads ?? []).find((p) => (sheet && p.sheets.includes(sheet)) || p.sheets.includes(board))?.desk ?? '';
+    dispatch({ type: 'padOpen', desk, ref: { view: board }, ids: [newId(), newId(), newId()] });
+  };
+  const changeState = (state: NoteState, reason?: string) => {
+    if (lock.length && doneLike(state) !== doneLike(n.state)) {
+      setLockMsg(true);
+      return draft?.say(SHEET_TEXT.locked(lock.map((b) => b.name).join('“, „')));
+    }
     draft
       ? dispatch({ type: 'noteDraft', id: n.id, patch: reason === undefined ? { state } : { state, waitReason: reason }, by })
       : dispatch({ type: 'noteState', id: n.id, state, by, ...(reason === undefined ? {} : { reason }) });
+  };
 
   /** Meldung: im Pad an Ort und Stelle (Statuszeile bzw. Liste), sonst wie bisher unten. */
   const tell = (text: string, ms: number, undo?: () => void, undone?: string) => {
@@ -168,6 +186,11 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
       <div className="note__bar">
         <label className="note__opt">
           <span title={explain(TERMS.noteState)}>{NOTE_TEXT.state}</span>
+          {lock.length > 0 && (
+            <span title={SHEET_TEXT.locked(lock.map((b) => b.name).join('“, „'))}>
+              <Icon name="lock" size={11} className="icon icon--inline" />
+            </span>
+          )}
           <select value={n.state} onChange={(e) => changeState(e.target.value as NoteState)}>
             {STATES.map((s) => (
               <option key={s} value={s}>
@@ -206,6 +229,19 @@ export function NoteTab({ ws, noteId, dispatch, draft }: NoteProps) {
           <Icon name="trash" size={14} /> {NOTE_TEXT.remove}
         </button>
       </div>
+      {lockMsg && lock.length > 0 && (
+        <p className="sheet__msg" role="status">
+          <Icon name="lock" size={12} /> {SHEET_TEXT.locked(lock.map((b) => b.name).join('“, „'))}
+          {lock.map((b) => (
+            <button key={b.id} type="button" className="note__undo" onClick={() => toBoard(b.id)}>
+              {lock.length > 1 ? `${SHEET_TEXT.toBoard}: ${b.name}` : SHEET_TEXT.toBoard}
+            </button>
+          ))}
+          <button type="button" className="sheet__msgx" aria-label={SHEET_TEXT.cardClose} onClick={() => setLockMsg(false)}>
+            <Icon name="close" size={11} />
+          </button>
+        </p>
+      )}
       {ask > 0 && (
         <div className="note__ask" role="alertdialog" aria-labelledby="note-ask-t" aria-describedby="note-ask-d" onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), cancel())}>
           <strong id="note-ask-t">{NOTE_TEXT.askOpen(ask)}</strong>

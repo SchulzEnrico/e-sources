@@ -9,6 +9,7 @@
  * Tastatur (NF-03): Pfeile zwischen Karten bzw. Slots, Enter wählt, Esc bricht Tauschen ab.
  */
 import { type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { BoardTemplateGroup } from './BoardTemplates';
 import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
 import * as DL from '../workspace/deskLayouts';
@@ -57,6 +58,8 @@ interface Props {
   ops: LayoutOps;
   dispatch: (a: Action) => void;
   say: (text: string) => void;
+  /** V88 (BL): neues Kanban-Board aus einer Vorlage anlegen und zeigen; fehlt = ohne Notizen. */
+  onNewBoard?: (tpl: string) => void;
 }
 
 /** Kleine Anordnung als Kästchen (nur Bild; Zahlen stehen daneben als Text). */
@@ -80,7 +83,7 @@ const deviceText = (s: ScreenSetup) => {
   return `${screenClass(s.cls).label}, ${s.orientation === 'landscape' ? LT.landscape : LT.portrait}${allowsTwoLines(s.cls) ? `, ${LT.lines(spec.lines)}` : ''}`;
 };
 
-export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }: Props) {
+export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say, onNewBoard }: Props) {
   const d = DL.layoutsOf(ws, win);
   /** F-187 Stufe 2: gewählte Einstellung; null = dieses Gerät. */
   const [dev, setDev] = useState<{ cls: ScreenClassId; orientation: Orientation; lines: Lines } | null>(null);
@@ -711,6 +714,8 @@ export function LayoutCockpit({ ws, win, desk, setup: real, ops, dispatch, say }
           </div>
         </div>
       </section>
+      {/* V88 (BL1): Board-Vorlagen als eigene Gruppe unter den Desk-Layouts – dieselben Werkzeuge an denselben Stellen */}
+      <BoardTemplateGroup ws={ws} win={win} dispatch={dispatch} say={say} onNewBoard={onNewBoard} />
       {casesOpen && <CasesDialog ws={ws} dispatch={dispatch} say={say} onClose={() => setCasesOpen(false)} />}
       {stdOpen && (
         <StandardLayout

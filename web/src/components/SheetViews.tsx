@@ -10,8 +10,9 @@ import type { Action } from '../workspace/useWorkspace';
 import type { Note, NoteView, Workspace } from '../workspace/types';
 import * as No from '../workspace/notes';
 import * as Sh from '../workspace/sheets';
+import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
 import { NOTICE_MS } from '../workspace/flash';
-import { NOTE_TEXT, PAUSE_TEXT, SHEET_TEXT } from '../workspace/terms';
+import { DIALOG_TEXT, NOTE_TEXT, PAUSE_TEXT, SHEET_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab } from './NoteTab';
 import { ModeWheel } from './ModeWheel';
@@ -46,6 +47,65 @@ export function NoticeLine({ shown, extra }: { shown: Notice | null; extra?: Rea
       )}
       {extra}
     </p>
+  );
+}
+
+const KIND_ICON = { block: 'note', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix' } as const;
+
+/**
+ * V88 (F/K4): „Verschieben nach …“ (Taste V) – Leiste am Ort mit allen anderen Sheets (wie im Cockpit
+ * das Ziel wählen). Nach dem Verschieben Meldung mit „Rückgängig“; Esc bringt den Fokus zurück.
+ */
+export function MoveToBar(props: { ws: Workspace; dispatch: Dispatch<Action>; sheetId: string; noteId: string; say: (t: string) => void; notice: (m: Notice) => void; onClose: () => void }) {
+  const { ws, dispatch, sheetId, noteId, say } = props;
+  const n = No.noteById(ws, noteId);
+  const targets = Sh.moveTargets(ws, sheetId);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    box.current?.querySelector<HTMLElement>('button')?.focus();
+    if (!targets.length) say(SHEET_TEXT.moveNone);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!n) return null;
+  const title = No.titleOf(No.shownNote(n)) || NOTE_TEXT.untitled;
+  const from = No.viewById(ws, sheetId)?.name ?? '';
+  const by = ws.profile?.name || undefined;
+  const pick = (to: NoteView) => {
+    dispatch({ type: 'sheetMoveTo', note: noteId, from: sheetId, to: to.id, by });
+    const text = SHEET_TEXT.movedTo(title, to.name);
+    say(text);
+    props.notice({ text, undo: () => (dispatch({ type: 'sheetMoveTo', note: noteId, from: to.id, to: sheetId, by }), say(SHEET_TEXT.moveBack(title, from))) });
+    props.onClose();
+  };
+  const key = (e: KeyboardEvent<HTMLDivElement>) => {
+    const btns = [...(box.current?.querySelectorAll<HTMLElement>('button') ?? [])];
+    const i = btns.indexOf(document.activeElement as HTMLElement);
+    let j = -1;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') j = Math.min(btns.length - 1, i + 1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') j = Math.max(0, i - 1);
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = btns.length - 1;
+    else if (e.key === 'Escape') return void (e.preventDefault(), e.stopPropagation(), props.onClose());
+    if (j < 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    btns[j]?.focus();
+  };
+  return (
+    <div className="sheet__move" role="group" aria-label={SHEET_TEXT.moveTo(title)} title={SHEET_TEXT.moveHint} ref={box} onKeyDown={key}>
+      <span className="sheet__move-cap">{SHEET_TEXT.moveTo(title)}</span>
+      {targets.length ? (
+        targets.map((t) => (
+          <button key={t.id} type="button" className="help__run" onClick={() => pick(t)}>
+            <Icon name={KIND_ICON[t.kind]} size={12} className="icon icon--inline" /> {t.name}
+          </button>
+        ))
+      ) : (
+        <span className="lc__muted">{SHEET_TEXT.moveNone}</span>
+      )}
+      <button type="button" className="help__run" onClick={props.onClose}>
+        {DIALOG_TEXT.cancel}
+      </button>
+    </div>
   );
 }
 
@@ -168,7 +228,7 @@ export function CardWindow(props: { ws: Workspace; dispatch: Dispatch<Action>; n
           </div>
         )}
         <div className="cardwin__note">
-          <NoteTab ws={ws} noteId={noteId} dispatch={dispatch} draft={{ onClose: props.onClose, say: props.say, notice, shown }} />
+          <NoteTab ws={ws} noteId={noteId} dispatch={dispatch} sheet={props.sheetId} draft={{ onClose: props.onClose, say: props.say, notice, shown }} />
         </div>
       </section>
     </div>
@@ -187,8 +247,11 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
   const v = No.viewById(ws, sheetId)!;
   const by = ws.profile?.name || undefined;
   const [filter, setFilter] = useState('');
-  const [show, setShow] = useState<Show>('open');
-  const [order, setOrder] = useState<Sh.TodoOrder>('own');
+  // V88: Rad-Wahl „Zeigen“ und „Ordnung“ je Sheet und Gerät merken
+  const [show, setShowRaw] = useState<Show>(() => loadSheetPref(sheetId).show ?? 'open');
+  const setShow = (s: Show) => (setShowRaw(s), saveSheetPref(sheetId, { show: s }));
+  const [order, setOrderRaw] = useState<Sh.TodoOrder>(() => loadSheetPref(sheetId).order ?? 'own');
+  const setOrder = (o: Sh.TodoOrder) => (setOrderRaw(o), saveSheetPref(sheetId, { order: o }));
   const [openDone, setOpenDone] = useState(false);
   const [card, setCard] = useState<string | null>(null);
   const [edit, setEdit] = useState<string | null>(null);
@@ -197,6 +260,7 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
   const newRef = useRef<HTMLInputElement>(null);
   const filterRef = useRef<HTMLInputElement>(null);
   const { notice, shown } = useNotice();
+  const [moving, setMoving] = useState<string | null>(null);
   const [lockMsg, setLockMsg] = useState<{ note: string; boards: NoteView[] } | null>(null);
 
   const all = Sh.todoRows(ws, v, order, show);
@@ -261,6 +325,8 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
     if (e.key === 'Home') return void (e.preventDefault(), ids[0]?.focus());
     if (e.key === 'End') return void (e.preventDefault(), ids[ids.length - 1]?.focus());
     if (e.key === ' ') return void (e.preventDefault(), toggle(n));
+    // V88 (F/K4): V = Verschieben nach … (Ziel-Sheet wählen)
+    if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setMoving(n.id));
     if (e.key === 'F2') return void (e.preventDefault(), setEdit(n.id));
     if ((e.key === 'Delete' || e.key === 'Backspace') && v.ids.includes(n.id)) {
       e.preventDefault();
@@ -365,6 +431,9 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
             <Icon name="close" size={11} />
           </button>
         </p>
+      )}
+      {moving && (
+        <MoveToBar ws={ws} dispatch={dispatch} sheetId={sheetId} noteId={moving} say={say} notice={notice} onClose={() => { const id = moving; setMoving(null); focusRow(id); }} />
       )}
       <NoticeLine shown={shown} />
       {show === 'open' && done.length > 0 && (

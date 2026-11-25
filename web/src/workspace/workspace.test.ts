@@ -55,6 +55,8 @@ import * as Pd from './pads';
 import * as FR from './focusRing';
 import * as ND from './noteDoc';
 import * as Sh from './sheets';
+import * as BT from './boardTemplates';
+import * as SP from './sheetPrefs';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
 const LAPTOP2: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 2 };
@@ -658,7 +660,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (r.ok) expect(W.panelUrl(r.file.workspace.panels[0])).toBe('https://a.de');
-    expect(X.FILE_VERSION).toBe(6);
+    expect(X.FILE_VERSION).toBe(7);
   });
 
   it('Bereich und Szenario bleiben erhalten (F-116, vorbereitet)', () => {
@@ -5444,5 +5446,114 @@ describe('V87: Abbild im Cockpit (BC1–BC3)', () => {
     const ms = Sh.matrixSummary(ws, Sh.matricesOf(ws)[0]);
     expect([ms.quads[1], ms.unsorted, ms.open]).toEqual([1, 1, 2]);
     void act;
+  });
+});
+
+describe('V88: Board-Vorlagen (BL1–BL3)', () => {
+  it('mitgeliefert: Einfach, Mit Prüfung, Vertrieb, Bewerbungen – nicht umbenennbar, nicht löschbar', () => {
+    const ws = W.defaultWorkspace();
+    expect(BT.templatesOf(ws).map((t) => t.name)).toEqual(['Einfach', 'Mit Prüfung', 'Vertrieb', 'Bewerbungen']);
+    expect(BT.templateById(ws, 'tpl-sales')!.cols.map((c) => c.name)).toEqual(['Lead', 'Kontakt', 'Angebot', 'Abschluss']);
+    expect(BT.renameTemplate(ws, 'tpl-sales', 'X')).toBe(ws);
+    expect(BT.deleteTemplate(ws, 'tpl-sales')).toBeNull();
+  });
+  it('neues Board aus Vorlage: Spalten, Bedeutung, WIP, Abnahme; Name frei', () => {
+    let ws = W.defaultWorkspace();
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'kanban', ids: ['k', 'p1', 's1'], tpl: 'tpl-sales' });
+    const v = No.viewById(ws, 'k')!;
+    expect(v.name).toBe('Vertrieb');
+    expect(v.cols!.map((c) => [c.name, c.state])).toEqual([['Lead', 'open'], ['Kontakt', 'doing'], ['Angebot', 'doing'], ['Abschluss', 'done']]);
+    expect(new Set(v.cols!.map((c) => c.id)).size).toBe(4);
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'kanban', ids: ['k2', 'p2', 's2'], tpl: 'tpl-sales' });
+    expect(No.viewById(ws, 'k2')!.name).toBe('Vertrieb 2');
+    // Einfach = Standardname; ohne Vorlage = Start-Spalten
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'kanban', ids: ['k3', 'p3', 's3'], tpl: 'tpl-simple' });
+    expect(No.viewById(ws, 'k3')!.name).toBe('Kanban-Board');
+    ws = reducer(ws, { type: 'padAddSheet', id: ws.pads![0].id, kind: 'kanban', sheet: 'k4', tpl: 'tpl-review' });
+    expect(No.viewById(ws, 'k4')!.cols!.map((c) => c.state)).toEqual(['open', 'doing', 'review', 'done']);
+  });
+  it('Als Vorlage speichern, umbenennen, löschen mit Rückgängig, laden und Datei', () => {
+    let ws = W.defaultWorkspace();
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'kanban', ids: ['k', 'p1', 's1'] });
+    const cols = No.viewById(ws, 'k')!.cols!;
+    ws = reducer(ws, { type: 'colWip', view: 'k', col: cols[1].id, wip: 3 });
+    ws = reducer(ws, { type: 'sheetReview', view: 'k', on: true });
+    ws = reducer(ws, { type: 'sheetAdd', view: 'k', title: 'Karte', note: 'n' });
+    ws = reducer(ws, { type: 'tplFromBoard', view: 'k', name: 'Team', id: 't1' });
+    const t = BT.templateById(ws, 't1')!;
+    expect(t).toMatchObject({ name: 'Team', review: true });
+    expect(t.cols.map((c) => [c.name, c.state, c.wip])).toEqual([['Offen', 'open', undefined], ['In Arbeit', 'doing', 3], ['Erledigt', 'done', undefined]]);
+    // vergebener Name → nichts
+    expect(BT.templateFromBoard(ws, 'k', 'team')).toEqual({ ok: false, reason: 'taken' });
+    expect(BT.templateFromBoard(ws, 'k', 'Vertrieb')).toEqual({ ok: false, reason: 'taken' });
+    ws = reducer(ws, { type: 'tplRename', id: 't1', name: 'Team Nord' });
+    expect(BT.templateById(ws, 't1')!.name).toBe('Team Nord');
+    // Speichern und Laden behält die Vorlage
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(BT.ownTemplates(back)).toEqual(BT.ownTemplates(ws));
+    // Löschen und Rückgängig an den alten Platz
+    ws = reducer(ws, { type: 'tplFromBoard', view: 'k', name: '', id: 't2' });
+    expect(BT.templateById(ws, 't2')!.name).toBe('Kanban-Board');
+    const del = BT.deleteTemplate(ws, 't1')!;
+    ws = reducer(ws, { type: 'tplDelete', id: 't1' });
+    expect(BT.ownTemplates(ws).map((x) => x.id)).toEqual(['t2']);
+    ws = reducer(ws, { type: 'tplRestore', undo: del.undo });
+    expect(BT.ownTemplates(ws).map((x) => x.id)).toEqual(['t1', 't2']);
+    // Datei: hin und zurück, Name wird frei gemacht
+    const file = JSON.stringify(BT.templateToFile(BT.templateById(ws, 't1')!));
+    const r = BT.readTemplateFile(file);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      ws = reducer(ws, { type: 'tplAdd', tpl: r.template, id: 't3' });
+      expect(BT.templateById(ws, 't3')!.name).toBe('Team Nord 2');
+    }
+    expect(BT.readTemplateFile('{"format":"x"}')).toEqual({ ok: false, error: 'format' });
+    expect(BT.readTemplateFile('{"format":"e-sources-board-vorlage","version":9,"template":{}}')).toEqual({ ok: false, error: 'newer' });
+    expect(BT.templateFileName('Vertrieb Süd')).toBe('e-sources-vorlage-vertrieb-sued.json');
+  });
+  it('Laden prüft: doppelte Ids und Namen mitgelieferter Vorlagen fallen weg', () => {
+    const list = BT.parseBoardTemplates([
+      { id: 'a', name: 'Eigen', cols: [{ name: 'Neu', state: 'open' }, { name: 'Fertig' }] },
+      { id: 'a', name: 'Doppelt', cols: [{ name: 'x' }] },
+      { id: 'tpl-sales', name: 'Gekapert', cols: [{ name: 'x' }] },
+      { id: 'b', name: 'vertrieb', cols: [{ name: 'x' }] },
+      { id: 'c', name: 'Leer', cols: [] },
+    ]);
+    expect(list.map((t) => t.id)).toEqual(['a']);
+    expect(list[0].cols.map((c) => c.state)).toEqual(['open', 'done']);
+  });
+});
+
+describe('V88: Verschieben nach … zwischen Sheets', () => {
+  it('To-do → Kanban in die passende Spalte, Kanban → To-do; Matrix kein Ziel', () => {
+    let ws = W.defaultWorkspace();
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'todo', ids: ['t', 'p1', 's1'] });
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'kanban', ids: ['k', 'p2', 's2'] });
+    ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'eisenhower', ids: ['m', 'p3', 's3'] });
+    ws = reducer(ws, { type: 'sheetAdd', view: 't', title: 'a', note: 'a' });
+    ws = reducer(ws, { type: 'sheetAdd', view: 't', title: 'b', note: 'b' });
+    ws = reducer(ws, { type: 'sheetDone', note: 'b', here: 't' });
+    expect(Sh.moveTargets(ws, 't').map((v) => v.id)).toEqual(['k']);
+    ws = reducer(ws, { type: 'sheetMoveTo', note: 'a', from: 't', to: 'k' });
+    ws = reducer(ws, { type: 'sheetMoveTo', note: 'b', from: 't', to: 'k' });
+    const k = No.viewById(ws, 'k')!;
+    expect(k.cols!.map((c) => c.ids)).toEqual([['a'], [], ['b']]);
+    expect(No.viewById(ws, 't')!.ids).toEqual([]);
+    expect(No.noteById(ws, 'b')!.state).toBe('done');
+    ws = reducer(ws, { type: 'sheetMoveTo', note: 'a', from: 'k', to: 't' });
+    expect(No.viewById(ws, 't')!.ids).toEqual(['a']);
+    expect(No.viewById(ws, 'k')!.cols![0].ids).toEqual([]);
+  });
+});
+
+describe('V88: Rad-Wahl je Sheet merken', () => {
+  it('prüft Werte und begrenzt die Zahl', () => {
+    expect(SP.parseSheetPrefs({ a: { show: 'all', order: 'due' }, b: { show: 'x' }, c: 3 })).toEqual({ a: { show: 'all', order: 'due' } });
+    let all = SP.withSheetPref({}, 'a', { show: 'all' });
+    all = SP.withSheetPref(all, 'a', { order: 'important' });
+    expect(all).toEqual({ a: { show: 'all', order: 'important' } });
+    for (let i = 0; i < SP.SHEET_PREFS_MAX + 5; i++) all = SP.withSheetPref(all, `s${i}`, { show: 'open' });
+    expect(Object.keys(all).length).toBe(SP.SHEET_PREFS_MAX);
+    expect(all.a).toBeUndefined();
   });
 });

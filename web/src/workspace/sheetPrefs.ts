@@ -1,0 +1,52 @@
+/**
+ * V88 (F-206 Schritt 7, kleiner Punkt): Rad-Wahl „Zeigen“ (Offen · Alle) und „Ordnung“ (Eigene · Fällig ·
+ * Wichtig) je Sheet und Gerät merken – nur lokal (wie die Anzeige-Einstellungen), nicht abgeglichen.
+ */
+export const SHEET_PREFS_KEY = 'esource.sheetPrefs.v1';
+/** Höchstens so viele Sheets merken (älteste fallen weg). */
+export const SHEET_PREFS_MAX = 200;
+
+export interface SheetPref {
+  show?: 'open' | 'all';
+  order?: 'own' | 'due' | 'important';
+}
+
+/** Gespeicherten Stand prüfen: nur bekannte Werte. */
+export function parseSheetPrefs(raw: unknown): Record<string, SheetPref> {
+  const out: Record<string, SheetPref> = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!v || typeof v !== 'object') continue;
+    const p = v as Record<string, unknown>;
+    const pref: SheetPref = {};
+    if (p.show === 'open' || p.show === 'all') pref.show = p.show;
+    if (p.order === 'own' || p.order === 'due' || p.order === 'important') pref.order = p.order;
+    if (Object.keys(pref).length) out[id] = pref;
+  }
+  return out;
+}
+
+/** Wahl setzen; der zuletzt geänderte Eintrag steht hinten, über SHEET_PREFS_MAX fällt der älteste weg. */
+export function withSheetPref(all: Record<string, SheetPref>, id: string, patch: SheetPref): Record<string, SheetPref> {
+  const { [id]: old, ...rest } = all;
+  const next = { ...rest, [id]: { ...old, ...patch } };
+  const keys = Object.keys(next);
+  return keys.length > SHEET_PREFS_MAX ? Object.fromEntries(keys.slice(keys.length - SHEET_PREFS_MAX).map((k) => [k, next[k]])) : next;
+}
+
+export function loadSheetPref(id: string): SheetPref {
+  try {
+    return parseSheetPrefs(JSON.parse(localStorage.getItem(SHEET_PREFS_KEY) ?? '{}'))[id] ?? {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveSheetPref(id: string, patch: SheetPref): void {
+  try {
+    const all = parseSheetPrefs(JSON.parse(localStorage.getItem(SHEET_PREFS_KEY) ?? '{}'));
+    localStorage.setItem(SHEET_PREFS_KEY, JSON.stringify(withSheetPref(all, id, patch)));
+  } catch {
+    /* privates Fenster o. Ä. – dann nur bis zum Neuladen */
+  }
+}

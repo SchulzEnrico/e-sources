@@ -12,7 +12,7 @@ import * as Sh from '../workspace/sheets';
 import { PAD_MIN } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
 import { NOTICE_MS } from '../workspace/flash';
-import { AUDIO_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab, freshNotes } from './NoteTab';
 import { type FootItem, PadFooter, type VoiceProps } from './PadFooter';
@@ -33,7 +33,8 @@ const FMT_OF: Record<SwipeDir, FmtTool> = { left: 'li', right: 'task', up: 'h2',
 // V72: ↓ = Neue Erinnerung (Titel H1, darunter Text; Zeit und Ort über die Chips „Wann?“/„Wo?“ über der Note)
 const TPL_OF: Record<SwipeDir, NoteTpl | undefined> = { up: 'tpl-note', right: 'tpl-todo', left: 'tpl-list', down: 'tpl-remind' };
 import { recentIn, type RecentRef } from '../workspace/pads';
-import { Item, Menu } from './PanelFrame';
+import { Item, Menu, MenuPages } from './PanelFrame';
+import { SaveTemplateBar, TemplatePick } from './BoardTemplates';
 import { Icon } from './Icon';
 import { TodoSheet } from './SheetViews';
 import { KanbanSheet } from './KanbanSheet';
@@ -83,6 +84,8 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say, dock, full }: PadProps) {
   const [live, setLive] = useState<PadPlace | null>(null);
   const [renaming, setRenaming] = useState(false);
+  /** V88 (BL3): „Als Vorlage speichern …“ – Leiste unter dem Kopf */
+  const [tplSave, setTplSave] = useState(false);
   const display = useDisplay();
   // V75 (F-215 A2): Bildschirmtastatur offen? Der Knopf schwebt dann nur beim Pad, in dem gerade geschrieben wird
   const kbBottom = useKeyboard();
@@ -539,7 +542,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     show(pad.sheets[j], true);
   };
 
-  const addSheet = (kind: NoteViewKind) => {
+  const addSheet = (kind: NoteViewKind, tpl?: string) => {
     // V87 (E3): genau eine Eisenhower-Matrix – öffnet die vorhandene
     const matrix = kind === 'eisenhower' ? Sh.theMatrix(ws) : undefined;
     if (matrix) {
@@ -548,7 +551,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     }
     if (pad.sheets.length >= PAD_SHEETS_MAX) return notify(PAD_TEXT.full(PAD_SHEETS_MAX));
     const id = newId();
-    dispatch({ type: 'padAddSheet', id: pad.id, kind, sheet: id });
+    dispatch({ type: 'padAddSheet', id: pad.id, kind, sheet: id, ...(tpl ? { tpl } : {}) });
     window.setTimeout(() => tabsRef.current?.querySelector<HTMLElement>(`[data-sheet="${id}"]`)?.focus(), 0);
   };
   // V87 (Enrico): × an jedem Reiter bzw. Entf auf dem Reiter schließt genau dieses Sheet
@@ -690,22 +693,32 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           {sheet?.name}
         </span>
         <Menu className="pad__menu" icon={<span className="pad__add" title={explain(TERMS.sheet)}>{PAD_TEXT.addSheet}</span>} label={`${PAD_TEXT.addSheetLabel} – ${explain(TERMS.sheet)}`}>
-          {(close) =>
-            KINDS.map((k) => (
-              <Item
-                key={k}
-                icon={KIND_ICON[k]}
-                disabled={pad.sheets.length >= PAD_SHEETS_MAX}
-                title={pad.sheets.length >= PAD_SHEETS_MAX ? PAD_TEXT.full(PAD_SHEETS_MAX) : undefined}
-                onClick={() => {
-                  close();
-                  addSheet(k);
-                }}
-              >
-                {No.VIEW_BASE[k]}
-              </Item>
-            ))
-          }
+          {(close) => (
+            // V88 (BL2): Kanban fragt „Leer · Vorlage …“
+            <MenuPages>
+              {(page, go) =>
+                page === 'kanban' ? (
+                  <TemplatePick ws={ws} onBack={() => go('')} onPick={(tpl) => (close(), addSheet('kanban', tpl))} />
+                ) : (
+                  KINDS.map((k) => (
+                    <Item
+                      key={k}
+                      icon={KIND_ICON[k]}
+                      disabled={pad.sheets.length >= PAD_SHEETS_MAX}
+                      title={pad.sheets.length >= PAD_SHEETS_MAX ? PAD_TEXT.full(PAD_SHEETS_MAX) : undefined}
+                      onClick={() => {
+                        if (k === 'kanban') return go('kanban');
+                        close();
+                        addSheet(k);
+                      }}
+                    >
+                      {k === 'kanban' ? `${No.VIEW_BASE[k]} …` : No.VIEW_BASE[k]}
+                    </Item>
+                  ))
+                )
+              }
+            </MenuPages>
+          )}
         </Menu>
         <Menu className="pad__menu" icon={<Icon name="more" size={16} />} label={PAD_TEXT.options}>
           {(close) => (
@@ -727,6 +740,12 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               {(sheet?.kind === 'kanban' || sheet?.kind === 'todo') && (
                 <Item icon="check" checked={!!sheet.review} hint={KANBAN_TEXT.reviewSettingHint} onClick={() => (close(), dispatch({ type: 'sheetReview', view: sheet.id, on: !sheet.review }))}>
                   {KANBAN_TEXT.reviewSetting}
+                </Item>
+              )}
+              {/* V88 (BL3): Spalten dieses Boards als Vorlage merken */}
+              {sheet?.kind === 'kanban' && (
+                <Item icon="layouts" hint={BOARD_TPL_TEXT.saveAsHint} onClick={() => (close(), setTplSave(true))}>
+                  {BOARD_TPL_TEXT.saveAs}
                 </Item>
               )}
               {/* V81 (D5/D6): ins Dock bzw. heraus an den letzten Platz */}
@@ -778,6 +797,18 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           </button>
         )}
       </header>
+      {tplSave && sheet?.kind === 'kanban' && (
+        <SaveTemplateBar
+          ws={ws}
+          dispatch={dispatch}
+          sheetId={sheet.id}
+          say={say}
+          onClose={() => {
+            setTplSave(false);
+            window.setTimeout(() => tabsRef.current?.querySelector<HTMLElement>(`[data-sheet="${sheet.id}"]`)?.focus(), 0);
+          }}
+        />
+      )}
       <div
         className="pad__body"
         role="tabpanel" id={`pad-${pad.id}-panel`} aria-labelledby={sheet ? `pad-${pad.id}-tab-${sheet.id}` : titleId}>
@@ -786,11 +817,11 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
         ) : sheet.kind === 'block' ? (
           <NoteBlock ws={ws} dispatch={dispatch} padId={pad.id} sheetId={sheet.id} picked={picked[sheet.id]} onPick={(n) => onPick(sheet.id, n)} say={say} cmd={cmd} />
         ) : sheet.kind === 'todo' ? (
-          <TodoSheet ws={ws} dispatch={dispatch} desk={pad.desk} sheetId={sheet.id} say={say} cmd={cmd} />
+          <TodoSheet key={sheet.id} ws={ws} dispatch={dispatch} desk={pad.desk} sheetId={sheet.id} say={say} cmd={cmd} />
         ) : sheet.kind === 'kanban' ? (
-          <KanbanSheet ws={ws} dispatch={dispatch} desk={pad.desk} sheetId={sheet.id} say={say} cmd={cmd} />
+          <KanbanSheet key={sheet.id} ws={ws} dispatch={dispatch} desk={pad.desk} sheetId={sheet.id} say={say} cmd={cmd} />
         ) : sheet.kind === 'eisenhower' ? (
-          <MatrixSheet ws={ws} dispatch={dispatch} desk={pad.desk} sheetId={sheet.id} say={say} cmd={cmd} />
+          <MatrixSheet key={sheet.id} ws={ws} dispatch={dispatch} desk={pad.desk} sheetId={sheet.id} say={say} cmd={cmd} />
         ) : (
           <div className="pad__soon">
             <p className="win__placeholder">
@@ -1113,7 +1144,7 @@ function NoteBlock(props: {
               <Icon name="back" size={14} /> {PAD_TEXT.toList}
             </button>
             {/* V74: Erinnerung über der Leiste Speichern/Verwerfen/Schließen (am Ort, F-214) */}
-            <NoteTab ws={ws} noteId={open} dispatch={dispatch} draft={{ onClose: back, say: props.say, notice, shown, above: <RemindAlarm r={reminders} onOpen={pick} /> }} />
+            <NoteTab ws={ws} noteId={open} dispatch={dispatch} sheet={sheetId} draft={{ onClose: back, say: props.say, notice, shown, above: <RemindAlarm r={reminders} onOpen={pick} /> }} />
           </>
         ) : (
           <p className="nblock__pick">{PAD_TEXT.pick}</p>

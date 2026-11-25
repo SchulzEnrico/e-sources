@@ -12,9 +12,10 @@ import type { ColState, Note, NoteColumn, Workspace } from '../workspace/types';
 import type { IconName } from '../workspace/icons';
 import * as No from '../workspace/notes';
 import * as Sh from '../workspace/sheets';
+import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
 import { KANBAN_TEXT as K, NOTE_TEXT, SHEET_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
-import { CardWindow, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useNotice } from './SheetViews';
+import { CardWindow, MoveToBar, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useNotice } from './SheetViews';
 import { Item, Menu, MenuPages } from './PanelFrame';
 import { Icon } from './Icon';
 
@@ -40,7 +41,9 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const cols = v.cols ?? [];
   const by = ws.profile?.name || undefined;
   const [filter, setFilter] = useState('');
-  const [show, setShow] = useState<Show>('open');
+  // V88: Rad-Wahl je Sheet und Gerät merken
+  const [show, setShowRaw] = useState<Show>(() => loadSheetPref(sheetId).show ?? 'open');
+  const setShow = (s: Show) => (setShowRaw(s), saveSheetPref(sheetId, { show: s }));
   const [card, setCard] = useState<string | null>(null);
   const [edit, setEdit] = useState<string | null>(null);
   const [colEdit, setColEdit] = useState<string | null>(null);
@@ -57,6 +60,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const filterRef = useRef<HTMLInputElement>(null);
   const suppress = useRef(false);
   const { notice, shown } = useNotice();
+  const [moving, setMoving] = useState<string | null>(null);
 
   const title = (n: Note) => No.titleOf(No.shownNote(n)) || NOTE_TEXT.untitled;
   const colById = (id: string) => cols.find((c) => c.id === id);
@@ -228,6 +232,8 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       setLift({ id: n.id, col: c.id, index, from: { col: c.id, index }, mode: 'key' });
       return say(`${K.lifted(title(n))} ${K.at(c.name, index + 1, c.ids.length)}`);
     }
+    // V88 (F/K4): V = Verschieben nach … (Ziel-Sheet wählen)
+    if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setMoving(n.id));
     if (e.key === 'F2') return void (e.preventDefault(), setEdit(n.id));
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
@@ -630,6 +636,9 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       <SheetHead id={sheetId} filter={filter} onFilter={setFilter} show={show} onShow={setShow} onDown={() => focusCard()} filterRef={filterRef} />
       <span id={`${sheetId}-cardkeys`} className="sr-only">{K.cardKeys}</span>
       <span className="sr-only" role="status">{K.info(cols.length, No.idsIn(v).length)}</span>
+      {moving && (
+        <MoveToBar ws={ws} dispatch={dispatch} sheetId={sheetId} noteId={moving} say={say} notice={notice} onClose={() => { const id = moving; setMoving(null); focusCard(id); }} />
+      )}
       <NoticeLine shown={shown} />
       <div className="kanban__board" ref={boardRef} aria-label={K.board(v.name)} role="group">
         {cols.map(column)}

@@ -5,7 +5,8 @@ import { usePause } from './workspace/usePause';
 import { PAUSE_CHOICES, SHOWN_CHOICES, keepTabOf, keptBySource, keptSources, pauseMinutes, shownMinutes, tabKey } from './workspace/pause';
 import logoUrl from './assets/e-sources-logo.svg';
 import logoLightUrl from './assets/e-sources-logo-light.svg';
-import { Item, Menu, MenuHead, PanelFrame } from './components/PanelFrame';
+import { Item, Menu, MenuHead, MenuPages, PanelFrame } from './components/PanelFrame';
+import { TemplatePick } from './components/BoardTemplates';
 import { OpacitySlider, Pad as PadView } from './components/Pad';
 import { useF6 } from './components/useF6';
 import { DOCK_TAB_W, PAD_START, clampDockW, dockFront, dockOf, dockedOn, noteTiles, padsOn, padsShow, placeOf, zonePlace } from './workspace/pads';
@@ -1822,13 +1823,15 @@ function DeskApp(props: DeskProps) {
     sayLive(PAD_TEXT.opened(title));
   };
   /** F-206 Schritt 3 (P3): Note bzw. Sheet im obersten Pad anlegen (Suche, Hilfe). */
-  const newNoteHere = (kind: 'note' | NoteViewKind) => {
+  const newNoteHere = (kind: 'note' | NoteViewKind, tpl?: string) => {
     const ids = [newId(), newId(), newId()];
     const by = ws.profile?.name || undefined;
-    const r = padOpenResult(ws, { desk: win, create: kind, ids, by });
+    const r = padOpenResult(ws, { desk: win, create: kind, ids, by, tpl });
     if (r.result === 'missing') return;
     setPadsHidden(false);
-    dispatch({ type: 'padCreate', desk: win, kind, ids, by });
+    dispatch({ type: 'padCreate', desk: win, kind, ids, by, ...(tpl ? { tpl } : {}) });
+    // V88 (BL2): Fokus auf den neuen Reiter
+    if (kind === 'kanban' && r.sheet) window.setTimeout(() => document.querySelector<HTMLElement>(`[data-sheet="${r.sheet}"]`)?.focus(), 0);
     if (kind === 'note' && r.id) {
       pickInPad(r.sheet, r.id);
       focusPadNote(r.pad);
@@ -3090,6 +3093,11 @@ function DeskApp(props: DeskProps) {
           label={`${NT_TEXT.label} – ${TERMS.pad}${padsHidden && deskPads.length ? ` – ${PAD_TEXT.hidden(deskPads.length)}` : ''}${dockSt.off && dockedAll.length ? ` – ${DOCK_TEXT.isOff(dockedAll.length)}` : ''}`}
         >
           {(close) => (
+            // V88 (BL2): „Neues Kanban-Board“ fragt „Leer · Vorlage …“
+            <MenuPages>
+              {(page, go) => page === 'kanban' ? (
+                <TemplatePick ws={ws} onBack={() => go('')} onPick={(tpl) => (close(), newNoteHere('kanban', tpl))} />
+              ) : (
             <>
               <Item icon="newPad" hint={PAD_TEXT.menuNewHint} onClick={() => (close(), newPad())}>
                 {PAD_TEXT.menuNew}
@@ -3098,8 +3106,8 @@ function DeskApp(props: DeskProps) {
               <Item icon="todo" hint={NT_TEXT.newTodoHint} onClick={() => (close(), newNoteHere('todo'))}>
                 {NT_TEXT.newTodo}
               </Item>
-              <Item icon="kanban" hint={NT_TEXT.newKanbanHint} onClick={() => (close(), newNoteHere('kanban'))}>
-                {NT_TEXT.newKanban}
+              <Item icon="kanban" hint={NT_TEXT.newKanbanHint} onClick={() => go('kanban')}>
+                {NT_TEXT.newKanban} …
               </Item>
               <Item icon="matrix" hint={NT_TEXT.matrixHint(!!theMatrix(ws))} onClick={() => (close(), newNoteHere('eisenhower'))}>
                 {NT_TEXT.matrix}
@@ -3147,6 +3155,8 @@ function DeskApp(props: DeskProps) {
                 {NT_TEXT.help}
               </Item>
             </>
+              )}
+            </MenuPages>
           )}
         </Menu>
         )}

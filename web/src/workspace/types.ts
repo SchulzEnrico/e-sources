@@ -263,6 +263,24 @@ export interface Workspace {
   deskNotes?: Record<string, DeskNotes>;
   /** F-206 (v8): gewählte Darstellungen des Projektfokus; fehlt = keine. */
   focusViews?: FocusView[];
+  /** V88 (BL1): eigene Board-Vorlagen (Spalten ohne Karten); mitgelieferte stehen im Code (BUILTIN_TEMPLATES). */
+  boardTemplates?: BoardTemplate[];
+}
+
+/** V88 (BL1): Spalte einer Board-Vorlage – Name, Bedeutung, WIP-Limit, ohne Karten. */
+export interface TemplateColumn {
+  name: string;
+  state: ColState;
+  wip?: number;
+}
+
+/** V88 (BL1): Board-Vorlage für neue Kanban-Boards (wie Trello-Vorlagen). */
+export interface BoardTemplate {
+  id: string;
+  name: string;
+  cols: TemplateColumn[];
+  /** Regel „Abnahme nötig“. */
+  review?: boolean;
 }
 
 /**

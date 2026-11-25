@@ -1,5 +1,6 @@
 import { CATEGORY_ICONS } from './icons';
 import { parseFit, parseZoom } from './zoom';
+import { parseBoardTemplates } from './boardTemplates';
 import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, DeskNotes, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
 import { cleanRefs, parseFocusViews, parsePadDesks, parsePads, parsePersons, parseProjects, personsFromDelegated } from './noteObjects';
 import { parseDeskLooks, parseLook } from './look';
@@ -306,7 +307,10 @@ export function parseWorkspace(data: unknown): Workspace | null {
   const padDesks = parsePadDesks(data.padDesks, new Set(pads.map((p) => p.id)), winIds);
   const deskNotes = parseDeskNotes(data.deskNotes, winIds);
   const focusViews = parseFocusViews(data.focusViews);
+  // V88 (BL1): eigene Board-Vorlagen
+  const boardTemplates = parseBoardTemplates(data.boardTemplates);
   return {
+    ...(boardTemplates.length ? { boardTemplates } : {}),
     ...(pads.length ? { pads } : {}),
     ...(padDesks ? { padDesks } : {}),
     ...(projects.length ? { projects } : {}),

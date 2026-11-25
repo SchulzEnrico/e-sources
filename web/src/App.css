@@ -8006,3 +8006,25 @@ h3.cases__name { font-size: 1.05em; }
 .ncp__matrix:is(:hover, :focus-visible) { border-color: rgb(var(--accent-rgb)); }
 .ncp__matrixname { font-size: 13px; font-weight: 600; margin-right: 4px; }
 @media (forced-colors: active) { .ncp__minicol, .ncp__matrix, .ncp__bar { border: 1px solid CanvasText; } .ncp__minicards i, .ncp__bar > span { background: Highlight; } }
+
+/* ---------------------------------------------------------------- V88 (BL): Board-Vorlagen */
+.bt { margin-top: 14px; }
+.bt__intro { margin: 0 0 8px; font-size: 12px; opacity: 0.85; max-width: 70ch; }
+.bt__mini { display: flex; gap: 3px; width: 100%; height: 40px; }
+.bt__minicol { flex: 1 1 0; display: flex; justify-content: center; padding-top: 4px; border-radius: 4px; background: rgba(127, 127, 127, 0.14); border: 1px solid rgba(var(--tint, 127, 127, 127), 0.2); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3); }
+.bt__minicol .icon { display: inline-block; opacity: 0.8; }
+.bt__minicol.is-done { background: rgba(var(--accent-rgb), 0.16); }
+.bt__minicol.is-review { border-style: dashed; }
+.bt__cols { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 0; font-size: 12px; }
+.bt__col { white-space: nowrap; }
+/* „Als Vorlage speichern …“ – Leiste unter dem Pad-Kopf, am Ort */
+.pad__ask { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0; padding: 6px 10px; font-size: 12px; border-bottom: 1px solid rgba(var(--tint, 127, 127, 127), 0.2); background: rgba(var(--accent-rgb), 0.08); }
+.bt__label { display: flex; align-items: center; gap: 6px; }
+.bt__label input { width: 180px; }
+.bt__hint { opacity: 0.75; }
+.bt__saved:focus { outline: none; }
+@media (forced-colors: active) { .bt__minicol { border: 1px solid CanvasText; } }
+/* V88 (F/K4): Verschieben nach … – Leiste am Ort im Sheet */
+.sheet__move { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 8px; padding: 6px 8px; font-size: 12px; border-radius: 8px; background: rgba(var(--accent-rgb), 0.1); border: 1px solid rgba(var(--accent-rgb), 0.45); }
+.sheet__move-cap { font-weight: 600; margin-right: 4px; }
+@media (forced-colors: active) { .sheet__move { border: 1px solid CanvasText; } }

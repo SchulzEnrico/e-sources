@@ -11,8 +11,9 @@ import type { Action } from '../workspace/useWorkspace';
 import type { Note, NoteView, Workspace } from '../workspace/types';
 import * as No from '../workspace/notes';
 import * as Sh from '../workspace/sheets';
+import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
 import { MATRIX_TEXT as M, NOTE_TEXT, SHEET_TEXT } from '../workspace/terms';
-import { CardWindow, lockText, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useNotice } from './SheetViews';
+import { CardWindow, lockText, MoveToBar, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useNotice } from './SheetViews';
 import { Icon } from './Icon';
 import { newId } from '../workspace/workspace';
 
@@ -27,7 +28,9 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const v = No.viewById(ws, sheetId)!;
   const by = ws.profile?.name || undefined;
   const [filter, setFilter] = useState('');
-  const [show, setShow] = useState<Show>('open');
+  // V88: Rad-Wahl je Sheet und Gerät merken
+  const [show, setShowRaw] = useState<Show>(() => loadSheetPref(sheetId).show ?? 'open');
+  const setShow = (s: Show) => (setShowRaw(s), saveSheetPref(sheetId, { show: s }));
   const [card, setCard] = useState<string | null>(null);
   const [edit, setEdit] = useState<string | null>(null);
   const [tool, setTool] = useState<{ id: string; kind: 'due' | 'delegate' } | null>(null);
@@ -43,6 +46,7 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const [draft, setDraft] = useState('');
   const suppress = useRef(false);
   const { notice, shown } = useNotice();
+  const [moving, setMoving] = useState<string | null>(null);
 
   const m = Sh.matrixOf(ws, v, show);
   const pass = (n: Note) => n.id === lift?.id || Sh.matchesFilter(No.shownNote(n), filter);
@@ -52,7 +56,7 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const spotOf = (n: Note): Spot | null => (Sh.unsorted(n) ? null : No.quadrantOf(n));
   const spotName = (s: Spot) => (s === 'trash' ? M.trash : Sh.QUAD_NAME[s]);
   const spotSay = (s: Spot) => (s === 'trash' ? M.trashHere : M.at(Sh.QUAD_NAME[s], Sh.QUAD_HINT[s]));
-  const focusCard = (id?: string) => window.setTimeout(() => rootRef.current?.querySelector<HTMLElement>(id ? `[data-card="${id}"]` : '[data-card]')?.focus(), 0);
+  const focusCard = (id?: string) => window.setTimeout(() => (rootRef.current?.querySelector<HTMLElement>(id ? `[data-card="${id}"]` : '[data-card]') ?? rootRef.current?.querySelector<HTMLElement>('[data-card]'))?.focus(), 0);
 
   const seen = useRef(props.cmd?.n ?? 0);
   useEffect(() => {
@@ -184,6 +188,8 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       setLift({ id: n.id, at: s, from: s, mode: 'key' });
       return say(`${M.lifted(title(n))}${s ? ` ${spotSay(s)}` : ''}`);
     }
+    // V88 (F/K4): V = Verschieben nach … (Ziel-Sheet wählen)
+    if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setMoving(n.id));
     if (e.key === 'F2') return void (e.preventDefault(), setEdit(n.id));
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
@@ -414,6 +420,9 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       <SheetHead id={sheetId} filter={filter} onFilter={setFilter} show={show} onShow={setShow} onDown={() => focusCard()} filterRef={filterRef} />
       <span id={`${sheetId}-mkeys`} className="sr-only">{M.cardKeys}</span>
       <span className="sr-only" role="status">{M.info(total, unsorted.length)}</span>
+      {moving && (
+        <MoveToBar ws={ws} dispatch={dispatch} sheetId={sheetId} noteId={moving} say={say} notice={notice} onClose={() => { const id = moving; setMoving(null); focusCard(id); }} />
+      )}
       <NoticeLine shown={shown} />
       {lockMsg && (
         <p className="sheet__msg" role="status">

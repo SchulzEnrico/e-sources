@@ -8,7 +8,7 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor, newId } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { NOTES_COCKPIT_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
+import { NOTES_COCKPIT_TEXT, NT_TEXT, PAD_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import { type Action, padOpenResult } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
@@ -126,6 +126,8 @@ export interface OverviewProps {
   onShowPad?: (id: string, sheet?: string) => void;
   onPadToDesk?: (id: string, desk: string) => void;
   startNotes?: boolean;
+  /** V90 (Enrico): im Cockpit „Notizen“ neue Pads und Sheets anlegen (wie im Menü Notizen & Aufgaben). */
+  onNotesNew?: (kind: 'pad' | 'todo' | 'kanban' | 'eisenhower') => void;
   opacity?: { pads: number; dock: number; setPads: (v: number) => void; setDock: (v: number) => void };
 }
 
@@ -852,6 +854,33 @@ export function Overview(p: OverviewProps) {
                 icon: m === 'layouts' ? 'layouts' : m === 'sources' ? 'source' : m === 'notes' ? 'notesTasks' : 'radar',
               }))}
             />
+          )}
+          {/* V90 (Enrico): neue Pads und Sheets direkt im Cockpit „Notizen“ – links gleich nach dem Rad (Enrico) */}
+          {notes && p.onNotesNew && (
+            <span className="overview__new" role="group" aria-label={NOTES_COCKPIT_TEXT.newGroup}>
+              {(
+                [
+                  ['pad', 'newPad', PAD_TEXT.menuNew, PAD_TEXT.menuNewHint],
+                  ['todo', 'todo', NT_TEXT.newTodo, NT_TEXT.newTodoHint],
+                  ['kanban', 'kanban', NT_TEXT.newKanban, NOTES_COCKPIT_TEXT.newKanbanHint],
+                  ['eisenhower', 'matrix', NT_TEXT.matrix, NT_TEXT.matrixHint(false)],
+                ] as const
+              ).map(([kind, icon, name, hint]) => (
+                <button
+                  key={kind}
+                  type="button"
+                  className="overview__tour"
+                  title={hint}
+                  onClick={() => {
+                    p.onNotesNew!(kind);
+                    setSaid(NOTES_COCKPIT_TEXT.created(name));
+                  }}
+                >
+                  <Icon name={icon} />
+                  <span className="c-label">{name}</span>
+                </button>
+              ))}
+            </span>
           )}
           <span className="grow" />
           {!rules && !layouts && !sources && <input

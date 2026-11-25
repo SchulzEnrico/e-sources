@@ -9,6 +9,7 @@ export const TERMS = {
   noteState: 'Zustand = wie weit eine Notiz ist: offen, wartet, in Arbeit, in Prüfung, erledigt oder archiviert; „wartet“ kommt auch von selbst, solange ein Vorgänger offen ist oder der früheste Beginn noch nicht erreicht ist',
   todo: 'To-do-Liste = Notizen als abhakbare Liste in eigener Reihenfolge',
   kanban: 'Kanban-Board = Notizen als Karten in Spalten (z. B. Offen, In Arbeit, Erledigt); eine Karte wandert von links nach rechts',
+  sitePlan: 'Lageplan = kleines Abbild des Desks wie das Radar im Cockpit; darin wählst du per Zeiger oder Pfeiltasten, wo ein neuer Slot oder ein Pad entsteht – Rand einer Kachel = daneben, Mitte = ganz, Streifen rundherum = Desk-Rand',
   boardTemplate: 'Board-Vorlage = die Spalten eines Kanban-Boards mit Name, Bedeutung und WIP-Limit (dazu die Regel „Abnahme nötig“), aber ohne Karten – wie eine Trello-Vorlage; „Neues Kanban-Board“ legt daraus ein leeres Board an',
   eisenhower: 'Eisenhower-Matrix = vier Felder nach wichtig und dringend: sofort tun, planen, abgeben, weglassen',
   desk: 'Desk = eine eigene Arbeitsfläche mit Slots, in eigenem Fenster (z. B. auf einem zweiten Monitor) oder gesammelt im Main Desk',
@@ -849,6 +850,9 @@ export const F6_TEXT = {
 
 /** F-206 Schritt 5 (V85, N8–N10): Cockpit-Ansicht „Notizen“ – weitestgehend wie „Portale“ (NF-08). */
 export const NOTES_COCKPIT_TEXT = {
+  newGroup: 'Neu anlegen',
+  newKanbanHint: 'Leeres Kanban-Board als Reiter im obersten Pad – Vorlagen im Menü Notizen & Aufgaben',
+  created: (what: string) => `${what}: angelegt – steht jetzt in der Liste.`,
   mode: 'Notizen',
   modeOn: 'Notizen: Jeder Desk zeigt seine Pads als Rahmen und das Dock als Streifen. Esc oder „Portale“ führt zurück.',
   filter: 'Filtern: Pad, Sheet, Desk …',
@@ -1193,6 +1197,11 @@ export const PLAN_TEXT = {
   notesNext: (name: string, s: 'left' | 'right' | 'top' | 'bottom') => `Pad ${PLAN_TEXT.sideOf[s]} „${name}“`,
   notesTab: (name: string) => `Als Reiter in „${name}“`,
   notesEdge: (s: 'left' | 'right' | 'top' | 'bottom') => `Am Rand ${PLAN_TEXT.side[s]} über die ganze Fläche`,
+  notesSwap: (name: string) => `Mit „${name}“ tauschen`,
+  notesSelf: 'Hier liegt dieses Pad schon',
+  notesSmall: 'Das Pad würde hier zu klein',
+  menuNotesHint: 'Neues Pad neben einem Pad, am Rand oder als Reiter in ein Pad legen',
+  notesMoveHint: 'Dieses Pad neben ein anderes legen, an den Rand oder mit einem tauschen',
   group: (what: string) => `Lageplan: ${what}`,
   keys: 'Pfeile: Kachel · Umschalt + Pfeil: Seite (zweimal am Rand: Desk-Rand) · Leertaste: ganz · Enter: übernehmen · Esc: zurück',
   back: 'Zurück',
@@ -1209,6 +1218,22 @@ export const PLAN_TEXT = {
   menuPadHint: 'Neues Pad über eine Hälfte oder einen ganzen Slot legen',
   padMoveHint: 'Dieses Pad über eine Hälfte oder einen ganzen Slot legen',
   placed: (what: string) => `Platz: ${what}`,
+} as const;
+
+/** F-210 Schritt 4 (V90): Notizen-Modus als Baum – Ansagen und Meldungen. */
+export const NOTES_TREE_TEXT = {
+  swapped: (a: string, b: string) => `„${a}“ und „${b}“ haben getauscht.`,
+  noNeighbour: 'In dieser Richtung liegt kein Pad.',
+  noBorder: 'In dieser Richtung gibt es keine Grenze.',
+  sized: (w: number, h: number) => `Größe: ${w} × ${h} Pixel.`,
+  even: (n: number) => `Alle ${n} Pads gleich verteilt.`,
+  evenOne: 'Nur ein Pad – es füllt schon die ganze Fläche.',
+  docked: (what: string) => `Neuer Platz: ${what}.`,
+  closed: 'Pad geschlossen',
+  undo: 'Rückgängig',
+  restored: 'Pad ist wieder an seinem Platz.',
+  tab: (name: string) => `Neuer Notizblock als Reiter in „${name}“.`,
+  distribute: 'Gleich verteilen (Alt/⌥+G): alle Pads gleich groß, die Anordnung bleibt',
 } as const;
 
 export const PAD_TEXT = {
@@ -1246,6 +1271,8 @@ export const PAD_TEXT = {
   closed: 'Pad geschlossen – die Notizen bleiben in der Library.',
   move: 'Ziehen zum Verschieben · Alt/⌥ + Pfeile verschieben (gedrückt halten = schneller), mit Umschalt die Größe',
   resize: 'Größe ändern',
+  moveTile: 'Ziehen: an ein anderes Pad andocken (Rand) oder tauschen (Mitte) · Alt/⌥ + Pfeil tauscht mit dem Nachbarn, mit Umschalt wandert die Grenze',
+  border: 'Grenze ziehen – die Nachbarn wachsen bzw. schrumpfen mit',
   moved: (where: string) => `Pad liegt jetzt ${where}.`,
   sized: (w: number, h: number) => `Pad ist jetzt ${w} × ${h} Pixel groß.`,
   list: 'Notizen in diesem Notizblock',

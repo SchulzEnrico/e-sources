@@ -7,11 +7,14 @@ import logoUrl from './assets/e-sources-logo.svg';
 import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, MenuHead, MenuPages, PanelFrame } from './components/PanelFrame';
 import { TemplatePick } from './components/BoardTemplates';
-import { OpacitySlider, Pad as PadView } from './components/Pad';
+import { OpacitySlider, Pad as PadView, type Edge as PadEdge, type PadSide } from './components/Pad';
+import * as NT from './workspace/noteTree';
+import { type PadUndo } from './workspace/pads';
+import { PAD_SHEETS_MAX } from './workspace/noteObjects';
 import { type PlanPreview, SitePlan } from './components/SitePlan';
 import { type PlanPick, type PlanSide, type PlanTile, pickName, pickRect } from './workspace/sitePlan';
 import { useF6 } from './components/useF6';
-import { DOCK_TAB_W, PAD_MIN, PAD_START, clampDockW, dockFront, dockOf, dockedOn, noteTiles, padsOn, padsShow, placeOf, zonePlace } from './workspace/pads';
+import { DOCK_TAB_W, PAD_MIN, PAD_START, clampDockW, dockFront, dockOf, dockedOn, padsOn, padsShow, placeOf, zonePlace } from './workspace/pads';
 import {
   type Lines,
   type Orientation,
@@ -56,7 +59,7 @@ import { importSlot, isSlotFile, readSlotFile, slotFileName, slotToFile } from '
 import { type NoteHit, tabShowing, titleOf as noteTitleOf, viewById } from './workspace/notes';
 import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { DESK_MODE_TEXT, DOCK_TEXT, NT_TEXT, PLAN_TEXT, VIEW_TEXT } from './workspace/terms';
+import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, VIEW_TEXT } from './workspace/terms';
 import { type DeskMode, PHONE_MQ, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
 import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
@@ -350,9 +353,11 @@ function DeskApp(props: DeskProps) {
     const n = f.panels === 1 ? '1 Portal' : `${f.panels} Portale`;
     return { color: f.level ? loadColor(f.level) : undefined, text: `Fokus dieses Desks: ${f.color}, ${String(f.points).replace('.', ',')} Punkte (${n})`, word: f.color };
   };
+  /** V90 (Enrico): im Notizen-Modus öffnet das Cockpit gleich in „Notizen“. */
+  const notesModeRef = useRef(false);
   const toggleOverview = useCallback(() => {
     setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
-    setOverviewNotes(false); // V85: Fokus-Knopf öffnet immer die Portale
+    setOverviewNotes(notesModeRef.current); // V85: Fokus-Knopf öffnet die Portale – V90: im Notizen-Modus die Notizen
     setOverview((o) => !o);
   }, []);
   // F-28: Strg/⌘+. klappt die Übersicht auf und zu.
@@ -1087,13 +1092,14 @@ function DeskApp(props: DeskProps) {
     if (!padsWithout) return;
     for (const p of deskPads) if (!placeOf(ws, win, p.id)) dispatch({ type: 'padPlace', desk: win, id: p.id, place: padHome(p) });
   }, [padsWithout]); // eslint-disable-line react-hooks/exhaustive-deps
-  const newPad = () => {
+  const newPad = (focus = true) => {
     const id = newId();
     dispatch({ type: 'padNew', desk: win, id, sheet: newId(), place: padHome() });
     setPadsHidden(false);
-    notify(PAD_TEXT.created);
+    // im Cockpit meldet das Cockpit selbst (Meldung am Ort)
+    if (focus) notify(PAD_TEXT.created);
     sayLive(PAD_TEXT.created);
-    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .nblock__new`)?.focus(), 60);
+    if (focus) window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .nblock__new`)?.focus(), 60);
   };
 
   // ---------------------------------------------------------------- F-210 (V89): Lageplan
@@ -1151,6 +1157,7 @@ function DeskApp(props: DeskProps) {
   // und kein Umschalter – erst alle Funktionen, die Mobilansicht der Notizen kommt später
   const notesOff = phone;
   const notesMode = !notesOff && modeOf(deskModes, win, phone) === 'notes';
+  notesModeRef.current = notesMode;
   const setDeskMode = (m: DeskMode) => {
     const next = withMode(deskModes, win, m);
     setDeskModes(next);
@@ -1178,11 +1185,221 @@ function DeskApp(props: DeskProps) {
   // V87 (Enrico): im Notizen-Modus alle Pads verteilt im Raster, feste Reihenfolge (nicht nach „oben“)
   const noteOrder = [...allPads].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const padOrder = [...deskPads].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+  // ---------------------------------------------------------------- F-210 Schritt 4 (V90): Notizen-Modus als Baum (F1–F5)
+  // Pads liegen lückenlos im Teilungsbaum wie Slots; der Baum gilt je Desk und Gerät (padDesks[desk].notes).
+  const noteMin: T.Min = { w: Math.min(1, PAD_MIN.w / iw), h: Math.min(1, PAD_MIN.h / ih) };
+  const storedNotes = NT.noteTreeOf(ws, win);
+  // F3: ein neues Pad kommt rechts neben das zuletzt aktive Pad, das schon im Baum liegt
+  const noteNear = [...allPads].reverse().find((p) => storedNotes && T.hasLeaf(storedNotes, p.id))?.id;
+  const noteSync = NT.syncNoteTree(storedNotes, noteOrder.map((p) => p.id), { near: noteNear, min: noteMin, aspect: deskAr });
+  const [noteDraft, setNoteDraft] = useState<T.Node | null>(null);
+  const noteTree = noteDraft ?? noteSync.tree;
+  const noteRects = T.rects(noteTree);
+  const noteName = (id: string) => {
+    const p = allPads.find((x) => x.id === id);
+    return (p && viewById(ws, p.active)?.name) || TERMS.pad.split(' =')[0];
+  };
+  const noteAdd = notesMode && noteSync.added && iw > 0 ? T.leaves(noteSync.tree).join() : '';
+  useEffect(() => {
+    if (noteAdd) dispatch({ type: 'noteTree', desk: win, tree: noteSync.tree });
+  }, [noteAdd]); // eslint-disable-line react-hooks/exhaustive-deps
+  const saveNotes = (t: T.Node | null) => dispatch({ type: 'noteTree', desk: win, tree: t });
+  const focusPadHead = (id: string) => window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .pad__tab.is-on`)?.focus(), 60);
+  /** Ränder mit einer Grenze zum Nachbarn (am Desk-Rand gibt es nichts zu ziehen). */
+  const noteGrips = (id: string): PadEdge[] => {
+    if (!noteTree) return [];
+    const can = (side: T.Side) => T.canResize(noteTree, id, side);
+    const out: PadEdge[] = [];
+    if (can('top')) out.push('n');
+    if (can('bottom')) out.push('s');
+    if (can('right')) out.push('e');
+    if (can('left')) out.push('w');
+    if (can('right') && can('bottom')) out.push('se');
+    return out;
+  };
+  const startNoteResize = (e: ReactPointerEvent, id: string, edge: PadEdge) => {
+    const base = noteTree;
+    if (!base) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const x = edge === 'e' || edge === 'se' ? 'right' : edge === 'w' ? 'left' : undefined;
+    const y = edge === 's' || edge === 'se' ? 'bottom' : edge === 'n' ? 'top' : undefined;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const at = (ev: PointerEvent) => T.resizeEdges(base, id, { x, dx: (ev.clientX - x0) / iw, y, dy: (ev.clientY - y0) / ih }, noteMin);
+    track(
+      (ev) => setNoteDraft(at(ev)),
+      (ev) => {
+        saveNotes(at(ev));
+        setNoteDraft(null);
+      },
+      x && y ? 'nwse-resize' : x ? 'ew-resize' : 'ns-resize',
+    );
+  };
+  // F1: Kopf ziehen = an ein anderes Pad andocken (Rand) bzw. tauschen (Mitte), ganz am Rand = über die ganze Fläche
+  const [noteDrag, setNoteDrag] = useState<Drag | null>(null);
+  const noteHit = (cx: number, cy: number, rs: Map<string, T.FRect>): { target: string; zone: T.Zone } | null => {
+    const box = areaRef.current?.getBoundingClientRect();
+    if (!box) return null;
+    const x = cx - box.left;
+    const y = cy - box.top;
+    const edge: [T.Side, number][] = [
+      ['left', x],
+      ['right', box.width - x],
+      ['top', y],
+      ['bottom', box.height - y],
+    ];
+    edge.sort((a, b) => a[1] - b[1]);
+    if (edge[0][1] >= -AREA_BAND_PX && edge[0][1] < AREA_BAND_PX) return { target: T.AREA, zone: edge[0][0] };
+    for (const [id, fr] of rs) {
+      const r = px(fr);
+      if (x < r.left || x > r.left + r.width || y < r.top || y > r.top + r.height) continue;
+      const u = (x - r.left) / r.width;
+      const v = (y - r.top) / r.height;
+      const d: [T.Side, number][] = [
+        ['left', u],
+        ['right', 1 - u],
+        ['top', v],
+        ['bottom', 1 - v],
+      ];
+      d.sort((a, b) => a[1] - b[1]);
+      return { target: id, zone: d[0][1] < EDGE_BAND ? d[0][0] : 'center' };
+    }
+    return null;
+  };
+  const startNoteDrag = (e: ReactPointerEvent, id: string) => {
+    const base = noteTree;
+    if (e.button !== 0 || !base || T.isLeaf(base)) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const rs = T.rects(base);
+    let started = false;
+    let last: Drag | null = null;
+    track(
+      (ev) => {
+        if (!started && Math.hypot(ev.clientX - x0, ev.clientY - y0) < DRAG_START_PX) return;
+        if (!started) document.body.style.cursor = 'grabbing';
+        started = true;
+        const hit = noteHit(ev.clientX, ev.clientY, rs);
+        const ok = !!hit && hit.target !== id && !(hit.target === T.AREA && hit.zone === 'center');
+        last = { id, x: ev.clientX, y: ev.clientY, target: ok ? hit.target : null, zone: ok ? hit.zone : null };
+        setNoteDrag(last);
+      },
+      () => {
+        setNoteDrag(null);
+        const d = last;
+        if (!d?.target || !d.zone) return;
+        const t = T.drop(base, id, d.target, d.zone);
+        if (t === base) return;
+        saveNotes(t);
+        const where = d.target === T.AREA ? PLAN_TEXT.notesEdge(d.zone as T.Side) : d.zone === 'center' ? PLAN_TEXT.notesSwap(noteName(d.target)) : PLAN_TEXT.notesNext(noteName(d.target), d.zone);
+        sayLive(NOTES_TREE_TEXT.docked(where));
+        focusPadHead(id);
+      },
+    );
+  };
+  const noteSwap = (id: string, dir: PadSide) => {
+    if (!noteTree) return;
+    const r = NT.swapToward(noteTree, id, dir);
+    if (!r) return sayLive(NOTES_TREE_TEXT.noNeighbour);
+    saveNotes(r.tree);
+    sayLive(NOTES_TREE_TEXT.swapped(noteName(id), noteName(r.with)));
+  };
+  const noteEdge = (id: string, dir: PadSide) => {
+    if (!noteTree) return;
+    const t = sizeStep(noteTree, id, { kind: 'edge', dir, other: false }, noteMin);
+    if (t === noteTree) return sayLive(NOTES_TREE_TEXT.noBorder);
+    saveNotes(t);
+    const r = T.rects(t).get(id);
+    if (r) sayLive(NOTES_TREE_TEXT.sized(Math.round(r.w * iw), Math.round(r.h * ih)));
+  };
+  /** F1: „Gleich verteilen“ – im Notizen-Modus für die Pads (gleicher Knopf, gleiche Taste wie bei Slots, NF-08). */
+  const evenNotes = () => {
+    if (!noteTree || T.isLeaf(noteTree)) return notify(NOTES_TREE_TEXT.evenOne);
+    saveNotes(NT.equalNotes(noteTree));
+    notify(NOTES_TREE_TEXT.even(T.leaves(noteTree).length));
+  };
+  // F3/F1: Lageplan im Notizen-Modus – Kacheln = Pads; neues Pad: Mitte = als Reiter; Pad versetzen: Mitte = tauschen
+  const notesPlan = (title: string, kind: 'notes' | 'notesMove', self: string | null, onTake: (pick: PlanPick) => void) => (done: () => void, back: () => void) => {
+    const tiles = NT.noteTilesOf(noteTree, noteName);
+    const first = self ? (tiles.find((x) => x.id !== self)?.id ?? null) : (allPads.at(-1)?.id ?? tiles[0]?.id ?? null);
+    const share = (side: PlanSide) => T.sideShare(noteTree, side);
+    const blocked = (pick: PlanPick): string | null => {
+      if (self && pick.tile === self) return PLAN_TEXT.notesSelf;
+      if (pick.tile && pick.zone === 'full') {
+        if (kind === 'notesMove') return null;
+        const p = allPads.find((x) => x.id === pick.tile);
+        return p && p.sheets.length >= PAD_SHEETS_MAX ? PAD_TEXT.full(PAD_SHEETS_MAX) : null;
+      }
+      if (!pick.tile && pick.zone === 'full') return PLAN_TEXT.noWhole;
+      const r = pickRect(tiles, pick, pick.tile ? 0.5 : share(pick.zone as PlanSide));
+      return r.w + 1e-9 < noteMin.w || r.h + 1e-9 < noteMin.h ? PLAN_TEXT.notesSmall : null;
+    };
+    return (
+      <SitePlan
+        title={title}
+        kind={kind}
+        tiles={tiles}
+        start={{ tile: first, zone: 'right' }}
+        ar={deskAr}
+        blocked={blocked}
+        edgeFrac={share}
+        onPreview={setPlanPrev}
+        onBack={back}
+        onPick={(p) => (done(), onTake(p))}
+      />
+    );
+  };
+  const newNoteAt = (pick: PlanPick) => {
+    const where = PLAN_TEXT.placed(pickName(NT.noteTilesOf(noteTree, noteName), pick, 'notes'));
+    if (pick.tile && pick.zone === 'full') {
+      const sheet = newId();
+      dispatch({ type: 'padAddSheet', id: pick.tile, kind: 'block', sheet });
+      const text = NOTES_TREE_TEXT.tab(noteName(pick.tile));
+      notify(text);
+      sayLive(text);
+      window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${pick.tile}"] .nblock__new`)?.focus(), 60);
+      return;
+    }
+    if (pick.zone === 'full') return;
+    const id = newId();
+    dispatch({ type: 'padNew', desk: win, id, sheet: newId(), place: padHome() });
+    dispatch({ type: 'noteTree', desk: win, tree: NT.addInTree(noteTree, id, pick.tile, pick.zone) });
+    notify(`${PAD_TEXT.created} ${where}`);
+    sayLive(`${PAD_TEXT.created} ${where}`);
+    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .nblock__new`)?.focus(), 60);
+  };
+  const moveNoteTo = (id: string, pick: PlanPick) => {
+    if (!noteTree) return;
+    const where = pickName(NT.noteTilesOf(noteTree, noteName), pick, 'notesMove');
+    saveNotes(NT.moveInTree(noteTree, id, pick.tile, pick.zone));
+    dispatch({ type: 'padRaise', id });
+    sayLive(PLAN_TEXT.placed(where));
+    focusPadHead(id);
+  };
+  // F4: „Pad geschlossen · Rückgängig“ am alten Platz des Pads (Meldung am Ort)
+  const [padGone, setPadGone] = useState<{ undo: PadUndo; rect: T.FRect } | null>(null);
+  useEffect(() => {
+    if (!padGone) return;
+    const t = window.setTimeout(() => setPadGone(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [padGone]);
+  const undoPadGone = () => {
+    if (!padGone) return;
+    const id = padGone.undo.pad.id;
+    dispatch({ type: 'padRestore', undo: padGone.undo });
+    setPadGone(null);
+    sayLive(NOTES_TREE_TEXT.restored);
+    focusPadHead(id);
+  };
   const padLayer =
     !notesOff && (notesMode ? allPads.length > 0 : !padsHidden && deskPads.length > 0) ? (
       <div className={`padlayer${notesMode ? ' is-notes' : ''}`}>
         {(fullOn ? (notesMode ? allPads : deskPads).filter((x) => x.id === fullOn) : notesMode ? noteOrder : padOrder).map((p, i) => {
           const z = notesMode ? i : deskPads.indexOf(p);
+          const place = fullOn ? FULL : notesMode ? (noteRects.get(p.id) ?? FULL) : (placeOf(ws, win, p.id) ?? padHome(p));
+          const tiled = notesMode && !fullOn;
           return (
             <PadView
               key={p.id}
@@ -1190,11 +1407,31 @@ function DeskApp(props: DeskProps) {
               dispatch={dispatch}
               pad={p}
               desk={win}
-              place={fullOn ? FULL : notesMode ? noteTiles(noteOrder.length)[i] : (placeOf(ws, win, p.id) ?? padHome(p))}
+              place={place}
               box={{ w: iw, h: ih, gap: GAP }}
               top={fullOn ? true : notesMode ? p.id === allPads.at(-1)?.id : z === deskPads.length - 1}
               full={{ on: fullOn === p.id, toggle: () => toggleFull(p.id, padName(p)) }}
-              plan={notesMode || fullOn ? undefined : padPlan(PLAN_TEXT.movePad(viewById(ws, p.active)?.name ?? 'Pad'), (pick) => movePadTo(p.id, pick))}
+              plan={
+                fullOn
+                  ? undefined
+                  : notesMode
+                    ? allPads.length > 1
+                      ? notesPlan(PLAN_TEXT.movePad(noteName(p.id)), 'notesMove', p.id, (pick) => moveNoteTo(p.id, pick))
+                      : undefined
+                    : padPlan(PLAN_TEXT.movePad(viewById(ws, p.active)?.name ?? 'Pad'), (pick) => movePadTo(p.id, pick))
+              }
+              tile={
+                tiled
+                  ? {
+                      grips: noteGrips(p.id),
+                      onGrip: (e, edge) => startNoteResize(e, p.id, edge),
+                      onHead: (e) => startNoteDrag(e, p.id),
+                      onSwap: (dir) => noteSwap(p.id, dir),
+                      onEdge: (dir) => noteEdge(p.id, dir),
+                    }
+                  : undefined
+              }
+              onClosed={(u) => u && setPadGone({ undo: u, rect: place })}
               z={z + 1}
               picked={padPick}
               onPick={pickInPad}
@@ -1877,7 +2114,7 @@ function DeskApp(props: DeskProps) {
     sayLive(PAD_TEXT.opened(title));
   };
   /** F-206 Schritt 3 (P3): Note bzw. Sheet im obersten Pad anlegen (Suche, Hilfe). */
-  const newNoteHere = (kind: 'note' | NoteViewKind, tpl?: string) => {
+  const newNoteHere = (kind: 'note' | NoteViewKind, tpl?: string, focus = true) => {
     const ids = [newId(), newId(), newId()];
     const by = ws.profile?.name || undefined;
     const r = padOpenResult(ws, { desk: win, create: kind, ids, by, tpl });
@@ -1885,6 +2122,7 @@ function DeskApp(props: DeskProps) {
     setPadsHidden(false);
     dispatch({ type: 'padCreate', desk: win, kind, ids, by, ...(tpl ? { tpl } : {}) });
     // V88 (BL2): Fokus auf den neuen Reiter
+    if (!focus) return;
     if (kind === 'kanban' && r.sheet) window.setTimeout(() => document.querySelector<HTMLElement>(`[data-sheet="${r.sheet}"]`)?.focus(), 0);
     if (kind === 'note' && r.id) {
       pickInPad(r.sheet, r.id);
@@ -2101,6 +2339,7 @@ function DeskApp(props: DeskProps) {
     const evenly = () => {
       e.preventDefault();
       e.stopImmediatePropagation();
+      if (notesMode) return evenNotes();
       if (mode.kind !== 'area') setMode({ kind: 'area' });
       dispatch({ type: 'distribute', setup });
       const text = `Alle ${view.slots.length} Slots gleich verteilt.`;
@@ -3072,7 +3311,14 @@ function DeskApp(props: DeskProps) {
         {/* „Zum Dashboard“ nimmt außerhalb des Dashboards den Platz von „Gleich verteilen“ ein (dort ohnehin gesperrt) –
             so verschiebt sich beim Durchschalten nichts und der View-Knopf bleibt unter Finger und Maus */}
         {onArea ? (
-          <button type="button" className="tb-view tb-distribute" onClick={() => dispatch({ type: 'distribute', setup })} title="Gleich verteilen (Alt/⌥+G): alle Portale gleich groß, die Anordnung bleibt" aria-label="Gleich verteilen" aria-keyshortcuts="Alt+G">
+          <button
+            type="button"
+            className="tb-view tb-distribute"
+            onClick={() => (notesMode ? evenNotes() : dispatch({ type: 'distribute', setup }))}
+            title={notesMode ? NOTES_TREE_TEXT.distribute : 'Gleich verteilen (Alt/⌥+G): alle Portale gleich groß, die Anordnung bleibt'}
+            aria-label="Gleich verteilen"
+            aria-keyshortcuts="Alt+G"
+          >
             {DistributeIcon}
           </button>
         ) : (
@@ -3173,7 +3419,7 @@ function DeskApp(props: DeskProps) {
               {(page, go) => page === 'kanban' ? (
                 <TemplatePick ws={ws} onBack={() => go('')} onPick={(tpl) => (close(), newNoteHere('kanban', tpl))} />
               ) : page === 'place' ? (
-                padPlan(PLAN_TEXT.pickPad, newPadAt)(close, () => go(''))
+                notesMode ? notesPlan(PLAN_TEXT.pickPad, 'notes', null, newNoteAt)(close, () => go('')) : padPlan(PLAN_TEXT.pickPad, newPadAt)(close, () => go(''))
               ) : (
             <>
               <Item icon="newPad" hint={PAD_TEXT.menuNewHint} onClick={() => (close(), newPad())}>
@@ -3189,7 +3435,7 @@ function DeskApp(props: DeskProps) {
               <Item icon="matrix" hint={NT_TEXT.matrixHint(!!theMatrix(ws))} onClick={() => (close(), newNoteHere('eisenhower'))}>
                 {NT_TEXT.matrix}
               </Item>
-              <Item icon="slot" disabled={notesMode} title={notesMode ? PAD_TEXT.menuPlaceNotes : undefined} hint={PLAN_TEXT.menuPadHint} onClick={() => go('place')}>
+              <Item icon="slot" hint={notesMode ? PLAN_TEXT.menuNotesHint : PLAN_TEXT.menuPadHint} onClick={() => go('place')}>
                 {PAD_TEXT.menuPlace}
               </Item>
               <Item icon="search" hint={NT_TEXT.findHint} onClick={() => (close(), window.setTimeout(findNotes, 0))}>
@@ -3879,6 +4125,7 @@ function DeskApp(props: DeskProps) {
           layoutOps={layoutOps}
           startLayouts={overviewLayouts}
           startNotes={overviewNotes}
+          onNotesNew={notesOff ? undefined : (kind) => (kind === 'pad' ? newPad(false) : newNoteHere(kind, undefined, false))}
           onShowPad={notesOff ? undefined : showPad}
           onPadToDesk={notesOff ? undefined : padToDesk}
           opacity={{ pads: display.padOpacity, dock: display.dockOpacity, setPads: setPadOpacity, setDock: setDockOpacity }}
@@ -3959,6 +4206,27 @@ function DeskApp(props: DeskProps) {
               style={{ left: GAP + planPrev.rect.x * iw, top: GAP + planPrev.rect.y * ih, width: Math.max(0, planPrev.rect.w * iw - GAP), height: Math.max(0, planPrev.rect.h * ih - GAP) }}
             >
               <span className="planprev__label">{planPrev.label}</span>
+            </div>
+          )}
+          {notesMode && noteDrag?.target && noteDrag.zone && (
+            <div className="notedrop" aria-hidden="true" style={noteDrag.target === T.AREA ? { inset: 0 } : px(noteRects.get(noteDrag.target) ?? FULL)}>
+              <div className={`drop drop--${noteDrag.zone} ${noteDrag.target === T.AREA ? 'drop--dock' : zoneClass(noteDrag.zone)}`}>
+                <span>{dropLabel(noteDrag.target, noteDrag.zone)}</span>
+              </div>
+            </div>
+          )}
+          {notesMode && noteDrag && (
+            <div className="ghost" aria-hidden="true" style={{ left: noteDrag.x + 12, top: noteDrag.y + 12 }}>
+              {noteName(noteDrag.id)}
+              {noteDrag.target && noteDrag.zone ? ` → ${ghostLabel(noteDrag.target, noteDrag.zone, noteName(noteDrag.target))}` : ''}
+            </div>
+          )}
+          {padGone && (
+            <div className="padgone" role="status" style={{ left: GAP + (padGone.rect.x + padGone.rect.w / 2) * iw, top: GAP + (padGone.rect.y + padGone.rect.h / 2) * ih }}>
+              <span>{NOTES_TREE_TEXT.closed}</span>
+              <button type="button" onClick={undoPadGone}>
+                {NOTES_TREE_TEXT.undo}
+              </button>
             </div>
           )}
         </main>

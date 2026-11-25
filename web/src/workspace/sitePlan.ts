@@ -12,7 +12,8 @@ import { PLAN_TEXT } from './terms';
 export type PlanSide = 'top' | 'bottom' | 'left' | 'right';
 export type PlanZone = PlanSide | 'full';
 /** Wozu der Plan gerade dient – bestimmt nur Beschriftung und Vorschau. */
-export type PlanKind = 'pad' | 'slot' | 'notes';
+/** `notes` = neues Pad im Notizen-Modus (Mitte = als Reiter), `notesMove` = Pad dort versetzen (Mitte = tauschen). */
+export type PlanKind = 'pad' | 'slot' | 'notes' | 'notesMove';
 
 export interface PlanTile {
   id: string;
@@ -174,11 +175,12 @@ export function pickName(tiles: readonly PlanTile[], pick: PlanPick, kind: PlanK
   if (!t) {
     if (pick.zone === 'full') return kind === 'pad' ? T.wholeDesk : T.noWhole;
     if (kind === 'slot') return T.slotEdge(pick.zone);
-    if (kind === 'notes') return T.notesEdge(pick.zone);
+    if (kind === 'notes' || kind === 'notesMove') return T.notesEdge(pick.zone);
     return `${T.wholeDesk} · ${T.half[pick.zone]}`;
   }
   if (kind === 'slot') return pick.zone === 'full' ? T.slotStack(t.name) : T.slotNext(t.name, pick.zone);
   if (kind === 'notes') return pick.zone === 'full' ? T.notesTab(t.name) : T.notesNext(t.name, pick.zone);
+  if (kind === 'notesMove') return pick.zone === 'full' ? T.notesSwap(t.name) : T.notesNext(t.name, pick.zone);
   return pick.zone === 'full' ? `${t.name} · ${T.whole}` : `${t.name} · ${T.half[pick.zone]}`;
 }
 

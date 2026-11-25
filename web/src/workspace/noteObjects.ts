@@ -21,6 +21,7 @@ import type {
   SourceLink,
   SourceSpot,
 } from './types';
+import { type Node, isNode, leaves, removeLeaf } from './tree';
 
 /** Höchstens so viele Sheets je Pad (Antwort 20). */
 export const PAD_SHEETS_MAX = 9;
@@ -329,7 +330,16 @@ export function parsePadDesks(v: unknown, padIds: ReadonlySet<string>, deskIds: 
         ...(d.dock.folded === true ? { folded: true } : {}),
       };
     if (d.dockOff === true) pd.dockOff = true;
-    if (Object.keys(places).length || pd.dock || pd.dockOff) out[desk] = pd;
+    // V90 (F1): Baum der Pads im Notizen-Modus – nur bekannte Pads, jedes einmal
+    if (isNode(d.notes)) {
+      const ids = leaves(d.notes);
+      if (ids.length === new Set(ids).size) {
+        let t: Node | null = d.notes;
+        for (const id of ids) if (t && !padIds.has(id)) t = removeLeaf(t, id);
+        if (t) pd.notes = t;
+      }
+    }
+    if (Object.keys(places).length || pd.dock || pd.dockOff || pd.notes) out[desk] = pd;
   }
   return Object.keys(out).length ? out : undefined;
 }

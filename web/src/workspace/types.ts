@@ -561,6 +561,8 @@ export interface PadDesk {
   dock?: { edge: 'left' | 'right' | 'top' | 'bottom'; at: number; w?: number; folded?: boolean };
   /** Dock ganz weggeschaltet. */
   dockOff?: boolean;
+  /** F-210 Schritt 4 (V90, F1): Teilungsbaum der Pads im Notizen-Modus (Blätter = Pad-Ids). */
+  notes?: Node;
 }
 
 /** F-206 (V65, M5): Projekt in einem Scope, mit Teilprojekten. */

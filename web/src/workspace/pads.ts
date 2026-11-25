@@ -70,7 +70,7 @@ function dropPlace(ws: Workspace, padId: string): Workspace {
   const out: Record<string, NonNullable<Workspace['padDesks']>[string]> = {};
   for (const [desk, d] of Object.entries(ws.padDesks)) {
     const { [padId]: _gone, ...places } = d.places;
-    if (Object.keys(places).length || d.dock || d.dockOff) out[desk] = { ...d, places };
+    if (Object.keys(places).length || d.dock || d.dockOff || d.notes) out[desk] = { ...d, places };
   }
   const next: Workspace = { ...ws, padDesks: out };
   if (!Object.keys(out).length) delete next.padDesks;

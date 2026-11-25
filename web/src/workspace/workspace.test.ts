@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { type ScreenSetup, detectScreen, specOf } from './screen';
 import * as T from './tree';
 import * as Plan from './sitePlan';
+import * as NT from './noteTree';
+import { parsePadDesks } from './noteObjects';
 import { keepDeviceFields, onlyDeviceChanged, parseWorkspace } from './storage';
 import type { Workspace } from './types';
 import * as X from './transfer';
@@ -5623,5 +5625,68 @@ describe('F-210 Lageplan (V89)', () => {
     expect(T.sideShare(tree, 'bottom')).toBe(0.5);
     const near = T.insertAt(tree, 'b', 'n', 'top');
     expect(T.rects(near).get('n')).toMatchObject({ x: 0.5, y: 0, w: 0.5, h: 0.5 });
+  });
+});
+
+describe('F-210 Schritt 4 (V90): Notizen-Modus als Baum', () => {
+  const min = { w: 0.1, h: 0.1 };
+  it('Startbaum wie das Raster (F2)', () => {
+    expect(NT.gridTree([])).toBeNull();
+    expect(NT.gridTree(['a'])).toEqual({ id: 'a' });
+    const t = NT.gridTree(['a', 'b', 'c'])!;
+    const r = T.rects(t);
+    expect(r.get('a')).toMatchObject({ x: 0, y: 0, w: 0.5, h: 0.5 });
+    expect(r.get('c')).toMatchObject({ x: 0, y: 0.5, w: 1, h: 0.5 });
+    // gleiche Lage wie das bisherige Raster (noteTiles)
+    const g = T.rects(NT.gridTree(['1', '2', '3', '4', '5'])!);
+    Pd.noteTiles(5).forEach((x, i) => expect(g.get(String(i + 1))).toMatchObject(x));
+  });
+  it('Abgleich: fehlende Pads rechts neben das aktive, geschlossene fallen weg (F3, F4)', () => {
+    const t0: T.Node = { dir: 'row', children: [{ id: 'a' }, { id: 'b' }], sizes: [0.5, 0.5] };
+    const s = NT.syncNoteTree(t0, ['a', 'b', 'n'], { near: 'a', min, aspect: 1.6 });
+    expect(s.added).toBe(true);
+    expect(T.leaves(s.tree)).toEqual(['a', 'n', 'b']);
+    expect(T.rects(s.tree).get('n')).toMatchObject({ x: 0.25, w: 0.25 });
+    // geschlossenes Pad: Nachbar rückt nach, nichts dazugekommen
+    const gone = NT.syncNoteTree(t0, ['b'], { min, aspect: 1.6 });
+    expect(gone).toEqual({ tree: { id: 'b' }, added: false });
+    // zu klein neben dem aktiven → Hälfte des größten
+    const tight = NT.syncNoteTree(t0, ['a', 'b', 'n'], { near: 'a', min: { w: 0.3, h: 0.1 }, aspect: 1.6 });
+    expect(T.rects(tight.tree).get('n')!.w).toBeGreaterThanOrEqual(0.25);
+    expect(T.rects(tight.tree).get('a')!.w).toBe(0.5);
+    // ohne gespeicherten Baum = Raster
+    expect(NT.syncNoteTree(undefined, ['a', 'b'], { min, aspect: 1 }).tree).toEqual(NT.gridTree(['a', 'b']));
+  });
+  it('Speichern je Desk, Lesen prüft Pads', () => {
+    const ws0 = W.defaultWorkspace();
+    const tree: T.Node = { dir: 'row', children: [{ id: 'p1' }, { id: 'p2' }], sizes: [0.5, 0.5] };
+    const ws = NT.setNoteTree(ws0, '', tree);
+    expect(NT.noteTreeOf(ws, '')).toEqual(tree);
+    expect(NT.noteTreeOf(NT.setNoteTree(ws, '', null), '')).toBeUndefined();
+    const raw = { places: {}, notes: tree };
+    // nur bekannte Pads; unbekanntes Blatt fällt heraus
+    expect(parsePadDesks({ '': raw }, new Set(['p1']), new Set())).toEqual({ '': { places: {}, notes: { id: 'p1' } } });
+    expect(parsePadDesks({ '': { places: {}, notes: { dir: 'row', children: [{ id: 'p1' }, { id: 'p1' }], sizes: [0.5, 0.5] } } }, new Set(['p1']), new Set())).toBeUndefined();
+  });
+  it('Tauschen mit dem Nachbarn, Ablegen und neue Pads im Plan (F1)', () => {
+    const t: T.Node = { dir: 'row', children: [{ id: 'a' }, { dir: 'col', children: [{ id: 'b' }, { id: 'c' }], sizes: [0.5, 0.5] }], sizes: [0.5, 0.5] };
+    const sw = NT.swapToward(t, 'a', 'right')!;
+    expect(sw.with).toBe('b');
+    expect(T.rects(sw.tree).get('a')).toMatchObject({ x: 0.5, y: 0 });
+    expect(NT.swapToward(t, 'a', 'left')).toBeNull();
+    expect(NT.swapToward(t, 'b', 'bottom')!.with).toBe('c');
+    // Seite = andocken, Mitte = tauschen, Desk-Rand = über die ganze Fläche
+    expect(T.rects(NT.moveInTree(t, 'c', 'a', 'left')).get('c')).toMatchObject({ x: 0, w: 0.25 });
+    expect(NT.moveInTree(t, 'c', 'a', 'full')).toEqual(T.swapLeaves(t, 'c', 'a'));
+    expect(T.rects(NT.moveInTree(t, 'a', null, 'bottom')).get('a')).toMatchObject({ x: 0, w: 1 });
+    expect(T.rects(NT.addInTree(t, 'n', 'b', 'top')).get('n')).toMatchObject({ x: 0.5, y: 0, h: 0.25 });
+    expect(T.rects(NT.addInTree(t, 'n', null, 'left')).get('n')).toMatchObject({ x: 0, w: 1 / 3 });
+    expect(NT.addInTree(null, 'n', null, 'left')).toEqual({ id: 'n' });
+    // Kacheln in Lesereihenfolge mit Namen
+    expect(NT.noteTilesOf(t, (id) => id.toUpperCase()).map((x) => x.name)).toEqual(['A', 'B', 'C']);
+  });
+  it('Reducer setzt den Baum', () => {
+    const ws = reducer(W.defaultWorkspace(), { type: 'noteTree', desk: '', tree: { id: 'x' } });
+    expect(ws.padDesks?.['']?.notes).toEqual({ id: 'x' });
   });
 });

@@ -2,7 +2,11 @@ import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type Mutable
 import type { Pad, Workspace } from '../workspace/types';
 import type { RadarWindow } from '../workspace/focus';
 import { placeText } from '../workspace/focus';
-import { DOCK_TAB_W, dockOf, dockedOn, padTitle, padUndoOf, padsOn, placeOf, sheetUndoOf } from '../workspace/pads';
+import { DOCK_TAB_W, dockOf, dockedOn, padTitle, padUndoOf, padsOn, placeOf as floatOf, sheetUndoOf } from '../workspace/pads';
+import { loadModes } from '../workspace/deskMode';
+import { noteTreeOf, syncNoteTree } from '../workspace/noteTree';
+import { rects as treeRects } from '../workspace/tree';
+import type { PadPlace } from '../workspace/types';
 import { idsIn, viewById } from '../workspace/notes';
 import { windowName } from '../workspace/windows';
 import { NOTICE_MS } from '../workspace/flash';
@@ -53,6 +57,14 @@ const lower = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerC
 
 export function NotesCockpit(p: NotesCockpitProps) {
   const { ws } = p;
+  // V90 (F-210 Schritt 4): Desks im Notizen-Modus zeigen die Pads lückenlos wie auf dem Desk (Baum), ohne Dock
+  const modes = loadModes();
+  const notesOn = (desk: string) => modes[desk] === 'notes';
+  const treeOf = (desk: string) => {
+    const ids = padsOn(ws, desk).map((x) => x.id).sort();
+    return treeRects(syncNoteTree(noteTreeOf(ws, desk), ids, { min: { w: 0, h: 0 }, aspect: 16 / 10 }).tree);
+  };
+  const placeOf = (w: Workspace, desk: string, id: string): PadPlace | undefined => (notesOn(desk) ? treeOf(desk).get(id) : floatOf(w, desk, id));
   // Desks: alle aus dem Radar, dazu Desks, auf denen nur Pads liegen (ohne Portale fallen sie dort weg)
   const deskIds = [...new Set([...p.wins.map((w) => w.win), ...(ws.pads ?? []).map((x) => x.desk)])];
   const desks = deskIds.map((id) => {
@@ -68,8 +80,9 @@ export function NotesCockpit(p: NotesCockpitProps) {
     return Math.min(0.5, (s.folded ? DOCK_TAB_W : s.w) / deskW);
   };
   const tiles: Tile[] = desks.flatMap((d, wi) => {
-    const band = bandOf(d.id);
-    const loose = padsOn(ws, d.id).filter((x) => !x.docked);
+    const tree = notesOn(d.id);
+    const band = tree ? 0 : bandOf(d.id);
+    const loose = padsOn(ws, d.id).filter((x) => tree || !x.docked);
     // Pads am selben Platz liegen im Radar leicht versetzt (wie ein Stapel), damit jedes zu sehen und zu wählen ist
     const seen = new Map<string, number>();
     const out: Tile[] = loose.map((pad) => {
@@ -82,7 +95,7 @@ export function NotesCockpit(p: NotesCockpitProps) {
       const dy = Math.min(n * 0.09, 0.36);
       return { desk: d.id, wi, id: pad.id, pad, rect: { x: Math.min(pl.x + dx, 1) * (1 - band), y: Math.min(pl.y + dy, 0.9), w: pl.w * (1 - band), h: Math.max(0.1, pl.h - dy) } };
     });
-    if (dockedOn(ws, d.id).length) out.push({ desk: d.id, wi, id: `dock:${d.id}`, dock: true, rect: { x: 1 - Math.max(band, 0.06), y: 0, w: Math.max(band, 0.06), h: 1 } });
+    if (!tree && dockedOn(ws, d.id).length) out.push({ desk: d.id, wi, id: `dock:${d.id}`, dock: true, rect: { x: 1 - Math.max(band, 0.06), y: 0, w: Math.max(band, 0.06), h: 1 } });
     return out;
   });
 
@@ -304,7 +317,7 @@ export function NotesCockpit(p: NotesCockpitProps) {
         </li>
       );
     if (r.kind === 'pad') {
-      const where = q || other ? deskTitle(pad.desk) : pad.docked ? NC.dock : placeText(placeOf(ws, pad.desk, pad.id) ?? { x: 0.5, y: 0, w: 0.5, h: 1 });
+      const where = q || other ? deskTitle(pad.desk) : pad.docked && !notesOn(pad.desk) ? NC.dock : placeText(placeOf(ws, pad.desk, pad.id) ?? { x: 0.5, y: 0, w: 0.5, h: 1 });
       return (
         <li key={key} className={`overview__row ncp__pad${pad.docked ? ' is-docked' : ''}`}>
           <button

@@ -8157,3 +8157,47 @@ h3.cases__name { font-size: 1.05em; }
 }
 /* Der Rahmen bleibt auch im Notizen-Modus sichtbar (dort ruhen die Portale unsichtbar). */
 .area.is-notes > .planprev { visibility: visible; }
+
+/* ---------------------------------------------------------------- V90 (F-210 Schritt 4): Notizen-Modus als Baum */
+/* Ziel beim Ziehen eines Pad-Kopfs (andocken/tauschen) und „Pad geschlossen · Rückgängig“ am alten Platz */
+.notedrop { position: absolute; z-index: 60; pointer-events: none; }
+.area.is-notes > .notedrop,
+.area.is-notes > .ghost,
+.area > .padgone,
+.area.is-notes > .padgone { visibility: visible; }
+.area > .ghost { position: fixed; z-index: 70; }
+.padgone {
+  position: absolute;
+  z-index: 65;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 10px;
+  background: rgba(var(--glass), 0.94);
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  box-shadow: 0 8px 22px rgba(var(--lo), 0.6);
+  color: var(--strong);
+  white-space: nowrap;
+}
+.padgone button {
+  font: inherit;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--accent-rgb), 0.6);
+  background: rgba(var(--accent-rgb), 0.16);
+  color: var(--strong);
+  cursor: pointer;
+}
+.padgone button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Grenzen zwischen Pads: etwas breiter greifbar, Zeiger zeigt die Richtung */
+.padlayer.is-notes .pad__grip.is-border.pad__grip--e,
+.padlayer.is-notes .pad__grip.is-border.pad__grip--w { width: 8px; }
+.padlayer.is-notes .pad__grip.is-border.pad__grip--n,
+.padlayer.is-notes .pad__grip.is-border.pad__grip--s { height: 8px; }
+.padlayer.is-notes .pad__head { cursor: grab; }
+@media (forced-colors: active) {
+  .padgone { border: 1px solid CanvasText; }
+}

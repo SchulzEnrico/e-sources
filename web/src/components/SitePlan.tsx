@@ -10,7 +10,7 @@
 import { type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, useEffect, useId, useRef, useState } from 'react';
 import * as P from '../workspace/sitePlan';
 import type { FRect } from '../workspace/tree';
-import { PLAN_TEXT } from '../workspace/terms';
+import { PLAN_TEXT, TERMS } from '../workspace/terms';
 import { Item } from './PanelFrame';
 
 /** Vorschau-Rahmen auf dem Desk. */
@@ -107,6 +107,7 @@ export function SitePlan(props: SitePlanProps) {
           style={{ '--ar': props.ar } as CSSProperties}
           tabIndex={0}
           role="listbox"
+          title={TERMS.sitePlan}
           aria-labelledby={`${base}-t`}
           aria-describedby={`${base}-k`}
           aria-activedescendant={optId(base, pick)}

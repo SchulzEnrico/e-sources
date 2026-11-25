@@ -9,7 +9,7 @@ import type { Action } from '../workspace/useWorkspace';
 import type { NoteViewKind, Pad as PadT, PadPlace, Workspace } from '../workspace/types';
 import * as No from '../workspace/notes';
 import * as Sh from '../workspace/sheets';
-import { PAD_MIN } from '../workspace/pads';
+import { PAD_MIN, type PadUndo, padUndoOf } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
 import { NOTICE_MS } from '../workspace/flash';
 import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
@@ -55,7 +55,8 @@ const STEP_HOLD = 0.06;
 type BlockCmd = 'home' | 'new' | 'go' | 'search';
 type Cmd = { k: BlockCmd; n: number; id?: string };
 
-type Edge = 'n' | 's' | 'e' | 'w' | 'se';
+export type Edge = 'n' | 's' | 'e' | 'w' | 'se';
+export type PadSide = 'left' | 'right' | 'top' | 'bottom';
 
 export interface PadProps {
   ws: Workspace;
@@ -79,11 +80,26 @@ export interface PadProps {
   full?: { on: boolean; toggle: () => void };
   /** F-210 (V89): Seite „Platz wählen …“ im ⋮ – Lageplan für dieses Pad (fehlt = gesperrt). */
   plan?: (done: () => void, back: () => void) => ReactNode;
+  /**
+   * F-210 Schritt 4 (V90, F1): im Notizen-Modus liegt das Pad lückenlos im Baum wie ein Slot –
+   * Kopf ziehen = andocken/tauschen, Ränder = Grenze zum Nachbarn, Alt + Pfeil = mit Nachbar
+   * tauschen, Alt + Umschalt + Pfeil = Grenze verschieben.
+   */
+  tile?: {
+    /** Ränder, an denen eine Grenze liegt (am Desk-Rand nicht). */
+    grips: Edge[];
+    onGrip: (e: PointerEvent, edge: Edge) => void;
+    onHead: (e: PointerEvent) => void;
+    onSwap: (dir: PadSide) => void;
+    onEdge: (dir: PadSide) => void;
+  };
+  /** V90 (F4): nach „Pad schließen“ – zeigt „Rückgängig“ am alten Platz. */
+  onClosed?: (undo: PadUndo | null) => void;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say, dock, full, plan }: PadProps) {
+export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPick, notify, say, dock, full, plan, tile, onClosed }: PadProps) {
   const [live, setLive] = useState<PadPlace | null>(null);
   const [renaming, setRenaming] = useState(false);
   /** V88 (BL3): „Als Vorlage speichern …“ – Leiste unter dem Kopf */
@@ -480,6 +496,13 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') dock.onWidth(e.key === 'ArrowLeft' ? 1 : -1, e.repeat);
         return;
       }
+      // V90 (F1): im Notizen-Modus tauscht Alt + Pfeil mit dem Nachbarn, mit Umschalt wandert die Grenze
+      if (tile) {
+        const dir: PadSide = e.key === 'ArrowLeft' ? 'left' : e.key === 'ArrowRight' ? 'right' : e.key === 'ArrowUp' ? 'top' : 'bottom';
+        if (e.shiftKey) tile.onEdge(dir);
+        else if (!e.repeat) tile.onSwap(dir);
+        return;
+      }
       const step = e.repeat ? STEP_HOLD : STEP;
       const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
       const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
@@ -575,8 +598,11 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   /** Fokus nach dem Schließen auf NewPad (sonst fiele er auf body). */
   const focusAway = () => window.setTimeout(() => document.querySelector<HTMLElement>('.tb-newpad')?.closest('button')?.focus(), 0);
   const closePad = () => {
+    const undo = onClosed ? padUndoOf(ws, pad.id) : null;
     dispatch({ type: 'padClose', id: pad.id });
-    notify(PAD_TEXT.closed);
+    // V90 (F4): „Rückgängig“ am alten Platz (Meldung am Ort), sonst wie bisher unten
+    if (onClosed) onClosed(undo);
+    else notify(PAD_TEXT.closed);
     say(PAD_TEXT.closed);
     focusAway();
   };
@@ -615,9 +641,10 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     >
       <header
         className="pad__head"
-        title={dock ? DOCK_TEXT.width : PAD_TEXT.move}
+        title={dock ? DOCK_TEXT.width : tile ? PAD_TEXT.moveTile : PAD_TEXT.move}
         onPointerDown={(e) => {
           if (dock || (e.target as HTMLElement).closest('button, input, [role="tab"], .menu')) return;
+          if (tile) return (raise(), tile.onHead(e));
           gesture(e, null);
         }}
         onKeyDown={(e) => {
@@ -757,7 +784,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
                 {dock ? DOCK_TEXT.undock : DOCK_TEXT.toDock}
               </Item>
               {!dock && (
-                <Item icon="slot" disabled={!plan} hint={plan ? PLAN_TEXT.padMoveHint : undefined} title={plan ? undefined : PAD_TEXT.menuPlaceNotes} onClick={() => go('place')}>
+                <Item icon="slot" disabled={!plan} hint={plan ? (tile ? PLAN_TEXT.notesMoveHint : PLAN_TEXT.padMoveHint) : undefined} title={plan ? undefined : PAD_TEXT.menuPlaceNotes} onClick={() => go('place')}>
                   {PAD_TEXT.menuPlace}
                 </Item>
               )}
@@ -903,8 +930,14 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
         </p>
       )}
       {!dock && <PadFooter items={footItems} onHome={home} say={say} onSwipe={swipe} swipeLabel={swipeLabel} voice={voice} knob={{ bottom: focusIn ? kbBottom : null, opacity: display.knobOpacity, x: display.knobX, onX: setKnobX }} />}
-      {!dock && (['n', 's', 'e', 'w', 'se'] as Edge[]).map((edge) => (
-        <div key={edge} className={`pad__grip pad__grip--${edge}`} aria-hidden="true" title={PAD_TEXT.resize} onPointerDown={(e) => gesture(e, edge)} />
+      {!dock && (tile ? tile.grips : (['n', 's', 'e', 'w', 'se'] as Edge[])).map((edge) => (
+        <div
+          key={edge}
+          className={`pad__grip pad__grip--${edge}${tile ? ' is-border' : ''}`}
+          aria-hidden="true"
+          title={tile ? PAD_TEXT.border : PAD_TEXT.resize}
+          onPointerDown={(e) => (tile ? (e.button === 0 && tile.onGrip(e, edge)) : gesture(e, edge))}
+        />
       ))}
     </section>
   );

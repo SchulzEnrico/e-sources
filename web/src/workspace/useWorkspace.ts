@@ -27,6 +27,7 @@ import { setCategoryIcon, setCategoryTint, setPanelCategory, setPanelNewCategory
 import * as Cs from './cases';
 import * as No from './notes';
 import * as Pd from './pads';
+import * as NT from './noteTree';
 import type { BoardTemplate, ColState, NoteState, NoteView, NoteViewKind, PadPlace } from './types';
 import * as BT from './boardTemplates';
 import * as Sh from './sheets';
@@ -186,6 +187,8 @@ export type Action =
   // F-206 Schritt 3: Pads (Ids kommen vom Aufrufer, damit er weiß, was entsteht)
   | { type: 'padNew'; desk: string; id: string; sheet: string; place?: PadPlace }
   | { type: 'padPlace'; desk: string; id: string; place: PadPlace }
+  /** F-210 Schritt 4 (V90): Baum der Pads im Notizen-Modus setzen. */
+  | { type: 'noteTree'; desk: string; tree: Node | null }
   | { type: 'padRaise'; id: string }
   /** F-206 Schritt 4 (V81): Dock – Pad hinein/heraus, alle, Breite/Lasche, ein/aus (geräteeigen außer `docked`). */
   | { type: 'padDock'; id: string; on: boolean }
@@ -417,6 +420,8 @@ function step(ws: Workspace, a: Action): Workspace {
     }
     case 'padPlace':
       return Pd.setPlace(ws, a.desk, a.id, a.place);
+    case 'noteTree':
+      return NT.setNoteTree(ws, a.desk, a.tree);
     case 'padRaise':
       return Pd.raisePad(ws, a.id);
     case 'padDock':

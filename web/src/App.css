@@ -8210,3 +8210,120 @@ h3.cases__name { font-size: 1.05em; }
 .nl__minipad.is-empty { border-style: dashed; background: transparent; box-shadow: none; }
 .lc__card.is-active .lc__card-meta b { color: var(--accent); }
 @media (forced-colors: active) { .nl__minipad { border-color: CanvasText; } }
+
+/* ---------------------------------------------------------------- V92 (F-218 Oberfläche) */
+/* Gruppen-Rad Portale · Notizen · Anzeige oben im Bereich „Regeln“, daneben der Einleitungssatz */
+.rules__top { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.rules__top .rules__intro { flex: 1 1 280px; }
+.rules__groups { flex: none; }
+/* Nummer aus dem Entscheidungs-Doc (A1–A9, W1–W4) – klein und ruhig */
+.rules__no-tag { font-size: 10px; letter-spacing: 0.04em; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 0 4px; line-height: 16px; }
+.rules__row--sw .rules__line { row-gap: 4px; }
+.rules__wheel { flex: none; }
+.rules__text--sw { margin-left: 0; }
+.rules__ref { margin: 8px 0 0; padding-top: 6px; border-top: 1px solid var(--line); }
+/* Schalter-Zeile: Name links (bricht um), Rad rechts oben – nie unter den Namen rutschen */
+.rules__row--sw .rules__line { flex-wrap: nowrap; align-items: flex-start; }
+.rules__row--sw .rules__line strong { min-width: 0; padding-top: 4px; }
+.rules__row--sw .rules__no-tag { margin-top: 5px; flex: none; }
+
+/* V92 (Enrico: „Nimm die Walzen an den Drehreglern wieder heraus. Die nehmen mir zu viel Platz weg“):
+   Umschalt-Räder und Überschrift-Rad ohne Walzen – nur Mulde mit Band; Text wieder mit wenig Rand */
+.mwheel__roll { display: none; }
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap::before,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap::after { display: none; }
+.nedit__hbtn .nedit__hwheel .rpick__val { padding: 0 6px; }
+.mwheel__dial { padding: 0 6px; }
+.mwheel--icons .mwheel__item { padding: 0 2px; }
+
+/* V92 (Enrico: „passe das Design an einen der Glasknöpfe an“, Vorlage Metall_Glasknoepfe_Chromrahmen.png, zweiter
+   Knopf): schwarzes Glas mit feinem Chromrahmen, glänzende obere Hälfte, kleiner Glanzpunkt oben rechts, Schatten
+   darunter. Der äußere Neumorphism-Knopf entfällt (spart Platz) – das Glas ist jetzt der Knopf. NF-08: ebenso das
+   Überschrift-Rad im Pad. */
+.mwheel { padding: 2px 1px; box-shadow: none; background: transparent; border-color: transparent; }
+.mwheel:hover, .mwheel:focus-visible { box-shadow: none; filter: none; }
+.mwheel__dial,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap {
+  background:
+    radial-gradient(120% 90% at 50% 120%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #2a2c2f 0%, #111214 48%, #000 52%, #050506 100%);
+  border: 1px solid #000;
+  border-radius: 7px;
+  box-shadow:
+    0 0 0 1px #f2f4f6,            /* Chrom: heller Grat */
+    0 0 0 2px #8d939a,            /* Chrom: Mitte */
+    0 0 0 2.5px #2b2e32,          /* Chrom: dunkle Unterkante */
+    0 4px 6px -2px rgba(0, 0, 0, 0.75), /* Schatten darunter */
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  color: #e6e9ec;
+  overflow: visible;
+}
+/* Glanz der oberen Hälfte und Glanzpunkt oben rechts – über dem Glas, unter der Schrift */
+.mwheel__dial::before,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap::before {
+  content: '';
+  display: block;
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 1px;
+  height: 46%;
+  translate: none;
+  width: auto;
+  border-radius: 5px 5px 3px 3px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.1));
+  box-shadow: none;
+  pointer-events: none;
+  z-index: 0;
+}
+.mwheel__dial::after,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap::after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  left: auto;
+  translate: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 70% 75%, rgba(255, 255, 255, 0.85) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 40% 40%, rgba(255, 255, 255, 0.9) 0 1.6px, transparent 2.2px);
+  box-shadow: none;
+  pointer-events: none;
+  z-index: 0;
+}
+.mwheel__core, .nedit__hbtn .nedit__hwheel .rpick__wheelwrap .rpick__wheel { position: relative; z-index: 1; }
+.mwheel__dial .mwheel__name,
+.mwheel__dial .mwheel__item.is-on,
+.mwheel__dial .mwheel__item .icon,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap .rpick__val,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap .rpick__val.is-on { color: #e6e9ec; }
+.mwheel__dial .mwheel__name,
+.nedit__hbtn .nedit__hwheel .rpick__wheelwrap .rpick__val { text-shadow: 0 1px 1px rgba(0, 0, 0, 0.9); }
+.mwheel__dial .mwheel__item .icon { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.9)); }
+/* Hover/Fokus: Chromrahmen glüht in der Akzentfarbe */
+.mwheel:is(:hover, :focus-visible) .mwheel__dial {
+  box-shadow:
+    0 0 0 1px #f2f4f6,
+    0 0 0 2px rgba(var(--accent-rgb), 0.95),
+    0 0 0 2.5px #2b2e32,
+    0 0 12px rgba(var(--accent-rgb), 0.55),
+    0 4px 6px -2px rgba(0, 0, 0, 0.75);
+}
+@media (forced-colors: active) {
+  .mwheel__dial::before, .mwheel__dial::after,
+  .nedit__hbtn .nedit__hwheel .rpick__wheelwrap::before, .nedit__hbtn .nedit__hwheel .rpick__wheelwrap::after { display: none; }
+}
+/* Glanzpunkt bekommt eigenen Platz rechts, damit er die Schrift nicht berührt */
+.mwheel__dial { padding: 0 9px 0 6px; }
+.nedit__hbtn .nedit__hwheel .rpick__val { padding: 0 10px 0 6px; }
+
+/* V92 (Enrico): alte Systeme einzeln unter dem Rad „Darstellung“ – Raster aus kleinen Wahlknöpfen */
+.design__retros { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 4px 0 8px; }
+.design__retro { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; cursor: var(--cur-hand); font-size: 14px; }
+.design__retro input { margin: 0; accent-color: var(--accent); }
+.design__retro.is-on { border-color: rgb(var(--accent-rgb)); background: rgba(var(--accent-rgb), 0.12); }
+.design__retro:focus-within { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 1px; }

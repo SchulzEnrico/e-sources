@@ -11,7 +11,7 @@ import type { Action } from '../workspace/useWorkspace';
 import type { NoteViewKind, Workspace } from '../workspace/types';
 import * as NL from '../workspace/notesLayouts';
 import { DIALOG_TEXT, NOTES_LAYOUT_TEXT as NLT, TERMS } from '../workspace/terms';
-import { NOTICE_MS } from '../workspace/flash';
+import { noticeLater } from '../workspace/flash';
 import { newId } from '../workspace/workspace';
 import { rects as treeRects } from '../workspace/tree';
 import { Icon } from './Icon';
@@ -88,12 +88,12 @@ export function NotesLayoutGroup({ ws, win, screenKey, screenName, dispatch, say
   const focusCard = (id: string) => later(() => cards.current.get(id)?.focus());
   useEffect(() => {
     if (!note) return;
-    const t = window.setTimeout(() => setNote(''), NOTICE_MS);
+    const t = noticeLater(() => setNote(''));
     return () => window.clearTimeout(t);
   }, [note]);
   useEffect(() => {
     if (!undo) return;
-    const t = window.setTimeout(() => setUndo(null), NOTICE_MS * 3);
+    const t = noticeLater(() => setUndo(null), 3);
     return () => window.clearTimeout(t);
   }, [undo]);
   const tell = (t: string) => (setNote(t), say(t));

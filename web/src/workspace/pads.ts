@@ -4,6 +4,7 @@
  * Gerät und Desk (Workspace.padDesks, DEVICE_FIELDS). Entscheidungen: Claude Doc „Pads mit
  * Notizblock und Lageplan“ (P1–P9). Reine Funktionen.
  */
+import { switchOf } from './ruleSet';
 import type { FRect } from './tree';
 import type { NoteView, Pad, PadDesk, PadPlace, Workspace } from './types';
 import { createView, deleteView, idsIn, noteById, placeNote, viewById, viewsOf } from './notes';
@@ -105,6 +106,8 @@ function takeOut(ws: Workspace, padId: string, sheetId: string): Workspace {
 
 /** Sheet ist leer (keine Notes) – wird beim Schließen still verworfen. */
 const isEmptySheet = (v: NoteView | undefined) => !!v && idsIn(v).length === 0;
+/** F-218 A7 (V92): leeres Sheet beim Schließen verwerfen (Werk) oder behalten. */
+const dropEmpty = (ws: Workspace, v: NoteView | undefined) => isEmptySheet(v) && switchOf(ws, 'emptySheet') === 'drop';
 
 export type AddSheetResult = { ok: true; ws: Workspace } | { ok: false; reason: 'missing' | 'full' };
 
@@ -142,7 +145,7 @@ export function moveSheet(ws: Workspace, padId: string, sheetId: string, index: 
 /** Sheet schließen: aus dem Pad nehmen; ein leeres Sheet wird still verworfen, ein leeres Pad verschwindet. */
 export function closeSheet(ws: Workspace, padId: string, sheetId: string): Workspace {
   const next = takeOut(ws, padId, sheetId);
-  return isEmptySheet(viewById(next, sheetId)) ? (deleteView(next, sheetId)?.ws ?? next) : next;
+  return dropEmpty(next, viewById(next, sheetId)) ? (deleteView(next, sheetId)?.ws ?? next) : next;
 }
 
 /** Pad schließen: nichts wird gelöscht außer leeren Sheets. */
@@ -150,7 +153,7 @@ export function closePad(ws: Workspace, padId: string): Workspace {
   const p = padById(ws, padId);
   if (!p) return ws;
   let next = dropPlace(withPads(ws, padsOf(ws).filter((x) => x.id !== padId)), padId);
-  for (const s of p.sheets) if (isEmptySheet(viewById(next, s))) next = deleteView(next, s)?.ws ?? next;
+  for (const s of p.sheets) if (dropEmpty(next, viewById(next, s))) next = deleteView(next, s)?.ws ?? next;
   return next;
 }
 

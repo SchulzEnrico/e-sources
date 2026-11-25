@@ -7,6 +7,7 @@
 import type { ColState, Note, NoteColumn, NoteState, NoteView, Workspace } from './types';
 import * as No from './notes';
 import * as ND from './noteDoc';
+import * as RS from './ruleSet';
 
 // ---------- Kanban: Spalte ↔ Zustand (K2) ----------
 
@@ -193,6 +194,7 @@ export function flowsOf(ws: Workspace, noteId: string): NoteView[] {
  * Rückgabe: die Sheets, in denen erledigt gesetzt wird (leer = frei).
  */
 export function lockOf(ws: Workspace, noteId: string, here?: string): NoteView[] {
+  if (RS.switchOf(ws, 'lock') === 'off') return []; // F-218 A3 (V92): Schloss ausgeschaltet
   const flows = flowsOf(ws, noteId);
   if (here && flows.some((v) => v.id === here)) return [];
   return flows;
@@ -241,7 +243,7 @@ const finished = (n: Note) => n.state === 'done' || n.state === 'archived' || n.
  * Zeilen eines To-do-Sheets: oben die Notizen des Sheets in der gewählten Ordnung, darunter eingerückt
  * ihre Unter-Notizen (die nicht selbst im Sheet liegen). `open` = Erledigte weglassen.
  */
-export function todoRows(ws: Workspace, v: NoteView, order: TodoOrder = 'own', show: 'open' | 'all' = 'open'): { rows: Row[]; done: Note[] } {
+export function todoRows(ws: Workspace, v: NoteView, order: TodoOrder = 'own', show: 'open' | 'all' = 'open', now = Date.now()): { rows: Row[]; done: Note[] } {
   const ids = No.idsIn(v);
   const inSheet = new Set(ids);
   let top = ids.map((id) => No.noteById(ws, id)).filter((n): n is Note => !!n && !(n.parent && inSheet.has(n.parent)));
@@ -249,7 +251,7 @@ export function todoRows(ws: Workspace, v: NoteView, order: TodoOrder = 'own', s
   const rows: Row[] = [];
   const done: Note[] = [];
   const walk = (n: Note, depth: number) => {
-    if (show === 'open' && finished(n)) {
+    if (show === 'open' && finished(n) && RS.foldsDone(ws, n, now)) {
       if (depth === 0) done.push(n);
       return;
     }
@@ -460,3 +462,37 @@ export function matrixSummary(ws: Workspace, v: NoteView): { quads: Record<Quad,
 
 /** Alle Matrizen (heute genau eine; mit Personen in Schritt 8 mehrere). */
 export const matricesOf = (ws: Workspace): NoteView[] => No.viewsOf(ws).filter((v) => v.kind === 'eisenhower');
+
+// ---------- F-218 (V92): Wenn-dann-Regeln W1/W2 nach jeder Änderung ----------
+
+/**
+ * Nach einer Änderung: W1 – eine Notiz ist erledigt geworden → Kästchen abhaken; W2 – die letzte offene Kästchen
+ * wurde gerade abgehakt → in jedem Kanban eine Spalte weiter (bei „Abnahme nötig“ landet sie über setState in
+ * „in Prüfung“). Nur Übergänge zählen (vorher nicht erledigt bzw. nicht alle abgehakt) – so rückt eine Karte je
+ * fertiger Checkliste genau einmal weiter. Rein; `prev` = Arbeitsfläche vor der Änderung.
+ */
+export function applyWhenRules(prev: Workspace, next: Workspace, now = Date.now()): Workspace {
+  if (prev.notes === next.notes) return next;
+  const w1 = RS.whenOn(next, 'doneChecks');
+  const w2 = RS.whenOn(next, 'checksNext');
+  if (!w1 && !w2) return next;
+  const old = new Map(No.notesOf(prev).map((n) => [n.id, n]));
+  let out = next;
+  for (const n of No.notesOf(next)) {
+    const o = old.get(n.id);
+    if (!o || o === n) continue;
+    if (w1 && n.state === 'done' && o.state !== 'done') out = RS.onDone(out, n.id, now);
+    const cur = No.noteById(out, n.id);
+    if (w2 && cur && RS.allChecked(cur.text ?? '') && !RS.allChecked(o.text ?? '') && RS.shouldAdvance(out, cur)) {
+      for (const v of No.viewsWith(out, n.id)) {
+        if (v.kind !== 'kanban') continue;
+        const cols = v.cols ?? [];
+        const i = cols.findIndex((c) => c.ids.includes(n.id));
+        if (i < 0 || i >= cols.length - 1) continue;
+        const r = moveCard(out, v.id, n.id, cols[i + 1].id, undefined, { by: RS.ruleBy('checksNext'), now });
+        if (r.ok) out = r.ws;
+      }
+    }
+  }
+  return out;
+}

@@ -9,7 +9,7 @@ import { rects as treeRects } from '../workspace/tree';
 import type { PadPlace } from '../workspace/types';
 import { idsIn, viewById } from '../workspace/notes';
 import { windowName } from '../workspace/windows';
-import { NOTICE_MS } from '../workspace/flash';
+import { noticeLater } from '../workspace/flash';
 import { DIALOG_TEXT, NOTES_COCKPIT_TEXT as NC, PAD_TEXT } from '../workspace/terms';
 import type { Action } from '../workspace/useWorkspace';
 import { Icon } from './Icon';
@@ -116,7 +116,7 @@ export function NotesCockpit(p: NotesCockpitProps) {
 
   useEffect(() => {
     if (!undo) return;
-    const t = window.setTimeout(() => setUndo(null), NOTICE_MS);
+    const t = noticeLater(() => setUndo(null));
     return () => window.clearTimeout(t);
   }, [undo]);
   useEffect(() => {

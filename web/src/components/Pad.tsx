@@ -11,7 +11,8 @@ import * as No from '../workspace/notes';
 import * as Sh from '../workspace/sheets';
 import { PAD_MIN, type PadUndo, padUndoOf } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
-import { NOTICE_MS } from '../workspace/flash';
+import { noticeLater } from '../workspace/flash';
+import { switchOf } from '../workspace/ruleSet';
 import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab, freshNotes } from './NoteTab';
@@ -319,7 +320,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     say(t);
     window.clearTimeout(hintT.current);
     setHint(t);
-    hintT.current = window.setTimeout(() => setHint(null), NOTICE_MS);
+    hintT.current = noticeLater(() => setHint(null));
   };
   useEffect(() => () => window.clearTimeout(hintT.current), []);
   const camRef = useRef<HTMLInputElement>(null);
@@ -1037,7 +1038,7 @@ function NoteBlock(props: {
     }
   };
   const listRef = useRef<HTMLUListElement>(null);
-  const reminders = useReminders(notes);
+  const reminders = useReminders(notes, { sound: switchOf(ws, 'remindSound') === 'on', system: switchOf(ws, 'remindSystem') === 'on' });
   // V68: Meldungen im Notizblock selbst (in der Note bzw. oben in der Liste), nicht unten am Rand
   const [msg, setMsg] = useState<Notice | null>(null);
   const timer = useRef(0);
@@ -1045,7 +1046,7 @@ function NoteBlock(props: {
     window.clearTimeout(timer.current);
     setMsg(m);
     // V79 (Wunsch Enrico): alle Meldungen im Notizblock höchstens 2 Sekunden
-    timer.current = window.setTimeout(() => setMsg(null), Math.min(m.ms ?? NOTICE_MS, NOTICE_MS));
+    timer.current = noticeLater(() => setMsg(null), 1, m.ms);
   };
   useEffect(() => () => window.clearTimeout(timer.current), []);
   const runUndo = msg?.undo ? () => (setMsg(null), msg.undo!()) : undefined;

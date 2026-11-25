@@ -1629,6 +1629,7 @@ export const KANBAN_TEXT = {
   newColHint: 'Enter legt die Spalte an (Bedeutung „offen“), Esc schließt.',
   colFull: (max: number) => `Höchstens ${max} Spalten`,
   wipAsk: (wip: number, col: string) => `Limit ${wip} in „${col}“ erreicht – trotzdem hinein?`,
+  wipBlocked: (wip: number, col: string) => `Limit ${wip} in „${col}“ erreicht – gesperrt (Regel A2 im Cockpit „Regeln“).`,
   wipYes: 'Trotzdem hinein',
   cancel: 'Abbrechen',
   done: 'Erledigt',
@@ -1800,6 +1801,17 @@ export const RULE_SET_TEXT = {
   by: 'Regel',
   groups: { portals: 'Portale', notes: 'Notizen', display: 'Anzeige' } as Record<'portals' | 'notes' | 'display', string>,
   groupLabel: 'Gruppe der Regeln',
+  groupHint: { portals: 'Farben, Seite → Kategorie, eingebaute Regeln und Sources', notes: 'Pads, Sheets, Kanban und Wenn-dann-Regeln', display: 'Meldungen und Erinnerungen' } as Record<'portals' | 'notes' | 'display', string>,
+  groupSaid: (name: string) => `Regeln der Gruppe ${name}.`,
+  switchNote: 'Ab Werk gilt die erste Wahl. Rad drehen, klicken oder Pfeiltasten.',
+  notFactory: 'geändert',
+  sweptHead: 'Regeln',
+  jumped: (portal: string) => `Schon offen im Portal „${portal}“ – dorthin gesprungen (Regel A9).`,
+  openThere: (portal: string) => `Diese Source ist schon im Portal „${portal}“ offen.`,
+  openHere: 'Hier trotzdem öffnen',
+  backNotes: 'Zurück zu den Pads und Sheets aller Desks',
+  noTitle: (no: string) => `Nummer ${no} im Entscheidungs-Doc „Weitere Regeln im Cockpit“`,
+  short: { 'newPad.half': 'rechte Hälfte', 'newPad.last': 'letzter Platz', 'newPad.plan': 'Lageplan fragen', 'notice.click': 'bis Klick', 'sameSource.jump': 'hinspringen', 'fold.2s': 'nach 2 s', 'fold.day': 'nach 1 Tag', 'review.ask': 'mit Rückfrage', 'review.direct': 'ohne Rückfrage', 'notice.2': '2 s', 'notice.5': '5 s', 'notice.10': '10 s' } as Record<string, string>,
   switchHead: 'Einstellbare Regeln',
   whenHead: 'Wenn … dann …',
   whenIntro: 'Mitgelieferte Regeln wie in Trello: einschalten, und E-Sources erledigt das von selbst. Was eine Regel getan hat, steht in der Spur der Notiz.',
@@ -1817,7 +1829,7 @@ export const RULE_SET_TEXT = {
     sameSource: { name: 'Gleiche Source noch einmal öffnen', text: 'Was passiert, wenn eine Source schon in einem Portal offen ist.', choices: { newTab: 'neuer Tab', jump: 'zum offenen springen', ask: 'fragen' } },
   } as Record<string, { name: string; text: string; choices: Record<string, string> }>,
   when: {
-    doneChecks: { name: 'Erledigt hakt ab', text: 'Wenn eine Karte in eine Erledigt-Spalte kommt, werden alle Kästchen ihrer Checkliste abgehakt.' },
+    doneChecks: { name: 'Erledigt hakt ab', text: 'Wenn eine Notiz erledigt wird – etwa eine Karte in eine Erledigt-Spalte kommt –, werden alle Kästchen ihrer Checkliste abgehakt.' },
     checksNext: { name: 'Checkliste fertig rückt weiter', text: 'Wenn alle Kästchen einer Karte abgehakt sind, rückt sie in die nächste Spalte (bei „Abnahme nötig“ nach „in Prüfung“).' },
     archiveOld: { name: 'Altes Erledigtes archivieren', text: 'Notizen, die seit 30 Tagen erledigt sind, werden archiviert.' },
     dueUrgent: { name: 'Fälliges wird dringend', text: 'Notizen, die morgen fällig oder überfällig sind, werden als „dringend“ markiert (Matrix, To-do oben).' },
@@ -1826,4 +1838,9 @@ export const RULE_SET_TEXT = {
   off: 'aus',
   said: (name: string, value: string) => `${name}: ${value}.`,
   swept: (archived: number, urgent: number) => [archived ? `${archived} archiviert` : '', urgent ? `${urgent} als dringend markiert` : ''].filter(Boolean).join(', '),
+};
+
+/** V92: Dialog „Design anpassen“ – alte Systeme einzeln unter dem Rad. */
+export const DESIGN_TEXT = {
+  retroHead: 'Alte Systeme',
 };

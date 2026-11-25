@@ -29,6 +29,7 @@ import * as No from './notes';
 import * as Pd from './pads';
 import * as NT from './noteTree';
 import * as NL from './notesLayouts';
+import * as RS from './ruleSet';
 import type { BoardTemplate, ColState, NoteState, NoteView, NoteViewKind, PadPlace } from './types';
 import * as BT from './boardTemplates';
 import * as Sh from './sheets';
@@ -132,6 +133,10 @@ export type Action =
   | { type: 'siteCategory'; domain: string; category: string }
   | { type: 'ruleDelete'; id: string }
   | { type: 'ruleRestore'; undo: RuleUndo }
+  // F-218 (V92): Schalter A1–A9 und Wenn-dann-Regeln W1–W4
+  | { type: 'ruleSwitch'; id: RS.SwitchId; value: string }
+  | { type: 'ruleWhen'; id: RS.WhenRule; on: boolean }
+  | { type: 'ruleSweep'; now?: number }
   | { type: 'tintPanel'; id: string; change: Partial<Record<TintKind, string | null>> }
   | { type: 'tintSlot'; setup: ScreenSetup; area: string; change: Partial<Record<TintKind, string | null>> }
   | { type: 'clearTints'; win: string }
@@ -280,7 +285,9 @@ export const idSeq = (ids: readonly string[]) => {
 };
 
 export function reducer(ws: Workspace, a: Action): Workspace {
-  const next = step(ws, a);
+  const next0 = step(ws, a);
+  // F-218 (V92): Wenn-dann-Regeln W1/W2 (nicht bei Abgleich – das andere Gerät hat sie schon angewandt)
+  const next = a.type === 'remote' || next0 === ws ? next0 : Sh.applyWhenRules(ws, next0);
   // F-27: Fensterliste passend zu den Panels halten (leere Fenster fallen weg).
   // F-51: leerer Zusatz-Desk mit gespeicherten Layouts wechselt, statt wegzufallen.
   return a.type === 'remote' || next === ws ? next : Win.syncWindows(DL.rescueEmptyDesks(next));
@@ -613,6 +620,12 @@ function step(ws: Workspace, a: Action): Workspace {
       return setSiteCategory(ws, a.domain, a.category);
     case 'ruleDelete':
       return deleteRule(ws, a.id).ws;
+    case 'ruleSwitch':
+      return RS.setSwitch(ws, a.id, a.value as RS.SwitchValue<typeof a.id>);
+    case 'ruleWhen':
+      return RS.setWhen(ws, a.id, a.on);
+    case 'ruleSweep':
+      return RS.sweep(ws, a.now).ws;
     case 'layoutSwitch':
       return DL.switchLayout(ws, a.win, a.id);
     case 'spaceAdd':

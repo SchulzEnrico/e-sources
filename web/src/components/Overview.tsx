@@ -12,6 +12,7 @@ import { NOTES_COCKPIT_TEXT, NT_TEXT, PAD_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK
 import type { Shown } from '../workspace/look';
 import { type Action, padOpenResult } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
+import { RULE_SET_TEXT } from '../workspace/terms';
 import { LayoutCockpit, type LayoutOps } from './DeskLayouts';
 import { ModeWheel } from './ModeWheel';
 import { NotesCockpit } from './NotesCockpit';
@@ -245,7 +246,7 @@ export function Overview(p: OverviewProps) {
     setLayouts(m === 'layouts');
     setSources(m === 'sources');
     setNotes(m === 'notes');
-    if (m !== 'portals') setRules(false);
+    setRules(false);
     setQuery('');
     setSaid(m === 'layouts' ? DESK_LAYOUT_TEXT.modeOn : m === 'sources' ? DESK_LAYOUT_TEXT.modeSourcesOn : m === 'notes' ? NOTES_COCKPIT_TEXT.modeOn : '');
   };
@@ -858,7 +859,7 @@ export function Overview(p: OverviewProps) {
             />
           )}
           {/* V90 (Enrico): neue Pads und Sheets direkt im Cockpit „Notizen“ – links gleich nach dem Rad (Enrico) */}
-          {notes && p.onNotesNew && (
+          {notes && !rules && p.onNotesNew && (
             <span className="overview__new" role="group" aria-label={NOTES_COCKPIT_TEXT.newGroup}>
               {(
                 [
@@ -926,14 +927,17 @@ export function Overview(p: OverviewProps) {
           )}
           {/* V84 (F-216, U6): Regeln | Radar als Umschalt-Rad – nur in der Ansicht „Portale“ (dort sind Radar und Regeln zwei
               Seiten derselben Ansicht); verspringt nicht, weil es an der Stelle des alten Knopfs sitzt */}
-          {p.dispatch && !layouts && !sources && !notes && (
+          {/* F-218 (V92, RG6): auch im Cockpit „Notizen“ – öffnet dort die Gruppe „Notizen“ */}
+          {p.dispatch && !layouts && !sources && (
             <ModeWheel
               className="overview__rules"
               label={RULES_TEXT.wheel}
               value={rules ? 'rules' : 'radar'}
               onChange={(v) => setRules(v === 'rules')}
               options={[
-                { id: 'radar', name: RULES_TEXT.back, icon: 'radar', hint: RULES_TEXT.backTitle },
+                notes
+                  ? { id: 'radar', name: NOTES_COCKPIT_TEXT.mode, icon: 'notesTasks', hint: RULE_SET_TEXT.backNotes }
+                  : { id: 'radar', name: RULES_TEXT.back, icon: 'radar', hint: RULES_TEXT.backTitle },
                 { id: 'rules', name: RULES_TEXT.open, icon: 'rules', hint: RULES_TEXT.openTitle },
               ]}
             />
@@ -984,7 +988,7 @@ export function Overview(p: OverviewProps) {
               />
             );
           })()}
-        {notes && canNotes ? (
+        {notes && canNotes && !rules ? (
           <NotesCockpit
             ws={p.ws}
             win={p.win}
@@ -1029,7 +1033,7 @@ export function Overview(p: OverviewProps) {
             }
           />
         ) : rules && p.dispatch ? (
-          <Rules ws={p.ws} shown={p.shown ?? 'dark'} dispatch={p.dispatch} say={setSaid} />
+          <Rules ws={p.ws} shown={p.shown ?? 'dark'} dispatch={p.dispatch} say={setSaid} group={notes ? 'notes' : 'portals'} />
         ) : tiles.length === 0 ? (
           <p className="overview__empty">Noch keine Portale – lege oben mit „+ NewSlot“ eine an.</p>
         ) : (

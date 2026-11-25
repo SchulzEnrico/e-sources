@@ -5865,3 +5865,55 @@ describe('F-218 (V91): Schalter A1–A9 und Wenn-dann-Regeln W1–W4', () => {
     expect(RS.sweep(r.ws, now)).toMatchObject({ archived: 0, urgent: 0 });
   });
 });
+
+describe('F-218 (V92): Einbau der Schalter und W1/W2 nach jeder Änderung', () => {
+  const board = () => {
+    let ws = W.defaultWorkspace();
+    ws = NLo.createNote(ws, { title: 'K', text: '- [ ] a\n- [ ] b' }, { id: 'k' }).ws;
+    const v = NLo.createView(ws, 'kanban', 'B');
+    ws = v.ws;
+    const cols = NLo.viewById(ws, v.id)!.cols!;
+    const r = Sh.moveCard(ws, v.id, 'k', cols[0].id);
+    return { ws: r.ok ? r.ws : ws, v: v.id, cols: cols.map((c) => c.id) };
+  };
+  it('W1: erledigt → Kästchen abgehakt (nur wenn an)', () => {
+    const b = board();
+    const off = Sh.applyWhenRules(b.ws, (Sh.moveCard(b.ws, b.v, 'k', b.cols[2]) as { ws: Workspace }).ws);
+    expect(NLo.noteById(off, 'k')!.text).toBe('- [ ] a\n- [ ] b');
+    const on = RS.setWhen(b.ws, 'doneChecks', true);
+    const moved = (Sh.moveCard(on, b.v, 'k', b.cols[2]) as { ws: Workspace }).ws;
+    expect(NLo.noteById(Sh.applyWhenRules(on, moved), 'k')!.text).toBe('- [x] a\n- [x] b');
+  });
+  it('W2: letzte Kästchen abgehakt → eine Spalte weiter, nur beim Übergang', () => {
+    const b = board();
+    const on = RS.setWhen(b.ws, 'checksNext', true);
+    const edited = NLo.updateNote(on, 'k', { text: '- [x] a\n- [x] b' });
+    const after = Sh.applyWhenRules(on, edited);
+    expect(Sh.colOf(NLo.viewById(after, b.v)!, 'k')!.id).toBe(b.cols[1]);
+    const again = Sh.applyWhenRules(after, NLo.updateNote(after, 'k', { text: '- [x] a\n- [x] b\n' }));
+    expect(Sh.colOf(NLo.viewById(again, b.v)!, 'k')!.id).toBe(b.cols[1]);
+  });
+  it('A3 Schloss aus, A5 Einklappen, A7 leeres Sheet behalten', () => {
+    const b = board();
+    expect(Sh.lockOf(b.ws, 'k').length).toBe(1);
+    expect(Sh.lockOf(RS.setSwitch(b.ws, 'lock', 'off'), 'k')).toEqual([]);
+    let ws = NLo.setState(b.ws, 'k', 'done', { now: 1000 });
+    const n = NLo.noteById(ws, 'k')!;
+    expect(RS.foldsDone(ws, n, 1500)).toBe(true);
+    expect(RS.foldsDone(RS.setSwitch(ws, 'fold', '2s'), n, 1500)).toBe(false);
+    expect(RS.foldsDone(RS.setSwitch(ws, 'fold', '2s'), n, 3500)).toBe(true);
+    expect(RS.foldsDone(RS.setSwitch(ws, 'fold', 'never'), n, 9e12)).toBe(false);
+    ws = W.defaultWorkspace();
+    const v = NLo.createView(ws, 'todo', '');
+    const p = Pd.createPad(v.ws, '', [v.id], { id: 'p' });
+    expect(NLo.viewById(Pd.closePad(p.ws, 'p'), v.id)).toBeUndefined();
+    expect(NLo.viewById(Pd.closePad(RS.setSwitch(p.ws, 'emptySheet', 'keep'), 'p'), v.id)).toBeDefined();
+  });
+  it('A9: gleiche Source in einem anderen Portal finden', () => {
+    const ws = W.defaultWorkspace();
+    const p0 = ws.panels[0];
+    const withUrl = { ...ws, panels: ws.panels.map((p, i) => (i === 0 ? { ...p, tabs: [{ id: 't1', url: 'https://a.de/x' }], activeTab: 't1' } : p)) };
+    expect(B.openElsewhere(withUrl, 'anderes', 'https://a.de/x')).toMatchObject({ panel: p0.id, tab: 't1' });
+    expect(B.openElsewhere(withUrl, p0.id, 'https://a.de/x')).toBeNull();
+  });
+});

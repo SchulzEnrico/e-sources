@@ -11,7 +11,8 @@ import type { Note, NoteView, Workspace } from '../workspace/types';
 import * as No from '../workspace/notes';
 import * as Sh from '../workspace/sheets';
 import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
-import { NOTICE_MS } from '../workspace/flash';
+import { noticeLater } from '../workspace/flash';
+import { switchOf } from '../workspace/ruleSet';
 import { DIALOG_TEXT, NOTE_TEXT, PAUSE_TEXT, SHEET_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab } from './NoteTab';
@@ -29,7 +30,7 @@ export function useNotice() {
   const notice = (m: Notice) => {
     window.clearTimeout(timer.current);
     setMsg(m);
-    timer.current = window.setTimeout(() => setMsg(null), Math.min(m.ms ?? NOTICE_MS, NOTICE_MS));
+    timer.current = noticeLater(() => setMsg(null), 1, m.ms);
   };
   const shown = msg ? { ...msg, ...(msg.undo ? { undo: () => (setMsg(null), msg.undo!()) } : {}) } : null;
   return { notice, shown, clear: () => setMsg(null) };
@@ -242,8 +243,25 @@ export function lockText(boards: NoteView[]): string {
 
 // ---------- To-do-Liste (T2, T3) ----------
 
+/** F-218 A5 (V92): bei „nach 2 Sekunden“/„nach einem Tag“ neu zeichnen, damit Erledigte rechtzeitig einklappen. */
+export function useFoldTick(ws: Workspace) {
+  const [, setTick] = useState(0);
+  const mode = switchOf(ws, 'fold');
+  useEffect(() => {
+    if (mode === '2s') {
+      const t = window.setTimeout(() => setTick((x) => x + 1), 2100);
+      return () => window.clearTimeout(t);
+    }
+    if (mode === 'day') {
+      const t = window.setInterval(() => setTick((x) => x + 1), 60000);
+      return () => window.clearInterval(t);
+    }
+  }, [mode, ws.notes]);
+}
+
 export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; desk: string; sheetId: string; say: (t: string) => void; cmd?: SheetCmd | null }) {
   const { ws, dispatch, sheetId, say } = props;
+  useFoldTick(ws);
   const v = No.viewById(ws, sheetId)!;
   const by = ws.profile?.name || undefined;
   const [filter, setFilter] = useState('');

@@ -33,7 +33,7 @@ import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { type Action, padOpenResult, useWorkspace } from './workspace/useWorkspace';
 import type { Workspace } from './workspace/types';
-import { type SearchHit, NO_CATEGORY, addSamples, bookmarkOf, openBookmark, originOf } from './workspace/bookmarks';
+import { type SearchHit, NO_CATEGORY, addSamples, bookmarkOf, openBookmark, openElsewhere, originOf } from './workspace/bookmarks';
 import { Launcher, LauncherIcon } from './components/Launcher';
 import { type How, type LauncherState, HOW_IN, launcherCount, loadLauncher, openOutside, saveLauncher } from './workspace/launcher';
 import { Search } from './components/Search';
@@ -63,7 +63,7 @@ import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
 import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_LAYOUT_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, VIEW_TEXT } from './workspace/terms';
 import { type DeskMode, PHONE_MQ, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
-import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
+import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, RULE_SET_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { browserOf, currentUa, modKey } from './workspace/browser';
@@ -99,7 +99,8 @@ import { Icon } from './components/Icon';
 import { ModeWheel } from './components/ModeWheel';
 import { SyncDialog } from './components/Sync';
 import { restoreBackup, useGistState, useGistSync } from './workspace/useGistSync';
-import { FLASH_EVENT, type FlashRequest } from './workspace/flash';
+import { FLASH_EVENT, type FlashRequest, flash, setNoticeMs } from './workspace/flash';
+import { noticeMs, sweep, switchOf, whenOn } from './workspace/ruleSet';
 import { sweepClips } from './workspace/audioStore';
 import { sweepPics } from './workspace/imageStore';
 import { audioRefs, imageRefs } from './workspace/notes';
@@ -1096,7 +1097,9 @@ function DeskApp(props: DeskProps) {
   }, [padsWithout]); // eslint-disable-line react-hooks/exhaustive-deps
   const newPad = (focus = true) => {
     const id = newId();
-    dispatch({ type: 'padNew', desk: win, id, sheet: newId(), place: padHome() });
+    // F-218 A6 (V92): Platz eines neuen Pads – rechte Hälfte des aktiven Slots (Werk) oder am zuletzt benutzten Platz
+    const lastPad = switchOf(ws, 'newPad') === 'last' ? [...deskPads].reverse().find((p) => placeOf(ws, win, p.id)) : undefined;
+    dispatch({ type: 'padNew', desk: win, id, sheet: newId(), place: (lastPad && placeOf(ws, win, lastPad.id)) || padHome() });
     setPadsHidden(false);
     // im Cockpit meldet das Cockpit selbst (Meldung am Ort)
     if (focus) notify(PAD_TEXT.created);
@@ -2021,6 +2024,23 @@ function DeskApp(props: DeskProps) {
     window.setTimeout(() => document.querySelector<HTMLElement>(`[data-panel-id="${id}"] [role="tab"][aria-selected="true"]`)?.focus({ preventScroll: true }), 50);
   };
 
+  /**
+   * F-218 A9 (V92): Source schon in einem anderen Portal offen? „neuer Tab“ (Werk) öffnet trotzdem hier,
+   * „zum offenen springen“ zeigt das andere Portal, „fragen“ meldet es mit „Hier öffnen“. true = hier öffnen.
+   */
+  const sameSourceOk = (id: string, url: string, openHere: () => void): boolean => {
+    const mode = switchOf(ws, 'sameSource');
+    const there = mode === 'newTab' ? null : openElsewhere(ws, id, url);
+    if (!there) return true;
+    if (mode === 'jump') {
+      showPanel(there.panel, there.tab);
+      notify(RULE_SET_TEXT.jumped(there.name));
+      return false;
+    }
+    notify(RULE_SET_TEXT.openThere(there.name), 8000, false, { label: RULE_SET_TEXT.openHere, run: openHere });
+    return false;
+  };
+
   /** Treffer im zugehörigen Panel öffnen; liegt das Panel im Stapel hinten, kommt es nach vorn. */
   const openHit = (h: SearchHit, swap = false) => {
     // F-149: Sources, die sich nicht einbetten lassen, gehen außerhalb auf
@@ -2028,11 +2048,15 @@ function DeskApp(props: DeskProps) {
     const id = h.panel?.id ?? currentPanel();
     if (!id) return notify('Lege zuerst einen Slot an, dann lässt sich die Source öffnen.');
     const name = ws.panels.find((x) => x.id === id)?.name ?? '';
-    if (openBookmark(ws, id, h.bookmark.url).result === 'full')
+    if (!sameSourceOk(id, h.bookmark.url, () => openHitIn(id, h.bookmark.url, name))) return;
+    openHitIn(id, h.bookmark.url, name);
+  };
+  const openHitIn = (id: string, url: string, name: string) => {
+    if (openBookmark(ws, id, url).result === 'full')
       return notify(`Im Portal „${name}“ sind schon ${TAB_MAX} Tabs offen. Schließe dort einen Tab.`);
     dispatch({ type: 'stackFront', setup, id });
-    dispatch({ type: 'openBookmark', panel: id, url: h.bookmark.url });
-    rememberUrl(h.bookmark.url);
+    dispatch({ type: 'openBookmark', panel: id, url });
+    rememberUrl(url);
     setActive(id);
     if (mode.kind === 'max' && mode.id !== id) setMode({ kind: 'max', id });
   };
@@ -2736,6 +2760,8 @@ function DeskApp(props: DeskProps) {
         moveTargets={(whole) => targetsFor(meta.id, whole)}
         onMove={(t, whole) => moveTo(meta.id, t, whole)}
         onOpenBookmark={(url) => {
+          // F-218 A9 (V92): schon in einem anderen Portal offen?
+          if (!sameSourceOk(meta.id, url, () => (dispatch({ type: 'openBookmark', panel: meta.id, url }), rememberUrl(url)))) return;
           // F-21: als Tab öffnen; bei voller Tab-Leiste (F-26) nur Hinweis
           if (openBookmark(ws, meta.id, url).result === 'full')
             return notify(`Schon ${TAB_MAX} Tabs offen. Schließe einen Tab oder öffne die Source in einem anderen Portal.`);
@@ -3425,7 +3451,7 @@ function DeskApp(props: DeskProps) {
                 notesMode ? notesPlan(PLAN_TEXT.pickPad, 'notes', null, newNoteAt)(close, () => go('')) : padPlan(PLAN_TEXT.pickPad, newPadAt)(close, () => go(''))
               ) : (
             <>
-              <Item icon="newPad" hint={PAD_TEXT.menuNewHint} onClick={() => (close(), newPad())}>
+              <Item icon="newPad" hint={PAD_TEXT.menuNewHint} onClick={() => (!notesMode && switchOf(ws, 'newPad') === 'plan' ? go('place') : (close(), newPad()))}>
                 {PAD_TEXT.menuNew}
               </Item>
               {/* V87 (G): Sheet-Arten mit ihrem Bau – als neuer Reiter im obersten Pad (bei 9 Sheets neues Pad); Matrix öffnet die vorhandene */}
@@ -4289,6 +4315,22 @@ export default function App(props: { sent?: string }) {
     const t = window.setTimeout(() => (void sweepClips(audioRefs(wsNow.current)), void sweepPics(imageRefs(wsNow.current))), 30000);
     return () => window.clearTimeout(t);
   }, []);
+  // F-218 A1 (V92): Dauer der Meldungen am Ort für alle Bauteile
+  setNoticeMs(noticeMs(ws));
+  // F-218 W3/W4 (V92): altes Erledigtes archivieren, Fälliges dringend – 30 s nach dem Start (Abgleich durch), dann stündlich
+  useEffect(() => {
+    const run = () => {
+      const w = wsNow.current;
+      if (!whenOn(w, 'archiveOld') && !whenOn(w, 'dueUrgent')) return;
+      const r = sweep(w);
+      if (!r.archived && !r.urgent) return;
+      dispatch({ type: 'ruleSweep' });
+      flash({ text: `${RULE_SET_TEXT.sweptHead}: ${RULE_SET_TEXT.swept(r.archived, r.urgent)}.` });
+    };
+    const first = window.setTimeout(run, 30000);
+    const every = window.setInterval(run, 3600000);
+    return () => (window.clearTimeout(first), window.clearInterval(every));
+  }, [dispatch]);
   const [desk, setDesk] = useState<{ win: string; switched: boolean; said: string; focus?: string }>(() => ({ win: winFromSearch(window.location.search), switched: false, said: '' }));
   const [parked, setParked] = useState(false);
   const onSwitch = useCallback((target: string, said = '', focus?: string) => {

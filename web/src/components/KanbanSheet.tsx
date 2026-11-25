@@ -12,10 +12,11 @@ import type { ColState, Note, NoteColumn, Workspace } from '../workspace/types';
 import type { IconName } from '../workspace/icons';
 import * as No from '../workspace/notes';
 import * as Sh from '../workspace/sheets';
+import { foldsDone, switchOf } from '../workspace/ruleSet';
 import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
 import { KANBAN_TEXT as K, NOTE_TEXT, SHEET_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
-import { CardWindow, MoveToBar, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useNotice } from './SheetViews';
+import { CardWindow, MoveToBar, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useFoldTick, useNotice } from './SheetViews';
 import { Item, Menu, MenuPages } from './PanelFrame';
 import { Icon } from './Icon';
 
@@ -37,6 +38,7 @@ export function focusColLater(sheet: string, col: string) {
 
 export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; desk: string; sheetId: string; say: (t: string) => void; cmd?: SheetCmd | null }) {
   const { ws, dispatch, sheetId, say } = props;
+  useFoldTick(ws);
   const v = No.viewById(ws, sheetId)!;
   const cols = v.cols ?? [];
   const by = ws.profile?.name || undefined;
@@ -120,6 +122,16 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const restOf = (colId: string) => (colById(colId)?.ids ?? []).filter((x) => x !== lift?.id);
 
   // ---------- Ablegen, Erledigt, Abnahme ----------
+  /** F-218 A2 (V92): WIP-Limit – nachfragen (Werk, K3), sperren oder nur kennzeichnen (Zähler wird rot). */
+  const wipGate = (col: NoteColumn, run: () => void) => {
+    const mode = switchOf(ws, 'wip');
+    if (mode === 'mark') return run();
+    if (mode === 'block') {
+      notice({ text: K.wipBlocked(col.wip!, col.name) });
+      return say(K.wipBlocked(col.wip!, col.name));
+    }
+    setAsk({ kind: 'wip', col: col.id, text: K.wipAsk(col.wip!, col.name), run });
+  };
   const commit = (id: string, col: string, index: number | undefined, origin?: string) => {
     const target = colById(col);
     const n = No.noteById(ws, id);
@@ -131,7 +143,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       say(K.dropped(title(n), target.name, pos, of));
       focusCard(id);
     };
-    if (origin !== col && Sh.overWip(target)) return setAsk({ kind: 'wip', col, text: K.wipAsk(target.wip!, target.name), run });
+    if (origin !== col && Sh.overWip(target)) return wipGate(target, run);
     run();
   };
   const drop = () => {
@@ -175,7 +187,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       setAsk(null);
       window.setTimeout(() => boardRef.current?.querySelector<HTMLElement>(`[data-addin="${col.id}"]`)?.focus(), 0);
     };
-    if (Sh.overWip(col)) return setAsk({ kind: 'wip', col: col.id, text: K.wipAsk(col.wip!, col.name), run });
+    if (Sh.overWip(col)) return wipGate(col, run);
     run();
   };
   const removeCol = (c: NoteColumn) => {
@@ -394,7 +406,14 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
           </ul>
         )}
         {needsOk && (
-          <button type="button" className="kcard__ok" onClick={() => setAsk({ kind: 'review', id: n.id })}>
+          <button
+            type="button"
+            className="kcard__ok"
+            onClick={() =>
+              // F-218 A4 (V92): Abnahme ohne Rückfrage, wenn so eingestellt
+              switchOf(ws, 'review') === 'direct' ? (dispatch({ type: 'reviewOk', note: n.id, by }), say(K.reviewDone(t)), focusCard(n.id)) : setAsk({ kind: 'review', id: n.id })
+            }
+          >
             <Icon name="check" size={12} /> {K.reviewOk}
           </button>
         )}
@@ -526,8 +545,8 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       .filter((n): n is Note => !!n)
       .filter((n) => n.id === lift?.id || Sh.matchesFilter(No.shownNote(n), filter));
     const hideDone = show === 'open' && !openDone.has(c.id);
-    const visible = notes.filter((n) => !(hideDone && finished(n) && n.id !== lift?.id));
-    const doneHere = notes.filter((n) => finished(n) && n.id !== lift?.id).length;
+    const visible = notes.filter((n) => !(hideDone && finished(n) && n.id !== lift?.id && foldsDone(ws, n)));
+    const doneHere = notes.filter((n) => finished(n) && n.id !== lift?.id && foldsDone(ws, n)).length;
     const over = Sh.overWip(c, 0);
     return (
       <section key={c.id} className={`kcol${lift?.col === c.id ? ' is-target' : ''}`} aria-label={`${K.col(c.name)}, ${Sh.COL_STATE_NAME[st]}, ${K.countLabel(c.ids.length, c.wip)}`}>

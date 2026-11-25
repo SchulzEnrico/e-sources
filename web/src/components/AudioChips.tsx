@@ -11,7 +11,7 @@ import { CLIP_EVENT, getClip } from '../workspace/audioStore';
 import { audioFileName, fmtDur } from '../workspace/voice';
 import { remindLabel } from '../workspace/remind';
 import { Icon } from './Icon';
-import { NOTICE_MS } from '../workspace/flash';
+import { noticeLater } from '../workspace/flash';
 
 export function AudioChips(props: { clips: NoteAttachment[]; onRemove: (ref: string) => void; onUndo: (a: NoteAttachment, index: number) => void }) {
   const { clips, onRemove, onUndo } = props;
@@ -104,7 +104,7 @@ export function AudioChips(props: { clips: NoteAttachment[]; onRemove: (ref: str
     window.clearTimeout(goneT.current);
     setGone({ a, index });
     setSay(AT.removed);
-    goneT.current = window.setTimeout(() => setGone(null), NOTICE_MS);
+    goneT.current = noticeLater(() => setGone(null));
     window.setTimeout(() => firstBtn.current?.focus({ preventScroll: true }), 0);
   };
 

@@ -3,6 +3,9 @@
  * Farbregeln je Kategorie und Seite → Kategorie (anlegen, ändern, ein/aus, löschen mit Rückfrage
  * und „Rückgängig“) sowie die eingebauten Regeln (nur ein/aus). Alles mit nativen Bedienelementen,
  * vollständig per Tastatur (NF-03); Esc schließt zuerst Rückfrage oder Bearbeiten.
+ * F-218 (V92, RG1/RG2/RG5): oben ein Gruppen-Rad Portale · Notizen · Anzeige; je Gruppe die einstellbaren Regeln
+ * A1–A9 (Name, Satz, Umschalt-Rad mit den Wahlen) und unter „Notizen“ der Block „Wenn … dann …“ (W1–W4, ein/aus wie
+ * die eingebauten). A10 (Pausieren) bleibt im Zahnrad, hier nur ein Verweis.
  */
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { NO_CATEGORY } from '../workspace/bookmarks';
@@ -15,6 +18,9 @@ import type { Action } from '../workspace/useWorkspace';
 import { Row as TintRow } from './Colors';
 import { Icon } from './Icon';
 import { categoryIcon } from '../workspace/icons';
+import { type RuleGroup, RULE_GROUPS, SWITCHES, SWITCH_GROUP, SWITCH_IDS, SWITCH_NO, type SwitchId, WHEN_NO, WHEN_RULES, switchOf, whenOn } from '../workspace/ruleSet';
+import { RULE_SET_TEXT } from '../workspace/terms';
+import { ModeWheel } from './ModeWheel';
 
 type Change = Partial<Record<TintKind, string | null>>;
 
@@ -24,7 +30,11 @@ interface Props {
   dispatch: (a: Action) => void;
   /** Ansage für Bildschirmleser (Statuszeile des Cockpits). */
   say: (text: string) => void;
+  /** F-218 (RG6): Gruppe beim Öffnen – aus dem Cockpit „Notizen“ kommt man zu „Notizen“. */
+  group?: RuleGroup;
 }
+
+const GROUP_ICON = { portals: 'radar', notes: 'notesTasks', display: 'design' } as const;
 
 /** Esc nur hier verbrauchen (sonst schließt das Cockpit). */
 const escape = (e: KeyboardEvent, run: () => void) => {
@@ -41,9 +51,92 @@ export function Rules(p: Props) {
   const [undo, setUndo] = useState<{ u: RuleUndo; name: string } | null>(null);
   const [newTint, setNewTint] = useState<string | null>(null); // null = zu, '' = Auswahl offen, sonst Kategorie-Id
   const [newSite, setNewSite] = useState<{ domain: string; cat: string; bad?: boolean } | null>(null);
+  const [grp, setGrp] = useState<RuleGroup>(p.group ?? 'portals');
   const box = useRef<HTMLDivElement>(null);
   const focusLater = (sel: string) => window.setTimeout(() => box.current?.querySelector<HTMLElement>(sel)?.focus(), 0);
-  useEffect(() => void focusLater('.rules input, .rules button'), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => void focusLater('.rules__groups'), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** A1–A9: eine Zeile je Schalter – Name, Nummer, Rad mit den Wahlen, darunter der Satz. */
+  const switchRow = (id: SwitchId) => {
+    const t = RULE_SET_TEXT.sw[id];
+    const value = switchOf(p.ws, id) as string;
+    const tid = `rule-sw-${id}`;
+    return (
+      <li key={id} className="rules__row rules__row--sw" data-rule={`sw:${id}`}>
+        <div className="rules__line">
+          <strong id={`${tid}-n`}>{t.name}</strong>
+          <span className="rules__no-tag" title={RULE_SET_TEXT.noTitle(SWITCH_NO[id])}>{SWITCH_NO[id]}</span>
+          <span className="grow" />
+          <ModeWheel
+            className="rules__wheel"
+            label={t.name}
+            value={value}
+            onChange={(v) => {
+              p.dispatch({ type: 'ruleSwitch', id, value: v });
+              p.say(RULE_SET_TEXT.said(t.name, t.choices[v] ?? v));
+            }}
+            options={(SWITCHES[id] as readonly string[]).map((c) => ({ id: c, name: RULE_SET_TEXT.short[`${id}.${c}`] ?? t.choices[c], hint: t.choices[c] }))}
+          />
+        </div>
+        <p id={tid} className="rules__text rules__text--sw">
+          {t.text}
+          {value !== (SWITCHES[id] as readonly string[])[0] && <span className="rules__off"> · {RULE_SET_TEXT.notFactory}</span>}
+        </p>
+      </li>
+    );
+  };
+  const switchGroup = (g: RuleGroup) => {
+    const ids = SWITCH_IDS.filter((id) => SWITCH_GROUP[id] === g);
+    return (
+      <section className="rules__group" aria-labelledby={`rules-h-sw-${g}`}>
+        <h3 id={`rules-h-sw-${g}`} className="radar__detail-head">
+          {RULE_SET_TEXT.switchHead}
+        </h3>
+        <p className="rules__note">{RULE_SET_TEXT.switchNote}</p>
+        <ul className="rules__list">{ids.map(switchRow)}</ul>
+        {g === 'display' && <p className="rules__note rules__ref">{RULE_SET_TEXT.pauseRef}</p>}
+      </section>
+    );
+  };
+  /** W1–W4: ein/aus wie die eingebauten Regeln. */
+  const whenGroup = () => (
+    <section className="rules__group" aria-labelledby="rules-h-when">
+      <h3 id="rules-h-when" className="radar__detail-head">
+        {RULE_SET_TEXT.whenHead}
+      </h3>
+      <p className="rules__note">{RULE_SET_TEXT.whenIntro}</p>
+      <ul className="rules__list">
+        {WHEN_RULES.map((id) => {
+          const t = RULE_SET_TEXT.when[id];
+          const on = whenOn(p.ws, id);
+          const tid = `rule-w-${id}`;
+          return (
+            <li key={id} className={on ? 'rules__row' : 'rules__row is-off'} data-rule={`when:${id}`}>
+              <div className="rules__line">
+                <label className="rules__on">
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    aria-describedby={tid}
+                    onChange={() => {
+                      p.dispatch({ type: 'ruleWhen', id, on: !on });
+                      p.say(RULES_TEXT.said(t.name, !on));
+                    }}
+                  />
+                  <strong>{t.name}</strong>
+                  {!on && <span className="rules__off"> · {RULES_TEXT.off}</span>}
+                </label>
+                <span className="rules__no-tag" title={RULE_SET_TEXT.noTitle(WHEN_NO[id])}>{WHEN_NO[id]}</span>
+              </div>
+              <p id={tid} className="rules__text">
+                {t.text}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 
   const free = p.ws.categories.filter((c) => !c.tint);
   const catOptions = (
@@ -269,7 +362,19 @@ export function Rules(p: Props) {
       <h2 id="rules-head" className="sr-only">
         {RULES_TEXT.head}
       </h2>
-      <p className="rules__intro">{RULES_TEXT.intro}</p>
+      <div className="rules__top">
+        <ModeWheel
+          className="rules__groups"
+          label={RULE_SET_TEXT.groupLabel}
+          value={grp}
+          onChange={(g) => {
+            setGrp(g as RuleGroup);
+            p.say(RULE_SET_TEXT.groupSaid(RULE_SET_TEXT.groups[g as RuleGroup]));
+          }}
+          options={RULE_GROUPS.map((g) => ({ id: g, name: RULE_SET_TEXT.groups[g], icon: GROUP_ICON[g], hint: RULE_SET_TEXT.groupHint[g] }))}
+        />
+        <p className="rules__intro">{RULES_TEXT.intro}</p>
+      </div>
       {undo && (
         <p className="rules__undo">
           {RULES_TEXT.deleted(undo.name)}{' '}
@@ -278,9 +383,15 @@ export function Rules(p: Props) {
           </button>
         </p>
       )}
-      {group('tint', RULES_TEXT.tintHead, RULES_TEXT.tintNone)}
-      {group('site', RULES_TEXT.siteHead, RULES_TEXT.siteNone)}
-      {group('builtin', RULES_TEXT.builtinHead, null)}
+      {grp === 'portals' && (
+        <>
+          {group('tint', RULES_TEXT.tintHead, RULES_TEXT.tintNone)}
+          {group('site', RULES_TEXT.siteHead, RULES_TEXT.siteNone)}
+          {group('builtin', RULES_TEXT.builtinHead, null)}
+        </>
+      )}
+      {switchGroup(grp)}
+      {grp === 'notes' && whenGroup()}
     </div>
   );
 }

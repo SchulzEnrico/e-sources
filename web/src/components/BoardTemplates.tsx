@@ -12,7 +12,7 @@ import * as BT from '../workspace/boardTemplates';
 import * as No from '../workspace/notes';
 import { COL_STATE_NAME } from '../workspace/sheets';
 import { BOARD_TPL_TEXT as BTT, DIALOG_TEXT, TERMS } from '../workspace/terms';
-import { NOTICE_MS } from '../workspace/flash';
+import { noticeLater } from '../workspace/flash';
 import { newId } from '../workspace/workspace';
 import { Item, MenuHead } from './PanelFrame';
 import { Icon } from './Icon';
@@ -50,7 +50,7 @@ export function SaveTemplateBar({ ws, dispatch, sheetId, onClose, say }: { ws: W
   const [done, setDone] = useState('');
   useEffect(() => {
     if (!done) return;
-    const t = window.setTimeout(() => onClose(true), NOTICE_MS);
+    const t = noticeLater(() => onClose(true));
     return () => window.clearTimeout(t);
   }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!v) return null;
@@ -157,12 +157,12 @@ export function BoardTemplateGroup({ ws, win, dispatch, say, onNewBoard }: { ws:
   // Meldungen am Ort, kurz
   useEffect(() => {
     if (!note) return;
-    const t = window.setTimeout(() => setNote(''), NOTICE_MS);
+    const t = noticeLater(() => setNote(''));
     return () => window.clearTimeout(t);
   }, [note]);
   useEffect(() => {
     if (!undo) return;
-    const t = window.setTimeout(() => setUndo(null), NOTICE_MS * 3);
+    const t = noticeLater(() => setUndo(null), 3);
     return () => window.clearTimeout(t);
   }, [undo]);
   const tell = (t: string) => (setNote(t), say(t));

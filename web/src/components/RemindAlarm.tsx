@@ -25,9 +25,12 @@ export interface Reminders {
 }
 
 /** Prüft fällige Erinnerungen, solange das Pad offen ist; spielt beim Auftauchen einen Ton. */
-export function useReminders(list: readonly Note[]): Reminders {
+export function useReminders(list: readonly Note[], how: { sound: boolean; system: boolean } = { sound: true, system: false }): Reminders {
   const notes = useRef(list);
   notes.current = list;
+  // F-218 A8 (V92): Ton und Systemmitteilung nach den Regeln
+  const howRef = useRef(how);
+  howRef.current = how;
   const since = useRef(Date.now());
   const [due, setDue] = useState<DueRemind[]>([]);
 
@@ -38,8 +41,8 @@ export function useReminders(list: readonly Note[]): Reminders {
       if (!found.length) return;
       markSeen(found);
       setDue((d) => [...d.filter((x) => !found.some((f) => f.id === x.id)), ...found]);
-      playChime(found.every((f) => f.missed));
-      if (canNotify() && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+      if (howRef.current.sound) playChime(found.every((f) => f.missed));
+      if (howRef.current.system && canNotify() && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
         for (const f of found) {
           const n = notes.current.find((x) => x.id === f.id);
           try {

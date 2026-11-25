@@ -12,7 +12,7 @@ import { type FormEvent, type KeyboardEvent as RKeyboardEvent, type MouseEvent a
 import * as ND from '../workspace/noteDoc';
 import { getPic, putPic, shrinkImage } from '../workspace/imageStore';
 import { newId } from '../workspace/workspace';
-import { NOTICE_MS } from '../workspace/flash';
+import { noticeLater } from '../workspace/flash';
 import { PicView } from './PicView';
 import { NOTE_TEXT } from '../workspace/terms';
 import { Icon } from './Icon';
@@ -941,7 +941,7 @@ export function NoteEditor({ text, onChange, label, autoFocus }: Props) {
   const tell = (text: string, top: number, after?: string) => {
     window.clearTimeout(noticeT.current);
     setNotice({ text, top, after });
-    noticeT.current = window.setTimeout(() => setNotice(null), NOTICE_MS);
+    noticeT.current = noticeLater(() => setNotice(null));
   };
   useEffect(() => () => window.clearTimeout(noticeT.current), []);
   const topOf = (n: Element | null | undefined) => {

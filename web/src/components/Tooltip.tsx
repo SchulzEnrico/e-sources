@@ -17,6 +17,8 @@ interface Tip {
   x: number;
   y: number;
   below: boolean;
+  /** V92 (Enrico: „Tooltip taucht hinter dem Fenster auf“): in einem offenen Dialog (oberste Ebene) dorthin hängen */
+  host: HTMLElement;
 }
 
 export function Tooltips() {
@@ -52,7 +54,7 @@ export function Tooltips() {
           if (owner.current !== el || !el.isConnected) return;
           const r = el.getBoundingClientRect();
           const below = r.top < 60;
-          setTip({ text, x: r.left + r.width / 2, y: below ? r.bottom + 6 : r.top - 6, below });
+          setTip({ text, x: r.left + r.width / 2, y: below ? r.bottom + 6 : r.top - 6, below, host: (el.closest('dialog[open]') as HTMLElement | null) ?? document.body });
           if (viaFocus && !el.hasAttribute('aria-describedby')) el.setAttribute('aria-describedby', TIP_ID);
         },
         viaFocus ? 0 : DELAY,
@@ -126,6 +128,6 @@ export function Tooltips() {
     >
       {tip.text}
     </div>,
-    document.body,
+    tip.host,
   );
 }

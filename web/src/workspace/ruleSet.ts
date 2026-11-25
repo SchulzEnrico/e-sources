@@ -36,7 +36,7 @@ export const SWITCHES = {
   /** A8 Erinnerung: Ton. */
   remindSound: ['on', 'off'],
   /** A8 Erinnerung: Systemmitteilung (nur nach Erlaubnis des Browsers). */
-  remindSystem: ['off', 'on'],
+  remindSystem: ['on', 'off'], // V92: Werk „an“ = heutiges Verhalten (zeigt nur nach Erlaubnis)
   /** A9 Gleiche Source ein zweites Mal öffnen. */
   sameSource: ['newTab', 'jump', 'ask'],
 } as const;
@@ -218,4 +218,17 @@ export function sweep(ws: Workspace, now = Date.now()): { ws: Workspace; archive
     }
   }
   return { ws: next, archived, urgent };
+}
+
+/**
+ * A5 (V92): Klappt eine erledigte (bzw. archivierte) Notiz in To-do und Kanban schon unter „n erledigt“?
+ * sofort (Werk) · nach 2 Sekunden · nach einem Tag · nie. Ohne bekannten Zeitpunkt gilt „lange her“.
+ */
+export function foldsDone(ws: Workspace, n: Note, now = Date.now()): boolean {
+  const v = switchOf(ws, 'fold');
+  if (v === 'now') return true;
+  if (v === 'never') return false;
+  const at = doneAt(n) ?? (n.state === 'archived' ? 0 : null);
+  if (at === null) return true;
+  return now - at >= (v === '2s' ? 2000 : 864e5);
 }

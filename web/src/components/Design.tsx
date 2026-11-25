@@ -11,7 +11,7 @@ import { DialogFoot } from './DialogFoot';
 import { type DesignSnap, designChanged } from '../workspace/reset';
 import { ACCENTS, type Look, THEMES } from '../workspace/look';
 import { helpById } from '../workspace/help';
-import { DESK_LOOK_TEXT, TINT_TEXT } from '../workspace/terms';
+import { DESIGN_TEXT, DESK_LOOK_TEXT, TINT_TEXT } from '../workspace/terms';
 
 interface Props {
   look: Look;
@@ -40,6 +40,10 @@ interface Props {
   children?: ReactNode;
 }
 
+
+/** V92 (Enrico): Rad = moderne Darstellungen, darunter die alten Systeme einzeln. */
+const MODERN = THEMES.filter((t) => t.group === 'Modern');
+const RETRO = THEMES.filter((t) => t.group === 'Retro');
 export function Design({ look, warning, onLook, desk, main, own, onFollowMain, tinted, onResetTints, now, onRestore, onClose, onTour, children }: Props) {
   const dlg = useRef<HTMLDialogElement>(null);
   const first = useRef<HTMLDivElement>(null); // V83: Rad „Darstellung“ (erstes Bedienelement)
@@ -104,15 +108,29 @@ export function Design({ look, warning, onLook, desk, main, own, onFollowMain, t
           <h3 id="design-theme" className="help__group">
             Darstellung
           </h3>
-          {/* V83 (F-216, U6): Darstellung als Umschalt-Rad, ringsum; Gruppe (Modern/Retro) klein über dem Namen */}
+          {/* V92 (Enrico): Rad nur noch Dunkel · Hell · Wie System; die alten Systeme stehen darunter einzeln.
+              Ist ein altes System gewählt, steht das Rad zwischen den Rasten auf dessen Namen. */}
           <div ref={first} className="design__wheel">
             <ModeWheel
               label="Darstellung"
-              value={look.theme}
-              wrap
+              value={MODERN.some((t) => t.id === look.theme) ? look.theme : '-'}
+              between={MODERN.some((t) => t.id === look.theme) ? undefined : { name: THEMES.find((t) => t.id === look.theme)?.label ?? '', after: MODERN.length - 1 }}
               onChange={(id) => onLook({ theme: id as Look['theme'] })}
-              options={THEMES.map((t) => ({ id: t.id, name: t.label, glyph: <small className="mwheel__group">{t.group}</small>, hint: t.group }))}
+              options={MODERN.map((t) => ({ id: t.id, name: t.label }))}
             />
+          </div>
+        </section>
+        <section className="design__group design__oldsys" aria-labelledby="design-retro">
+          <h3 id="design-retro" className="help__group">
+            {DESIGN_TEXT.retroHead}
+          </h3>
+          <div className="design__retros" role="radiogroup" aria-labelledby="design-retro">
+            {RETRO.map((t) => (
+              <label key={t.id} className={`design__retro${look.theme === t.id ? ' is-on' : ''}`}>
+                <input type="radio" name="design-retro" checked={look.theme === t.id} onChange={() => onLook({ theme: t.id })} />
+                <span>{t.label}</span>
+              </label>
+            ))}
           </div>
         </section>
         <section className="design__group design__accent" aria-labelledby="design-accent">

@@ -229,6 +229,16 @@ export function openBookmark(ws: Workspace, panelId: string, url: string): { ws:
   return { ws: addTab(ws, panelId, url), result: 'tab' };
 }
 
+/** F-218 A9 (V92): Ist diese Seite schon in einem anderen Portal offen? Portal und Tab (oder null). */
+export function openElsewhere(ws: Workspace, panelId: string, url: string): { panel: string; tab: string; name: string } | null {
+  for (const p of ws.panels) {
+    if (p.id === panelId) continue;
+    const t = p.tabs.find((x) => sameUrl(x.url, url));
+    if (t) return { panel: p.id, tab: t.id, name: p.name };
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------- Zentrale Suche (F-34)
 
 /** Ein Treffer der zentralen Suche: ein Lesezeichen in der Sammlung eines Panels. */

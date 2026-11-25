@@ -104,7 +104,11 @@ import { PORTAL_ALONE, nextTabOf, portalSaid, stepIn, tabAlone, tabSaid } from '
 import { Icon } from './components/Icon';
 import { ModeWheel } from './components/ModeWheel';
 import { SyncDialog } from './components/Sync';
+import { type Anchor as FbAnchor, FEEDBACK_EVENT, FeedbackQuick, domPlace, mainView } from './components/FeedbackQuick';
+import { askEase as fbAskEase, envOf as fbEnvOf, newCount as fbNewCount } from './workspace/feedback';
+import type { FeedbackEnv, FeedbackKind, FeedbackPlace } from './workspace/types';
 import { restoreBackup, useGistState, useGistSync } from './workspace/useGistSync';
+import { FEEDBACK_TEXT } from './workspace/terms';
 import { FLASH_EVENT, type FlashRequest, flash, setNoticeMs } from './workspace/flash';
 import { noticeMs, sweep, switchOf, whenOn } from './workspace/ruleSet';
 import { sweepClips } from './workspace/audioStore';
@@ -383,6 +387,8 @@ function DeskApp(props: DeskProps) {
   }, [toggleOverview]);
   /** F-156: Hilfe offen (at = Eintrag, zu dem sie springt) oder zu (null). */
   const [helpAt, setHelpAt] = useState<{ at: string | null } | null>(null);
+  // F-221 (V102, FB4/FB5): Feedback „Schnell erfassen“ am Ort des Geschehens
+  const [fbAt, setFbAt] = useState<{ anchor: FbAnchor | null; place: FeedbackPlace; env: FeedbackEnv; kind?: FeedbackKind } | null>(null);
   /** F-95: Tour – beim ersten Start einmal von selbst (nicht in der Testbelegung, nicht in Zusatz-Desks). */
   const [tour, setTourId] = useState<TourId | null>(null);
   /** F-173: Tour von selbst gestartet (zeigt „Nicht mehr automatisch anzeigen“). */
@@ -724,6 +730,16 @@ function DeskApp(props: DeskProps) {
     window.addEventListener(FLASH_EVENT, on);
     return () => window.removeEventListener(FLASH_EVENT, on);
   }, [notify]);
+  // F-221 (FB4): Feedback aus ⋮ in Portal und Pad – am Knopf des Menüs
+  const openFeedbackRef = useRef<(from?: Element | null, kind?: FeedbackKind) => void>(() => {});
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ from?: Element | null; kind?: FeedbackKind }>).detail;
+      openFeedbackRef.current(d?.from ?? null, d?.kind);
+    };
+    window.addEventListener(FEEDBACK_EVENT, on);
+    return () => window.removeEventListener(FEEDBACK_EVENT, on);
+  }, []);
   // F-203: Touren aus Bauteilen starten (z. B. Knopf „Tour“ in Library und Cockpit „Sources“)
   useEffect(() => {
     const on = (e: Event) => {
@@ -1265,6 +1281,26 @@ function DeskApp(props: DeskProps) {
   // V99 (F-206 Schritt 10): Projekt-Modus – Projektliste und Steckbrief füllen den Desk, Pads schweben wie im Desk-Modus
   const projectsMode = !notesOff && modeOf(deskModes, win, phone) === 'projects';
   const deskModeNow: DeskMode = notesMode ? 'notes' : projectsMode ? 'projects' : 'desk';
+  /** F-221 (FB4–FB6): Feedback öffnen – am Knopf/Menü `from`, Ort und Gerät automatisch, nichts aus Inhalten. */
+  const openFeedback = (from?: Element | null, kind?: FeedbackKind) => {
+    const at = from ?? document.activeElement;
+    const r = from?.getBoundingClientRect();
+    const deskName = win ? ws.windows.find((w) => w.id === win)?.name ?? '' : '';
+    // aus der Kopfleiste: Ansicht = was im Hauptbereich steht (z. B. Projektliste, Pad, Portal)
+    const here = domPlace(at instanceof Element ? at : null);
+    const main = document.querySelector('main');
+    const inBar = at instanceof Element && !!at.closest('header, [role="banner"]');
+    const view = here.view && !inBar ? here.view : mainView(main) ?? here.view;
+    const place: FeedbackPlace = { mode: FEEDBACK_TEXT.modes[deskModeNow], desk: deskName, ...here, ...(view ? { view } : {}) };
+    const env = fbEnvOf({
+      ua: navigator.userAgent,
+      device: deviceLabel(navigator.userAgent, navigator.maxTouchPoints > 1),
+      screen: { w: screen.width, h: screen.height },
+      win: { w: innerWidth, h: innerHeight },
+    });
+    setFbAt({ anchor: r ? { top: r.top, left: r.left, bottom: r.bottom, right: r.right } : null, place, env, ...(kind ? { kind } : {}) });
+  };
+  openFeedbackRef.current = openFeedback;
   const setDeskMode = (m: DeskMode) => {
     const next = withMode(deskModes, win, m);
     setDeskModes(next);
@@ -2548,6 +2584,12 @@ function DeskApp(props: DeskProps) {
       else notify(text);
     };
     if (e.altKey && !e.metaKey && e.code === 'KeyG' && !e.repeat) return evenly();
+    // F-221 (FB4): Alt/⌥+F öffnet Feedback am Ort (auch über offenen Fenstern, nicht über Feedback selbst)
+    if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyF' && !e.repeat && !document.querySelector('dialog.fbq')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return openFeedback(document.querySelector('.tb-fb'));
+    }
     // V83 (F-206 Schritt 5, N11): Alt/⌥+N öffnet das Menü „Notizen & Aufgaben“
     if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyN' && !e.repeat && !document.querySelector('[aria-modal="true"], dialog:modal')) {
       const b = document.querySelector<HTMLButtonElement>('.tb-nt');
@@ -3057,6 +3099,8 @@ function DeskApp(props: DeskProps) {
     switch (e.run) {
       case 'help':
         return setHelpAt({ at: null });
+      case 'feedback':
+        return openFeedback(document.querySelector('.tb-fb'));
       case 'cockpit':
         setOverviewRules(false);
         return toggleOverview();
@@ -3743,6 +3787,20 @@ function DeskApp(props: DeskProps) {
             {gist.status === 'error' && <span className="tb-sync__dot" aria-hidden="true">!</span>}
           </button>
         )}
+        {/* F-221 (FB4): Feedback – Fehler melden, Wunsch hinterlassen; Zahl = neue Meldungen */}
+        <button
+          type="button"
+          className="tb-fb"
+          onClick={(e) => openFeedback(e.currentTarget)}
+          title={FEEDBACK_TEXT.buttonTip(fbNewCount(ws))}
+          aria-label={`${FEEDBACK_TEXT.button}${fbNewCount(ws) ? `, ${fbNewCount(ws)} neu` : ''}`}
+          aria-haspopup="dialog"
+          aria-keyshortcuts="Alt+F"
+        >
+          <Icon name="feedback" size={15} />
+          <span className="tb-fb__name">{FEEDBACK_TEXT.button}</span>
+          {fbNewCount(ws) > 0 && <span className="tb-fb__n" aria-hidden="true">{fbNewCount(ws)}</span>}
+        </button>
         {/* F-156: Hilfe – alle Funktionen und Begriffe mit Kürzeln */}
         <button type="button" className="tb-help" onClick={() => setHelpAt({ at: null })} title="Hilfe: alle Funktionen und Begriffe mit Tastenkürzeln (?)" aria-label="Hilfe" aria-haspopup="dialog">
           ?
@@ -4337,6 +4395,25 @@ function DeskApp(props: DeskProps) {
         />
       )}
       {helpAt && <Help at={helpAt.at} onClose={() => setHelpAt(null)} onRun={runHelp} />}
+      {fbAt && (
+        <FeedbackQuick
+          ws={ws}
+          anchor={fbAt.anchor}
+          place={fbAt.place}
+          env={fbAt.env}
+          kind={fbAt.kind}
+          askEase={fbAskEase(ws)}
+          onSave={(v) => {
+            const id = newId();
+            dispatch({ type: 'fbAdd', id, v: { ...v, place: fbAt.place, env: fbAt.env }, at: new Date().toISOString() });
+            return id;
+          }}
+          onUndo={(id) => dispatch({ type: 'fbRemove', id })}
+          onEase={(id, n) => dispatch({ type: 'fbEdit', id, patch: { ease: n } })}
+          onNeverAsk={() => dispatch({ type: 'fbAskEase', on: false })}
+          onClose={() => setFbAt(null)}
+        />
+      )}
       {overview && (
         <Overview
           ws={ws}

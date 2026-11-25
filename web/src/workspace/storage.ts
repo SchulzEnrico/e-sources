@@ -1,6 +1,7 @@
 import { CATEGORY_ICONS } from './icons';
 import { parseFit, parseZoom } from './zoom';
 import { parseBoardTemplates } from './boardTemplates';
+import { parseFeedback, parseFeedbackPrefs, parseWheels } from './feedback';
 import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, DeskNotes, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
 import { cleanProjectRefs, cleanRefs, parseFocusViews, parsePadDesks, parsePads, parsePersons, parseProjects, personsFromDelegated } from './noteObjects';
 import { parseDeskLooks, parseLook } from './look';
@@ -353,7 +354,14 @@ function parseWorkspaceRaw(data: unknown): Workspace | null {
   const focusViews = parseFocusViews(data.focusViews);
   // V88 (BL1): eigene Board-Vorlagen
   const boardTemplates = parseBoardTemplates(data.boardTemplates);
+  // F-221 / F-220 (Dateiformat 11): Feedback, Einstellung „War das Melden einfach?“, Ordnung der Räder
+  const feedback = parseFeedback(data.feedback);
+  const feedbackPrefs = parseFeedbackPrefs(data.feedbackPrefs);
+  const wheels = parseWheels(data.wheels);
   return {
+    ...(feedback.length ? { feedback } : {}),
+    ...(feedbackPrefs ? { feedbackPrefs } : {}),
+    ...(wheels ? { wheels } : {}),
     ...(boardTemplates.length ? { boardTemplates } : {}),
     ...(pads.length ? { pads } : {}),
     ...(padDesks ? { padDesks } : {}),

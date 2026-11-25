@@ -1293,6 +1293,8 @@ export function imageRefs(ws: Workspace): Set<string> {
     const d = n.draft?.fields.text;
     if (typeof d === 'string') for (const r of ND.imgRefs(d)) out.add(r);
   }
+  // F-221 (FB7): Bilder an Feedback-Meldungen
+  for (const f of ws.feedback ?? []) for (const p of f.pics ?? []) out.add(p);
   return out;
 }
 /** Enthält die (gezeigte) Notiz ein Bild? (B5: Symbol in der Liste) */

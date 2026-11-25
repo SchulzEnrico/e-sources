@@ -10,6 +10,8 @@ import type { Workspace } from './types';
  */
 export const FILE_FORMAT = 'e-sources-arbeitsflaeche';
 /**
+ * Version 11: Feedback (F-221, V102, FB11) in `feedback` und `feedbackPrefs`, Ordnung der Umschalt-Räder
+ * (F-220 R5) in `wheels` – angeheftet, ausgeblendet, „Automatisch ordnen“.
  * Version 10: Projekte planen (F-206 Schritt 10, V100, K1–K8) – Dauer `duration` und Planungsart `manual`
  * am Vorgang, Basisplan `baseline` und PSP-Ordnung `order` am Projekt.
  * Version 9: Personen mit Kennfarbe und Ressourcenkalender (F-206 Schritt 8, V94).
@@ -22,7 +24,7 @@ export const FILE_FORMAT = 'e-sources-arbeitsflaeche';
  * Version 3 (Lesezeichen, V08), 2 (Panels mit Tabs, V07) und 1 werden beim Import umgewandelt.
  * Bei jeder Änderung am Datenmodell, die eine ältere App verlieren würde, hochzählen.
  */
-export const FILE_VERSION = 10;
+export const FILE_VERSION = 11;
 export const FILE_NAME = 'e-sources-arbeitsflaeche.json';
 
 export interface TransferFile {

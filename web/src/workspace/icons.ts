@@ -163,6 +163,8 @@ export const ICONS = {
   catEditor: { d: ['M3.5 1.5h6l3 3v10h-9z', 'M9.5 1.5v3h3', 'M5.5 8h5', 'M5.5 10.5h5', 'M5.5 13h3'] },
   catMail: { d: ['M1.5 3.5h13v9h-13z', 'M1.5 4l6.5 5 6.5-5'] },
   catChat: { d: ['M2 3h12v8H7l-3.5 3v-3H2z'] },
+  /** F-221: Feedback – Sprechblase mit Ausrufezeichen */
+  feedback: { d: ['M2 3h12v8H7l-3.5 3v-3H2z', 'M8 5v2.8', 'M8 9.3h.01'] },
   catCalendar: { d: ['M2 3.5h12v10.5H2z', 'M2 6.5h12', 'M5 2v3', 'M11 2v3', 'M5 9h.01', 'M8 9h.01', 'M11 9h.01', 'M5 11.5h.01', 'M8 11.5h.01'] },
   catVideo: { d: ['M1.5 3.5h13v9h-13z', 'M6.5 6v4l3.5-2z'] },
   catMusic: { d: ['M6 12V3l7-1.5v9', ring(4.5, 12, 1.5), ring(11.5, 10.5, 1.5)] },
@@ -209,7 +211,7 @@ export type IconName = keyof typeof ICONS;
 
 /** Symbol je Hilfe-Eintrag (HELP, F-156) – gleiche Ids. Fehlt ein Eintrag, meldet das der Test. */
 export const HELP_ICON: Record<string, IconName> = {
-  note: 'note', dock: 'dock', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', modeWheel: 'swap', notesTasks: 'notesTasks', f6Ring: 'swap', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', findNote: 'note', todoUse: 'todo', kanbanUse: 'kanban', boardTemplates: 'kanban', sitePlan: 'slot', notesLayouts: 'layouts', matrixUse: 'matrix', cardWindow: 'todo', noteSource: 'clip', persons: 'catPeople', projects: 'project', psp: 'psp', gantt: 'project', projectFocus: 'focus', mainStage: 'spotlight', libraryWheel: 'library',
+  note: 'note', dock: 'dock', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', modeWheel: 'swap', notesTasks: 'notesTasks', f6Ring: 'swap', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', findNote: 'note', todoUse: 'todo', kanbanUse: 'kanban', boardTemplates: 'kanban', sitePlan: 'slot', notesLayouts: 'layouts', matrixUse: 'matrix', cardWindow: 'todo', noteSource: 'clip', persons: 'catPeople', projects: 'project', psp: 'psp', gantt: 'project', feedback: 'feedback', projectFocus: 'focus', mainStage: 'spotlight', libraryWheel: 'library',
   devMode: 'dev',
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',

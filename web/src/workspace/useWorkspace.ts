@@ -39,6 +39,7 @@ import * as Pj from './projects';
 import * as Psp from './psp';
 import * as Sc from './schedule';
 import * as Gt from './gantt';
+import * as Fb from './feedback';
 import * as Sp from './sampleProject';
 import * as FL from './focusLoad';
 import * as St from './stage';
@@ -217,6 +218,14 @@ export type Action =
   | { type: 'taskPlan'; id: string; plan: Sc.TaskPlan }
   | { type: 'taskPreds'; project: string; id: string; links: Gt.PredInput['links'] }
   | { type: 'sampleProject'; on: boolean }
+  /* F-221 (V102): Feedback */
+  | { type: 'fbAdd'; id: string; v: Fb.NewFeedback; at: string }
+  | { type: 'fbEdit'; id: string; patch: Fb.FeedbackPatch }
+  | { type: 'fbState'; id: string; state: Fb.FeedbackStateName; why?: string; by?: string }
+  | { type: 'fbMark'; id: string; kind: 'note' | 'decision' | 'ref'; text: string; by?: string }
+  | { type: 'fbRemove'; id: string }
+  | { type: 'fbRestore'; undo: Fb.FeedbackUndo }
+  | { type: 'fbAskEase'; on: boolean }
   | { type: 'personRestore'; undo: Ps.PersonUndo }
   | { type: 'noteAssign'; id: string; person?: string; by?: string }
   | { type: 'noteDelegate'; id: string; person: string; by?: string }
@@ -450,6 +459,20 @@ function step(ws: Workspace, a: Action): Workspace {
       const r = Gt.setPreds(ws, a.project, a.id, a.links);
       return r.ok ? r.ws : ws;
     }
+    case 'fbAdd':
+      return Fb.addFeedback(ws, a.v, { id: a.id, now: new Date(a.at) })?.ws ?? ws;
+    case 'fbEdit':
+      return Fb.editFeedback(ws, a.id, a.patch);
+    case 'fbState':
+      return Fb.setFeedbackState(ws, a.id, a.state, { why: a.why, by: a.by });
+    case 'fbMark':
+      return Fb.addMark(ws, a.id, a.kind, a.text, { by: a.by });
+    case 'fbRemove':
+      return Fb.removeFeedback(ws, a.id)?.ws ?? ws;
+    case 'fbRestore':
+      return Fb.undoRemoveFeedback(ws, a.undo);
+    case 'fbAskEase':
+      return Fb.setAskEase(ws, a.on);
     case 'sampleProject':
       return a.on ? Sp.addSampleProject(ws) : Sp.removeSampleProject(ws);
     case 'personRemove':

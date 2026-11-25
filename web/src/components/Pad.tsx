@@ -3,6 +3,8 @@
  * Logik in workspace/pads.ts; hier nur Darstellung, Ziehen/Größe und Tastatur.
  * Entscheidungen: Claude Doc „Pads mit Notizblock und Lageplan“ (P1–P9).
  */
+import { askFeedback } from './FeedbackQuick';
+import { FEEDBACK_TEXT } from '../workspace/terms';
 import { type CSSProperties, type Dispatch, type KeyboardEvent, type PointerEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useKeyboard } from './useKeyboard';
 import type { Action } from '../workspace/useWorkspace';
@@ -825,6 +827,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               {/* V75 (F-215 A2): Steuerknopf über der Bildschirmtastatur – je Gerät */}
               <OpacitySlider label={PAD_TEXT.knobOpacity} hint={PAD_TEXT.knobOpacityHint} value={display.knobOpacity} min={KNOB_OP_MIN} onChange={setKnobOpacity} />
               <OpacitySlider label={PAD_TEXT.knobX} hint={PAD_TEXT.knobXHint} value={display.knobX} min={0} step={1} valueText={PAD_TEXT.knobXValue} onChange={setKnobX} />
+              {/* F-221 (FB4): Feedback am Ort */}
+              <Item icon="feedback" title={FEEDBACK_TEXT.menuHint} onClick={() => (askFeedback(), close())}>{FEEDBACK_TEXT.menuItem}</Item>
             </>
               )}
             </MenuPages>

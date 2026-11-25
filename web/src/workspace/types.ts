@@ -269,6 +269,124 @@ export interface Workspace {
   focusViews?: FocusView[];
   /** V88 (BL1): eigene Board-Vorlagen (Spalten ohne Karten); mitgelieferte stehen im Code (BUILTIN_TEMPLATES). */
   boardTemplates?: BoardTemplate[];
+  /** F-221 (V102, Dateiformat 11, FB11): Feedback – Fehler, Wünsche, Fragen, Lob; fehlt = keine. */
+  feedback?: Feedback[];
+  /** F-221 (FB12): `askEase: false` = „War das Melden einfach?“ nicht mehr fragen. */
+  feedbackPrefs?: { askEase?: false };
+  /**
+   * F-220 (R2/R5, Dateiformat 11): eigene Ordnung je Umschalt-Rad (Schlüssel = Id des Rads) – angeheftete
+   * Einträge, ausgeblendete Einträge, „Automatisch ordnen“ aus. Abgeglichen; die Zählung der Nutzung (R1)
+   * liegt je Gerät außerhalb der Arbeitsfläche.
+   */
+  wheels?: Record<string, WheelPrefs>;
+}
+
+/** F-220 (R2): Einstellung eines Umschalt-Rads; fehlt ein Feld = Werk. */
+export interface WheelPrefs {
+  /** angeheftete Einträge in eigener Reihenfolge (Ids), stehen vorn */
+  pinned?: string[];
+  /** ausgeblendete Einträge („Rad belegen …“) */
+  hidden?: string[];
+  /** false = nicht nach Nutzung ordnen (Schalter „Automatisch ordnen“, ab Werk an) */
+  auto?: false;
+  /** letzte gezeigte Reihenfolge (R1: neu geordnet nur beim Öffnen) */
+  order?: string[];
+}
+
+/** F-221 (FB2): Art der Meldung. */
+export type FeedbackKind = 'bug' | 'wish' | 'question' | 'praise';
+/** F-221 (FB8): Zustand – Spalten des Feedback-Boards. */
+export type FeedbackState = 'new' | 'seen' | 'planned' | 'done' | 'dropped';
+/** F-221 (FB3): Schweregrad – stört kaum · behindert · blockiert. */
+export type FeedbackSeverity = 'minor' | 'hinders' | 'blocks';
+
+/** F-221 (FB5/FB6): Ort des Geschehens – automatisch, nichts aus Notizen oder Seiten. */
+export interface FeedbackPlace {
+  /** Ansicht, z. B. „Desk“, „Cockpit › Kanban“, „Projekt › Gantt“ */
+  view?: string;
+  /** Modus, z. B. „Desk“, „Notizen“, „Projekte“ */
+  mode?: string;
+  /** offenes Menü oder Fenster, z. B. „⚙ Einstellungen“ */
+  menu?: string;
+  /** Desk ('' = Main Desk) */
+  desk?: string;
+}
+
+/** F-221 (FB6): Umgebung – automatisch. */
+export interface FeedbackEnv {
+  /** App-Stand, z. B. „V102“ */
+  version?: string;
+  /** Gerät, z. B. „Mac“, „iPhone“ */
+  device?: string;
+  /** Browser, z. B. „Safari 18“ */
+  browser?: string;
+  /** Bildschirm „1440 × 900“ */
+  screen?: string;
+  /** Fenster „1280 × 800“ */
+  window?: string;
+}
+
+/** F-221 (FB9): Vermerk zur Weiterverarbeitung. */
+export interface FeedbackMark {
+  /** ISO-Zeitpunkt */
+  at: string;
+  kind: 'note' | 'decision' | 'ref' | 'fixed' | 'state';
+  text: string;
+  /** Person-Id oder Name */
+  by?: string;
+}
+
+/** F-221 (FB11): eine Meldung – Problemstellung in zwei Stufen (FB3). */
+export interface Feedback {
+  id: string;
+  kind: FeedbackKind;
+  title: string;
+  state: FeedbackState;
+  /** ISO-Zeitpunkt der Meldung */
+  at: string;
+  /** ISO-Zeitpunkt der letzten Änderung */
+  changed?: string;
+  place?: FeedbackPlace;
+  env?: FeedbackEnv;
+  // Stufe 2 „Ausarbeiten“ – alles freiwillig
+  /** Anlass & Kontext: was passiert bzw. fehlt */
+  what?: string;
+  /** Fehler: Schritte zum Nachstellen */
+  steps?: string;
+  /** Fehler: erwartet */
+  expected?: string;
+  /** Fehler: tatsächlich */
+  actual?: string;
+  /** wer oder was betroffen ist */
+  affected?: string;
+  /** Umgehung, falls bekannt */
+  workaround?: string;
+  /** Lösungsansatz: Ziele */
+  goals?: string;
+  /** Lösungsansatz: Nicht-Ziele */
+  nonGoals?: string;
+  /** Relevanz */
+  severity?: FeedbackSeverity;
+  /** Folgen (Relevanz) */
+  impact?: string;
+  /** Hypothese / Vermutung */
+  guess?: string;
+  /** „noch offen: …“ */
+  open?: string;
+  /** Bezug Lastenheft, z. B. „F-206“ */
+  refs?: string[];
+  /** ähnliche Meldungen (Ids) */
+  related?: string[];
+  /** Bilder (Schlüssel im Bildspeicher wie Notizbilder, nur auf dem Gerät) */
+  pics?: string[];
+  /** FB12: „War das Melden einfach?“ 1–5 */
+  ease?: 1 | 2 | 3 | 4 | 5;
+  /** FB9: Entscheidung */
+  decision?: string;
+  /** FB9: „behoben in Vxx“ */
+  fixedIn?: string;
+  /** FB9: Vermerke */
+  marks?: FeedbackMark[];
 }
 
 /** V88 (BL1): Spalte einer Board-Vorlage – Name, Bedeutung, WIP-Limit, ohne Karten. */

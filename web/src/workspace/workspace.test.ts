@@ -31,6 +31,7 @@ import * as Sc from './schedule';
 import * as Psp from './psp';
 import * as Sp from './sampleProject';
 import * as Gt from './gantt';
+import * as Fb from './feedback';
 import * as Terms from './terms';
 import * as Rs from './reset';
 import * as Zm from './zoom';
@@ -672,7 +673,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (r.ok) expect(W.panelUrl(r.file.workspace.panels[0])).toBe('https://a.de');
-    expect(X.FILE_VERSION).toBe(10);
+    expect(X.FILE_VERSION).toBe(11);
   });
 
   it('Bereich und Szenario bleiben erhalten (F-116, vorbereitet)', () => {
@@ -6254,5 +6255,152 @@ describe('F-206 Schritt 10 Gantt (V101)', () => {
     expect(Gt.setPreds(ws, pj, 'k', [{ id: 'c', rel: 'EA', lag: 0 }])).toMatchObject({ ok: false, reason: 'family' });
     const cleared = Gt.setPreds(ws, pj, 'c', []);
     expect(cleared.ok && cleared.ws.notes!.find((n) => n.id === 'c')!.after).toBeUndefined();
+  });
+});
+
+describe('F-221 Feedback (V102, FB1–FB12)', () => {
+  const now = new Date('2026-12-07T09:30:00');
+  const quick = (ws: Workspace, id: string, title: string, kind: Fb.NewFeedback['kind'] = 'bug', extra: Partial<Fb.NewFeedback> = {}) =>
+    Fb.addFeedback(ws, { kind, title, ...extra }, { id, now })!.ws;
+
+  it('schnell erfassen: Titel + Art, Ort und Umgebung automatisch; leerer Titel geht nicht', () => {
+    const ws0 = W.defaultWorkspace();
+    expect(Fb.addFeedback(ws0, { kind: 'bug', title: '   ' }, { id: 'f1' })).toBeNull();
+    expect(Fb.addFeedback(ws0, { kind: 'nix' as never, title: 'x' }, { id: 'f1' })).toBeNull();
+    const env = Fb.envOf({ ua: 'Mozilla/5.0 (Macintosh) AppleWebKit Version/18.1 Safari/605', screen: { w: 1440, h: 900 }, win: { w: 1280.4, h: 800 }, device: 'Mac' });
+    expect(env).toEqual({ version: Fb.APP_VERSION, device: 'Mac', browser: 'Safari 18', screen: '1440 × 900', window: '1280 × 800' });
+    const r = Fb.addFeedback(ws0, { kind: 'bug', title: '  Rad   springt  ', place: { mode: 'Projekte', view: 'Gantt', menu: ' ', desk: '' }, env }, { id: 'f1', now })!;
+    const f = Fb.feedbackById(r.ws, 'f1')!;
+    expect(f).toMatchObject({ title: 'Rad springt', state: 'new', kind: 'bug', place: { mode: 'Projekte', view: 'Gantt', desk: '' } });
+    expect(f.place!.menu).toBeUndefined();
+    expect(f.at).toBe(now.toISOString());
+    expect(Fb.addFeedback(r.ws, { kind: 'wish', title: 'x' }, { id: 'f1' })).toBeNull();
+    expect(Fb.newCount(r.ws)).toBe(1);
+    expect(Fb.browserOf('Mozilla/5.0 Chrome/131.0 Safari/537')).toBe('Chrome 131');
+    expect(Fb.browserOf('Mozilla/5.0 Firefox/133.0')).toBe('Firefox 133');
+  });
+
+  it('ausarbeiten: Felder, „noch offen“, Bezüge, Bilder, Melden einfach 1–5', () => {
+    let ws = quick(W.defaultWorkspace(), 'f1', 'Gantt Pfeile fehlen');
+    expect(Fb.missingOf(Fb.feedbackById(ws, 'f1')!)).toEqual(['what', 'steps', 'expected', 'actual', 'severity']);
+    ws = Fb.editFeedback(ws, 'f1', { what: ' Pfeile weg ', steps: '1. Gantt\r\n2. Monate', severity: 'hinders', refs: ['f 206', 'Unsinn', 'F-206'], pics: ['p1', 'p1', 'p2'], ease: 4 }, now);
+    let f = Fb.feedbackById(ws, 'f1')!;
+    expect(f).toMatchObject({ what: 'Pfeile weg', steps: '1. Gantt\n2. Monate', severity: 'hinders', refs: ['F-206'], pics: ['p1', 'p2'], ease: 4, changed: now.toISOString() });
+    expect(Fb.missingOf(f)).toEqual(['expected', 'actual']);
+    ws = Fb.editFeedback(ws, 'f1', { what: '', ease: 9, severity: undefined });
+    f = Fb.feedbackById(ws, 'f1')!;
+    expect(f.what).toBeUndefined();
+    expect(f.ease).toBeUndefined();
+    expect(f.severity).toBeUndefined();
+    expect(Fb.editFeedback(ws, 'f1', { title: '  ' })).toBe(ws);
+    expect(Fb.editFeedback(ws, 'nix', { what: 'x' })).toBe(ws);
+    expect(Fb.missingOf({ ...f, kind: 'praise' })).toEqual([]);
+    expect(Fb.parseRefs('F-206, f221; NF 8 Quatsch')).toEqual({ refs: ['F-206', 'F-221', 'NF-08'], bad: ['Quatsch'] });
+  });
+
+  it('Zustand mit Spur, Vermerke, Entscheidung, behoben in Vxx', () => {
+    let ws = quick(W.defaultWorkspace(), 'f1', 'Suche langsam', 'wish');
+    ws = Fb.setFeedbackState(ws, 'f1', 'seen', { now });
+    ws = Fb.setFeedbackState(ws, 'f1', 'seen', { now });
+    ws = Fb.setFeedbackState(ws, 'f1', 'dropped', { now, why: ' doppelt ' });
+    ws = Fb.addMark(ws, 'f1', 'decision', 'Wird mit F-189 gelöst', { now, by: 'Enrico' });
+    ws = Fb.addMark(ws, 'f1', 'ref', 'F-189', { now });
+    ws = Fb.addMark(ws, 'f1', 'note', '   ', { now });
+    ws = Fb.editFeedback(ws, 'f1', { fixedIn: 'v103' }, now);
+    const f = Fb.feedbackById(ws, 'f1')!;
+    expect(f.state).toBe('dropped');
+    expect(f.decision).toBe('Wird mit F-189 gelöst');
+    expect(f.refs).toEqual(['F-189']);
+    expect(f.fixedIn).toBe('V103');
+    expect(f.marks!.map((m) => [m.kind, m.text])).toEqual([
+      ['state', 'new → seen'], ['state', 'seen → dropped: doppelt'], ['decision', 'Wird mit F-189 gelöst'], ['ref', 'F-189'], ['fixed', 'V103'],
+    ]);
+    expect(f.marks![2].by).toBe('Enrico');
+  });
+
+  it('ähnliche Meldungen, Filter und Board (blockiert zuerst), Löschen mit Rückgängig', () => {
+    let ws = quick(W.defaultWorkspace(), 'a', 'Gantt Pfeile verschwinden beim Scrollen');
+    ws = quick(ws, 'b', 'Kanban Karte springt', 'bug', { severity: 'blocks' });
+    ws = quick(ws, 'c', 'Mehr Farben', 'wish');
+    ws = quick(ws, 'd', 'Pfeile im Gantt verschwinden', 'bug', { severity: 'minor' });
+    expect(Fb.similarFeedback(ws, 'Pfeile verschwinden', 'd').map((f) => f.id)).toEqual(['a']);
+    expect(Fb.similarFeedback(ws, 'ab')).toEqual([]);
+    const board = Fb.feedbackBoard(ws);
+    expect(board.map((c) => c.state)).toEqual(['new', 'seen', 'planned', 'done', 'dropped']);
+    expect(board[0].items.map((f) => f.id)).toEqual(['b', 'd', 'a', 'c']);
+    expect(Fb.feedbackBoard(ws, { kinds: ['wish'] })[0].items.map((f) => f.id)).toEqual(['c']);
+    expect(Fb.feedbackBoard(ws, { severities: ['blocks'] })[0].items.map((f) => f.id)).toEqual(['b']);
+    expect(Fb.feedbackBoard(ws, { q: 'pfeile gantt' })[0].items.map((f) => f.id).sort()).toEqual(['a', 'd']);
+    ws = Fb.editFeedback(ws, 'd', { related: ['a', 'd'] });
+    expect(Fb.feedbackById(ws, 'd')!.related).toEqual(['a']);
+    const r = Fb.removeFeedback(ws, 'a')!;
+    expect(Fb.feedbackById(r.ws, 'd')!.related).toBeUndefined();
+    const back = Fb.undoRemoveFeedback(r.ws, r.undo);
+    expect(Fb.feedbackOf(back).map((f) => f.id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(Fb.feedbackById(back, 'd')!.related).toEqual(['a']);
+    expect(Fb.removeFeedback(ws, 'nix')).toBeNull();
+    const all = ['a', 'b', 'c', 'd'].reduce((w, id) => Fb.removeFeedback(w, id)!.ws, ws);
+    expect(all.feedback).toBeUndefined();
+  });
+
+  it('„War das Melden einfach?“ abschaltbar (FB12)', () => {
+    let ws = W.defaultWorkspace();
+    expect(Fb.askEase(ws)).toBe(true);
+    ws = Fb.setAskEase(ws, false);
+    expect(ws.feedbackPrefs).toEqual({ askEase: false });
+    expect(Fb.askEase(ws)).toBe(false);
+    expect(Fb.setAskEase(ws, true).feedbackPrefs).toBeUndefined();
+  });
+
+  it('Ausgabe als Markdown (Problemstellung) und JSON, wahlweise nur Neue (FB10)', () => {
+    let ws = quick(W.defaultWorkspace(), 'a', 'Pfeile fehlen', 'bug', { place: { mode: 'Projekte', view: 'Gantt', desk: '' }, env: { version: 'V102', device: 'Mac' } });
+    ws = Fb.editFeedback(ws, 'a', { what: 'Keine Pfeile', expected: 'Pfeile', actual: 'leer', severity: 'blocks', goals: 'Pfeile sichtbar', guess: 'SVG zu klein', refs: ['F-206'] }, now);
+    ws = quick(ws, 'b', 'Schön!', 'praise');
+    ws = Fb.setFeedbackState(ws, 'b', 'done', { now });
+    const md = Fb.feedbackFileMarkdown(ws, { now });
+    expect(md).toContain('# Feedback E-Sources');
+    expect(md).toContain('2 Meldungen');
+    expect(md).toContain('Neu 1 · Erledigt 1');
+    expect(md).toContain('## Fehler: Pfeile fehlen');
+    expect(md).toContain('- **Ort:** Modus Projekte · Ansicht Gantt · Main Desk — V102 · Mac');
+    for (const h of ['### Anlass & Kontext', '### Hintergrund', '### Lösungsansatz', '### Relevanz', '### Hypothesen', '### Vermerke zur Weiterverarbeitung'])
+      expect(md).toContain(h);
+    expect(md).toContain('**Schweregrad:** blockiert');
+    expect(md).toContain('Zustand Neu → Erledigt');
+    const onlyNew = Fb.feedbackFileMarkdown(ws, { now, onlyNew: true });
+    expect(onlyNew).toContain('1 Meldung (nur neue)');
+    expect(onlyNew.includes('Schön!')).toBe(false);
+    const js = JSON.parse(Fb.feedbackFileJson(ws, { now, onlyNew: true }));
+    expect(js).toMatchObject({ format: 'e-sources-feedback', version: 1, onlyNew: true });
+    expect(js.feedback.map((f: { id: string }) => f.id)).toEqual(['a']);
+    expect(Fb.feedbackFileName(now, 'md')).toBe('Feedback-2026-12-07-0930.md');
+  });
+
+  it('Dateiformat 11: Feedback und Räder überstehen Speichern und Laden, Unbrauchbares fällt weg', () => {
+    let ws = quick(W.defaultWorkspace(), 'a', 'Eins');
+    ws = quick(ws, 'b', 'Zwei', 'question');
+    ws = Fb.editFeedback(ws, 'b', { related: ['a'], ease: 5, fixedIn: 'V104' });
+    ws = Fb.setFeedbackState(ws, 'a', 'planned', { now });
+    ws = { ...ws, feedbackPrefs: { askEase: false }, wheels: { cockpit: { pinned: ['kanban'], hidden: ['kanban', 'rules'], auto: false, order: ['kanban', 'todo'] } } };
+    const file = X.toTransferFile(ws, 'Mac', now);
+    expect(file.version).toBe(11);
+    const r = X.readTransferFile(JSON.stringify(file));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const back = r.file.workspace;
+    expect(back.feedback).toEqual(ws.feedback);
+    expect(back.feedbackPrefs).toEqual({ askEase: false });
+    expect(back.wheels).toEqual({ cockpit: { pinned: ['kanban'], hidden: ['rules'], auto: false, order: ['kanban', 'todo'] } });
+    const bad = Fb.parseFeedback([
+      { id: 'x', kind: 'bug', title: 'ok', at: 'gestern' },
+      { id: 'y', kind: 'lob', title: 'ok', at: now.toISOString() },
+      { id: 'z', kind: 'wish', title: 'ok', at: now.toISOString(), state: 'irgendwas', related: ['weg', 'z'], ease: 7, severity: 'hoch', refs: ['F-1', 'xx'], marks: [{ at: 'nie', kind: 'note', text: 'x' }, { at: now.toISOString(), kind: 'note', text: 'gut' }] },
+      { id: 'z', kind: 'wish', title: 'doppelt', at: now.toISOString() },
+    ]);
+    expect(bad).toEqual([{ id: 'z', kind: 'wish', title: 'ok', at: now.toISOString(), state: 'new', refs: ['F-01'], marks: [{ at: now.toISOString(), kind: 'note', text: 'gut' }] }]);
+    expect(Fb.parseWheels({ a: { pinned: 'x' }, '': { pinned: ['y'] }, b: { auto: true } })).toBeUndefined();
+    const plain = parseWorkspace(JSON.parse(JSON.stringify(W.defaultWorkspace())))!;
+    expect(plain.feedback).toBeUndefined();
+    expect(plain.wheels).toBeUndefined();
   });
 });

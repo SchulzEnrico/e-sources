@@ -9086,3 +9086,40 @@ span.pj__twist { cursor: default; }
   .gt__bar, .gt__ms, .gt__sumbar { background: CanvasText; forced-color-adjust: none; }
   .gt__bar.is-crit, .gt__ms.is-crit, .gt__sumbar.is-crit { background: Highlight; }
 }
+
+/* ================================================================ V102 F-221 Feedback – Schnell erfassen (am Ort, FB5) */
+.tb-fb { position: relative; display: inline-flex; align-items: center; gap: 5px; }
+.tb-fb .icon { display: inline-block; }
+.tb-fb__n { position: absolute; top: -4px; right: -4px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; line-height: 15px; text-align: center; }
+@media (max-width: 1100px) { .tb-fb__name { display: none; } }
+@media (forced-colors: active) { .tb-fb__n { forced-color-adjust: none; border: 1px solid CanvasText; } }
+dialog.fbq {
+  position: fixed; margin: 0; padding: 0; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow: auto;
+  border: 1px solid rgba(var(--tint), 0.22); border-radius: 12px; background: var(--bg); color: var(--text); -webkit-text-fill-color: currentColor;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+}
+dialog.fbq::backdrop { background: rgba(0, 0, 0, 0.18); }
+.fbq__head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 2px; }
+.fbq__head h2 { margin: 0; flex: 1; font-size: 16px; font-weight: 600; color: var(--strong); }
+.fbq__body { display: flex; flex-direction: column; gap: 10px; padding: 4px 14px 14px; font-size: 14px; }
+.fbq__intro { margin: 0; color: var(--muted); line-height: 1.45; }
+.fbq__label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 3px; }
+.fbq__kind { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 10px; }
+.fbq__kind .fbq__label { grid-column: 1 / -1; }
+.fbq__hint { font-size: 12px; color: var(--muted); }
+.fbq__title input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; font-size: 15px; }
+.fbq__title input[aria-invalid='true'] { outline: 2px solid #e5484d; }
+.fbq__miss { margin: -4px 0 0; color: #e5484d; font-size: 13px; }
+.fbq__similar { font-size: 13px; color: var(--muted); border-left: 3px solid rgba(var(--tint), 0.3); padding-left: 8px; }
+.fbq__similar ul { margin: 2px 0 0; padding-left: 16px; }
+.fbq__place { font-size: 13px; }
+.fbq__where { display: block; color: var(--text); }
+.fbq__privacy { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.fbq__foot { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.fbq__save { font-weight: 600; }
+.fbq__saved p { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.fbq__ease { border: 1px solid rgba(var(--tint), 0.18); border-radius: 8px; padding: 6px 10px 8px; margin: 0; }
+.fbq__ease legend { font-weight: 600; font-size: 13px; padding: 0 4px; }
+.fbq__easeRow { display: flex; gap: 6px; margin: 4px 0; }
+.fbq__easeRow button { min-width: 34px; }
+.fbq__never { margin-top: 6px; font-size: 12px; }

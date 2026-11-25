@@ -1,4 +1,6 @@
 import { DevBar } from './DevBar';
+import { askFeedback } from './FeedbackQuick';
+import { FEEDBACK_TEXT } from '../workspace/terms';
 import { devFrame, devSizeOf } from '../workspace/dev';
 import { flash, noticeLater } from '../workspace/flash';
 import { TOUR_EVENT } from '../workspace/tour';
@@ -1226,6 +1228,8 @@ export function PanelFrame(p: Props) {
                       )}
                     </>
                   )}
+                  {/* F-221 (FB4): Feedback am Ort */}
+                  <Item icon="feedback" title={FEEDBACK_TEXT.menuHint} onClick={() => (askFeedback(), close())}>{FEEDBACK_TEXT.menuItem}</Item>
                 </>
                     )
                   }

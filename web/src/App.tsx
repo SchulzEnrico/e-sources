@@ -7,6 +7,7 @@ import logoUrl from './assets/e-sources-logo.svg';
 import logoLightUrl from './assets/e-sources-logo-light.svg';
 import { Item, Menu, MenuHead, PanelFrame } from './components/PanelFrame';
 import { OpacitySlider, Pad as PadView } from './components/Pad';
+import { useF6 } from './components/useF6';
 import { DOCK_TAB_W, PAD_START, clampDockW, dockFront, dockOf, dockedOn, padsOn, padsShow, placeOf, zonePlace } from './workspace/pads';
 import {
   type Lines,
@@ -347,6 +348,7 @@ function DeskApp(props: DeskProps) {
   };
   const toggleOverview = useCallback(() => {
     setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
+    setOverviewNotes(false); // V85: Fokus-Knopf öffnet immer die Portale
     setOverview((o) => !o);
   }, []);
   // F-28: Strg/⌘+. klappt die Übersicht auf und zu.
@@ -467,6 +469,8 @@ function DeskApp(props: DeskProps) {
   /** F-51: Dialog „Layouts“ dieses Desks. */
   /** F-187: Cockpit im Modus „Layouts“ öffnen (Zahnrad › „Layouts …“, Hilfe, Suche). */
   const [overviewLayouts, setOverviewLayouts] = useState(false);
+  /** V85 (F-206 Schritt 5, N8): Cockpit gleich in der Ansicht „Notizen“ öffnen („Im Cockpit ordnen …“). */
+  const [overviewNotes, setOverviewNotes] = useState(false);
   const [layoutUndo, setLayoutUndo] = useState<DeletedLayout | null>(null);
   const [resetUndo, setResetUndo] = useState<{ old: LayoutContent; name: string } | null>(null);
   /** F-29 Rest: Dialog „Fokusanzeige anpassen“. */
@@ -518,6 +522,8 @@ function DeskApp(props: DeskProps) {
   const [cycleSaid, setCycleSaid] = useState('');
   /** Text in die immer vorhandene Live-Region (gleicher Text zweimal wird erneut angesagt). */
   const sayLive = (text: string) => setCycleSaid((old) => (old === text ? `${text}\u00a0` : text));
+  // V85 (F-206 N13, P7/D11): F6 reihum Kopfleiste → Slots → Dock → Pads, Umschalt+F6 rückwärts
+  useF6(sayLive, false);
   // F-168: neue Version im Hintergrund erkennen (nicht in eingebetteten E-Sources). Zum Ausprobieren:
   // ?test=voll&version=alt tut so, als liefe eine ältere Version.
   const update = useUpdateCheck(PROBE && new URLSearchParams(window.location.search).get('version') === 'alt' ? 'alt' : __BUILD_ID__, window.self === window.top);
@@ -1321,6 +1327,36 @@ function DeskApp(props: DeskProps) {
   };
 
   // ---------------------------------------------------------------- F-51/F-187 Layouts (Cockpit-Modus)
+  /** V85 (N4/N8): „Im Cockpit ordnen …“ – Cockpit in der Ansicht „Notizen“. */
+  const openNotesCockpit = () => {
+    setOverviewRules(false);
+    setOverviewLayouts(false);
+    setOverviewNotes(true);
+    setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
+    setOverview(true);
+  };
+  /** V85 (N8): Pad zeigen – liegt es auf einem anderen Desk, dorthin wechseln; im Dock: Dock zeigen und ausklappen. */
+  const showPad = (id: string, sheet?: string) => {
+    const pad = (ws.pads ?? []).find((x) => x.id === id);
+    if (!pad) return;
+    if (sheet) dispatch({ type: 'padShow', id, sheet });
+    dispatch({ type: 'padRaise', id });
+    if (pad.docked) {
+      dispatch({ type: 'dockOff', desk: pad.desk, off: false });
+      dispatch({ type: 'dockSet', desk: pad.desk, folded: false });
+    }
+    if (pad.desk !== win) {
+      switchDesk(pad.desk);
+      return;
+    }
+    setPadsHidden(false);
+    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .nblock__new, [data-pad-id="${id}"] button`)?.focus(), 80);
+  };
+  /** V85 (N10): Pad auf einen anderen Desk – hierher: schwebend über dem aktiven Slot; sonst Platz beim ersten Zeigen. */
+  const padToDesk = (id: string, desk: string) => {
+    dispatch({ type: 'padToDesk', id, desk, place: desk === win ? padHome() : undefined });
+    if (desk === win) setPadsHidden(false);
+  };
   const openLayouts = () => {
     setOverviewRules(false);
     setOverviewLayouts(true);
@@ -3079,7 +3115,7 @@ function DeskApp(props: DeskProps) {
                   ]}
                 />
               </li>
-              <Item icon="cockpit" disabled title={NT_TEXT.cockpitHint} hint={NT_TEXT.cockpitHint} onClick={() => undefined}>
+              <Item icon="cockpit" hint={NT_TEXT.cockpitHint} onClick={() => (close(), openNotesCockpit())}>
                 {NT_TEXT.cockpit}
               </Item>
               <OpacitySlider label={PAD_TEXT.opacityPads} hint={PAD_TEXT.opacityHint} value={display.padOpacity} onChange={setPadOpacity} />
@@ -3716,6 +3752,7 @@ function DeskApp(props: DeskProps) {
             setOverview(false);
             setOverviewRules(false);
             setOverviewLayouts(false);
+            setOverviewNotes(false);
             setLayoutUndo(null);
             setResetUndo(null);
           }}
@@ -3731,6 +3768,10 @@ function DeskApp(props: DeskProps) {
           startRules={overviewRules}
           layoutOps={layoutOps}
           startLayouts={overviewLayouts}
+          startNotes={overviewNotes}
+          onShowPad={notesOff ? undefined : showPad}
+          onPadToDesk={notesOff ? undefined : padToDesk}
+          opacity={{ pads: display.padOpacity, dock: display.dockOpacity, setPads: setPadOpacity, setDock: setDockOpacity }}
         />
       )}
       {/* F-142: schnelle Tooltips */}

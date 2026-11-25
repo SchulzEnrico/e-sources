@@ -837,6 +837,61 @@ export const CASE_TEXT = {
 };
 
 /** V54 (Wunsch Enrico): Kennzeichnung im Cockpit, welcher Slot rechts gezeigt wird. */
+/** F-206 N13 (V85): F6 reihum – Kopfleiste → Slots → Dock → Pads. */
+export const F6_TEXT = {
+  bar: 'Kopfleiste',
+  slot: (name: string) => `Slot mit Portal „${name}“`,
+  dock: 'Dock',
+  pad: 'Pad',
+  said: (i: number, n: number, name: string) => `Bereich ${i} von ${n}: ${name}`,
+} as const;
+
+/** F-206 Schritt 5 (V85, N8–N10): Cockpit-Ansicht „Notizen“ – weitestgehend wie „Portale“ (NF-08). */
+export const NOTES_COCKPIT_TEXT = {
+  mode: 'Notizen',
+  modeOn: 'Notizen: Jeder Desk zeigt seine Pads als Rahmen und das Dock als Streifen. Esc oder „Portale“ führt zurück.',
+  filter: 'Filtern: Pad, Sheet, Desk …',
+  filterLabel: 'Pads und Sheets filtern',
+  pads: (n: number) => `${n} ${n === 1 ? 'Pad' : 'Pads'}`,
+  sheets: (n: number) => `${n} ${n === 1 ? 'Sheet' : 'Sheets'}`,
+  notes: (n: number) => `${n} ${n === 1 ? 'Notiz' : 'Notizen'}`,
+  dock: 'Dock',
+  dockOff: 'Dock weggeschaltet',
+  dockFolded: 'Dock eingeklappt',
+  noPlace: 'Platz folgt beim ersten Zeigen',
+  empty: 'Noch keine Pads – lege mit „Notizen & Aufgaben › Neues Pad“ eins an.',
+  emptyDesk: 'Keine Pads auf diesem Desk.',
+  none: 'Kein Pad passt.',
+  head: (desk: string, n: number) => `${desk} · ${n} ${n === 1 ? 'Pad' : 'Pads'}`,
+  hits: (n: number, q: string) => `${n} Treffer für „${q}“`,
+  padRow: (title: string, sheets: number, docked: boolean, other: string) => `Pad ${title}, ${sheets} ${sheets === 1 ? 'Sheet' : 'Sheets'}${docked ? ', im Dock' : ''}${other ? `, ${other}` : ''}`,
+  sheetRow: (name: string, notes: number, front: boolean) => `Sheet ${name}, ${notes} ${notes === 1 ? 'Notiz' : 'Notizen'}${front ? ', sichtbar' : ''}`,
+  tile: (title: string, sheets: number, where: string) => `Pad ${title}, ${sheets} ${sheets === 1 ? 'Sheet' : 'Sheets'}, ${where}`,
+  dockTile: (n: number, state: string) => `Dock mit ${n} ${n === 1 ? 'Pad' : 'Pads'}${state ? `, ${state}` : ''}`,
+  front: 'sichtbar',
+  show: 'Zeigen (Enter)',
+  move: 'Auf anderen Desk verschieben (V)',
+  moveTitle: (t: string) => `Pad „${t}“ verschieben nach …`,
+  fetch: 'Auf diesen Desk holen (H)',
+  dockIn: 'Ins Dock (D)',
+  dockOut: 'Aus dem Dock lösen (D)',
+  rename: 'Sheet umbenennen (F2)',
+  renameLabel: 'Neuer Name des Sheets',
+  closeSheet: 'Sheet schließen (Entf) – die Notizen bleiben in der Library',
+  closePad: 'Pad schließen (Entf) – die Notizen bleiben in der Library',
+  closedPad: (t: string) => `Pad „${t}“ geschlossen`,
+  closedSheet: (t: string) => `Sheet „${t}“ geschlossen`,
+  undo: 'Rückgängig',
+  undone: 'Wiederhergestellt.',
+  movedTo: (t: string, desk: string) => `Pad „${t}“ liegt jetzt auf ${desk}.`,
+  fetched: (t: string) => `Pad „${t}“ auf diesen Desk geholt.`,
+  docked: (t: string) => `Pad „${t}“ liegt jetzt im Dock.`,
+  undocked: (t: string) => `Pad „${t}“ schwebt wieder an seinem Platz.`,
+  sameDesk: 'Gleicher Desk',
+  opacity: 'Deckkraft',
+  help: 'Notizen im Cockpit: Jeder Desk zeigt seine Pads als Rahmen an ihrem Platz und das Dock als Streifen am rechten Rand. Pfeiltasten wandern zwischen den Pads, Enter öffnet die Liste. In der Liste wählen Pfeil hoch und runter ein Pad oder Sheet, Pfeil links geht zurück zum Radar. Enter zeigt es, auch auf einem anderen Desk. V verschiebt das Pad auf einen anderen Desk, H holt es hierher, D legt es ins Dock oder löst es. Entf schließt, F2 benennt das Sheet um. Das Filterfeld zeigt Treffer von allen Desks. Escape führt zurück zu den Portalen.',
+} as const;
+
 export const COCKPIT_TEXT = {
   activeSlot: 'Aktiver Slot',
   activeSlotWhy: 'hier liegt das Portal, das gerade im Fokus steht',
@@ -1100,7 +1155,7 @@ export const NT_TEXT = {
   nowDock: 'Alle Pads liegen im Dock.',
   nowHidden: 'Pads ausgeblendet – über das Rad „Pads“ wieder zeigen.',
   cockpit: 'Im Cockpit ordnen …',
-  cockpitHint: 'Kommt mit der Cockpit-Ansicht „Notizen“ (nächster Bauschritt)',
+  cockpitHint: 'Öffnet das Cockpit in der Ansicht „Notizen“: Pads aller Desks im Radar, verschieben, ins Dock, schließen',
   help: 'Hilfe zu Notizen & Aufgaben',
 };
 

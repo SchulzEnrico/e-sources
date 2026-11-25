@@ -426,3 +426,92 @@ export function padsShow(loose: number, docked: number, hidden: boolean, dockOff
   if (loose === 0 && dockSeen) return 'dock';
   return 'mixed';
 }
+
+// ---------------------------------------------------------------- F-206 Schritt 5 (V85): Cockpit „Notizen“
+// Entscheidungen: Claude Doc „F-206 V82 – Knopf „Notes & Tasks“ und Cockpit (Schritt 5)“, N8–N10.
+
+/**
+ * N10: Pad auf einen anderen Desk verschieben. Es kommt schwebend (nicht im Dock) oben auf den Ziel-Desk;
+ * `place` = Platz dort (über dem aktiven Slot, wenn der Aufrufer ihn kennt), sonst bekommt es beim
+ * ersten Zeigen seinen Platz. Der alte Platz entfällt, `from` (Umstieg) gilt nicht mehr.
+ */
+export function movePadToDesk(ws: Workspace, padId: string, desk: string, place?: PadPlace): Workspace {
+  const p = padById(ws, padId);
+  if (!p || p.desk === desk) return ws;
+  const { docked: _d, from: _f, ...rest } = p;
+  const moved: Pad = { ...rest, desk };
+  let next = dropPlace(withPads(ws, [...padsOf(ws).filter((x) => x.id !== padId), moved]), padId);
+  if (place) next = setPlace(next, desk, padId, place);
+  return next;
+}
+
+/** N8: Zustand eines Pads zum Wiederherstellen nach „Schließen“ (Rückgängig) – Pad, Stapelplatz, Plätze, leere Sheets. */
+export interface PadUndo {
+  pad: Pad;
+  index: number;
+  places: Record<string, PadPlace>;
+  views: { view: NoteView; index: number }[];
+}
+
+export function padUndoOf(ws: Workspace, padId: string): PadUndo | null {
+  const pads = padsOf(ws);
+  const index = pads.findIndex((p) => p.id === padId);
+  if (index < 0) return null;
+  const pad = pads[index];
+  const places: Record<string, PadPlace> = {};
+  for (const [desk, d] of Object.entries(ws.padDesks ?? {})) if (d.places[padId]) places[desk] = d.places[padId];
+  const all = viewsOf(ws);
+  const views = pad.sheets.flatMap((s) => {
+    const i = all.findIndex((v) => v.id === s);
+    return i >= 0 && isEmptySheet(all[i]) ? [{ view: all[i], index: i }] : [];
+  });
+  return { pad, index, places, views };
+}
+
+/** Rückgängig für „Pad schließen“: leere Sheets, Pad (an seinem Stapelplatz) und Plätze kommen zurück. */
+export function restorePad(ws: Workspace, u: PadUndo): Workspace {
+  if (padById(ws, u.pad.id)) return ws;
+  const views = [...viewsOf(ws)];
+  for (const { view, index } of u.views) if (!views.some((v) => v.id === view.id)) views.splice(Math.min(index, views.length), 0, view);
+  // Sheets, die es inzwischen nicht mehr gibt oder die in einem anderen Pad liegen, bleiben weg
+  const sheets = u.pad.sheets.filter((s) => views.some((v) => v.id === s) && !padWith(ws, s));
+  if (!sheets.length) return ws;
+  const pad: Pad = { ...u.pad, sheets, active: sheets.includes(u.pad.active) ? u.pad.active : sheets[0] };
+  const pads = [...padsOf(ws)];
+  pads.splice(Math.min(u.index, pads.length), 0, pad);
+  let next: Workspace = { ...withPads(ws, pads), noteViews: views };
+  for (const [desk, place] of Object.entries(u.places)) next = setPlace(next, desk, pad.id, place);
+  return next;
+}
+
+/** Name eines Pads für Listen und Ansagen: Name des sichtbaren Sheets. */
+export const padTitle = (ws: Workspace, p: Pad): string => viewById(ws, p.active)?.name ?? viewById(ws, p.sheets[0] ?? '')?.name ?? 'Pad';
+
+/** N8: Rückgängig für „Sheet schließen“ – letztes Sheet: wie „Pad schließen“; sonst Reiter an seinen Platz zurück. */
+export type SheetUndo = { pad: PadUndo } | { padId: string; sheet: string; index: number; active: boolean; view?: { view: NoteView; index: number } };
+
+export function sheetUndoOf(ws: Workspace, padId: string, sheetId: string): SheetUndo | null {
+  const p = padById(ws, padId);
+  if (!p?.sheets.includes(sheetId)) return null;
+  if (p.sheets.length === 1) {
+    const u = padUndoOf(ws, padId);
+    return u ? { pad: u } : null;
+  }
+  const all = viewsOf(ws);
+  const vi = all.findIndex((v) => v.id === sheetId);
+  return { padId, sheet: sheetId, index: p.sheets.indexOf(sheetId), active: p.active === sheetId, ...(vi >= 0 && isEmptySheet(all[vi]) ? { view: { view: all[vi], index: vi } } : {}) };
+}
+
+export function restoreSheet(ws: Workspace, u: SheetUndo): Workspace {
+  if ('pad' in u) return restorePad(ws, u.pad);
+  let next = ws;
+  if (u.view && !viewById(next, u.view.view.id)) {
+    const views = [...viewsOf(next)];
+    views.splice(Math.min(u.view.index, views.length), 0, u.view.view);
+    next = { ...next, noteViews: views };
+  }
+  const r = addSheet(next, u.padId, u.sheet, u.index);
+  if (!r.ok) return ws;
+  const p = padById(ws, u.padId);
+  return u.active || !p ? r.ws : patchPad(r.ws, u.padId, (x) => ({ ...x, active: p.active }));
+}

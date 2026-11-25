@@ -196,6 +196,10 @@ export type Action =
   | { type: 'padMoveSheet'; id: string; sheet: string; to: number }
   | { type: 'padCloseSheet'; id: string; sheet: string }
   | { type: 'padClose'; id: string }
+  /** F-206 Schritt 5 (V85): Cockpit „Notizen“ – Pad auf einen anderen Desk (N10), Schließen rückgängig. */
+  | { type: 'padToDesk'; id: string; desk: string; place?: PadPlace }
+  | { type: 'padRestore'; undo: Pd.PadUndo }
+  | { type: 'padRestoreSheet'; undo: Pd.SheetUndo }
   | { type: 'padRenameSheet'; sheet: string; name: string }
   | { type: 'padNote'; id: string; sheet: string; note: string; by?: string }
   // F-213 (V68): Entwurf bis „Speichern“
@@ -351,6 +355,12 @@ function step(ws: Workspace, a: Action): Workspace {
       return Pd.closeSheet(ws, a.id, a.sheet);
     case 'padClose':
       return Pd.closePad(ws, a.id);
+    case 'padToDesk':
+      return Pd.movePadToDesk(ws, a.id, a.desk, a.place);
+    case 'padRestore':
+      return Pd.restorePad(ws, a.undo);
+    case 'padRestoreSheet':
+      return Pd.restoreSheet(ws, a.undo);
     case 'padRenameSheet':
       return a.name.trim() ? No.updateView(ws, a.sheet, { name: a.name.trim() }) : ws;
     case 'padNote': {

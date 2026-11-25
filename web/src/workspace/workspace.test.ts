@@ -52,6 +52,7 @@ import * as Rc from './recent';
 import * as No from './notes';
 import * as Rm from './remind';
 import * as Pd from './pads';
+import * as FR from './focusRing';
 import * as ND from './noteDoc';
 
 const LAPTOP1: ScreenSetup = { cls: 'laptop', orientation: 'landscape', lines: 1 };
@@ -4464,6 +4465,51 @@ describe('F-206 Schritt 3: Pads (Logik, V66)', () => {
     expect(Pd.recentIn(ws, r.pad, { sheet: r.sheet })).toEqual([{ kind: 'note', id: 'b', sheet: r.sheet }]);
   });
 
+  it('F-206 V85: Cockpit „Notizen“ – Pad auf anderen Desk (N10), Schließen rückgängig', () => {
+    let ws = start();
+    const r = Pd.openNoteInPad(ws, '', 'a', { makeId: make }) as { ws: Workspace; pad: string; sheet: string };
+    ws = Pd.dockPad(Pd.setPlace(r.ws, '', r.pad, { x: 0.1, y: 0.2, w: 0.3, h: 0.4 }), r.pad, true);
+    // N10: auf Desk w2 – schwebend, oben, alter Platz weg, neuer Platz gesetzt
+    const moved = Pd.movePadToDesk(ws, r.pad, 'w2', { x: 0.5, y: 0, w: 0.5, h: 1 });
+    expect(Pd.padById(moved, r.pad)!.desk).toBe('w2');
+    expect(Pd.padById(moved, r.pad)!.docked).toBeUndefined();
+    expect(Pd.placeOf(moved, '', r.pad)).toBeUndefined();
+    expect(Pd.placeOf(moved, 'w2', r.pad)).toEqual({ x: 0.5, y: 0, w: 0.5, h: 1 });
+    expect(Pd.topPad(moved, 'w2')!.id).toBe(r.pad);
+    expect(Pd.movePadToDesk(moved, r.pad, 'w2')).toBe(moved); // schon dort
+    // ohne Platz: bekommt ihn beim ersten Zeigen
+    expect(Pd.placeOf(Pd.movePadToDesk(ws, r.pad, 'w3'), 'w3', r.pad)).toBeUndefined();
+    // Schließen rückgängig: Pad mit Platz und Stapelplatz zurück; ein leeres Sheet kommt mit
+    const v = No.createView(ws, 'block', 'Leer', { makeId: make });
+    ws = (Pd.addSheet(v.ws, r.pad, v.id) as { ws: Workspace }).ws;
+    const two = Pd.createPad(ws, '', [], { id: 'p2' });
+    ws = two.ws;
+    const undo = Pd.padUndoOf(ws, r.pad)!;
+    expect(undo.views.map((x) => x.view.id)).toEqual([v.id]);
+    const closed = Pd.closePad(ws, r.pad);
+    expect(Pd.padById(closed, r.pad)).toBeUndefined();
+    expect(No.viewById(closed, v.id)).toBeUndefined();
+    const back = Pd.restorePad(closed, undo);
+    expect(Pd.padsOf(back).map((p) => p.id)).toEqual(Pd.padsOf(ws).map((p) => p.id));
+    expect(Pd.padById(back, r.pad)!.sheets).toEqual([r.sheet, v.id]);
+    expect(Pd.padById(back, r.pad)!.docked).toBe(true);
+    expect(Pd.placeOf(back, '', r.pad)).toEqual({ x: 0.1, y: 0.2, w: 0.3, h: 0.4 });
+    expect(Pd.restorePad(back, undo)).toBe(back); // schon wieder da
+    expect(Pd.padTitle(back, Pd.padById(back, r.pad)!)).toBe('Leer'); // sichtbares Sheet
+    // Sheet schließen rückgängig: Reiter an seinen Platz, leeres Sheet kommt zurück, sichtbares bleibt
+    const su = Pd.sheetUndoOf(back, r.pad, v.id)!;
+    const shut = Pd.closeSheet(Pd.showSheet(back, r.pad, r.sheet), r.pad, v.id);
+    expect(No.viewById(shut, v.id)).toBeUndefined();
+    const again = Pd.restoreSheet(shut, su);
+    expect(Pd.padById(again, r.pad)!.sheets).toEqual([r.sheet, v.id]);
+    expect(Pd.padById(again, r.pad)!.active).toBe(v.id); // war vorher sichtbar
+    // letztes Sheet: Pad verschwindet und kommt ganz zurück
+    const one = Pd.closeSheet(again, r.pad, v.id);
+    const lu = Pd.sheetUndoOf(one, r.pad, r.sheet)!;
+    expect('pad' in lu).toBe(true);
+    expect(Pd.padById(Pd.restoreSheet(Pd.closeSheet(one, r.pad, r.sheet), lu), r.pad)!.sheets).toEqual([r.sheet]);
+  });
+
   it('F-206 V81: Dock – ins Dock und zurück an den letzten Platz, alle ins Dock, Breite, Lasche, weg', () => {
     let ws = start();
     const r = Pd.openNoteInPad(ws, '', 'a', { makeId: make }) as { ws: Workspace; pad: string; sheet: string };
@@ -5068,6 +5114,18 @@ describe('Umschalt-Rad (F-216)', () => {
     expect(MW.neighbours(0, 3, true)).toEqual({ prev: 2, next: 1 });
     expect(MW.neighbours(0, 1, true)).toEqual({ prev: null, next: null });
     expect(MW.COMMIT_MS).toBe(300);
+  });
+});
+describe('F6 reihum (F-206 N13, V85)', () => {
+  it('ordnet Kopfleiste → Slots → Dock → Pads und läuft ringsum', () => {
+    const list = FR.ringSort([{ kind: 'pad' as const, n: 1 }, { kind: 'slot' as const, n: 2 }, { kind: 'bar' as const, n: 3 }, { kind: 'slot' as const, n: 4 }, { kind: 'dock' as const, n: 5 }]);
+    expect(list.map((a) => a.n)).toEqual([3, 2, 4, 5, 1]);
+    expect(FR.ringStep(5, 0, false)).toBe(1);
+    expect(FR.ringStep(5, 4, false)).toBe(0);
+    expect(FR.ringStep(5, 0, true)).toBe(4);
+    expect(FR.ringStep(5, -1, false)).toBe(0);
+    expect(FR.ringStep(5, -1, true)).toBe(4);
+    expect(FR.ringStep(0, -1, false)).toBe(-1);
   });
 });
 describe('Rad „Pads“ und Zwischenlage (F-206 Schritt 5, N4)', () => {

@@ -8,12 +8,13 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
+import { NOTES_COCKPIT_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import type { Action } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
 import { LayoutCockpit, type LayoutOps } from './DeskLayouts';
 import { ModeWheel } from './ModeWheel';
+import { NotesCockpit } from './NotesCockpit';
 import { Icon } from './Icon';
 
 /**
@@ -121,6 +122,11 @@ export interface OverviewProps {
   /** F-187: Modus „Layouts“ – Bedienung der Layouts und gleich in diesem Modus öffnen. */
   layoutOps?: LayoutOps;
   startLayouts?: boolean;
+  /** F-206 Schritt 5 (V85, N8): Ansicht „Notizen“ – Pad zeigen, Pad auf einen Desk (N10), gleich so öffnen, Deckkraft. */
+  onShowPad?: (id: string, sheet?: string) => void;
+  onPadToDesk?: (id: string, desk: string) => void;
+  startNotes?: boolean;
+  opacity?: { pads: number; dock: number; setPads: (v: number) => void; setDock: (v: number) => void };
 }
 
 const SIDE_AT = ARRANGE_TEXT.sideAt;
@@ -225,15 +231,22 @@ export function Overview(p: OverviewProps) {
   const [layouts, setLayouts] = useState(!!p.startLayouts && !!p.layoutOps && !!p.dispatch);
   /** F-202 Stufe 3: Modus „Sources“ (Mehrfachauswahl aller Sources). */
   const [sources, setSources] = useState(false);
-  type Mode = 'portals' | 'layouts' | 'sources';
-  const mode: Mode = layouts ? 'layouts' : sources ? 'sources' : 'portals';
-  const modes: Mode[] = ['portals', ...(p.layoutOps ? (['layouts'] as Mode[]) : []), 'sources'];
+  /** V85 (F-206 Schritt 5, N8): Ansicht „Notizen“ – Pads je Desk, weitestgehend wie „Portale“. */
+  const canNotes = !!p.onShowPad && !!p.onPadToDesk && !!p.dispatch;
+  const [notes, setNotes] = useState(!!p.startNotes && canNotes);
+  type Mode = 'portals' | 'notes' | 'layouts' | 'sources';
+  const mode: Mode = layouts ? 'layouts' : sources ? 'sources' : notes ? 'notes' : 'portals';
+  const modes: Mode[] = ['portals', ...(canNotes ? (['notes'] as Mode[]) : []), ...(p.layoutOps ? (['layouts'] as Mode[]) : []), 'sources'];
   const setMode = (m: Mode) => {
     setLayouts(m === 'layouts');
     setSources(m === 'sources');
+    setNotes(m === 'notes');
     if (m !== 'portals') setRules(false);
-    setSaid(m === 'layouts' ? DESK_LAYOUT_TEXT.modeOn : m === 'sources' ? DESK_LAYOUT_TEXT.modeSourcesOn : '');
+    setQuery('');
+    setSaid(m === 'layouts' ? DESK_LAYOUT_TEXT.modeOn : m === 'sources' ? DESK_LAYOUT_TEXT.modeSourcesOn : m === 'notes' ? NOTES_COCKPIT_TEXT.modeOn : '');
   };
+  /** Pfeil runter im Filterfeld → erste Zeile der Notizen-Liste. */
+  const notesFirst = useRef<(() => void) | null>(null);
   /** F-28: Panel (oder ganze Area), für das gerade ein Ziel gewählt wird. */
   const [moving, setMoving] = useState<{ id: string; whole: boolean } | null>(null);
   const rowBtns = useRef(new Map<string, HTMLButtonElement>());
@@ -260,9 +273,9 @@ export function Overview(p: OverviewProps) {
   const hits = (t: (typeof tiles)[number]) => t.a.panels.some((x) => radarMatches(t.w, t.a, x, q));
 
   const later = (f: () => void) => requestAnimationFrame(f);
-  // Beim Öffnen: Fokus auf die Kachel des aktiven Panels.
+  // Beim Öffnen: Fokus auf die Kachel des aktiven Panels (in „Notizen“ setzt das Bauteil selbst den Fokus).
   useEffect(() => {
-    if (sel) tileBtns.current.get(sel)?.focus();
+    if (sel && !notes) tileBtns.current.get(sel)?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -800,7 +813,7 @@ export function Overview(p: OverviewProps) {
       <div
         id="overview"
         ref={box}
-        className={layouts ? 'overview is-layouts' : sources ? 'overview is-sources' : 'overview'}
+        className={layouts ? 'overview is-layouts' : sources ? 'overview is-sources' : notes ? 'overview is-notes' : 'overview'}
         role="dialog"
         aria-label="Cockpit: alle Portale auf einen Blick"
         aria-describedby="overview-help"
@@ -815,7 +828,7 @@ export function Overview(p: OverviewProps) {
           if (e.key === 'Escape') {
             e.stopPropagation();
             // F-187: Esc führt aus den Layout-Einstellungen erst zurück zu den Portalen.
-            if (layouts || sources) {
+            if (layouts || sources || notes) {
               setMode('portals');
               window.setTimeout(() => document.querySelector<HTMLElement>('.overview__mode')?.focus(), 0);
             } else dismiss();
@@ -835,8 +848,8 @@ export function Overview(p: OverviewProps) {
               onChange={(m) => setMode(m as Mode)}
               options={modes.map((m) => ({
                 id: m,
-                name: m === 'layouts' ? DESK_LAYOUT_TEXT.modeLayouts : m === 'sources' ? DESK_LAYOUT_TEXT.modeSources : DESK_LAYOUT_TEXT.modePortals,
-                icon: m === 'layouts' ? 'layouts' : m === 'sources' ? 'source' : 'radar',
+                name: m === 'layouts' ? DESK_LAYOUT_TEXT.modeLayouts : m === 'sources' ? DESK_LAYOUT_TEXT.modeSources : m === 'notes' ? NOTES_COCKPIT_TEXT.mode : DESK_LAYOUT_TEXT.modePortals,
+                icon: m === 'layouts' ? 'layouts' : m === 'sources' ? 'source' : m === 'notes' ? 'notesTasks' : 'radar',
               }))}
             />
           )}
@@ -846,13 +859,14 @@ export function Overview(p: OverviewProps) {
             className="radar__filter"
             type="search"
             value={query}
-            placeholder="Filtern: Portal, Slot, Desk, Source …"
-            aria-label="Portale filtern"
+            placeholder={notes ? NOTES_COCKPIT_TEXT.filter : 'Filtern: Portal, Slot, Desk, Source …'}
+            aria-label={notes ? NOTES_COCKPIT_TEXT.filterLabel : 'Portale filtern'}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                toRow(order[0]);
+                if (notes) notesFirst.current?.();
+                else toRow(order[0]);
               } else if (e.key === 'Escape' && query) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -874,14 +888,14 @@ export function Overview(p: OverviewProps) {
             </button>
           )}
           {/* F-170: Hebel der Slotmaschine – klein, nur Symbol (Name im Tooltip und aria-label) */}
-          {p.onJackpot && !rules && !layouts && !sources && (
+          {p.onJackpot && !rules && !layouts && !sources && !notes && (
             <button type="button" className="overview__tour overview__jackpot" onClick={p.onJackpot} title={JACKPOT_TEXT.openTitle} aria-label={JACKPOT_TEXT.openTitle}>
               <Icon name="jackpot" />
             </button>
           )}
           {/* V84 (F-216, U6): Regeln | Radar als Umschalt-Rad – nur in der Ansicht „Portale“ (dort sind Radar und Regeln zwei
               Seiten derselben Ansicht); verspringt nicht, weil es an der Stelle des alten Knopfs sitzt */}
-          {p.dispatch && !layouts && !sources && (
+          {p.dispatch && !layouts && !sources && !notes && (
             <ModeWheel
               className="overview__rules"
               label={RULES_TEXT.wheel}
@@ -939,7 +953,24 @@ export function Overview(p: OverviewProps) {
               />
             );
           })()}
-        {sources && p.dispatch ? (
+        {notes && canNotes ? (
+          <NotesCockpit
+            ws={p.ws}
+            win={p.win}
+            wins={wins}
+            query={query}
+            dispatch={p.dispatch!}
+            say={setSaid}
+            onShowPad={(id, sheet) => {
+              p.onShowPad!(id, sheet);
+              p.onDismiss();
+            }}
+            onToDesk={p.onPadToDesk!}
+            filterRef={filterRef}
+            firstRef={notesFirst}
+            opacity={p.opacity}
+          />
+        ) : sources && p.dispatch ? (
           <SourceCockpit ws={p.ws} dispatch={p.dispatch} />
         ) : layouts && p.layoutOps && p.dispatch ? (
           <LayoutCockpit ws={p.ws} win={p.win} desk={windowName(p.ws, p.win)} setup={p.setup} ops={p.layoutOps} dispatch={p.dispatch} say={setSaid} />
@@ -997,7 +1028,7 @@ export function Overview(p: OverviewProps) {
           </div>
         )}
         <span className="sr-only" role="status">
-          {said || (q ? detailHead : '')}
+          {said || (q && !notes ? detailHead : '')}
         </span>
       </div>
     </>

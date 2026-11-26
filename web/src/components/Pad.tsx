@@ -17,7 +17,8 @@ import { PAD_MIN, type PadUndo, padUndoOf } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
 import { noticeLater } from '../workspace/flash';
 import { switchOf } from '../workspace/ruleSet';
-import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, STAGE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_MORE_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, STAGE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { archiveCount } from '../workspace/kanbanMore';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab, freshNotes } from './NoteTab';
 import { type FootItem, PadFooter, type VoiceProps } from './PadFooter';
@@ -850,6 +851,12 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               {(sheet?.kind === 'kanban' || sheet?.kind === 'todo') && (
                 <Item icon="check" checked={!!sheet.review} hint={KANBAN_TEXT.reviewSettingHint} onClick={() => (close(), dispatch({ type: 'sheetReview', view: sheet.id, on: !sheet.review }))}>
                   {KANBAN_TEXT.reviewSetting}
+                </Item>
+              )}
+              {/* V121 (F-231 K1/K3): Archiv des Boards */}
+              {sheet?.kind === 'kanban' && (
+                <Item icon="archive" hint={KANBAN_MORE_TEXT.archiveBtnHint} onClick={() => (close(), window.dispatchEvent(new CustomEvent('esource:kanbanarchive', { detail: sheet.id })))}>
+                  {KANBAN_MORE_TEXT.archiveBtn(archiveCount(ws, sheet.id))} …
                 </Item>
               )}
               {/* V88 (BL3): Spalten dieses Boards als Vorlage merken */}

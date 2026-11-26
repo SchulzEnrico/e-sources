@@ -15,7 +15,9 @@ import * as Sh from '../workspace/sheets';
 import { foldsDone, switchOf } from '../workspace/ruleSet';
 import { hasRight, meOf } from '../workspace/persons';
 import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
-import { KANBAN_TEXT as K, NOTE_TEXT, SHEET_TEXT } from '../workspace/terms';
+import { KANBAN_MORE_TEXT as KM_T, KANBAN_TEXT as K, NOTE_TEXT, SHEET_TEXT } from '../workspace/terms';
+import * as KM from '../workspace/kanbanMore';
+import { ArchivePanel, CopyBar } from './KanbanMore';
 import { newId } from '../workspace/workspace';
 import { CardWindow, MoveToBar, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useFoldTick, useNotice, usePersonKeys } from './SheetViews';
 import { Item, Menu, MenuPages } from './PanelFrame';
@@ -65,6 +67,16 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const suppress = useRef(false);
   const { notice, shown } = useNotice();
   const [moving, setMoving] = useState<string | null>(null);
+  // V121 (F-231 K1, K3): Kopieren-Leiste, Archiv, „oben anlegen“
+  const [copying, setCopying] = useState<string | null>(null);
+  const [archOpen, setArchOpen] = useState(false);
+  const [addTop, setAddTop] = useState(0);
+  const archBtn = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const open = (e: Event) => (e as CustomEvent<string>).detail === sheetId && setArchOpen(true);
+    window.addEventListener('esource:kanbanarchive', open);
+    return () => window.removeEventListener('esource:kanbanarchive', open);
+  }, [sheetId]);
 
   const title = (n: Note) => No.titleOf(No.shownNote(n)) || NOTE_TEXT.untitled;
   const colById = (id: string) => cols.find((c) => c.id === id);
@@ -179,11 +191,24 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     dispatch({ type: 'sheetRemove', view: sheetId, note: n.id, by });
     notice({ text: SHEET_TEXT.removed(title(n)), undo: () => dispatch({ type: 'sheetRestore', view: before }) });
   };
+  /** V121 (K1): Karte archivieren – verschwindet aus dem Board, steht im Archiv; Rückgängig am Ort. */
+  const archive = (n: Note, near?: { col: string; next?: string }) => {
+    const before = ws;
+    dispatch({ type: 'cardArchive', note: n.id, by });
+    notice({ text: KM_T.archivedCard(title(n)), undo: () => dispatch({ type: 'exchange', ws: before }) });
+    say(KM_T.archivedCard(title(n)));
+    focusCard(undefined, near);
+  };
+  const toggleTpl = (n: Note) => {
+    dispatch({ type: 'cardTemplate', note: n.id, on: !n.template });
+    say(n.template ? KM_T.tplOff(title(n)) : KM_T.tplOn(title(n)));
+  };
   const addCard = (col: NoteColumn) => {
     const t = draft.trim();
     if (!t) return;
     const run = () => {
-      dispatch({ type: 'sheetAdd', view: sheetId, title: t, note: newId(), col: col.id, by });
+      dispatch({ type: 'sheetAdd', view: sheetId, title: t, note: newId(), col: col.id, by, ...(addTop ? { index: addTop - 1 } : {}) });
+      if (addTop) setAddTop(addTop + 1);
       say(`${t} – ${K.col(col.name)}`);
       setDraft('');
       setAsk(null);
@@ -249,6 +274,9 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     // V88 (F/K4): V = Verschieben nach … (Ziel-Sheet wählen)
     if (pk.onKey(e, n)) return;
     if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setMoving(n.id));
+    // V121 (K1): K = kopieren, C = archivieren (wie Trello)
+    if ((e.key === 'k' || e.key === 'K') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setCopying(n.id));
+    if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), archive(n, nearOf(n.id, c.id)));
     if (e.key === 'F2') return void (e.preventDefault(), setEdit(n.id));
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
@@ -392,6 +420,11 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
               onContextMenu={(e) => liftRef.current && e.preventDefault()}
             >
               <span className="kcard__title">{t}</span>
+              {n.template && (
+                <span className="sign kcard__tpl" title={KM_T.tplHint}>
+                  <Icon name="copy" size={10} /> {KM_T.tplBadge}
+                </span>
+              )}
               <Signs ws={ws} n={n} />
               <span className="sr-only">
                 , {NOTE_TEXT.states[No.stateOf(ws, n).state]}
@@ -457,6 +490,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     );
   };
 
+  const full = cols.length >= No.COLUMN_MAX;
   const colMenu = (c: NoteColumn, i: number) => (
     <Menu className="kcol__more" icon={<Icon name="more" size={15} />} label={K.menu(c.name)}>
       {(close) => (
@@ -479,7 +513,50 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
                     {K.moveAllTo(x.name)}
                   </Item>
                 ))}
+                {/* V121 (K3): auch in ein anderes Sheet (wie Trello „Liste in anderes Board verschieben“) */}
+                {Sh.moveTargets(ws, sheetId).map((x) => (
+                  <Item
+                    key={x.id}
+                    icon={x.kind === 'kanban' ? 'kanban' : x.kind === 'todo' ? 'todo' : 'note'}
+                    disabled={!c.ids.length}
+                    hint={KM_T.toSheet}
+                    onClick={() => {
+                      close();
+                      const before = ws;
+                      const n = KM.moveColumnCards(ws, sheetId, c.id, x.id, { by }).moved;
+                      dispatch({ type: 'colToSheet', view: sheetId, col: c.id, to: x.id, by });
+                      notice({ text: KM_T.toSheetDone(n, x.name), undo: () => dispatch({ type: 'exchange', ws: before }) });
+                      say(KM_T.toSheetDone(n, x.name));
+                      focusAdd(c.id);
+                    }}
+                  >
+                    {KM_T.toSheetAll(x.name)}
+                  </Item>
+                ))}
               </>
+            ) : page === 'tpl' ? (
+              (() => {
+                const tp = KM.templatesFor(ws, sheetId);
+                const pick = (tpl: Note) => {
+                  close();
+                  const id = newId();
+                  const before = ws;
+                  dispatch({ type: 'cardFromTpl', tpl: tpl.id, view: sheetId, col: c.id, id, top: true, by });
+                  notice({ text: KM_T.fromTplDone(title(tpl), c.name), undo: () => dispatch({ type: 'exchange', ws: before }) });
+                  say(KM_T.fromTplDone(title(tpl), c.name));
+                  focusCard(id);
+                };
+                return (
+                  <>
+                    <Item icon="back" onClick={() => go('')}>{K.back}</Item>
+                    {!tp.here.length && !tp.other.length && <li className="menu__hint">{KM_T.tplNone}</li>}
+                    {tp.here.length > 0 && <li className="menu__hint">{KM_T.tplHere}</li>}
+                    {tp.here.map((x) => <Item key={x.id} icon="copy" onClick={() => pick(x)}>{title(x)}</Item>)}
+                    {tp.other.length > 0 && <li className="menu__hint">{KM_T.tplOther}</li>}
+                    {tp.other.map((x) => <Item key={x.id} icon="copy" onClick={() => pick(x)}>{title(x)}</Item>)}
+                  </>
+                );
+              })()
             ) : page === 'sort' ? (
               <>
                 <Item icon="back" onClick={() => go('')}>{K.back}</Item>
@@ -530,18 +607,54 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
               </>
             ) : (
               <>
-                <Item icon="plus" onClick={() => (close(), setDraft(''), setAdding(c.id))}>{K.addCard}</Item>
+                <Item icon="plus" onClick={() => (close(), setDraft(''), setAddTop(0), setAdding(c.id))}>{K.addCard}</Item>
+                <Item icon="plus" onClick={() => (close(), setDraft(''), setAddTop(1), setAdding(c.id))}>{KM_T.addTop}</Item>
+                <Item icon="copy" hint={KM_T.fromTplHint} onClick={() => go('tpl')}>{KM_T.fromTpl}</Item>
                 <Item icon="back" disabled={i === 0} onClick={() => (close(), dispatch({ type: 'colMove', view: sheetId, col: c.id, index: i - 1 }), say(K.colLeft))}>
                   {K.colLeft}
                 </Item>
                 <Item icon="next" disabled={i === cols.length - 1} onClick={() => (close(), dispatch({ type: 'colMove', view: sheetId, col: c.id, index: i + 1 }), say(K.colRight))}>
                   {K.colRight}
                 </Item>
-                <Item icon="move" disabled={!c.ids.length || cols.length < 2} onClick={() => go('moveAll')}>{K.moveAll}</Item>
+                <Item icon="move" disabled={!c.ids.length} onClick={() => go('moveAll')}>{K.moveAll}</Item>
                 <Item icon="sort" disabled={c.ids.length < 2} onClick={() => go('sort')}>{K.sort}</Item>
                 <Item icon="adjust" hint={K.wipHint} onClick={() => go('wip')}>{K.wip}</Item>
                 <Item icon={COL_STATE_ICON[Sh.colStateOf(c)]} hint={K.meaningHint} onClick={() => go('state')}>{K.state}</Item>
                 <Item icon="rename" onClick={() => (close(), setColEdit(c.id))}>{K.colRename}</Item>
+                <Item
+                  icon="copy"
+                  hint={full ? K.colFull(No.COLUMN_MAX) : KM_T.colCopyHint}
+                  disabled={full}
+                  onClick={() => {
+                    close();
+                    const before = ws;
+                    const id = newId();
+                    const r = KM.copyColumn(ws, sheetId, c.id);
+                    dispatch({ type: 'colCopy', view: sheetId, col: c.id, id, by });
+                    const nm = r.ok ? (No.viewById(r.ws, sheetId)?.cols?.find((x) => x.id === r.id)?.name ?? '') : '';
+                    notice({ text: KM_T.colCopied(nm, r.ok ? (r.cards ?? 0) : 0), undo: () => dispatch({ type: 'exchange', ws: before }) });
+                    say(KM_T.colCopied(nm, r.ok ? (r.cards ?? 0) : 0));
+                    focusAdd(id);
+                  }}
+                >
+                  {KM_T.colCopy}
+                </Item>
+                <Item
+                  icon="archive"
+                  hint={cols.length <= 1 ? K.removeLast : KM_T.colArchiveHint}
+                  disabled={cols.length <= 1}
+                  onClick={() => {
+                    close();
+                    const before = v;
+                    const to = cols[i > 0 ? i - 1 : 1];
+                    dispatch({ type: 'colArchive', view: sheetId, col: c.id });
+                    notice({ text: KM_T.colArchived(c.name), undo: () => dispatch({ type: 'sheetRestore', view: before }) });
+                    say(KM_T.colArchived(c.name));
+                    focusAdd(to.id);
+                  }}
+                >
+                  {KM_T.colArchive}
+                </Item>
                 <Item icon="trash" hint={cols.length <= 1 ? K.removeLast : K.removeHint} disabled={cols.length <= 1} onClick={() => (close(), removeCol(c))}>
                   {K.remove}
                 </Item>
@@ -557,14 +670,34 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     const st = Sh.colStateOf(c);
     const notes = idsOf(c)
       .map((id) => No.noteById(ws, id))
-      .filter((n): n is Note => !!n)
+      .filter((n): n is Note => !!n && (n.state !== 'archived' || n.id === lift?.id))
       .filter((n) => n.id === lift?.id || (Sh.matchesFilter(No.shownNote(n), filter) && pk.pass(n)));
     const hideDone = show === 'open' && !openDone.has(c.id);
     const visible = notes.filter((n) => !(hideDone && finished(n) && n.id !== lift?.id && foldsDone(ws, n)));
     const doneHere = notes.filter((n) => finished(n) && n.id !== lift?.id && foldsDone(ws, n)).length;
     const over = Sh.overWip(c, 0);
+    const live = c.ids.filter((id) => No.noteById(ws, id)?.state !== 'archived').length;
+    const addBox = () => (
+          <div className="todo__new kcol__new">
+            <Icon name="plus" size={14} />
+            <input
+              data-addin={c.id}
+              autoFocus
+              value={draft}
+              placeholder={K.addCardPh}
+              aria-label={`${K.addCard} – ${K.col(c.name)}`}
+              title={K.addCardHint}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.preventDefault(), addCard(c));
+                else if (e.key === 'Escape') (e.preventDefault(), e.stopPropagation(), setAdding(null), setAddTop(0), focusAdd(c.id));
+              }}
+              onBlur={() => !draft.trim() && (setAdding(null), setAddTop(0))}
+            />
+          </div>
+    );
     return (
-      <section key={c.id} className={`kcol${lift?.col === c.id ? ' is-target' : ''}`} aria-label={`${K.col(c.name)}, ${Sh.COL_STATE_NAME[st]}, ${K.countLabel(c.ids.length, c.wip)}`}>
+      <section key={c.id} className={`kcol${lift?.col === c.id ? ' is-target' : ''}`} aria-label={`${K.col(c.name)}, ${Sh.COL_STATE_NAME[st]}, ${K.countLabel(live, c.wip)}`}>
         <header className="kcol__head">
           {colEdit === c.id ? (
             <input
@@ -594,8 +727,8 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
             <Icon name={COL_STATE_ICON[st]} size={11} />
             <span className="kcol__statename">{Sh.COL_STATE_NAME[st]}</span>
           </span>
-          <span className={`kcol__count${over ? ' is-over' : ''}`} title={K.countLabel(c.ids.length, c.wip)} aria-hidden="true">
-            {K.count(c.ids.length, c.wip)}
+          <span className={`kcol__count${over ? ' is-over' : ''}`} title={K.countLabel(live, c.wip)} aria-hidden="true">
+            {K.count(live, c.wip)}
           </span>
           {over && (
             <span className="sign kcol__over" title={K.overHint(c.wip!)}>
@@ -615,6 +748,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
             </button>
           </p>
         )}
+        {adding === c.id && addTop > 0 && addBox()}
         <ul className="kcol__body" data-colbody={c.id} aria-label={K.col(c.name)}>
           {visible.map((n) => cardView(n, c, show === 'all' && finished(n)))}
           {!visible.length && <li className="kcol__empty">{K.empty}</li>}
@@ -635,26 +769,10 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
             <Icon name={hideDone ? 'chevronRight' : 'chevronDown'} size={12} /> {K.doneCount(doneHere)}
           </button>
         )}
-        {adding === c.id ? (
-          <div className="todo__new kcol__new">
-            <Icon name="plus" size={14} />
-            <input
-              data-addin={c.id}
-              autoFocus
-              value={draft}
-              placeholder={K.addCardPh}
-              aria-label={`${K.addCard} – ${K.col(c.name)}`}
-              title={K.addCardHint}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') (e.preventDefault(), addCard(c));
-                else if (e.key === 'Escape') (e.preventDefault(), e.stopPropagation(), setAdding(null), focusAdd(c.id));
-              }}
-              onBlur={() => !draft.trim() && setAdding(null)}
-            />
-          </div>
+        {adding === c.id && !addTop ? (
+          addBox()
         ) : (
-          <button type="button" data-add={c.id} className="kcol__add" onClick={() => (setDraft(''), setAdding(c.id))}>
+          <button type="button" data-add={c.id} className="kcol__add" onClick={() => (setDraft(''), setAddTop(0), setAdding(c.id))}>
             <Icon name="plus" size={13} /> {K.addCard}
           </button>
         )}
@@ -662,7 +780,6 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     );
   };
 
-  const full = cols.length >= No.COLUMN_MAX;
   const cardNote = card ? No.noteById(ws, card) : undefined;
   const ghostNote = lift && ghost ? No.noteById(ws, lift.id) : undefined;
   return (
@@ -673,6 +790,22 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       {moving && (
         <MoveToBar ws={ws} dispatch={dispatch} sheetId={sheetId} noteId={moving} say={say} notice={notice} onClose={() => { const id = moving; setMoving(null); focusCard(id); }} />
       )}
+      {copying && (
+        <CopyBar
+          ws={ws}
+          dispatch={dispatch}
+          sheetId={sheetId}
+          noteId={copying}
+          say={say}
+          notice={notice}
+          onClose={(made) => {
+            const id = copying;
+            setCopying(null);
+            focusCard(made ?? id);
+          }}
+        />
+      )}
+      {archOpen && <ArchivePanel ws={ws} dispatch={dispatch} sheetId={sheetId} say={say} onClose={() => (setArchOpen(false), window.setTimeout(() => archBtn.current?.focus(), 0))} />}
       <NoticeLine shown={shown} />
       <div className="kanban__board" ref={boardRef} aria-label={K.board(v.name)} role="group">
         {cols.map(column)}
@@ -709,6 +842,10 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
               <Icon name="plus" size={13} /> {K.newCol}
             </button>
           )}
+          {/* V121 (K1, K3): Archiv des Boards */}
+          <button type="button" ref={archBtn} className="kcol__add kcol__arch" aria-expanded={archOpen} title={KM_T.archiveBtnHint} onClick={() => setArchOpen(!archOpen)}>
+            <Icon name="archive" size={13} /> {KM_T.archiveBtn(KM.archiveCount(ws, sheetId))}
+          </button>
         </div>
       </div>
       {ghostNote && ghost && (
@@ -724,6 +861,19 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
           where={Sh.colOf(v, cardNote.id)?.name ?? v.name}
           sheetId={sheetId}
           say={say}
+          acts={
+            <>
+              <button type="button" className="help__run" title={KM_T.copyHint} onClick={() => (setCard(null), setCopying(cardNote.id))}>
+                <Icon name="copy" size={12} className="icon icon--inline" /> {KM_T.copy}
+              </button>
+              <button type="button" className="help__run" title={KM_T.archiveHint} onClick={() => (setCard(null), archive(cardNote, nearOf(cardNote.id, Sh.colOf(v, cardNote.id)?.id ?? '')))}>
+                <Icon name="archive" size={12} className="icon icon--inline" /> {KM_T.archive}
+              </button>
+              <button type="button" className="help__run" aria-pressed={!!cardNote.template} title={KM_T.tplHint} onClick={() => toggleTpl(cardNote)}>
+                <Icon name={cardNote.template ? 'check' : 'copy'} size={12} className="icon icon--inline" /> {KM_T.tpl}
+              </button>
+            </>
+          }
           onClose={() => {
             const id = cardNote.id;
             const cur = No.noteById(ws, id);

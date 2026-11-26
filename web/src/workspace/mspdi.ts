@@ -276,7 +276,8 @@ function taskEls(ws: Workspace, p: Project, t: TaskOut, uidOf: Map<string, numbe
     if (row.manual) out.push(...el('Manual', true), ...el('ManualStart', `${row.start}T${DAY_START}`), ...el('ManualFinish', `${row.end}T${DAY_END}`), ...el('ManualDuration', ptHours(row.days * hpd)));
     // „nicht vor“ = Anfang nicht früher als (MS Project: ConstraintType 4)
     else if (n.notBefore && n.notBefore > anchor) out.push(...el('ConstraintType', 4), ...el('ConstraintDate', `${n.notBefore}T${DAY_START}`));
-    if (n.due) out.push(...el('Deadline', `${n.due}T${DAY_END}`));
+    // V121 (F-231 K5): Uhrzeit an „fällig“ reist als Uhrzeit der Deadline
+    if (n.due) out.push(...el('Deadline', `${n.due}T${n.dueTime ? `${n.dueTime}:00` : DAY_END}`));
     const text = n.text?.trim();
     if (text) out.push(...el('Notes', text));
     const link = n.sources?.find((s) => s.url);
@@ -486,6 +487,8 @@ export function importMspdi(ws: Workspace, xml: string, o: { merge?: string[]; n
     const act = val(t, 'ActualCost') ? Number(val(t, 'ActualCost')) : undefined;
     const pc = val(t, 'PercentComplete') ? Number(val(t, 'PercentComplete')) : undefined;
     const due = dayOf(val(t, 'Deadline'));
+    const dlTime = /T(\d{2}:\d{2})/.exec(val(t, 'Deadline'))?.[1];
+    const dueTime = due && dlTime && `${dlTime}:00` !== DAY_END ? dlTime : undefined;
     const asg = asgAll.filter((a) => val(a, 'TaskUID') === val(t, 'UID') && resByUid.has(val(a, 'ResourceUID')));
     const use = summary ? [] : asg.map((a) => ({ person: resByUid.get(val(a, 'ResourceUID'))!, ...(val(a, 'Work') ? { hours: Math.round(hoursOf(val(a, 'Work')) * 100) / 100 } : {}) }));
     const assign: Record<string, ForeignEl[]> = {};
@@ -508,6 +511,7 @@ export function importMspdi(ws: Workspace, xml: string, o: { merge?: string[]; n
         ...(isMs ? { milestone: true } : summary ? {} : { duration: dur }),
         ...(manual ? { manual: true, ...(s ? { notBefore: s } : {}) } : (ct === 4 || ct === 2) && cd ? { notBefore: cd } : {}),
         ...(due ? { due } : {}),
+        ...(dueTime ? { dueTime } : {}),
         ...(effort && Object.keys(effort).length ? { effort } : {}),
         ...(cost && Object.keys(cost).length ? { cost } : {}),
         ...(use.length ? { use, assignee: use[0].person } : {}),

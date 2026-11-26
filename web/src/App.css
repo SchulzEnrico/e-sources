@@ -7834,6 +7834,11 @@ h3.cases__name { font-size: 1.05em; }
 .sign .icon { display: inline-block; }
 .sign--imp { border-color: rgba(var(--accent-rgb), 0.55); }
 .sign--urg { border-style: dashed; border-color: rgba(var(--accent-rgb), 0.55); }
+/* V121 (F-231 K5): fällig – gelb bald, rot überfällig, grün erledigt (Text steht dabei) */
+.sign--due-soon { background: rgba(234, 179, 8, 0.22); border-color: rgba(234, 179, 8, 0.7); }
+.sign--due-over { background: rgba(220, 38, 38, 0.25); border-color: rgba(220, 38, 38, 0.75); }
+.sign--due-done { background: rgba(22, 163, 74, 0.22); border-color: rgba(22, 163, 74, 0.7); }
+@media (forced-colors: active) { .sign--due-soon, .sign--due-over, .sign--due-done { border: 2px solid CanvasText; } }
 
 /* To-do: Feld „Neue Aufgabe …“ wie die Suche versenkt, Zeilen als Clay-Knete wie die Notizliste */
 .todo__new { display: flex; align-items: center; gap: 6px; padding: 0 8px; min-height: 34px; border-radius: 7px; background: rgba(127, 127, 127, 0.12); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3); }
@@ -7875,6 +7880,17 @@ h3.cases__name { font-size: 1.05em; }
 .cardwin__where .icon, .cardwin__x .icon { display: inline-block; }
 .cardwin__x { margin-left: auto; width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; }
 .cardwin__check { padding: 6px 12px 8px; border-bottom: 1px solid rgba(var(--tint), 0.1); font-size: 13px; }
+/* V121 (F-231 K2): mehrere Checklisten mit Balken */
+.ccl + .ccl { margin-top: 8px; }
+.ccl__bar { height: 6px; border-radius: 3px; background: rgba(var(--tint), 0.12); margin: 0 0 4px; overflow: hidden; }
+.ccl__bar > span { display: block; height: 100%; background: rgba(var(--accent-rgb), 0.85); }
+.ccl__item { display: flex; align-items: center; gap: 6px; flex: 1 1 10em; min-width: 8em; }
+.cardwin__check li:has(.ccl__item) { flex-wrap: wrap; row-gap: 2px; }
+.ccl__item > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cardwin__check li.is-done .ccl__item > span { text-decoration: line-through; opacity: 0.65; }
+.ccl__add { width: 100%; margin-top: 3px; padding: 3px 6px; font: inherit; font-size: 12px; }
+.ccl__foot, .ccl__pick { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
+@media (forced-colors: active) { .ccl__bar > span { background: Highlight; } }
 .cardwin__checkhead { margin: 0 0 4px; font-size: 12px; opacity: 0.75; display: flex; align-items: center; gap: 5px; }
 .cardwin__checkhead .icon, .cardwin__totask .icon { display: inline-block; }
 .cardwin__check ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -8065,6 +8081,20 @@ h3.cases__name { font-size: 1.05em; }
 /* V88 (F/K4): Verschieben nach … – Leiste am Ort im Sheet */
 .sheet__move { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 8px; padding: 6px 8px; font-size: 12px; border-radius: 8px; background: rgba(var(--accent-rgb), 0.1); border: 1px solid rgba(var(--accent-rgb), 0.45); }
 .sheet__move-cap { font-weight: 600; margin-right: 4px; }
+/* V121 (F-231 K1/K3): Kopieren-Leiste, Archiv, Vorlage-Zeichen, Karten-Aktionen */
+.kcopy__title input { min-width: 180px; padding: 3px 6px; font: inherit; }
+.kcopy__keep { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; border: 0; margin: 0; padding: 0; }
+.kcopy__keep label { display: inline-flex; align-items: center; gap: 3px; }
+.karch { flex-direction: column; align-items: stretch; max-height: 40vh; overflow: auto; }
+.karch__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.karch__head input { flex: 1; min-width: 140px; padding: 3px 6px; font: inherit; }
+.karch__sub { margin: 6px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.75; }
+.karch__list ul { list-style: none; margin: 0; padding: 0; }
+.karch__list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid rgba(var(--accent-rgb), 0.15); }
+.karch__name { font-weight: 600; }
+.kcard__tpl { font-size: 10px; }
+.cardwin__acts { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: auto; margin-right: 6px; }
+.kcol__arch { margin-top: 6px; }
 @media (forced-colors: active) { .sheet__move { border: 1px solid CanvasText; } }
 
 /* ---------------------------------------------------------------- V89 (F-210): Lageplan */

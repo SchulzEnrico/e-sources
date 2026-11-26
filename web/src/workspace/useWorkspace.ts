@@ -38,6 +38,7 @@ import * as Wo from './wheelOrder';
 import * as Dp from './deskProject';
 import * as Cal from './calendar';
 import * as BT from './boardTemplates';
+import * as KM from './kanbanMore';
 import * as Sh from './sheets';
 import * as Ps from './persons';
 import * as Pj from './projects';
@@ -343,6 +344,16 @@ export type Action =
   | { type: 'sheetReview'; view: string; on: boolean }
   | { type: 'colSort'; view: string; col: string; by: Sh.ColSort }
   | { type: 'colMoveAll'; view: string; col: string; to: string; by?: string }
+  // V121 (F-231 K3, K1)
+  | { type: 'colArchive'; view: string; col: string }
+  | { type: 'colRestore'; view: string; col: string }
+  | { type: 'colCopy'; view: string; col: string; name?: string; id: string; by?: string }
+  | { type: 'colToSheet'; view: string; col: string; to: string; by?: string }
+  | { type: 'cardCopy'; note: string; view: string; id: string; to?: string; col?: string; index?: number; keep?: KM.CopyKeep; title?: string; asTemplate?: boolean; by?: string }
+  | { type: 'cardArchive'; note: string; by?: string }
+  | { type: 'cardRestore'; view: string; note: string; by?: string }
+  | { type: 'cardTemplate'; note: string; on: boolean }
+  | { type: 'cardFromTpl'; tpl: string; view: string; col: string; id: string; top?: boolean; by?: string }
   | { type: 'quadSet'; view: string; note: string; q: Sh.Quad; by?: string }
   | { type: 'checkToTask'; note: string; index: number; view?: string; id: string; by?: string }
   | { type: 'reviewOk'; note: string; by?: string }
@@ -664,6 +675,31 @@ function step(ws: Workspace, a: Action): Workspace {
       return Sh.sortCol(ws, a.view, a.col, a.by);
     case 'colMoveAll':
       return Sh.moveAllCards(ws, a.view, a.col, a.to, { by: a.by });
+    case 'colArchive': {
+      const r = KM.archiveColumn(ws, a.view, a.col);
+      return r.ok ? r.ws : ws;
+    }
+    case 'colRestore': {
+      const r = KM.restoreColumn(ws, a.view, a.col);
+      return r.ok ? r.ws : ws;
+    }
+    case 'colCopy': {
+      let k = 0;
+      const r = KM.copyColumn(ws, a.view, a.col, a.name, { by: a.by, makeId: () => (k++ ? W.newId() : a.id) });
+      return r.ok ? r.ws : ws;
+    }
+    case 'colToSheet':
+      return KM.moveColumnCards(ws, a.view, a.col, a.to, { by: a.by }).ws;
+    case 'cardCopy':
+      return KM.copyCard(ws, a.note, a.view, { to: a.to, col: a.col, index: a.index, keep: a.keep, title: a.title, asTemplate: a.asTemplate, by: a.by, id: a.id })?.ws ?? ws;
+    case 'cardArchive':
+      return KM.archiveCard(ws, a.note, { by: a.by });
+    case 'cardRestore':
+      return KM.restoreCard(ws, a.view, a.note, { by: a.by });
+    case 'cardTemplate':
+      return KM.setTemplate(ws, a.note, a.on);
+    case 'cardFromTpl':
+      return KM.cardFromTemplate(ws, a.tpl, a.view, a.col, { by: a.by, id: a.id, top: a.top })?.ws ?? ws;
     case 'quadSet':
       return Sh.setQuad(ws, a.view, a.note, a.q, { by: a.by });
     case 'checkToTask':

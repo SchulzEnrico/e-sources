@@ -15,7 +15,8 @@ import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
 import { noticeLater } from '../workspace/flash';
 import { switchOf } from '../workspace/ruleSet';
 import * as Gp from '../workspace/gpm';
-import { DIALOG_TEXT, NOTE_TEXT, PAUSE_TEXT, PERSON_TEXT, SHEET_TEXT } from '../workspace/terms';
+import { DIALOG_TEXT, DUE_TEXT, NOTE_TEXT, PAUSE_TEXT, PERSON_TEXT, SHEET_TEXT } from '../workspace/terms';
+import { dueKind } from '../workspace/kanbanMore';
 import * as Ps from '../workspace/persons';
 import { hoursText } from '../workspace/focusLoad';
 import { PersonBadge } from './PersonChips';
@@ -24,6 +25,7 @@ export { usePersonKeys };
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab } from './NoteTab';
 import { ModeWheel } from './ModeWheel';
+import { CardChecklists } from './CardChecklists';
 import { Icon } from './Icon';
 
 export type SheetCmd = { k: 'home' | 'new' | 'go' | 'search'; n: number; id?: string };
@@ -58,7 +60,7 @@ export function NoticeLine({ shown, extra }: { shown: Notice | null; extra?: Rea
   );
 }
 
-const KIND_ICON = { block: 'note', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix' } as const;
+export const KIND_ICON = { block: 'note', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix' } as const;
 
 /**
  * V88 (F/K4): „Verschieben nach …“ (Taste V) – Leiste am Ort mit allen anderen Sheets (wie im Cockpit
@@ -173,7 +175,18 @@ export function Signs({ ws, n }: { ws: Workspace; n: Note }) {
   const st = No.stateOf(ws, n).state;
   if (n.important) out.push(<span key="i" className="sign sign--imp">{SHEET_TEXT.important}</span>);
   if (n.urgent) out.push(<span key="u" className="sign sign--urg">{SHEET_TEXT.urgent}</span>);
-  if (n.due) out.push(<span key="d" className="sign">{SHEET_TEXT.due(day(n.due))}</span>);
+  // V121 (F-231 K5): Uhrzeit und Färbung wie Trello – mit Text, nicht nur Farbe
+  if (n.due) {
+    const dk = dueKind(n);
+    const txt = `${SHEET_TEXT.due(day(n.due))}${n.dueTime ? ` ${n.dueTime}` : ''}`;
+    out.push(
+      <span key="d" className={`sign${dk && dk !== 'later' ? ` sign--due-${dk}` : ''}`} title={dk ? DUE_TEXT.hint[dk] : undefined}>
+        {dk && dk !== 'later' && <Icon name={dk === 'done' ? 'check' : 'recent'} size={10} />}
+        {txt}
+        {dk && dk !== 'later' && <span className="sign__due">{` · ${DUE_TEXT.kind[dk]}`}</span>}
+      </span>,
+    );
+  }
   if (st === 'waiting') out.push(<span key="w" className="sign">{SHEET_TEXT.waiting}</span>);
   if (st === 'review') out.push(<span key="r" className="sign">{NOTE_TEXT.states.review}</span>);
   // V94 (P4/P8): Aufwand und Zuständig (Kennzeichen wie Trello-Mitglieder); „delegiert“ nur, wenn noch an diese Person
@@ -197,7 +210,7 @@ export function Signs({ ws, n }: { ws: Workspace; n: Note }) {
  * S1 (D, wie Trello): Notiz als Kartenfenster mittig über dem Sheet; Sheet dahinter abgedunkelt. Esc, ✕ oder
  * Klick daneben schließt, der Fokus geht zurück an die Karte (Aufrufer). Tab bleibt im Fenster.
  */
-export function CardWindow(props: { ws: Workspace; dispatch: Dispatch<Action>; noteId: string; where: string; sheetId: string; onClose: () => void; say: (t: string) => void }) {
+export function CardWindow(props: { ws: Workspace; dispatch: Dispatch<Action>; noteId: string; where: string; sheetId: string; onClose: () => void; say: (t: string) => void; acts?: ReactNode }) {
   const { ws, dispatch, noteId } = props;
   const n = No.noteById(ws, noteId);
   const box = useRef<HTMLElement>(null);
@@ -206,7 +219,6 @@ export function CardWindow(props: { ws: Workspace; dispatch: Dispatch<Action>; n
     box.current?.querySelector<HTMLElement>('.cardwin__x')?.focus({ preventScroll: true });
   }, []);
   if (!n) return null;
-  const items = !No.hasDraft(n) ? Sh.checklistItems(n) : [];
   const key = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -228,36 +240,14 @@ export function CardWindow(props: { ws: Workspace; dispatch: Dispatch<Action>; n
           <span className="cardwin__where">
             <Icon name="todo" size={13} /> {SHEET_TEXT.inPlace(props.where)}
           </span>
+          {/* V121 (F-231 K1): Karten-Aktionen des Boards (Kopieren, Archivieren, Kartenvorlage) */}
+          {props.acts && <span className="cardwin__acts">{props.acts}</span>}
           <button type="button" className="cardwin__x" onClick={props.onClose} title={SHEET_TEXT.cardClose} aria-label={SHEET_TEXT.cardClose}>
             <Icon name="close" size={14} />
           </button>
         </header>
-        {items.length > 0 && (
-          <div className="cardwin__check" role="group" aria-label={SHEET_TEXT.checklist}>
-            <p className="cardwin__checkhead">
-              <Icon name="check" size={12} /> {SHEET_TEXT.checklist} {items.filter((x) => x.done).length}/{items.length}
-            </p>
-            <ul>
-              {items.map((it, i) => (
-                <li key={i} className={it.done ? 'is-done' : undefined}>
-                  <span>{it.text || '…'}</span>
-                  <button
-                    type="button"
-                    className="cardwin__totask"
-                    title={SHEET_TEXT.toTaskHint}
-                    aria-label={`${SHEET_TEXT.toTask}: ${it.text}`}
-                    onClick={() => {
-                      dispatch({ type: 'checkToTask', note: noteId, index: i, view: props.sheetId, id: newId(), by: ws.profile?.name || undefined });
-                      props.say(`${SHEET_TEXT.toTask}: ${it.text}`);
-                    }}
-                  >
-                    <Icon name="plus" size={11} /> {SHEET_TEXT.toTask}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {/* V121 (F-231 K2): mehrere benannte Checklisten wie bei Trello */}
+        <CardChecklists ws={ws} dispatch={dispatch} noteId={noteId} sheetId={props.sheetId} say={props.say} />
         <div className="cardwin__note">
           <NoteTab ws={ws} noteId={noteId} dispatch={dispatch} sheet={props.sheetId} draft={{ onClose: props.onClose, say: props.say, notice, shown }} />
         </div>

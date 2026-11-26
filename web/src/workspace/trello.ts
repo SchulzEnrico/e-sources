@@ -14,7 +14,8 @@
  */
 import type { ForeignBag, Note, NoteColumn, NoteLink, NoteState, Person, Project, Workspace } from './types';
 import { ganttOf } from './gantt';
-import { COLUMN_MAX, createNote, createView, notesOf, titleOf, TITLE_MAX, viewsOf } from './notes';
+import { itemMeta, itemText } from './checklists';
+import { ARCHIVED_COL_MAX, COLUMN_MAX, createNote, createView, notesOf, titleOf, TITLE_MAX, viewsOf } from './notes';
 import { addPerson, personById } from './persons';
 import { addProject, projectById, projectsOf } from './projects';
 import { colStateOf } from './sheets';
@@ -28,6 +29,14 @@ const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v) || 0);
 const fold = (s: string) => s.trim().toLocaleLowerCase('de');
 const dayOf = (s: unknown): string | undefined => (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : undefined);
+const p2 = (n: number) => String(n).padStart(2, '0');
+/** V121 (F-231 K5): Zeitpunkt aus Trello (UTC) als Tag und Uhrzeit hier. */
+function localAt(s: unknown): { day: string; time: string } | undefined {
+  if (typeof s !== 'string') return undefined;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return { day: `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`, time: `${p2(d.getHours())}:${p2(d.getMinutes())}` };
+}
 const sizeOf = (v: unknown): number => {
   try {
     return JSON.stringify(v).length;
@@ -232,7 +241,18 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
     const nm = str(l.name).trim() || 'Liste';
     return { id: `tl-${str(l.id) || Math.random().toString(36).slice(2)}`, name: nm, ids: [], state: colStateOf({ name: nm }) };
   });
-  const colOfList = new Map(openLists.slice(0, COLUMN_MAX).map((l, i) => [str(l.id), cols[i]]));
+  // V121 (F-231 K3): archivierte Listen → archivierte Spalten (mit ihren Karten)
+  const archCols: NoteColumn[] = lists
+    .filter((l) => l.closed)
+    .slice(0, ARCHIVED_COL_MAX)
+    .map((l, i) => {
+      const nm = str(l.name).trim() || 'Liste';
+      return { id: `tl-${str(l.id) || Math.random().toString(36).slice(2)}`, name: nm, ids: [], state: colStateOf({ name: nm }), archivedAt: now, archivedFrom: COLUMN_MAX + i };
+    });
+  const colOfList = new Map([
+    ...openLists.slice(0, COLUMN_MAX).map((l, i) => [str(l.id), cols[i]] as const),
+    ...lists.filter((l) => l.closed).slice(0, ARCHIVED_COL_MAX).map((l, i) => [str(l.id), archCols[i]] as const),
+  ]);
   const stateOfList = new Map(lists.map((l) => [str(l.id), colStateOf({ name: str(l.name) })]));
 
   // Labels → Tags
@@ -306,7 +326,12 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
       name: str(cl.name).trim() || CHECKLIST_DEFAULT,
       items: arr(cl.checkItems)
         .sort((x, y) => num(x.pos) - num(y.pos))
-        .map((i) => ({ name: str(i.name).trim(), done: i.state === 'complete' })),
+        .map((i) => {
+          // V121 (F-231 K2): Fälligkeit und Zuständiger eines Punkts → „— @Name, bis TT.MM.JJJJ“
+          const pid = i.idMember ? personOf.get(str(i.idMember)) : undefined;
+          const who = pid ? personById(ws, pid)?.name : undefined;
+          return { name: itemText(str(i.name).trim(), who, localAt(i.due)?.day), done: i.state === 'complete' };
+        }),
     }));
     checklistCount += lists.length;
     const labelIds = Array.isArray(c.idLabels) ? (c.idLabels as unknown[]).map(str) : arr(c.labels).map((l) => str(l.id));
@@ -326,7 +351,10 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
       const own2 = splitText(base.text, titleOf({ title: base.title ?? '', text: base.text }));
       text = JSON.stringify(own2.lists) === JSON.stringify(lists) ? base.text : joinText(own2.desc, lists);
     } else text = joinText(desc, lists);
-    const due = same('due', c.due ?? null) && 'due' in base ? base.due : dayOf(c.due);
+    const dueSame = same('due', c.due ?? null) && 'due' in base;
+    const dueAt = localAt(c.due);
+    const due = dueSame ? base.due : (dueAt?.day ?? dayOf(c.due));
+    const dueTime = dueSame ? base.dueTime : dueAt?.time;
     const notBefore = same('start', c.start ?? null) && 'notBefore' in base ? base.notBefore : dayOf(c.start);
     const state = same('list', str(c.idList)) && same('closed', closed) && same('done', done) && base.state ? base.state : inState;
     // gleich wie gesendet: eigene Tags (Gruppen- und Meilenstein-Labels waren nur für Trello)
@@ -355,6 +383,7 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
         project: pid,
         state,
         ...(due ? { due } : {}),
+        ...(due && dueTime ? { dueTime } : {}),
         ...(notBefore ? { notBefore } : {}),
         tags: tags.length ? tags : undefined,
         ...(milestone ? { milestone: true } : {}),
@@ -365,6 +394,7 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
     );
     const fresh = (r.ws.notes ?? []).find((n) => n.id === r.id)!;
     if (!due) delete fresh.due;
+    if (!due || !dueTime) delete fresh.dueTime;
     if (!notBefore) delete fresh.notBefore;
     if (!fresh.tags) delete fresh.tags;
     ws = r.ws;
@@ -372,7 +402,8 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
     created.push({ id: r.id, src: base });
     cardCount++;
     const col = colOfList.get(str(c.idList));
-    if (col && !closed) col.ids.push(r.id);
+    // V121 (K1): archivierte Karten bleiben in ihrer Spalte (das Board blendet sie aus, das Archiv zeigt sie)
+    if (col) col.ids.push(r.id);
   }
 
   // Bezüge aus dem eigenen Abschnitt (Eltern, Vorgänger, Personen) auf die neuen Ids umstellen
@@ -398,7 +429,7 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
       }
       return out;
     }),
-    noteViews: viewsOf(ws).map((x) => (x.id === v.id ? { ...x, cols, ids: [], owner: { kind: 'project', id: pid } } : x)),
+    noteViews: viewsOf(ws).map((x) => (x.id === v.id ? { ...x, cols, ...(archCols.length ? { archivedCols: archCols } : {}), ids: [], owner: { kind: 'project', id: pid } } : x)),
   };
 
   // Projekt: Beschreibung → Ziel; Board-Felder roh mitführen (Listen, Labels, Mitglieder mit Ids und pos)
@@ -534,7 +565,14 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
         const tid = c.id.startsWith('tl-') ? c.id.slice(3) : '';
         const raw = fListById.get(tid) ?? fLists.find((l) => fold(str(l.name)) === fold(c.name)) ?? {};
         return { raw: { ...raw, id: str(raw.id) || make(), name: c.name, closed: false }, col: c, state: colStateOf(c) };
-      })
+      }).concat(
+        // V121 (K3): archivierte Spalten gehen als archivierte Listen zurück
+        (view.archivedCols ?? []).map((c) => {
+          const tid = c.id.startsWith('tl-') ? c.id.slice(3) : '';
+          const raw = fListById.get(tid) ?? {};
+          return { raw: { ...raw, id: str(raw.id) || make(), name: c.name, closed: true }, col: c, state: colStateOf(c) };
+        }),
+      )
     : DEFAULT_LISTS.map((d) => {
         const raw = fLists.find((l) => fold(str(l.name)) === fold(d.name)) ?? {};
         return { raw: { ...raw, id: str(raw.id) || make(), name: d.name, closed: false }, state: d.state };
@@ -617,9 +655,14 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
       const oItems = arr(orig?.checkItems).sort((x, y) => num(x.pos) - num(y.pos));
       const usedI = new Set<string>();
       const items = c.items.map((it) => {
-        const oi = oItems.find((x) => !usedI.has(str(x.id)) && str(x.name).trim() === it.name);
+        const meta = itemMeta(it.name);
+        const oi = oItems.find((x) => !usedI.has(str(x.id)) && str(x.name).trim() === meta.text);
         if (oi) usedI.add(str(oi.id));
-        return { ...(oi ?? {}), id: str(oi?.id) || make(), name: it.name, state: it.done ? 'complete' : 'incomplete', idChecklist: clId, ...(oi ? {} : { pos: undefined }) } as Obj;
+        // V121 (K2): Person und Datum des Punkts
+        const pn = meta.who ? (ws.persons ?? []).find((x) => fold(x.name) === fold(meta.who!)) : undefined;
+        const idMember = pn ? (memberFor(pn.id) ?? null) : null;
+        const due = meta.due ? (oi?.due && localAt(oi.due)?.day === meta.due ? oi.due : `${meta.due}T16:00:00.000Z`) : null;
+        return { ...(oi ?? {}), id: str(oi?.id) || make(), name: meta.text, state: it.done ? 'complete' : 'incomplete', idChecklist: clId, due, idMember, ...(oi ? {} : { pos: undefined }) } as Obj;
       });
       const ip = positions(items.map((x) => (typeof x.pos === 'number' ? x.pos : undefined)));
       items.forEach((x, i) => (x.pos = ip[i]));
@@ -631,7 +674,8 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
     const r = rows.get(n.id);
     const dueDay = n.due ?? (base.id ? undefined : r?.end);
     const startDay = n.notBefore ?? (base.id ? undefined : r?.start);
-    const due = dueDay ? (_due && dayOf(_due) === dueDay ? _due : `${dueDay}T16:00:00.000Z`) : null;
+    const keepDue = _due && (n.dueTime ? localAt(_due)?.day === dueDay && localAt(_due)?.time === n.dueTime : dayOf(_due) === dueDay);
+    const due = dueDay ? (keepDue ? _due : n.dueTime && n.due ? new Date(`${dueDay}T${n.dueTime}:00`).toISOString() : `${dueDay}T16:00:00.000Z`) : null;
     const start = startDay ? (_start && dayOf(_start) === startDay ? _start : `${startDay}T08:00:00.000Z`) : null;
     const tagList = [...(n.tags ?? [])];
     if (n.milestone && !tagList.includes(MILESTONE_LABEL)) tagList.push(MILESTONE_LABEL);

@@ -690,6 +690,10 @@ export interface Note {
   notBefore?: string;
   /** „fällig am“ (Datum JJJJ-MM-TT). */
   due?: string;
+  /** V121 (F-231 K5): Uhrzeit zu „fällig“ (HH:MM, 24 h); fehlt = ganztägig (Ende des Tages). */
+  dueTime?: string;
+  /** V121 (F-231 K1): Kartenvorlage (wie Trello „Card template“) – „+ Karte aus Vorlage“ kopiert sie. */
+  template?: true;
   /** V65: Art nach ICB4 (M1). */
   type?: NoteType;
   /** F-225 P8 (V107, R2): Angaben als Risiko (nur bei `type: 'risk'`). */
@@ -744,7 +748,7 @@ export interface Note {
 }
 
 /** F-213 (V68): Felder, die ein Entwurf ändern kann (S9: alles in der Note). */
-export type NoteDraftField = 'title' | 'text' | 'state' | 'waitReason' | 'important' | 'urgent' | 'notBefore' | 'due' | 'remind' | 'place' | 'assignee' | 'effort';
+export type NoteDraftField = 'title' | 'text' | 'state' | 'waitReason' | 'important' | 'urgent' | 'notBefore' | 'due' | 'dueTime' | 'remind' | 'place' | 'assignee' | 'effort';
 /** F-213: Entwurf; `null` = Feld beim Speichern entfernen. */
 export interface NoteDraft {
   fields: { [K in NoteDraftField]?: Note[K] | null };
@@ -763,6 +767,9 @@ export interface NoteColumn {
   wip?: number;
   /** V86 (K2): Bedeutung der Spalte – Karte hier = dieser Zustand der Notiz; fehlt = aus dem Namen geraten (colStateOf). */
   state?: ColState;
+  /** V121 (F-231 K3): nur in `NoteView.archivedCols` – wann archiviert und an welcher Stelle die Spalte stand. */
+  archivedAt?: number;
+  archivedFrom?: number;
 }
 
 /** V86 (K2): Bedeutung einer Kanban-Spalte. */
@@ -790,6 +797,8 @@ export interface NoteView {
   ids: string[];
   /** Nur Kanban: Spalten (höchstens COLUMN_MAX). */
   cols?: NoteColumn[];
+  /** V121 (F-231 K3): archivierte Spalten mit ihren Karten (neueste zuerst, höchstens ARCHIVED_COL_MAX) – Board zeigt sie nicht, Archiv stellt sie wieder her. */
+  archivedCols?: NoteColumn[];
   /** Regel „Abnahme nötig“: erledigt → „in Prüfung“, bis bestätigt. */
   review?: boolean;
   /** V65 (Sheet): Besitzer. */

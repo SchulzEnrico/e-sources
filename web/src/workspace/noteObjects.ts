@@ -101,6 +101,9 @@ export function parseNoteExtras(v: Record<string, unknown>): Partial<Note> {
     const c = parseChange(v.change);
     if (c) out.change = c;
   }
+  // V121 (F-231 K5, K1): Uhrzeit zu „fällig“, Kartenvorlage
+  if (typeof v.dueTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v.dueTime)) out.dueTime = v.dueTime;
+  if (v.template === true) out.template = true;
   if (typeof v.project === 'string' && v.project) out.project = v.project;
   if (typeof v.assignee === 'string' && v.assignee) out.assignee = v.assignee;
   const effort = parsePlanActual(v.effort);

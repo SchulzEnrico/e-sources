@@ -103,7 +103,7 @@ describe('F-230 Trello (V119)', () => {
     expect(c1.due).toBe('2027-02-10');
     expect(c1.notBefore).toBe('2027-02-01');
     expect(c1.tags).toEqual(['Einkauf', 'rot']);
-    expect(c1.text).toBe('Fläche **48 m²**\n\n### ☑ Unterlagen\n- [x] Angebot\n- [ ] Vertrag');
+    expect(c1.text).toBe('Fläche **48 m²**\n\n### ☑ Unterlagen\n- [x] Angebot — bis 20.01.2027\n- [ ] Vertrag');
     expect(r.ws.persons!.some((x) => x.id === c1.assignee && x.name === 'Anna Berg')).toBe(true);
     expect((c1.foreign?.trello as Record<string, unknown>).customFieldItems).toBeTruthy();
     expect(((c1.foreign?.trello as Record<string, unknown>).comments as unknown[]).length).toBe(1);
@@ -209,5 +209,23 @@ describe('F-230 Trello (V119)', () => {
     expect(x.comments).toEqual([{ at: '2027-01-05T09:00:00.000Z', by: 'Anna Berg', text: 'Bitte bis Freitag' }]);
     expect(x.attachments).toEqual([{ name: 'Plan.pdf', url: 'https://example.org/plan.pdf', upload: false }]);
     expect(T.trelloExtras(r.ws, ns[1])).toBeNull();
+  });
+});
+
+describe('V121 F-231 K3/K1: archivierte Listen und Karten', () => {
+  it('archivierte Liste wird archivierte Spalte, archivierte Karte bleibt in ihrer Spalte – und beides geht so zurück', () => {
+    const r = T.importTrello(W.defaultWorkspace(), JSON.stringify(board()), { now: 1_800_000_000_000 });
+    if (!r.ok) throw new Error('Import');
+    const v = viewsOf(r.ws).find((x) => x.kind === 'kanban')!;
+    expect(v.archivedCols!.map((c) => c.name)).toEqual(['Altes']);
+    const alt = notesOf(r.ws).find((n) => titleOf(n) === 'Altkarte')!;
+    expect(v.archivedCols![0].ids).toEqual([alt.id]);
+    const verworfen = notesOf(r.ws).find((n) => titleOf(n) === 'Verworfen')!;
+    expect(v.cols!.find((c) => c.name === 'In Arbeit')!.ids).toContain(verworfen.id);
+    const out = JSON.parse(T.exportTrello(r.ws, r.project, { now: 1_800_000_000_000 }));
+    const l9 = out.lists.find((l: { id: string }) => l.id === 'L9');
+    expect(l9.closed).toBe(true);
+    expect(out.cards.find((c: { id: string }) => c.id === 'c5').idList).toBe('L9');
+    expect(out.cards.find((c: { id: string }) => c.id === 'c4').closed).toBe(true);
   });
 });

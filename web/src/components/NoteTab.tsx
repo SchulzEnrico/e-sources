@@ -7,7 +7,8 @@ import { type Dispatch, type KeyboardEvent, type ReactNode, useEffect, useId, us
 import type { Action } from '../workspace/useWorkspace';
 import type { NoteState, NoteViewKind, Workspace } from '../workspace/types';
 import * as No from '../workspace/notes';
-import { DRAFT_TEXT, NOTE_TEXT, PAUSE_TEXT, SHEET_TEXT, TERMS } from '../workspace/terms';
+import { DRAFT_TEXT, DUE_TEXT, NOTE_TEXT, PAUSE_TEXT, SHEET_TEXT, TERMS } from '../workspace/terms';
+import { remindBeforeDue } from '../workspace/kanbanMore';
 import * as Sh from '../workspace/sheets';
 import { newId } from '../workspace/workspace';
 import { flash } from '../workspace/flash';
@@ -228,8 +229,20 @@ export function NoteTab({ ws, noteId, dispatch, draft, sheet }: NoteProps) {
         </label>
         <label className="note__opt">
           {NOTE_TEXT.due}
-          <input type="date" value={n.due ?? ''} onChange={(e) => edit({ due: e.target.value || undefined })} />
+          <input type="date" value={n.due ?? ''} onChange={(e) => edit({ due: e.target.value || undefined, ...(e.target.value ? {} : { dueTime: undefined }) })} />
         </label>
+        {/* V121 (F-231 K5): Uhrzeit wahlweise; Vorschlag „Erinnern 1 Tag vorher“ am Ort */}
+        {n.due && (
+          <label className="note__opt" title={DUE_TEXT.timeHint}>
+            {DUE_TEXT.time}
+            <input type="time" value={n.dueTime ?? ''} onChange={(e) => edit({ dueTime: e.target.value || undefined })} />
+          </label>
+        )}
+        {n.due && !n.remind && remindBeforeDue(n) && (
+          <button type="button" className="note__undo" title={DUE_TEXT.remindDayHint} onClick={() => edit({ remind: { at: remindBeforeDue(n)! } })}>
+            <Icon name="recent" size={12} /> {DUE_TEXT.remindDay}
+          </button>
+        )}
         <PrepareLine ws={ws} from={{ kind: 'note', id: n.id }} title={title || NOTE_TEXT.untitled} project={n.project} dispatch={dispatch} say={() => undefined} compact />
         <button ref={delBtn} type="button" className="note__del" title={NOTE_TEXT.removeHint} aria-expanded={ask > 0} onClick={askDelete}>
           <Icon name="trash" size={14} /> {NOTE_TEXT.remove}

@@ -32,7 +32,9 @@ import { parseNoteExtras, parseSheetExtras, parseWip } from './noteObjects';
 /** Höchstens so viele Notizen je Ansicht (Unter-Notizen zählen nicht). */
 export const VIEW_MAX = 200;
 /** Höchstens so viele Spalten je Kanban-Board. */
-export const COLUMN_MAX = 8;
+export const COLUMN_MAX = 20;
+/** V121 (F-231 K3): so viele archivierte Spalten bleiben je Board. */
+export const ARCHIVED_COL_MAX = 50;
 /** Höchstens so viele Einträge in der Spur einer Notiz (älteste fallen weg). */
 export const TRAIL_MAX = 200;
 /** Textänderungen derselben Person innerhalb dieser Zeit ergeben einen Spur-Eintrag. */
@@ -154,7 +156,7 @@ export function createNote(ws: Workspace, init: NoteInit = {}, act: Act & { id?:
 
 /** Felder, die sich frei ändern lassen (Zustand, Eltern und Vorgänger haben eigene Funktionen). */
 export type NotePatch = Partial<
-  Pick<Note, 'title' | 'text' | 'category' | 'tags' | 'important' | 'urgent' | 'notBefore' | 'due' | 'waitReason' | 'attach' | 'delegated' | 'remind' | 'place' | 'origin' | 'assignee' | 'effort'>
+  Pick<Note, 'title' | 'text' | 'category' | 'tags' | 'important' | 'urgent' | 'notBefore' | 'due' | 'dueTime' | 'waitReason' | 'attach' | 'delegated' | 'remind' | 'place' | 'origin' | 'assignee' | 'effort'>
 >;
 
 /** Notiz ändern; `undefined` im Patch entfernt das Feld. */
@@ -471,7 +473,7 @@ export function updateView(ws: Workspace, id: string, patch: Partial<Pick<NoteVi
 
 /** Alle Ids einer Ansicht (Kanban: über alle Spalten). */
 export function idsIn(v: NoteView): string[] {
-  return v.kind === 'kanban' ? (v.cols ?? []).flatMap((c) => c.ids) : v.ids;
+  return v.kind === 'kanban' ? [...(v.cols ?? []), ...(v.archivedCols ?? [])].flatMap((c) => c.ids) : v.ids;
 }
 
 /** Zählt für die Grenze VIEW_MAX – Unter-Notizen zählen nicht. */
@@ -482,7 +484,8 @@ export function countIn(ws: Workspace, v: NoteView): number {
 export const viewsWith = (ws: Workspace, noteId: string): NoteView[] => viewsOf(ws).filter((v) => idsIn(v).includes(noteId));
 
 function without(v: NoteView, noteId: string): NoteView {
-  if (v.kind === 'kanban') return { ...v, cols: (v.cols ?? []).map((c) => (c.ids.includes(noteId) ? { ...c, ids: c.ids.filter((x) => x !== noteId) } : c)) };
+  const strip = (list: NoteColumn[]) => list.map((c) => (c.ids.includes(noteId) ? { ...c, ids: c.ids.filter((x) => x !== noteId) } : c));
+  if (v.kind === 'kanban') return { ...v, cols: strip(v.cols ?? []), ...(v.archivedCols ? { archivedCols: strip(v.archivedCols) } : {}) };
   return v.ids.includes(noteId) ? { ...v, ids: v.ids.filter((x) => x !== noteId) } : v;
 }
 
@@ -524,8 +527,11 @@ export function placeNote(ws: Workspace, noteId: string, to: PlaceTarget, opts: 
     if (cols.length === 0) return v;
     const current = cols.find((c) => c.ids.includes(noteId));
     const colId = to.col && cols.some((c) => c.id === to.col) ? to.col : (current?.id ?? cols[0].id);
+    // V121 (K3): lag die Karte in einer archivierten Spalte, kommt sie dort heraus
+    const arch = v.archivedCols?.some((c) => c.ids.includes(noteId)) ? { archivedCols: v.archivedCols.map((c) => ({ ...c, ids: c.ids.filter((x) => x !== noteId) })) } : {};
     return {
       ...v,
+      ...arch,
       cols: cols.map((c) => {
         const ids = c.ids.filter((x) => x !== noteId);
         return c.id === colId ? { ...c, ids: insertAt(ids, noteId, to.index) } : ids.length === c.ids.length ? c : { ...c, ids };
@@ -723,7 +729,7 @@ export function restoreView(ws: Workspace, undo: ViewUndo): Workspace {
   if (views.some((v) => v.id === undo.view.id)) return ws;
   const known = new Set(notesOf(ws).map((n) => n.id));
   const keep = (ids: string[]) => ids.filter((x) => known.has(x));
-  const v: NoteView = { ...undo.view, ids: keep(undo.view.ids), ...(undo.view.cols ? { cols: undo.view.cols.map((c) => ({ ...c, ids: keep(c.ids) })) } : {}) };
+  const v: NoteView = { ...undo.view, ids: keep(undo.view.ids), ...(undo.view.cols ? { cols: undo.view.cols.map((c) => ({ ...c, ids: keep(c.ids) })) } : {}), ...(undo.view.archivedCols ? { archivedCols: undo.view.archivedCols.map((c) => ({ ...c, ids: keep(c.ids) })) } : {}) };
   views.splice(Math.min(undo.index, views.length), 0, v);
   const refs = new Map(undo.tabs.map((t) => [`${t.panel}|${t.tab}`, t.note]));
   const panels = ws.panels.map((p) => ({
@@ -883,6 +889,23 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
           return { id: c.id as string, name: typeof c.name === 'string' && c.name.trim() ? c.name : 'Spalte', ids: clean(c.ids, used), ...(wip ? { wip } : {}), ...(COL_STATES.includes(c.state as ColState) ? { state: c.state as ColState } : {}) };
         });
       view.cols = cols.length ? cols : [{ id: `${raw.id}-1`, name: KANBAN_START[0], ids: [] }];
+      // V121 (K3): archivierte Spalten
+      const arch = (Array.isArray(raw.archivedCols) ? raw.archivedCols : [])
+        .filter((c): c is Record<string, unknown> => isObj(c) && typeof c.id === 'string' && !colIds.has(c.id) && !!colIds.add(c.id))
+        .slice(0, ARCHIVED_COL_MAX)
+        .map((c) => {
+          const wip = parseWip(c.wip);
+          return {
+            id: c.id as string,
+            name: typeof c.name === 'string' && c.name.trim() ? c.name : 'Spalte',
+            ids: clean(c.ids, used),
+            ...(wip ? { wip } : {}),
+            ...(COL_STATES.includes(c.state as ColState) ? { state: c.state as ColState } : {}),
+            ...(typeof c.archivedAt === 'number' ? { archivedAt: c.archivedAt } : {}),
+            ...(typeof c.archivedFrom === 'number' && c.archivedFrom >= 0 ? { archivedFrom: Math.floor(c.archivedFrom) } : {}),
+          };
+        });
+      if (arch.length) view.archivedCols = arch;
     } else view.ids = clean(raw.ids, used);
     if (typeof raw.category === 'string' && catIds.has(raw.category)) view.category = raw.category;
     if (raw.review === true) view.review = true;
@@ -970,6 +993,7 @@ export function importNotes(
     delete out.owner;
     delete out.range;
     if (v.cols) out.cols = v.cols.map((c) => ({ ...c, id: makeId(), ids: mapIds(c.ids) }));
+    if (v.archivedCols) out.archivedCols = v.archivedCols.map((c) => ({ ...c, id: makeId(), ids: mapIds(c.ids) }));
     if (v.category) {
       const c = catMap.get(v.category);
       if (c) out.category = c;
@@ -1121,7 +1145,7 @@ export function leaveTab(ws: Workspace, panelId: string, tabId: string): Workspa
 
 // ---------- F-213 (V68): Entwurf bis „Speichern“ (Option C, Entscheidungs-Doc F-213) ----------
 
-export const DRAFT_FIELDS: readonly NoteDraftField[] = ['title', 'text', 'state', 'waitReason', 'important', 'urgent', 'notBefore', 'due', 'remind', 'place', 'assignee', 'effort'];
+export const DRAFT_FIELDS: readonly NoteDraftField[] = ['title', 'text', 'state', 'waitReason', 'important', 'urgent', 'notBefore', 'due', 'dueTime', 'remind', 'place', 'assignee', 'effort'];
 export type DraftPatch = NoteDraft['fields'];
 
 /** Wert vergleichbar machen: leer, false und null zählen als „nicht gesetzt“ (Titel/Text: leerer Text). */
@@ -1186,7 +1210,7 @@ export function saveDraft(ws: Workspace, id: string, act: Act = {}): Workspace {
   if (!n || !hasDraft(n)) return ws;
   const f = n.draft?.fields ?? {};
   const patch: NotePatch = {};
-  for (const k of ['title', 'text', 'important', 'urgent', 'notBefore', 'due', 'remind', 'place', 'assignee', 'effort'] as const) {
+  for (const k of ['title', 'text', 'important', 'urgent', 'notBefore', 'due', 'dueTime', 'remind', 'place', 'assignee', 'effort'] as const) {
     if (!(k in f)) continue;
     const v = k === 'remind' || k === 'effort' ? (norm(k, f[k]) === undefined ? undefined : f[k]) : norm(k, f[k]);
     (patch as Record<string, unknown>)[k] = v;
@@ -1254,6 +1278,7 @@ function parseDraft(v: unknown): NoteDraft | undefined {
       (k === 'state' && NOTE_STATES.includes(x as NoteState)) ||
       ((k === 'important' || k === 'urgent') && typeof x === 'boolean') ||
       ((k === 'notBefore' || k === 'due') && isDay(x)) ||
+      (k === 'dueTime' && typeof x === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x)) ||
       (k === 'place' && typeof x === 'string') ||
       (k === 'assignee' && typeof x === 'string') ||
       (k === 'effort' && isObj(x)) ||

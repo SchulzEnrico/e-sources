@@ -415,7 +415,8 @@ export interface Feedback {
   /** FB9: Vermerke */
   marks?: FeedbackMark[];
   /** F-225 P8 (V107, R7): wurde zu Risiko bzw. Änderungsantrag (Notiz-Id) */
-  became?: { note: string; type: 'risk' | 'change' };
+  /** F-225 P8 (R7) – V108 (F-222 E2): auch 'decision', dann ist `note` die Id der Entscheidung. */
+  became?: { note: string; type: 'risk' | 'change' | 'decision' };
 }
 
 /** V88 (BL1): Spalte einer Board-Vorlage – Name, Bedeutung, WIP-Limit, ohne Karten. */

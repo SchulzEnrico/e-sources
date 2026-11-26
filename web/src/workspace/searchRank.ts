@@ -6,7 +6,7 @@
  * (Alle · Portale · Library · Notizen · Funktionen). Cases zählen zu „Portale“, Fragen und Begriffe zu „Funktionen“.
  */
 
-export type SearchKind = 'case' | 'portal' | 'source' | 'note' | 'view' | 'function' | 'term' | 'question';
+export type SearchKind = 'case' | 'portal' | 'source' | 'note' | 'view' | 'decision' | 'function' | 'term' | 'question';
 export type SearchChip = 'all' | 'portals' | 'library' | 'notes' | 'functions';
 
 export const SEARCH_CHIPS: SearchChip[] = ['all', 'portals', 'library', 'notes', 'functions'];
@@ -21,6 +21,7 @@ export function chipOf(kind: SearchKind): Exclude<SearchChip, 'all'> {
       return 'library';
     case 'note':
     case 'view':
+    case 'decision':
       return 'notes';
     default:
       return 'functions';

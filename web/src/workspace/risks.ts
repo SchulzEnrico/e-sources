@@ -8,6 +8,7 @@ import type { ChangeState, Feedback, Note, NoteChange, NoteRisk, Project, RiskLe
 import { createNote, noteById, notesOf } from './notes';
 import { isTask, projectById, rolesOf } from './projects';
 import { feedbackById, restoreFeedbackItem, setBecame } from './feedback';
+import { decisionsOf } from './decisions';
 
 export { isTask } from './projects';
 export const isSteering = (n: Pick<Note, 'type'>): boolean => !isTask(n);
@@ -267,7 +268,7 @@ export type BecomeUndo = { feedback: Feedback; note: string };
 export function becomeFromFeedback(ws: Workspace, fbId: string, t: SteerType, act: Act & { id: string; label: string }): { ws: Workspace; id: string; code: string; undo: BecomeUndo } | null {
   const f = feedbackById(ws, fbId);
   if (!f || !f.project || !projectById(ws, f.project)) return null;
-  if (f.became && noteById(ws, f.became.note)) return null;
+  if (f.became && (f.became.type === 'decision' ? decisionsOf(ws).some((d) => d.id === f.became!.note) : noteById(ws, f.became.note))) return null;
   const r =
     t === 'risk'
       ? addSteer(ws, f.project, 'risk', { title: f.title, text: f.what, risk: { effect: f.impact, cause: f.guess, event: f.what ? undefined : f.title, from: f.id } }, act)

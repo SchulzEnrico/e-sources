@@ -4,7 +4,7 @@ Stand: 25.11.2026 · Chat V106 · Nächster Chat: **V107 E-Sources**
 
 ## Startanweisung für den neuen Chat
 
-> Das ist Chat **V107 E-Sources**. Lies diese Übergabedatei, dann im Lastenheft **F-225** (Bau 2 V106), **F-224** (R7 V106) und **F-222** (Stand V104). Docs: F-225 https://claude.ai/artifact/VdDsnvWqaEfEx6dFrLS17N (PDF `docs/Arbeitspakete/F-225_V105_Feedback-in-Projekten.pdf`), F-224 https://claude.ai/artifact/HZLMLQWXZru5rGPqBHJ52E, F-222 https://claude.ai/artifact/LJyPmsG7JhmEaCxqAavh1N. **Termin Fr 04.12.2026**, Enricos Testphase ab 07.12. (Enrico testet live mit.) Weiter gelten V98-Doc (K1–K8), V96-Doc, F-220 (R1–R7). Leitlinien: **Trello**, **IPMA ICB4**, **MS Project / iTaskX**, Design und Anordnung an unsere UX/UI angepasst, **Funktion vor Design**, NF-08. Arbeitsregeln und Technik `V61_Uebergabe_E-Sources.md` (+ Nachtrag), Umschalt-Rad `V83_…`, Vorlagen `docs/Arbeitspakete/Vorlagen/LIESMICH.md`; kleine Punkte aus `V74_`–`V106_…` gelten weiter. **Zuerst Enrico nach seinen Live-Tests fragen** (in V106 kam der Text nicht mit) und nach der „Schleife“ (siehe unten). Dann „Nächste Schritte“ ab 1.
+> Das ist Chat **V107 E-Sources**. Lies diese Übergabedatei, dann im Lastenheft **F-225** (Bau 2 V106), **F-224** (R7 V106) und **F-222** (Stand V104). Docs: F-225 https://claude.ai/artifact/VdDsnvWqaEfEx6dFrLS17N (PDF `docs/Arbeitspakete/F-225_V105_Feedback-in-Projekten.pdf`), F-224 https://claude.ai/artifact/HZLMLQWXZru5rGPqBHJ52E, F-222 https://claude.ai/artifact/LJyPmsG7JhmEaCxqAavh1N. **Termin Fr 04.12.2026**, Enricos Testphase ab 07.12. Weiter gelten V98-Doc (K1–K8), V96-Doc, F-220 (R1–R7). Leitlinien: **Trello**, **IPMA ICB4**, **MS Project / iTaskX**, Design und Anordnung an unsere UX/UI angepasst, **Funktion vor Design**, NF-08. Arbeitsregeln und Technik `V61_Uebergabe_E-Sources.md` (+ Nachtrag), Umschalt-Rad `V83_…`, Vorlagen `docs/Arbeitspakete/Vorlagen/LIESMICH.md`; kleine Punkte aus `V74_`–`V106_…` gelten weiter. Dann „Nächste Schritte“ ab 1.
 
 ## Was in V106 passiert ist
 
@@ -25,11 +25,10 @@ Stand: 25.11.2026 · Chat V106 · Nächster Chat: **V107 E-Sources**
 
 ## Nächste Schritte
 
-1. **Enricos Live-Test-Ergebnisse** abarbeiten (Fehler zuerst), „Schleife“ klären.
-2. **F-225 P8 „Wird zu …“ Risiko · Änderung:** vorher Claude Doc an der Seite (Regel 23.11.): Notizen mit `type: 'risk' | 'change'` würden heute als Vorgänge in PSP/Gantt/Projektliste zählen → Optionen: (A) eigene Ansichten „Risiken“ und „Änderungen“ im Rad „Ansicht“ (Risikoliste nach ICB4 mit Eintritt/Auswirkung, Änderungsantrag mit Entscheidung im Lenkungskreis), Typen aus PSP/Gantt ausnehmen; (B) nur Vermerk an der Meldung; Fragen mit Vorschlag und Spalte „Antwort Enrico“, PDF nach `docs/Arbeitspakete/`.
-3. **F-222 Rest:** freie Entscheidungen ohne Projekt (Ort), Bezüge N5 + „Entscheidung vorbereiten …“, Beispiel Wohnung, Tour „Entscheidungen“, Ziehen zum Umsortieren, Punkte-Spalten.
-4. Dann Schritt 10: **Meilensteine** → **Basisplan** → **Netzplan** → **F-220** → Ressourcen je Projekt → Bericht → Projekt-Desk.
-5. **Prüfliste für Enrico** (alles aus V77–V105 plus):
+1. **F-225 P8 „Wird zu …“ Risiko · Änderung:** vorher Claude Doc an der Seite (Regel 23.11.): Notizen mit `type: 'risk' | 'change'` würden heute als Vorgänge in PSP/Gantt/Projektliste zählen → Optionen: (A) eigene Ansichten „Risiken“ und „Änderungen“ im Rad „Ansicht“ (Risikoliste nach ICB4 mit Eintritt/Auswirkung, Änderungsantrag mit Entscheidung im Lenkungskreis), Typen aus PSP/Gantt ausnehmen; (B) nur Vermerk an der Meldung; Fragen mit Vorschlag und Spalte „Antwort Enrico“, PDF nach `docs/Arbeitspakete/`.
+2. **F-222 Rest:** freie Entscheidungen ohne Projekt (Ort), Bezüge N5 + „Entscheidung vorbereiten …“, Beispiel Wohnung, Tour „Entscheidungen“, Ziehen zum Umsortieren, Punkte-Spalten.
+3. Dann Schritt 10: **Meilensteine** → **Basisplan** → **Netzplan** → **F-220** → Ressourcen je Projekt → Bericht → Projekt-Desk.
+4. **Prüfliste für Enrico** (alles aus V77–V105 plus):
    - `npm test` in `web/`.
    - Projekt-Modus zum ersten Mal: Tour „Projekte“ startet von selbst; Knopf „Tour“ oben; Hilfe/Suche „Tour Projekte“ wechselt in den Projekt-Modus und startet sie. Im Steckbrief erscheint der Schritt „Instanzen“, in anderen Ansichten nicht.
    - Rad „Ansicht“: „Meldungen (n)“ bei neuen Projektmeldungen.

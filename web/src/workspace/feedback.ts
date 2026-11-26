@@ -21,7 +21,7 @@ import type {
 } from './types';
 
 /** App-Stand für die Meldung (FB6) – bei jedem Chat mitzählen. */
-export const APP_VERSION = 'V107';
+export const APP_VERSION = 'V108';
 export const FEEDBACK_MAX = 2000;
 export const TITLE_MAX = 200;
 export const TEXT_MAX = 8000;
@@ -875,7 +875,7 @@ export function parseFeedback(v: unknown): Feedback[] {
       if (marks.length) f.marks = marks;
     }
     // F-225 P8 (V107): Meldung wurde zu Risiko bzw. Änderungsantrag
-    if (isObj(r.became) && typeof r.became.note === 'string' && r.became.note && (r.became.type === 'risk' || r.became.type === 'change'))
+    if (isObj(r.became) && typeof r.became.note === 'string' && r.became.note && (r.became.type === 'risk' || r.became.type === 'change' || r.became.type === 'decision'))
       f.became = { note: r.became.note, type: r.became.type };
     out.push(f);
   }

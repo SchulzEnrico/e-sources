@@ -33,6 +33,7 @@ import * as Sp from './sampleProject';
 import * as Gt from './gantt';
 import * as Fb from './feedback';
 import * as Dc from './decisions';
+import * as Prep from './prepare';
 import * as Rk from './risks';
 import * as Terms from './terms';
 import * as Rs from './reset';
@@ -6324,6 +6325,24 @@ describe('F-206 Schritt 10 Beispielprojekt ColorGentlemen (V100)', () => {
     expect(Sp.hasSampleProject(gone)).toBe(false);
     expect((gone.persons ?? []).some((p) => p.id.startsWith('pn-cg-'))).toBe(false);
   });
+  it('V108: Inhalte aus dem Report – Instanzen, Abnahmekriterien, Ist-Werte, Verfügbarkeit, Steckbrief', () => {
+    const ws = Sp.addSampleProject(base(), 5);
+    const p = ws.projects!.find((x) => x.id === Sp.SAMPLE_PROJECT)!;
+    expect(Pj.roleOf(p, 'client')!.person).toBe('pn-cg-meier');
+    expect(Pj.roleOf(p, 'steering')).toBeUndefined();
+    const n = (id: string) => ws.notes!.find((x) => x.id === id)!;
+    expect(n('cg-31').effort).toEqual({ plan: 295, actual: 198 });
+    expect(n('cg-31').cost).toEqual({ plan: 10320, actual: 6920 });
+    expect(n('cg-37').accept!.map((c) => !!c.ok)).toEqual([true, true]);
+    expect(n('cg-38').accept![0].ok).toBeUndefined();
+    expect(ws.persons!.find((x) => x.id === 'pn-cg-lm')!.away).toEqual([{ from: '2026-12-01', to: '2027-02-25', why: 'noch nicht eingestellt (ab M3)' }]);
+    expect(p.brief!.goal).toContain('L2.2 Prozesse festgelegt');
+    expect(n('cg-c1').change).toMatchObject({ state: 'approved', decider: 'client' });
+    const r = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(r.notes!.find((x) => x.id === 'cg-37')!.accept).toEqual(n('cg-37').accept);
+    expect(r.persons!.find((x) => x.id === 'pn-cg-lm')!.away).toEqual(ws.persons!.find((x) => x.id === 'pn-cg-lm')!.away);
+    expect(r.projects!.find((x) => x.id === Sp.SAMPLE_PROJECT)!.roles).toEqual(p.roles);
+  });
 });
 
 describe('F-206 Schritt 10 Gantt (V101)', () => {
@@ -6873,10 +6892,10 @@ describe('F-225 P8 Risiken und Änderungsanträge (V107)', () => {
     ws = Fb.addFeedback(ws, { kind: 'wish', title: 'App' }, { id: 'fb2' })!.ws;
     expect(Rk.becomeFromFeedback(ws, 'fb2', 'risk', { id: 'n2', label: 'x' })).toBeNull();
   });
-  it('R10: Beispielprojekt hat 3 Risiken und 1 Änderungsantrag, die keine Vorgänge sind; Entfernen nimmt sie mit', () => {
+  it('R10: Beispielprojekt hat 3 Risiken und 2 Änderungsanträge, die keine Vorgänge sind; Entfernen nimmt sie mit', () => {
     const ws = Sp.addSampleProject(W.defaultWorkspace());
-    expect(Rk.risksOf(ws, Sp.SAMPLE_PROJECT).map((n) => Rk.steerCode(ws, n))).toEqual(['CG-R-1', 'CG-R-2', 'CG-R-3']);
-    expect(Rk.changesOf(ws, Sp.SAMPLE_PROJECT)).toHaveLength(1);
+    expect(Rk.risksOf(ws, Sp.SAMPLE_PROJECT).map((n) => Rk.steerCode(ws, n)).sort()).toEqual(['CG-R-1', 'CG-R-2', 'CG-R-3']);
+    expect(Rk.changesOf(ws, Sp.SAMPLE_PROJECT)).toHaveLength(2);
     expect(Pj.tasksOfProject(ws, Sp.SAMPLE_PROJECT).some((n) => n.type === 'risk')).toBe(false);
     expect(Rk.risksOf(Sp.removeSampleProject(ws), Sp.SAMPLE_PROJECT)).toHaveLength(0);
   });
@@ -6891,5 +6910,51 @@ describe('F-225 P8 Risiken und Änderungsanträge (V107)', () => {
     expect(NLo.noteById(back, 'r1')!.risk).toEqual(NLo.noteById(ws, 'r1')!.risk);
     expect(NLo.noteById(back, 'c1')!.change).toEqual(NLo.noteById(ws, 'c1')!.change);
     expect(Fb.feedbackById(back, 'fb1')!.became).toEqual({ note: 'r1', type: 'risk' });
+  });
+});
+
+describe('F-222 V108 – freie Entscheidungen, vorbereiten, Suche', () => {
+  const T: Prep.PrepareTexts = { criterion: (n) => `K${n}`, option: (n) => `L${n}`, changeCriteria: ['Termin', 'Kosten', 'Leistung', 'Umfang'], changeOptions: ['Änderung umsetzen', 'Nicht umsetzen'] };
+  const ids = (p: string) => Array.from({ length: 6 }, (_, i) => `${p}${i}`);
+  it('E2: aus einer Notiz ohne Projekt – frei, Titel, erster Absatz als Frage, Bezug; decisionsFrom findet sie', () => {
+    let ws = { ...W.defaultWorkspace(), notes: [] } as Workspace;
+    ws = NLo.createNote(ws, { title: '', text: '# Welche Wohnung?\n\nUmzug bis März, Budget 1.200 €.\n\nNoch mehr.' }, { id: 'n1', now: 1 }).ws;
+    const r = Prep.prepareDecision(ws, { kind: 'note', id: 'n1' }, T, { id: 'd1', ids: ids('x'), now: new Date('2026-11-26T08:00:00Z') })!;
+    const d = Dc.decisionsOf(r.ws).find((x) => x.id === 'd1')!;
+    expect(d).toMatchObject({ title: 'Welche Wohnung?', question: 'Umzug bis März, Budget 1.200 €.', links: [{ kind: 'note', id: 'n1' }] });
+    expect(d.projectId).toBeUndefined();
+    expect(Prep.decisionsFrom(r.ws, { kind: 'note', id: 'n1' }).map((x) => x.id)).toEqual(['d1']);
+    expect(Dc.searchDecisions(r.ws, 'wohnung')).toHaveLength(1);
+    expect(Dc.searchDecisions(r.ws, 'wohnung haus')).toHaveLength(0);
+    expect(Dc.searchDecisions(r.ws, '  ')).toHaveLength(0);
+    expect(Prep.prepareDecision(ws, { kind: 'note', id: 'fehlt' }, T, { id: 'd2', ids: ids('y') })).toBeNull();
+  });
+  it('E2/E5: aus einem Änderungsantrag – Code im Titel, Begründung als Frage, Kriterien und Lösungen vorbelegt; E4 Vorschlag', () => {
+    const ws0 = Sp.addSampleProject(W.defaultWorkspace());
+    const r = Prep.prepareDecision(ws0, { kind: 'note', id: 'cg-c2' }, T, { id: 'd1', ids: ids('x') })!;
+    const d = Dc.decisionsOf(r.ws).find((x) => x.id === 'd1')!;
+    expect(d.title).toBe('CG-Ä-2: Günstigere Lackieranlagen anschaffen');
+    expect(d.projectId).toBe(Sp.SAMPLE_PROJECT);
+    expect(d.criteria.map((c) => c.name)).toEqual(['Termin', 'Kosten', 'Leistung', 'Umfang']);
+    expect(d.options.map((o) => o.name)).toEqual(['Änderung umsetzen', 'Nicht umsetzen']);
+    expect(Prep.suggestionFor(r.ws, 'cg-c2')).toBeNull();
+    let ws = r.ws;
+    for (const c of d.criteria) ws = Dc.editDecision(ws, 'd1', { op: 'critWeight', c: c.id, weight: 25 });
+    for (const c of d.criteria) for (const [k, o] of d.options.entries()) ws = Dc.editDecision(ws, 'd1', { op: 'score', c: c.id, o: o.id, v: k === 0 ? 3 : 8 });
+    expect(Prep.suggestionFor(ws, 'cg-c2')).toMatchObject({ option: 'Nicht umsetzen', decided: false });
+  });
+  it('E2: Projektmeldung wird zu Entscheidung – Vermerk, kein zweites Mal, Rückgängig; Format 11 behält „decision“', () => {
+    let ws = Sp.addSampleProject(W.defaultWorkspace());
+    ws = Fb.addFeedback(ws, { kind: 'wish', title: 'Welcher Lieferant?', what: 'Zwei Angebote liegen vor.', project: Sp.SAMPLE_PROJECT }, { id: 'fb1' })!.ws;
+    const r = Prep.becomeDecision(ws, 'fb1', T, { id: 'd1', ids: ids('x'), label: 'Ist jetzt Entscheidung' })!;
+    expect(Fb.feedbackById(r.ws, 'fb1')!.became).toEqual({ note: 'd1', type: 'decision' });
+    expect(Dc.decisionsOf(r.ws).find((x) => x.id === 'd1')).toMatchObject({ question: 'Zwei Angebote liegen vor.', projectId: Sp.SAMPLE_PROJECT, links: [{ kind: 'feedback', id: 'fb1' }] });
+    expect(Prep.becomeDecision(r.ws, 'fb1', T, { id: 'd2', ids: ids('y'), label: 'x' })).toBeNull();
+    expect(Rk.becomeFromFeedback(r.ws, 'fb1', 'risk', { id: 'r9', label: 'x' })).toBeNull();
+    const back = parseWorkspace(JSON.parse(JSON.stringify(r.ws)))!;
+    expect(Fb.feedbackById(back, 'fb1')!.became).toEqual({ note: 'd1', type: 'decision' });
+    const u = Prep.undoBecomeDecision(r.ws, r.undo);
+    expect(Dc.decisionsOf(u).some((x) => x.id === 'd1')).toBe(false);
+    expect(Fb.feedbackById(u, 'fb1')!.became).toBeUndefined();
   });
 });

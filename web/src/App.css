@@ -7673,7 +7673,7 @@ h3.cases__name { font-size: 1.05em; }
 .search__hit--case { --kind: #7cc4ff; }
 .search__hit--portal { --kind: #4f9dff; }
 .search__hit--source { --kind: #3fcf8e; }
-.search__hit--note, .search__hit--view { --kind: #f2b84b; }
+.search__hit--note, .search__hit--view, .search__hit--decision { --kind: #f2b84b; }
 .search__hit--function, .search__hit--term, .search__hit--question { --kind: #b48cff; }
 .search__hit--web { --kind: rgba(var(--tint), 0.35); }
 .search__hit:not(.search__hit--web) .search__title { padding-right: 68px; }

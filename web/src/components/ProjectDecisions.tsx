@@ -4,11 +4,14 @@
  * „Beispiel ansehen“, darunter die gewählte. Rad „Schritt“: Kriterien · Paarvergleich · Bewertung · Ergebnis (N9);
  * nur der aktuelle Schritt steht vorn, die Rangliste rechts ist immer sichtbar und rechnet live. Meldungen am Ort.
  * Logik in workspace/decisions.ts (reine Funktionen, Reducer-Aktionen dc…).
+ * V108 (Doc F-222 V108, E1/E3): dasselbe Bauteil auch ohne Projekt – Cockpit-Modus „Entscheidungen“ mit Rad
+ * „Zeigen“ Alle · Frei · je Projekt; „Entscheiden für“ in Projekt-Entscheidungen nur mit Befugnis „Entscheiden“.
  */
 import { type CSSProperties, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { Decision, Project, Workspace } from '../workspace/types';
 import * as Dc from '../workspace/decisions';
+import * as Ps from '../workspace/persons';
 import { newId } from '../workspace/workspace';
 import { DECISION_TEXT as T } from '../workspace/terms';
 import { Icon } from './Icon';
@@ -35,9 +38,37 @@ function download(name: string, text: string, type: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+/** V108 (F-222 E2): Entscheidung im Cockpit „Entscheidungen“ öffnen – App hört auf das Ereignis. */
+export const DECISION_EVENT = 'esource:decision';
+export function openDecision(id: string): void {
+  window.dispatchEvent(new CustomEvent(DECISION_EVENT, { detail: id }));
+}
+/** V108 (E2): Namen für „Entscheidung vorbereiten …“ (Aktion dcPrepare / fbBecomeDecision). */
+export const prepareNames = () => ({ criterion: [1, 2, 3].map(T.criterion), option: [1, 2].map(T.option), changeCriteria: [...T.changeCriteria], changeOptions: [...T.changeOptions] });
+
+/** Projekt-Ansicht „Entscheidungen“ (V104). */
 export function ProjectDecisions({ ws, p, dispatch, say }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void }) {
-  const list = Dc.decisionsFor(ws, p.id);
-  const [sel, setSel] = useState<string | null>(list[0]?.id ?? null);
+  return <Decisions ws={ws} p={p} dispatch={dispatch} say={say} />;
+}
+
+/** V108 (E1): Zeigen im Cockpit – alle, nur freie oder die eines Projekts (Id). */
+type Scope = 'all' | 'free' | string;
+
+/** V108 (E1): Entscheidungen mit oder ohne Projekt; ohne `p` mit Rad „Zeigen“ (Cockpit-Modus „Entscheidungen“). */
+export function Decisions({ ws, p, dispatch, say, open }: { ws: Workspace; p?: Project; dispatch: (a: Action) => void; say: (t: string) => void; open?: string | null }) {
+  const projects = ws.projects ?? [];
+  const [scope, setScope] = useState<Scope>(() => {
+    const o = open ? Dc.decisionsOf(ws).find((x) => x.id === open) : undefined;
+    return o ? (o.projectId ? o.projectId : 'free') : 'all';
+  });
+  const shownScope: Scope = p ? p.id : scope === 'all' || scope === 'free' || projects.some((x) => x.id === scope) ? scope : 'all';
+  const list =
+    shownScope === 'all'
+      ? [...Dc.decisionsOf(ws)].sort((a, b) => (b.changed ?? b.at).localeCompare(a.changed ?? a.at))
+      : Dc.decisionsFor(ws, shownScope === 'free' ? null : shownScope);
+  const target = p?.id ?? (shownScope !== 'all' && shownScope !== 'free' ? shownScope : undefined);
+  const projectName = (id?: string) => (id ? projects.find((x) => x.id === id)?.name : undefined);
+  const [sel, setSel] = useState<string | null>(open ?? list[0]?.id ?? null);
   const d = list.find((x) => x.id === sel) ?? list[0];
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -48,7 +79,7 @@ export function ProjectDecisions({ ws, p, dispatch, say }: { ws: Workspace; p: P
     const t = name.trim();
     if (!t) return;
     const id = newId();
-    dispatch({ type: 'dcAdd', id, ids: Array.from({ length: Dc.START_CRITERIA + Dc.START_OPTIONS }, newId), title: t, projectId: p.id, at: new Date().toISOString(), names: { criterion: [1, 2, 3].map(T.criterion), option: [1, 2].map(T.option) } });
+    dispatch({ type: 'dcAdd', id, ids: Array.from({ length: Dc.START_CRITERIA + Dc.START_OPTIONS }, newId), title: t, ...(target ? { projectId: target } : {}), at: new Date().toISOString(), names: { criterion: [1, 2, 3].map(T.criterion), option: [1, 2].map(T.option) } });
     setSel(id);
     setAdding(false);
     setName('');
@@ -56,7 +87,7 @@ export function ProjectDecisions({ ws, p, dispatch, say }: { ws: Workspace; p: P
   };
   const example = () => {
     const id = newId();
-    dispatch({ type: 'dcExample', id, ids: Array.from({ length: 16 }, newId), which: 'painter', projectId: p.id, at: new Date().toISOString() });
+    dispatch({ type: 'dcExample', id, ids: Array.from({ length: 16 }, newId), which: target ? 'painter' : 'flat', ...(target ? { projectId: target } : {}), at: new Date().toISOString() });
     setSel(id);
     setMsg(null);
   };
@@ -71,7 +102,22 @@ export function ProjectDecisions({ ws, p, dispatch, say }: { ws: Workspace; p: P
   return (
     <section className="dc" aria-labelledby="dc-head">
       <header className="dc__top">
-        <h4 id="dc-head" className="dc__head">{T.head(p.name)}</h4>
+        <h4 id="dc-head" className="dc__head">{p ? T.head(p.name) : T.headAll}</h4>
+        {!p && (
+          <span className="dc__scope">
+            <span className="fbq__label">{T.scopeLabel}</span>
+            <ModeWheel
+              label={T.scopeLabel}
+              value={shownScope}
+              onChange={(v) => (setScope(v), setSel(null), setMsg(null), say(`${T.scopeLabel}: ${v === 'all' ? T.scopeAll : v === 'free' ? T.scopeFree : projectName(v) ?? ''}`))}
+              options={[
+                { id: 'all', name: T.scopeAll, hint: T.scopeAllHint },
+                { id: 'free', name: T.scopeFree, hint: T.scopeFreeHint },
+                ...projects.map((x) => ({ id: x.id, name: x.name, hint: T.scopeProjectHint(x.name) })),
+              ]}
+            />
+          </span>
+        )}
         <button type="button" className="help__run" aria-expanded={adding} title={T.addHint} onClick={() => setAdding(!adding)}>
           <Icon name="plus" size={13} className="icon icon--inline" /> {T.add}
         </button>
@@ -93,13 +139,14 @@ export function ProjectDecisions({ ws, p, dispatch, say }: { ws: Workspace; p: P
             <li key={x.id}>
               <button type="button" className={`dc__item${x.id === d?.id ? ' is-on' : ''}`} aria-pressed={x.id === d?.id} onClick={() => (setSel(x.id), setMsg(null))}>
                 <span className="dc__itemtitle">{x.title}</span>
+                {!p && shownScope === 'all' && <span className="dc__itemwhere">{projectName(x.projectId) ?? T.scopeFree}</span>}
                 <span className={`dc__state is-${x.state}`} title={T.stateHints[x.state]}>{T.states[x.state]}</span>
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        !adding && <p className="lc__muted">{T.none}</p>
+        !adding && <p className="lc__muted">{p || (shownScope !== 'all' && shownScope !== 'free') ? T.none : shownScope === 'free' ? T.noneFree : T.noneAll}</p>
       )}
       {msg && (
         <p className="sheet__msg dc__msg" role="status">
@@ -165,7 +212,7 @@ function DecisionTool({ d, ws, dispatch, say, onRemove }: { d: Decision; ws: Wor
           {step === 'crit' && <CritStep d={d} lock={lock} op={op} />}
           {step === 'pair' && <PairStep d={d} lock={lock} op={op} />}
           {step === 'score' && <ScoreStep d={d} lock={lock} op={op} by={by} weighed={weighed} musts={musts} />}
-          {step === 'result' && <ResultStep d={d} lock={lock} op={op} by={by} say={say} />}
+          {step === 'result' && <ResultStep d={d} lock={lock} op={op} by={by} say={say} may={!d.projectId || Ps.hasRight(Ps.meOf(ws), 'decide')} />}
         </div>
         {step !== 'result' && (
           <aside className="dc__side" aria-label={T.result}>
@@ -388,7 +435,7 @@ function Ranking({ d }: { d: Decision }) {
   );
 }
 
-function ResultStep({ d, lock, op, by, say }: { d: Decision; lock: boolean; op: OpFn; by?: string; say: (t: string) => void }) {
+function ResultStep({ d, lock, op, by, say, may }: { d: Decision; lock: boolean; op: OpFn; by?: string; say: (t: string) => void; may: boolean }) {
   const win = Dc.winner(d);
   const [pick, setPick] = useState(d.chosen ?? win?.id ?? d.options[0]?.id ?? '');
   const [why, setWhy] = useState('');
@@ -406,7 +453,8 @@ function ResultStep({ d, lock, op, by, say }: { d: Decision; lock: boolean; op: 
   return (
     <>
       <Ranking d={d} />
-      {!lock && d.options.length > 0 && (
+      {!lock && d.options.length > 0 && !may && <p className="dc__lock" role="status">{T.needRight}</p>}
+      {!lock && d.options.length > 0 && may && (
         <form className="dc__decide" onSubmit={(e) => (e.preventDefault(), go())}>
           <label>
             <span className="fbq__label">{T.decideLabel}</span>

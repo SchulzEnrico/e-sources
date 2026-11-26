@@ -13,7 +13,8 @@ import { Fragment, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, use
 import { type PanelHit, type SearchHit, SEARCH_MAX, bookmarkOf, searchAll, searchPanels } from '../workspace/bookmarks';
 import { hostOf, isBlocked, tabLabel } from '../workspace/workspace';
 import { type How, HOW_IN, HOW_NAME } from '../workspace/launcher';
-import type { Workspace } from '../workspace/types';
+import type { Decision, Workspace } from '../workspace/types';
+import { searchDecisions } from '../workspace/decisions';
 import { type HelpEntry, type QuestionHit, QUESTION_TEXT, asksQuestion, searchHelp, searchQuestions } from '../workspace/help';
 import { Icon } from './Icon';
 import { WEB_TEXT } from '../workspace/terms';
@@ -24,7 +25,7 @@ import { Dot } from './Cases';
 import { type NoteHit, VIEW_BASE, searchNotes, stateOf, tabShowing } from '../workspace/notes';
 import * as No from '../workspace/notes';
 import { padShowing } from '../workspace/pads';
-import { NOTE_TEXT, PAD_TEXT, SEARCH_TEXT } from '../workspace/terms';
+import { DECISION_TEXT, NOTE_TEXT, PAD_TEXT, SEARCH_TEXT } from '../workspace/terms';
 import { type SearchChip, type SearchKind, SEARCH_CHIPS, byChip, chipCounts, chipStep, rankHits } from '../workspace/searchRank';
 
 interface Props {
@@ -48,6 +49,8 @@ interface Props {
   onPickCase?: (caseId: string) => void;
   /** F-206: Notiz bzw. Ansicht in einem Tab zeigen. */
   onOpenNote?: (hit: NoteHit) => void;
+  /** V108 (F-222 E6): Entscheidung im Cockpit „Entscheidungen“ öffnen. */
+  onOpenDecision?: (id: string) => void;
 }
 
 /** Name eines offenen Tabs: Titel des Lesezeichens, sonst die Domain; ohne Doppelte. */
@@ -56,7 +59,7 @@ function tabNames(ws: Workspace, h: PanelHit): string[] {
 }
 
 type CaseHit = ReturnType<typeof searchCases>[number];
-type Item = { kind: 'case'; hit: CaseHit } | { kind: 'web'; hit: string } | { kind: 'panel'; hit: PanelHit } | { kind: 'bookmark'; hit: SearchHit } | { kind: 'help'; hit: HelpEntry } | { kind: 'question'; hit: QuestionHit } | { kind: 'note'; hit: NoteHit };
+type Item = { kind: 'case'; hit: CaseHit } | { kind: 'web'; hit: string } | { kind: 'panel'; hit: PanelHit } | { kind: 'bookmark'; hit: SearchHit } | { kind: 'help'; hit: HelpEntry } | { kind: 'question'; hit: QuestionHit } | { kind: 'note'; hit: NoteHit } | { kind: 'decision'; hit: Decision };
 
 type Ranked = Item & { sk: SearchKind; title: string; extra: string[] };
 
@@ -85,6 +88,7 @@ export function Search(props: Props) {
   }, [ws, query]);
   const panelHits = useMemo(() => searchPanels(ws, query), [ws, query]);
   const noteHits = useMemo(() => (props.onOpenNote ? searchNotes(ws, query) : []), [ws, query, props.onOpenNote]);
+  const decisionHits = useMemo(() => (props.onOpenDecision ? searchDecisions(ws, query) : []), [ws, query, props.onOpenDecision]);
   const caseHits = useMemo(() => (props.onPickCase ? searchCases(ws, query) : []), [ws, query, props.onPickCase]);
   const helpHits = useMemo(() => searchHelp(query, 4), [query]);
   // F-186: Fragen als Vorschläge; beginnt die Eingabe mit „wie“, „warum“ …, stehen sie ganz oben
@@ -102,6 +106,7 @@ export function Search(props: Props) {
           ? { kind: 'note' as const, hit, sk: 'view' as const, title: hit.view.name, extra: [] }
           : { kind: 'note' as const, hit, sk: 'note' as const, title: hit.title || NOTE_TEXT.untitled, extra: [hit.snippet ?? ''] },
       ),
+      ...decisionHits.map((hit) => ({ kind: 'decision' as const, hit, sk: 'decision' as const, title: hit.title, extra: [hit.question ?? ''] })),
       ...qHits.map((hit) => ({ kind: 'question' as const, hit, sk: 'question' as const, title: hit.q, extra: [hit.entry.name, hit.entry.text] })),
       ...helpHits.map((hit) => ({ kind: 'help' as const, hit, sk: (hit.group === 'Begriffe' ? 'term' : 'function') as SearchKind, title: hit.name, extra: [hit.text] })),
     ];
@@ -199,6 +204,9 @@ export function Search(props: Props) {
     else if (it.kind === 'note') {
       setQuery('');
       props.onOpenNote?.(it.hit);
+    } else if (it.kind === 'decision') {
+      setQuery('');
+      props.onOpenDecision?.(it.hit.id);
     }
     // F-186: Frage → Antwort in der Hilfe zeigen
     else if (it.kind === 'question') {
@@ -411,6 +419,25 @@ export function Search(props: Props) {
             </span>
           </>,
           out ? `${h.bookmark.url}\nLässt sich nicht einbetten – öffnet außerhalb (Launcher). Strg/⌘+Enter: ${HOW_NAME[launchHow === 'tab' ? 'window' : 'tab']}` : h.bookmark.url,
+        );
+      }
+      case 'decision': {
+        const d = it.hit;
+        const where = DECISION_TEXT.searchWhere(ws.projects?.find((x) => x.id === d.projectId)?.name);
+        const state = DECISION_TEXT.states[d.state] ?? '';
+        return opt(
+          DECISION_TEXT.searchLabel(d.title, state, where),
+          <>
+            <span className="search__title">
+              <Icon name="sliders" className="icon search__icon" />
+              {d.title}
+              {kindTag('decision')}
+            </span>
+            <span className="search__where">
+              <span className="search__panel">{where}</span>
+              <span className="search__cat">{state}</span>
+            </span>
+          </>,
         );
       }
       case 'note': {

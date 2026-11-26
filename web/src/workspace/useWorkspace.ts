@@ -41,6 +41,15 @@ import * as Sc from './schedule';
 import * as Gt from './gantt';
 import * as Fb from './feedback';
 import * as Dc from './decisions';
+import * as Pr from './prepare';
+/** V108 (F-222 E2): Namen für vorbereitete Entscheidungen – als Listen, damit die Aktion nur Daten trägt. */
+export type PrepareNames = { criterion: string[]; option: string[]; changeCriteria: string[]; changeOptions: string[] };
+const prepareTexts = (n: PrepareNames): Pr.PrepareTexts => ({
+  criterion: (i) => n.criterion[i - 1] ?? `${i}`,
+  option: (i) => n.option[i - 1] ?? `${i}`,
+  changeCriteria: n.changeCriteria,
+  changeOptions: n.changeOptions,
+});
 import * as Rk from './risks';
 import * as Sp from './sampleProject';
 import * as FL from './focusLoad';
@@ -237,6 +246,10 @@ export type Action =
   | { type: 'steerTask'; id: string; task: string; at: number; by?: string }
   | { type: 'fbBecome'; id: string; kind: Rk.SteerType; note: string; label: string; at: number; by?: string }
   | { type: 'fbBecomeUndo'; undo: Rk.BecomeUndo }
+  /** V108 (F-222 E2): Entscheidung vorbereiten aus Notiz/Änderungsantrag bzw. Projektmeldung „Wird zu …“ › Entscheidung */
+  | { type: 'dcPrepare'; from: Pr.PrepareFrom; id: string; ids: string[]; at: string; names: PrepareNames }
+  | { type: 'fbBecomeDecision'; id: string; decision: string; ids: string[]; label: string; at: number; by?: string; names: PrepareNames }
+  | { type: 'fbBecomeDecisionUndo'; undo: Pr.DecisionBecomeUndo }
   // F-222 (V104): Nutzwertanalyse
   | { type: 'dcAdd'; id: string; ids: string[]; title: string; projectId?: string; at: string; names: { criterion: string[]; option: string[] } }
   | { type: 'dcExample'; id: string; ids: string[]; which: 'flat' | 'painter'; projectId?: string; at: string }
@@ -520,6 +533,12 @@ function step(ws: Workspace, a: Action): Workspace {
       return Rk.becomeFromFeedback(ws, a.id, a.kind, { id: a.note, label: a.label, now: a.at, by: a.by })?.ws ?? ws;
     case 'fbBecomeUndo':
       return Rk.undoBecome(ws, a.undo);
+    case 'dcPrepare':
+      return Pr.prepareDecision(ws, a.from, prepareTexts(a.names), { id: a.id, ids: a.ids, now: new Date(a.at) })?.ws ?? ws;
+    case 'fbBecomeDecision':
+      return Pr.becomeDecision(ws, a.id, prepareTexts(a.names), { id: a.decision, ids: a.ids, label: a.label, now: a.at, by: a.by })?.ws ?? ws;
+    case 'fbBecomeDecisionUndo':
+      return Pr.undoBecomeDecision(ws, a.undo);
     case 'fbAskEase':
       return Fb.setAskEase(ws, a.on);
     case 'sampleProject':

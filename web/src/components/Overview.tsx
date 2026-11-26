@@ -8,7 +8,7 @@ import type { ScreenSetup } from '../workspace/screen';
 import { windowName } from '../workspace/windows';
 import { DEFAULT_MIN, NEW_AREA, loadColor, newId } from '../workspace/workspace';
 import type { MoveTarget } from '../workspace/move';
-import { FEEDBACK_COCKPIT_TEXT, NOTES_COCKPIT_TEXT, PERSONS_TEXT, FOCUS_TEXT, NT_TEXT, PAD_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, STAGE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
+import { DECISION_TEXT, FEEDBACK_COCKPIT_TEXT, NOTES_COCKPIT_TEXT, PERSONS_TEXT, FOCUS_TEXT, NT_TEXT, PAD_TEXT, ARRANGE_TEXT, COCKPIT_TEXT, DESK_LAYOUT_TEXT, JACKPOT_TEXT, RULES_TEXT, SLOT_FILE_TEXT, STAGE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
 import type { Shown } from '../workspace/look';
 import { type Action, padOpenResult } from '../workspace/useWorkspace';
 import { Rules } from './Rules';
@@ -18,6 +18,7 @@ import { ModeWheel } from './ModeWheel';
 import { NotesCockpit } from './NotesCockpit';
 import { PersonCockpit } from './PersonCockpit';
 import { FeedbackCockpit } from './FeedbackCockpit';
+import { Decisions } from './ProjectDecisions';
 import { FocusCockpit } from './FocusCockpit';
 import { Icon } from './Icon';
 import * as St from '../workspace/stage';
@@ -140,6 +141,9 @@ export interface OverviewProps {
   startNotes?: boolean;
   /** F-221 Bau 4 (V103): gleich in der Ansicht „Feedback“ öffnen */
   startFeedback?: boolean;
+  /** V108 (F-222 E1/E6): Cockpit gleich in „Entscheidungen“, optional mit dieser Entscheidung offen. */
+  startDecisions?: boolean;
+  openDecision?: string | null;
   /** V90 (Enrico): im Cockpit „Notizen“ neue Pads und Sheets anlegen (wie im Menü Notizen & Aufgaben). */
   onNotesNew?: (kind: 'pad' | 'todo' | 'kanban' | 'eisenhower') => void;
   opacity?: { pads: number; dock: number; setPads: (v: number) => void; setDock: (v: number) => void };
@@ -254,21 +258,24 @@ export function Overview(p: OverviewProps) {
   const [persons, setPersons] = useState(false);
   /** F-221 Bau 4 (V103, FB8): Ansicht „Feedback“ – Board der Meldungen. */
   const [feedback, setFeedback] = useState(!!p.startFeedback && !!p.dispatch);
+  /** V108 (F-222 E1): Ansicht „Entscheidungen“ – alle Nutzwertanalysen, frei und aus Projekten. */
+  const [decisions, setDecisions] = useState(!!p.startDecisions && !!p.dispatch);
   /** V95 (Bau 5): Seite „Fokus“ im Cockpit „Notizen“ (Rad Notizen · Fokus · Regeln). */
   const [focusView, setFocusView] = useState(!!p.startFocus && canNotes);
-  type Mode = 'portals' | 'notes' | 'persons' | 'layouts' | 'sources' | 'feedback';
-  const mode: Mode = feedback ? 'feedback' : layouts ? 'layouts' : sources ? 'sources' : persons ? 'persons' : notes ? 'notes' : 'portals';
-  const modes: Mode[] = ['portals', ...(canNotes ? (['notes', 'persons'] as Mode[]) : []), ...(p.layoutOps ? (['layouts'] as Mode[]) : []), 'sources', ...(p.dispatch ? (['feedback'] as Mode[]) : [])];
+  type Mode = 'portals' | 'notes' | 'persons' | 'layouts' | 'sources' | 'feedback' | 'decisions';
+  const mode: Mode = decisions ? 'decisions' : feedback ? 'feedback' : layouts ? 'layouts' : sources ? 'sources' : persons ? 'persons' : notes ? 'notes' : 'portals';
+  const modes: Mode[] = ['portals', ...(canNotes ? (['notes', 'persons'] as Mode[]) : []), ...(p.layoutOps ? (['layouts'] as Mode[]) : []), 'sources', ...(p.dispatch ? (['feedback', 'decisions'] as Mode[]) : [])];
   const setMode = (m: Mode) => {
     setLayouts(m === 'layouts');
     setSources(m === 'sources');
     setNotes(m === 'notes');
     setPersons(m === 'persons');
     setFeedback(m === 'feedback');
+    setDecisions(m === 'decisions');
     setFocusView(false);
     setRules(false);
     setQuery('');
-    setSaid(m === 'layouts' ? DESK_LAYOUT_TEXT.modeOn : m === 'sources' ? DESK_LAYOUT_TEXT.modeSourcesOn : m === 'notes' ? NOTES_COCKPIT_TEXT.modeOn : m === 'persons' ? PERSONS_TEXT.modeOn : m === 'feedback' ? FEEDBACK_COCKPIT_TEXT.modeOn : '');
+    setSaid(m === 'layouts' ? DESK_LAYOUT_TEXT.modeOn : m === 'sources' ? DESK_LAYOUT_TEXT.modeSourcesOn : m === 'notes' ? NOTES_COCKPIT_TEXT.modeOn : m === 'persons' ? PERSONS_TEXT.modeOn : m === 'feedback' ? FEEDBACK_COCKPIT_TEXT.modeOn : m === 'decisions' ? DECISION_TEXT.modeOn : '');
   };
   /** Pfeil runter im Filterfeld → erste Zeile der Notizen-Liste. */
   const notesFirst = useRef<(() => void) | null>(null);
@@ -905,8 +912,8 @@ export function Overview(p: OverviewProps) {
               onChange={(m) => setMode(m as Mode)}
               options={modes.map((m) => ({
                 id: m,
-                name: m === 'feedback' ? FEEDBACK_COCKPIT_TEXT.mode : m === 'layouts' ? DESK_LAYOUT_TEXT.modeLayouts : m === 'sources' ? DESK_LAYOUT_TEXT.modeSources : m === 'notes' ? NOTES_COCKPIT_TEXT.mode : m === 'persons' ? PERSONS_TEXT.mode : DESK_LAYOUT_TEXT.modePortals,
-                icon: m === 'feedback' ? 'feedback' : m === 'layouts' ? 'layouts' : m === 'sources' ? 'source' : m === 'notes' ? 'notesTasks' : m === 'persons' ? 'catPeople' : 'radar',
+                name: m === 'decisions' ? DECISION_TEXT.mode : m === 'feedback' ? FEEDBACK_COCKPIT_TEXT.mode : m === 'layouts' ? DESK_LAYOUT_TEXT.modeLayouts : m === 'sources' ? DESK_LAYOUT_TEXT.modeSources : m === 'notes' ? NOTES_COCKPIT_TEXT.mode : m === 'persons' ? PERSONS_TEXT.mode : DESK_LAYOUT_TEXT.modePortals,
+                icon: m === 'decisions' ? 'sliders' : m === 'feedback' ? 'feedback' : m === 'layouts' ? 'layouts' : m === 'sources' ? 'source' : m === 'notes' ? 'notesTasks' : m === 'persons' ? 'catPeople' : 'radar',
               }))}
             />
           )}
@@ -1042,7 +1049,9 @@ export function Overview(p: OverviewProps) {
               />
             );
           })()}
-        {feedback && p.dispatch ? (
+        {decisions && p.dispatch ? (
+          <Decisions ws={p.ws} dispatch={p.dispatch} say={setSaid} open={p.openDecision} />
+        ) : feedback && p.dispatch ? (
           <FeedbackCockpit ws={p.ws} dispatch={p.dispatch} say={setSaid} onTourAuto={p.onFeedbackTour ? () => p.onFeedbackTour!(true) : undefined} />
         ) : persons && p.dispatch ? (
           <PersonCockpit ws={p.ws} dispatch={p.dispatch} say={setSaid} />

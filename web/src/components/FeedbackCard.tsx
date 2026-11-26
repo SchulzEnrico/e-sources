@@ -15,9 +15,12 @@ import * as Pj from '../workspace/projects';
 import * as Rk from '../workspace/risks';
 import { noteById } from '../workspace/notes';
 import { openSteer } from './ProjectSteer';
+import { openDecision, prepareNames } from './ProjectDecisions';
+import * as Dc from '../workspace/decisions';
+import * as Pr from '../workspace/prepare';
 import { getPic, putPic, shrinkImage } from '../workspace/imageStore';
 import { newId } from '../workspace/workspace';
-import { FEEDBACK_CARD_TEXT as C, FEEDBACK_TEXT as T, PROJECT_FEEDBACK_TEXT as PF, STEER_TEXT as ST } from '../workspace/terms';
+import { DECISION_TEXT as DT, FEEDBACK_CARD_TEXT as C, FEEDBACK_TEXT as T, PROJECT_FEEDBACK_TEXT as PF, STEER_TEXT as ST } from '../workspace/terms';
 
 /** F-225 (V106): „keine Auswahl“ im Rad eines eigenen Auswahl-Felds */
 const NONE = '__none';
@@ -132,7 +135,7 @@ export function FeedbackCard(props: {
   const [markKind, setMarkKind] = useState<'note' | 'decision' | 'ref'>('note');
   const [markText, setMarkText] = useState('');
   // V107 (F-225 P8, R7): „Wird zu …“ – Meldung am Ort mit Rückgängig
-  const [become, setBecome] = useState<{ text: string; undo: Rk.BecomeUndo } | null>(null);
+  const [become, setBecome] = useState<{ text: string; undo?: Rk.BecomeUndo; dcUndo?: Pr.DecisionBecomeUndo } | null>(null);
   const by = ws.profile?.name || undefined;
   // V105 (F-224): ohne Befugnis „Feedback bearbeiten“ nie Bearbeitung
   const triage = (props.triage ?? loadTriage()) && Ps.canTriage(ws);
@@ -440,19 +443,37 @@ export function FeedbackCard(props: {
           )}
           {/* V107 (F-225 P8, R7): Meldung wird zu Risiko bzw. Änderungsantrag des Projekts (ICB4) */}
           {triage && proj && (() => {
-            const made = f.became ? noteById(ws, f.became.note) : undefined;
-            if (made && f.became)
+            // V108 (F-222 E2): Meldung wurde zu einer Entscheidung (Nutzwertanalyse)
+            const madeDc = f.became?.type === 'decision' ? Dc.decisionsOf(ws).find((x) => x.id === f.became!.note) : undefined;
+            if (madeDc)
+              return (
+                <div className="fbc__wheel fbc__become">
+                  <span className="fbq__label">{DT.becameDecision}</span>
+                  <span>
+                    {madeDc.title}{' '}
+                    <button type="button" className="help__run" onClick={() => (finish(), openDecision(madeDc.id))}>{DT.openIt}</button>
+                  </span>
+                  {become && (
+                    <span className="fbc__saved" role="status">
+                      {become.text}{' '}
+                      <button type="button" className="note__undo" onClick={() => (dispatch(become.dcUndo ? { type: 'fbBecomeDecisionUndo', undo: become.dcUndo } : { type: 'fbBecomeUndo', undo: become.undo! }), setBecome(null))}>{ST.undo}</button>
+                    </span>
+                  )}
+                </div>
+              );
+            const made = f.became && f.became.type !== 'decision' ? noteById(ws, f.became.note) : undefined;
+            if (made && f.became && f.became.type !== 'decision')
               return (
                 <div className="fbc__wheel fbc__become">
                   <span className="fbq__label">{ST.became[f.became.type]}</span>
                   <span>
                     <b>{Rk.steerCode(ws, made)}</b> {made.title}{' '}
-                    <button type="button" className="help__run" onClick={() => (finish(), openSteer(proj.id, made.id, f.became!.type))}>{ST.open}</button>
+                    <button type="button" className="help__run" onClick={() => (finish(), openSteer(proj.id, made.id, f.became!.type as Rk.SteerType))}>{ST.open}</button>
                   </span>
                   {become && (
                     <span className="fbc__saved" role="status">
                       {become.text}{' '}
-                      <button type="button" className="note__undo" onClick={() => (dispatch({ type: 'fbBecomeUndo', undo: become.undo }), setBecome(null))}>{ST.undo}</button>
+                      <button type="button" className="note__undo" onClick={() => (dispatch({ type: 'fbBecomeUndo', undo: become.undo! }), setBecome(null))}>{ST.undo}</button>
                     </span>
                   )}
                 </div>
@@ -466,12 +487,23 @@ export function FeedbackCard(props: {
               dispatch({ type: 'fbBecome', id, kind: k, note, label, at, by });
               setBecome({ text: ST.becameShort(k, r.code), undo: r.undo });
             };
+            const makeDecision = () => {
+              const decision = newId();
+              const ids = Array.from({ length: 6 }, newId);
+              const at = Date.now();
+              const names = prepareNames();
+              const r = Pr.becomeDecision(ws, id, { criterion: (n) => names.criterion[n - 1], option: (n) => names.option[n - 1], changeCriteria: names.changeCriteria, changeOptions: names.changeOptions }, { id: decision, ids, label: DT.becameDecision, now: at, by });
+              if (!r) return;
+              dispatch({ type: 'fbBecomeDecision', id, decision, ids, label: DT.becameDecision, at, by, names });
+              setBecome({ text: DT.prepared(f.title), dcUndo: r.undo });
+            };
             return (
               <div className="fbc__wheel fbc__become" role="group" aria-label={ST.become}>
                 <span className="fbq__label">{ST.become}</span>
                 <span>
                   <button type="button" className="help__run" onClick={() => make('risk')}>{ST.becomeRisk}</button>{' '}
-                  <button type="button" className="help__run" onClick={() => make('change')}>{ST.becomeChange}</button>
+                  <button type="button" className="help__run" onClick={() => make('change')}>{ST.becomeChange}</button>{' '}
+                  <button type="button" className="help__run" title={DT.prepareHint} onClick={makeDecision}>{DT.becomeDecision}</button>
                 </span>
                 <span className="fbq__hint">{ST.becomeHint}</span>
               </div>

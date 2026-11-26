@@ -4,7 +4,7 @@ Stand: 25.11.2026 · Chat V107 · Nächster Chat: **V108 E-Sources**
 
 ## Startanweisung für den neuen Chat
 
-> Das ist Chat **V108 E-Sources**. Lies diese Übergabedatei, dann im Lastenheft **F-225** (P8 V107), **F-222** (Stand V104) und **F-206 Schritt 10**. Docs: P8 https://claude.ai/artifact/6icqBwu4pHmFXDH8W59uJQ (PDF `docs/Arbeitspakete/F-225_V107_Wird-zu_Risiko_Aenderung.pdf`), F-225 https://claude.ai/artifact/VdDsnvWqaEfEx6dFrLS17N, F-222 https://claude.ai/artifact/LJyPmsG7JhmEaCxqAavh1N. **Termin Fr 04.12.2026**, Enricos Testphase ab 07.12. Weiter gelten V98-Doc (K1–K8), V96-Doc, F-220 (R1–R7). Leitlinien: **Trello**, **IPMA ICB4**, **MS Project / iTaskX**, Design und Anordnung an unsere UX/UI angepasst, **Funktion vor Design**, NF-08. Arbeitsregeln und Technik `V61_Uebergabe_E-Sources.md` (+ Nachtrag), Umschalt-Rad `V83_…`, Vorlagen `docs/Arbeitspakete/Vorlagen/LIESMICH.md`; kleine Punkte aus `V74_`–`V107_…` gelten weiter. **Zuerst Enrico nach Live-Test-Ergebnissen fragen** (in V106 und V107 kam der Text nicht mit – nur „…“; bitte als Text schicken lassen). Dann „Nächste Schritte“ ab 1.
+> Das ist Chat **V108 E-Sources**. Lies diese Übergabedatei, dann im Lastenheft **F-225** (P8 V107), **F-222** (Stand V104) und **F-206 Schritt 10**. Docs: P8 https://claude.ai/artifact/6icqBwu4pHmFXDH8W59uJQ (PDF `docs/Arbeitspakete/F-225_V107_Wird-zu_Risiko_Aenderung.pdf`), F-225 https://claude.ai/artifact/VdDsnvWqaEfEx6dFrLS17N, F-222 https://claude.ai/artifact/LJyPmsG7JhmEaCxqAavh1N. **Termin Fr 04.12.2026**, Enricos Testphase ab 07.12. Weiter gelten V98-Doc (K1–K8), V96-Doc, F-220 (R1–R7). Leitlinien: **Trello**, **IPMA ICB4**, **MS Project / iTaskX**, Design und Anordnung an unsere UX/UI angepasst, **Funktion vor Design**, NF-08. Arbeitsregeln und Technik `V61_Uebergabe_E-Sources.md` (+ Nachtrag), Umschalt-Rad `V83_…`, Vorlagen `docs/Arbeitspakete/Vorlagen/LIESMICH.md`; kleine Punkte aus `V74_`–`V107_…` gelten weiter. Dann „Nächste Schritte“ ab 1.
 
 ## Was in V107 passiert ist
 
@@ -23,10 +23,9 @@ Stand: 25.11.2026 · Chat V107 · Nächster Chat: **V108 E-Sources**
 
 ## Nächste Schritte
 
-1. **Enricos Live-Test-Ergebnisse** abarbeiten (Fehler zuerst).
-2. **F-222 Rest:** freie Entscheidungen ohne Projekt (Ort), Bezüge N5 + „Entscheidung vorbereiten …“ (auch an Änderungsanträgen, siehe P8-Doc „Was später davon abhängt“), Beispiel Wohnung, Tour „Entscheidungen“, Ziehen zum Umsortieren, Punkte-Spalten.
-3. Dann Schritt 10: **Meilensteine** → **Basisplan** (Vermerk „neu wegen Änderung Ä-n“ möglich) → **Netzplan** → **F-220** → Ressourcen je Projekt → Bericht (Top-Risiken, offene Änderungen aus `steerCounts`/`risksOf`) → Projekt-Desk.
-4. **Prüfliste für Enrico** (alles aus V77–V106 plus):
+1. **F-222 Rest:** freie Entscheidungen ohne Projekt (Ort), Bezüge N5 + „Entscheidung vorbereiten …“ (auch an Änderungsanträgen, siehe P8-Doc „Was später davon abhängt“), Beispiel Wohnung, Tour „Entscheidungen“, Ziehen zum Umsortieren, Punkte-Spalten.
+2. Dann Schritt 10: **Meilensteine** → **Basisplan** (Vermerk „neu wegen Änderung Ä-n“ möglich) → **Netzplan** → **F-220** → Ressourcen je Projekt → Bericht (Top-Risiken, offene Änderungen aus `steerCounts`/`risksOf`) → Projekt-Desk.
+3. **Prüfliste für Enrico** (alles aus V77–V106 plus):
    - `npm test` in `web/`.
    - Projekt-Modus › Rad „Ansicht“: Risiken und Änderungen vorhanden; Projektliste/PSP/Gantt zeigen Risiken und Änderungen nicht als Vorgänge.
    - Beispielprojekt anlegen (⚙): Risiken CG-R-1…3, Matrix zeigt CG-R-1 bei W 3 × A 5 (rot), Liste nach Wert; Änderung CG-Ä-1.

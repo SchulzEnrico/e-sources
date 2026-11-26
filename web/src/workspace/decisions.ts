@@ -488,6 +488,20 @@ export function undoRemoveDecision(ws: Workspace, u: DecisionUndo): Workspace {
   return { ...ws, decisions: list };
 }
 
+/**
+ * V108 (F-222 E6): Suche – Entscheidungen, in deren Titel, Frage, Kriterien oder Lösungen jedes Wort der Suche
+ * vorkommt (ohne Groß-/Kleinschreibung und Akzente). Leere Suche = keine Treffer.
+ */
+export function searchDecisions(ws: Workspace, query: string): Decision[] {
+  const f = (t: string) => t.toLocaleLowerCase('de').normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+  const words = f(query).split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  return decisionsOf(ws).filter((d) => {
+    const hay = f([d.title, d.question ?? '', ...d.criteria.map((c) => c.name), ...d.options.map((o) => o.name)].join(' '));
+    return words.every((w) => hay.includes(w));
+  });
+}
+
 /** Entscheidungen eines Projekts (oder freie, ohne Projekt), neueste zuerst. */
 export const decisionsFor = (ws: Workspace, projectId: string | null): Decision[] =>
   decisionsOf(ws)

@@ -57,6 +57,7 @@ import { Help } from './components/Help';
 import { Tour } from './components/Tour';
 import { ProjectCockpit, shownProjectId } from './components/ProjectCockpit';
 import { STEER_EVENT } from './components/ProjectSteer';
+import { DECISION_EVENT } from './components/ProjectDecisions';
 import { SlotMachine } from './components/SlotMachine';
 import { type Cleanup, type InviteWhy, type RedundantSlot, INVITE_KEY, INVITE_LATER, INVITE_PAUSE, dupCount, inviteWhy } from './workspace/jackpot';
 import { TOUR_EVENT, type TourId, setToursAuto, tourAutoStart, tourRequestedAuto, toursAuto } from './workspace/tour';
@@ -374,6 +375,7 @@ function DeskApp(props: DeskProps) {
     setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
     setOverviewFocus(false);
     setOverviewFeedback(false);
+    setOverviewDecision(null);
     setOverviewNotes(notesModeRef.current); // V85: Fokus-Knopf öffnet die Portale – V90: im Notizen-Modus die Notizen
     setOverview((o) => !o);
   }, []);
@@ -477,6 +479,7 @@ function DeskApp(props: DeskProps) {
     window.setTimeout(() => setTour('feedback'), 300);
   };
   const openFeedbackCockpitRef = useRef<() => void>(() => {});
+  const openDecisionRef = useRef<(id?: string) => void>(() => {});
   // F-156: „?“ (außerhalb von Eingabefeldern) öffnet die Hilfe.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -509,6 +512,8 @@ function DeskApp(props: DeskProps) {
   const [overviewNotes, setOverviewNotes] = useState(false);
   /** F-221 Bau 4 (V103): Cockpit gleich in „Feedback“ */
   const [overviewFeedback, setOverviewFeedback] = useState(false);
+  /** V108 (F-222 E1/E6): Cockpit „Entscheidungen“ – '' = ohne bestimmte Entscheidung, sonst deren Id. */
+  const [overviewDecision, setOverviewDecision] = useState<string | null>(null);
   /** V95 (Bau 5): Fokus-Zeile öffnet „Notizen“ › „Fokus“. */
   const [overviewFocus, setOverviewFocus] = useState(false);
   const [layoutUndo, setLayoutUndo] = useState<DeletedLayout | null>(null);
@@ -1337,6 +1342,12 @@ function DeskApp(props: DeskProps) {
     if (!projectsMode && !notesOff) setDeskMode('projects');
     window.setTimeout(() => setTour('projects'), projectsMode ? 0 : 400);
   };
+  // V108 (F-222 E2): „Öffnen“ an einer vorbereiteten Entscheidung – Cockpit „Entscheidungen“ mit ihr
+  useEffect(() => {
+    const on = (e: Event) => openDecisionRef.current((e as CustomEvent<string>).detail);
+    window.addEventListener(DECISION_EVENT, on);
+    return () => window.removeEventListener(DECISION_EVENT, on);
+  }, []);
   // V107 (F-225 P8, R7): „Öffnen“ an Risiko/Änderung aus einer Meldung – in den Projekt-Modus wechseln
   useEffect(() => {
     const on = () => {
@@ -1859,12 +1870,27 @@ function DeskApp(props: DeskProps) {
     setOverviewNotes(false);
     setOverviewFocus(false);
     setOverviewFeedback(true);
+    setOverviewDecision(null);
+    setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
+    setOverview(false);
+    window.setTimeout(() => setOverview(true), 0);
+  }
+  /** V108 (F-222 E1/E6): Cockpit „Entscheidungen“, optional mit einer Entscheidung offen (Suche, „Öffnen“). */
+  openDecisionRef.current = (id) => openDecisionCockpit(id);
+  function openDecisionCockpit(id?: string) {
+    setOverviewRules(false);
+    setOverviewLayouts(false);
+    setOverviewNotes(false);
+    setOverviewFocus(false);
+    setOverviewFeedback(false);
+    setOverviewDecision(id ?? '');
     setOverviewTop((toolbarRef.current?.getBoundingClientRect().bottom ?? 60) + 6);
     setOverview(false);
     window.setTimeout(() => setOverview(true), 0);
   }
   const openNotesCockpit = () => {
     setOverviewFeedback(false);
+    setOverviewDecision(null);
     setOverviewRules(false);
     setOverviewLayouts(false);
     setOverviewNotes(true);
@@ -3699,7 +3725,7 @@ function DeskApp(props: DeskProps) {
           </button>
         )}
         {/* F-34: zentrales Suchfeld über alle Lesezeichen */}
-        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} onRun={runHelp} onHelp={(id) => setHelpAt({ at: id })} launchHow={launcher.how} onWebSearch={webSearch} engineName={engineOf(ws).name} onPickCase={pickCaseHere} onOpenNote={openNoteHit} />
+        <Search ws={ws} activeName={ws.panels.find((x) => x.id === currentPanel())?.name ?? null} onOpen={openHit} onShowPanel={showPanel} onRun={runHelp} onHelp={(id) => setHelpAt({ at: id })} launchHow={launcher.how} onWebSearch={webSearch} engineName={engineOf(ws).name} onPickCase={pickCaseHere} onOpenNote={openNoteHit} onOpenDecision={(id) => openDecisionRef.current(id)} />
         {/* F-40: Launcher für Sources, die sich nicht einbetten lassen */}
         {(() => {
           const n = launcherCount(ws);
@@ -4553,6 +4579,7 @@ function DeskApp(props: DeskProps) {
             setOverviewNotes(false);
             setOverviewFocus(false);
             setOverviewFeedback(false);
+            setOverviewDecision(null);
             setLayoutUndo(null);
             setResetUndo(null);
           }}
@@ -4575,6 +4602,8 @@ function DeskApp(props: DeskProps) {
           startLayouts={overviewLayouts}
           startNotes={overviewNotes}
           startFeedback={overviewFeedback}
+          startDecisions={overviewDecision !== null}
+          openDecision={overviewDecision || null}
           startFocus={overviewFocus}
           onNotesNew={notesOff ? undefined : (kind) => (kind === 'pad' ? newPad(false) : newNoteHere(kind, undefined, false))}
           onShowPad={notesOff ? undefined : showPad}

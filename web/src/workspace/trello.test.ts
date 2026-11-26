@@ -201,4 +201,13 @@ describe('F-230 Trello (V119)', () => {
     expect(T.importTrello(ws, '{"name":"x"}').ok).toBe(false);
     expect(T.importTrello(ws, 'kein json').ok).toBe(false);
   });
+
+  it('Kommentare und Anhänge zum Lesen (V119)', () => {
+    const r = imp();
+    const ns = cardNotes(r.ws, r.project);
+    const x = T.trelloExtras(r.ws, ns[0])!;
+    expect(x.comments).toEqual([{ at: '2027-01-05T09:00:00.000Z', by: 'Anna Berg', text: 'Bitte bis Freitag' }]);
+    expect(x.attachments).toEqual([{ name: 'Plan.pdf', url: 'https://example.org/plan.pdf', upload: false }]);
+    expect(T.trelloExtras(r.ws, ns[1])).toBeNull();
+  });
 });

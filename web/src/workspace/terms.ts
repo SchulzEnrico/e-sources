@@ -1486,6 +1486,16 @@ export const EXCHANGE_TEXT = {
   kept: (n: number, app: string) => `${n} Angaben aus ${app} mitgeführt – unverändert, gehen beim Export zurück`,
 };
 
+export const TRELLO_EXTRAS_TEXT = {
+  head: (c: number, a: number) => `Aus Trello: ${[c ? `${c} ${c === 1 ? 'Kommentar' : 'Kommentare'}` : '', a ? `${a} ${a === 1 ? 'Anhang' : 'Anhänge'}` : ''].filter(Boolean).join(' · ')}`,
+  hint: 'Aus dem Trello-Import – nur zum Lesen; bleibt unverändert und geht beim Export nach Trello zurück',
+  comments: 'Kommentare aus Trello',
+  attachments: 'Anhänge aus Trello',
+  unknown: 'Unbekannt',
+  upload: 'In Trello hochgeladene Datei – öffnet sich nur mit Trello-Anmeldung',
+  uploadShort: 'in Trello hochgeladen',
+};
+
 export const DESK_PROJECT_TEXT = {
   menu: (desk: string) => `Desk „${desk}“: Projekt-Desk`,
   menuHint: 'Desk an ein Projekt binden, lösen, „Alles zeigen“',

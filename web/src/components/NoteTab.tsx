@@ -15,6 +15,7 @@ import { NoteEditor } from './NoteEditor';
 import { RemindChips } from './RemindChips';
 import { AudioChips } from './AudioChips';
 import { SourceChips } from './SourceChips';
+import { TrelloExtras } from './TrelloExtras';
 import { ProjectChip } from './ProjectChips';
 import { PeopleRow } from './PersonChips';
 import { recentPlaces } from '../workspace/remind';
@@ -306,6 +307,8 @@ export function NoteTab({ ws, noteId, dispatch, draft, sheet }: NoteProps) {
       {/* F-206 Schritt 6 (V93, Q1): Quellen der Notiz – wirken sofort, nicht Teil des Entwurfs */}
       <SourceChips ws={ws} note={raw} dispatch={dispatch} by={by} />
       <NoteEditor key={n.id} text={n.text} label={NOTE_TEXT.text} autoFocus={!n.text && !n.title && (freshNotes.delete(n.id) || !coarsePointer())} onChange={(text) => edit({ text })} />
+      {/* V119 (F-230): Kommentare und Anhänge aus Trello, nur lesen */}
+      <TrelloExtras ws={ws} note={raw} />
       {/* V74 (Wunsch Enrico): unter dem Textfeld nur noch der Zustand (Leiste unten); angelegt/geändert/von
           stehen im Tooltip des Zustands und für Bildschirmleser darin */}
       {draft && (

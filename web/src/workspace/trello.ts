@@ -715,3 +715,37 @@ function ownProject(p: Project): Partial<Project> {
   void _f, _i, _c, _ch;
   return rest;
 }
+
+// ---------- Anzeigen (nur lesen) ----------
+
+export interface TrelloExtras {
+  comments: { at: string; by: string; text: string }[];
+  attachments: { name: string; url: string; upload: boolean }[];
+}
+
+/**
+ * V119: Kommentare und Anhänge einer aus Trello importierten Karte zum Lesen in der Notiz (mitgeführt in
+ * `foreign.trello`). Autoren aus dem Kommentar selbst, sonst aus den Mitgliedern des Boards bzw. den Personen.
+ * `null` = nichts aus Trello.
+ */
+export function trelloExtras(ws: Workspace, n: Pick<Note, 'foreign' | 'project'>): TrelloExtras | null {
+  const t = n.foreign?.trello as Obj | undefined;
+  if (!t) return null;
+  const members = [...arr((projectById(ws, n.project)?.foreign?.trello as Obj | undefined)?.members), ...(ws.persons ?? []).map((p) => (p.foreign?.trello as Obj | undefined) ?? {})];
+  const nameOf = (id: string) => {
+    const m = members.find((x) => str(x.id) === id);
+    return m ? memberName(m) : '';
+  };
+  const comments = arr(t.comments)
+    .map((a) => ({
+      at: str(a.date),
+      by: (isObj(a.memberCreator) ? memberName(a.memberCreator as Obj) : '') || nameOf(str(a.idMemberCreator)),
+      text: isObj(a.data) ? str((a.data as Obj).text) : '',
+    }))
+    .filter((c) => c.text)
+    .sort((a, b) => a.at.localeCompare(b.at));
+  const attachments = arr(t.attachments)
+    .map((a) => ({ name: str(a.name).trim() || str(a.url), url: str(a.url), upload: a.isUpload === true }))
+    .filter((a) => /^https?:\/\//i.test(a.url));
+  return comments.length || attachments.length ? { comments, attachments } : null;
+}

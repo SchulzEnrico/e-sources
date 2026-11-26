@@ -4,7 +4,7 @@ Stand: 26.11.2026 · Chat V119 · Nächster Chat: **V120 E-Sources**
 
 ## Startanweisung für den neuen Chat
 
-> Das ist Chat **V120 E-Sources**. Lies diese Übergabedatei, dann im Lastenheft **F-230** (Absätze „Entschieden V118“, „Gebaut V118“ und **„Gebaut V119“**) und **F-227** (Handbuch). Entscheidungs-Doc **F-230** https://claude.ai/artifact/G7tBqH9dJ3MR2WCAjSLLcj ist entschieden (Option C; PDF `docs/Arbeitspakete/F-230_V118_Import-Export.pdf`). **Termin Fr 04.12.2026**, Enricos Testphase ab 07.12. Leitlinien: **Rangfolge 1. IPMA ICB4, 2. Funktionen von MS Project/iTaskX/Trello, 3. unsere Sicht und Verbesserungen**, Design und Anordnung an unsere UX/UI angepasst, **Funktion vor Design**, NF-08. Arbeitsregeln und Technik `V61_Uebergabe_E-Sources.md` (+ Nachtrag), Umschalt-Rad `V83_…`, kleine Punkte aus `V74_`–`V119_…` gelten weiter. **Handbuch** `docs/Handbuch/E-Sources_Handbuch.md` bei jeder Änderung mitführen. **Zuerst:** Liegen Enricos **Prüfdateien** (MS Project-XML, iTaskX-XML, Trello-JSON – F9) im Projektordner (vereinbart: `docs/Arbeitspakete/Pruefdateien/`, gitignore)? In V119 lagen sie nirgends unter `Projects/` – dann Rundlauf je Datei (Import → Export → Import) prüfen und nachbessern. Sonst „Nächste Schritte“ ab 2 **bauen**.
+> Das ist Chat **V120 E-Sources**. Lies diese Übergabedatei, dann im Lastenheft **F-230** (Absätze „Entschieden V118“, „Gebaut V118“ und **„Gebaut V119“**) und **F-227** (Handbuch). Entscheidungs-Doc **F-230** https://claude.ai/artifact/G7tBqH9dJ3MR2WCAjSLLcj ist entschieden (Option C; PDF `docs/Arbeitspakete/F-230_V118_Import-Export.pdf`). **Termin Fr 04.12.2026**, Enricos Testphase ab 07.12. Leitlinien: **Rangfolge 1. IPMA ICB4, 2. Funktionen von MS Project/iTaskX/Trello, 3. unsere Sicht und Verbesserungen**, Design und Anordnung an unsere UX/UI angepasst, **Funktion vor Design**, NF-08, **neu F-231: unser Kanban ist mindestens so leistungsfähig wie Trello**. Arbeitsregeln und Technik `V61_Uebergabe_E-Sources.md` (+ Nachtrag), Umschalt-Rad `V83_…`, kleine Punkte aus `V74_`–`V119_…` gelten weiter. **Handbuch** `docs/Handbuch/E-Sources_Handbuch.md` bei jeder Änderung mitführen. **Zuerst:** Liegen Enricos **Prüfdateien** (MS Project-XML, iTaskX-XML, Trello-JSON – F9) im Projektordner (vereinbart: `docs/Arbeitspakete/Pruefdateien/`, gitignore)? In V119 lagen sie nirgends unter `Projects/` – dann Rundlauf je Datei (Import → Export → Import) prüfen und nachbessern. Sonst „Nächste Schritte“ ab 3 **bauen**.
 
 **Tests** (VM ist nach jedem Chat leer – neu anlegen; **neu: trello**):
 ```
@@ -23,29 +23,32 @@ bash $HOME/vt2/run.sh
 
 ## Was in V119 passiert ist
 
-`npx tsc --noEmit -p .` sauber. Tests: workspace 526, persons 18, stage 4, noteSources 1, gpm 44, wheelOrder 5, calendar 5, resources 2, deskProject 6, mspdi 6, **trello 6** (neu) – alle grün.
+`npx tsc --noEmit -p .` sauber. Tests: workspace 526, persons 18, stage 4, noteSources 1, gpm 44, wheelOrder 5, calendar 5, resources 2, deskProject 6, mspdi 6, **trello 7** (neu) – alle grün.
 
 1. **Prüfdateien (F9):** im ganzen Ordner `Projects/` (auch gitignore-Ordner) keine MS-Project-, iTaskX- oder Trello-Datei gefunden → Enrico gebeten, sie nach `docs/Arbeitspakete/Pruefdateien/` zu legen. Rundlauf mit echten Dateien steht noch aus.
 2. **F-230 Bauplan 5 Trello gebaut** (`workspace/trello.ts`, Einzelheiten im Lastenheft „Gebaut V119“): Import Board-JSON → neues Projekt + Kanban-Sheet (Listen → Spalten, Karten → Vorgänge, Checklisten → Checkliste im Text „### ☑ Name“, Labels → Tags, Mitglieder → Personen mit F5-Rückfrage), alles Übrige in `foreign.trello`; Export zurück mit denselben Ids/pos/Feldern, eigener Abschnitt `eSources` (Notiz + `sent`) für das, was Trello nicht kennt.
 3. **Oberfläche:** „Exportieren …“ (Steckbrief und ⋮ am Desk) fragt am Ort „Exportieren für …“ – MS Project/iTaskX (XML) | Trello (JSON), vorgewählt nach Herkunft, Esc bricht ab. „Importieren …“ nimmt .xml und .json. Nach Trello-Import öffnet der eigene Desk das Kanban-Sheet gleich in einem Pad (`deskOwn` mit `sheet`). **Im Browser geprüft:** Formatwahl, Trello-Export mit Meldung am Ort, Trello-Import zweier Probe-Boards (Projekt, Desk, Pad mit Spalten).
 4. **Fehler behoben:** Rückfragen am Desk-⋮ (`.pjx__ask` in `.brand`) waren unlesbar – Knöpfe mit Deckkraft 0 und Text mit durchsichtiger Füllung aus dem Logo. Betraf auch V118 „Personen zusammenführen“ am Desk.
 5. Hilfe „Import und Export (MS Project, iTaskX, Trello)“, Begriff, Tour „Projekte“ (Schritt Import und Export), Handbuch V119 (7.3), Lastenheft, `APP_VERSION = 'V119'`.
-6. Kleine Punkte F-191 / R6 / Tour „Feedback“: geprüft, dass es reine Browser-Prüfungen sind (Tour „Feedback“ ist seit V104 gebaut) → in die Prüfliste.
+6. **Nachtrag (zweiter cpo):** Kommentare und Anhänge aus Trello in der Notiz sichtbar – `trelloExtras` + `components/TrelloExtras.tsx` unter dem Textfeld („Aus Trello: n Kommentare · n Anhänge“, aufklappbar, nur lesen); im Browser geprüft (Probe-Board C). **F-231 neu** (Wunsch Enrico): Kanban mindestens so leistungsfähig wie Trello – Leitlinie und Vergleichsliste im Lastenheft.
+7. Kleine Punkte F-191 / R6 / Tour „Feedback“: geprüft, dass es reine Browser-Prüfungen sind (Tour „Feedback“ ist seit V104 gebaut) → in die Prüfliste.
 
-**Im eingebauten Browser angelegt (nur dort, nicht in Enricos Chrome):** Projekte „Probe-Board V119“ und „Probe-Board B“ mit eigenen Desks – dürfen gelöscht werden.
+**Im eingebauten Browser angelegt (nur dort, nicht in Enricos Chrome):** Projekte „Probe-Board V119“, „Probe-Board B“ und „Probe-Board C“ mit eigenen Desks – dürfen gelöscht werden.
 
 ## Nächste Schritte
 
 1. **Prüfung F-230 mit Enricos Dateien (F9)** sobald sie da sind: je Datei Rundlauf, abweichendes nachbessern, je Datei ein Test (nur Erwartungen ins Repo).
-2. **Trello sichtbar machen:** Kommentare und Anhänge aus Trello in der Notiz anzeigen (heute nur mitgeführt – `foreign.trello.comments`, `attachments`), z. B. Abschnitt „Aus Trello“ in der Notiz, nur lesen.
+2. ~~Trello-Kommentare und -Anhänge sichtbar~~ – erledigt im Nachtrag V119.
 3. **Meldung nach Import:** Der Wechsel auf den neuen Desk ersetzt die Import-Meldung mit „Rückgängig“ (schon in V118) – Meldung samt Rückgängig auf dem neuen Desk zeigen, Rückgängig entfernt auch den Desk.
-4. Kanban im Projekt-Modus (Rad „Ansicht“ … · Kanban: Kanban-Sheet des Projekts) – Trello-Funktion im Projekt-Desk.
-5. Danach (F7): CSV/Excel und iCal.
-6. **Prüfliste für Enrico** (alles aus V77–V118 plus):
+4. **F-231:** Funktionsvergleich Trello ↔ unser Kanban als Claude Doc an der Seite anlegen (Spalten im Lastenheft F-231), PDF nach `docs/Arbeitspakete/`, Enricos Antwort abwarten, dann Lücken bauen (vor 04.12. die wichtigsten).
+5. Kanban im Projekt-Modus (Rad „Ansicht“ … · Kanban: Kanban-Sheet des Projekts) – Trello-Funktion im Projekt-Desk.
+6. Danach (F7): CSV/Excel und iCal.
+7. **Prüfliste für Enrico** (alles aus V77–V118 plus):
    - Seite neu laden, dann `npm test` in `web/`.
    - ⋮ neben dem Desk-Namen (gebundener Desk) › „Exportieren …“ → am ⋮ erscheint „Exportieren für …“ mit zwei Knöpfen, gut lesbar; Esc → „Export abgebrochen.“
    - „Trello (JSON)“ → `ColorGentlemen.trello.json` im Download-Ordner; Meldung am Ort.
    - In Trello ein Board › Menü „Drucken, Exportieren und Teilen“ › „Als JSON exportieren“ → in E-Sources „Importieren …“ → neues Projekt, eigener Desk, Kanban-Pad mit den Listen; Karten mit Fälligkeit, Checkliste (☑), Tags, Personen. Gibt es Mitglieder schon → Rückfrage am Ort (lesbar).
+   - Karte mit Kommentar oder Anhang öffnen → unter dem Text „Aus Trello: …“ aufklappen (auch Tab + Enter): Autor, Zeit, Text bzw. Link.
    - Dasselbe Projekt wieder als Trello-JSON exportieren und die Datei erneut importieren → gleiche Karten, Spalten, Checklisten.
    - MS-Project-/iTaskX-Prüfpunkte aus V118 (Export öffnen, XML importieren, wieder exportieren).
    - F-191: Dialoge mit Einstellungen haben einen sichtbaren Abschluss (Übernehmen/Fertig) – besonders neue Stellen seit V100 (Steckbrief, Kalender, Formulare, Import).
@@ -64,7 +67,7 @@ bash $HOME/vt2/run.sh
 
 ## Commit-Text V119 (e-sources)
 
-**Summary:** `V119: Import/Export für Trello (Board-JSON ohne Verlust, Kanban-Sheet, Checklisten, Labels, Mitglieder), Formatwahl beim Export, Rückfragen am Desk lesbar`
+**Summary (erster cpo):** `V119: Import/Export für Trello (Board-JSON ohne Verlust, Kanban-Sheet, Checklisten, Labels, Mitglieder), Formatwahl beim Export, Rückfragen am Desk lesbar`
 
 **Description:**
 ```
@@ -73,6 +76,21 @@ bash $HOME/vt2/run.sh
 - „Exportieren …“ fragt am Ort nach dem Format (MS Project/iTaskX oder Trello), „Importieren …“ erkennt XML/JSON; nach Trello-Import öffnet der eigene Desk das Kanban-Sheet im Pad
 - Behoben: Rückfragen am Desk-⋮ waren unlesbar (Knöpfe und Text im Logo-Bereich durchsichtig)
 - Hilfe, Begriff, Tour „Projekte“, Handbuch V119 (7.3), Lastenheft, Tests trello, Übergabe V119
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Thf8Q6wM9CkRy5egcnTy2D
+```
+
+## Commit-Text V119 Nachtrag (zweiter cpo)
+
+**Summary:** `V119 Nachtrag: Trello-Kommentare und -Anhänge in der Notiz lesbar, F-231 Kanban mindestens wie Trello`
+
+**Description:**
+```
+- Notiz zeigt unter dem Text „Aus Trello: n Kommentare · n Anhänge“ (aufklappbar, mit Tastatur): Autor, Zeit und Text der Kommentare, Anhänge als Link; nur lesen, gehen beim Export unverändert zurück
+- trelloExtras in trello.ts, Bauteil TrelloExtras, Test trello +1
+- F-231 neu im Lastenheft: Leitlinie „unser Kanban mindestens so leistungsfähig wie Trello“ mit Vergleichsliste, Funktionsvergleich als Doc im nächsten Chat
+- Handbuch 7.3, Lastenheft F-230, Übergabe V119 nachgezogen
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01Thf8Q6wM9CkRy5egcnTy2D

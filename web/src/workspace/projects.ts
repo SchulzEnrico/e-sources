@@ -262,7 +262,7 @@ export const rolesOf = (p: Project | undefined): ProjectRole[] => (p?.roles ?? D
 export const roleOf = (p: Project | undefined, id: string | undefined): ProjectRole | undefined => (id ? rolesOf(p).find((r) => r.id === id) : undefined);
 
 /** P3: Instanzen ändern – Name (leer = bleibt), Person zuordnen, hinzufügen, entfernen. */
-export function editRoles(ws: Workspace, id: string, op: { kind: 'name'; role: string; name: string } | { kind: 'person'; role: string; person?: string } | { kind: 'add'; name: string; rid: string } | { kind: 'remove'; role: string }): Workspace {
+export function editRoles(ws: Workspace, id: string, op: { kind: 'name'; role: string; name: string } | { kind: 'person'; role: string; person?: string } | { kind: 'add'; name: string; rid: string } | { kind: 'remove'; role: string } | { kind: 'akv'; role: string; key: 'tasks' | 'powers' | 'duty'; text?: string }): Workspace {
   const p = projectById(ws, id);
   if (!p) return ws;
   let roles = rolesOf(p);
@@ -277,8 +277,22 @@ export function editRoles(ws: Workspace, id: string, op: { kind: 'name'; role: s
     const name = op.name.replace(/\s+/g, ' ').trim().slice(0, 60);
     if (!name) return ws;
     roles = roles.map((r) => (r.id === op.role ? { ...r, name } : r));
+  } else if (op.kind === 'akv') {
+    // F-226 Stufe 2 (V113, L10): Aufgaben, Kompetenzen, Verantwortung an der Instanz
+    const t = (op.text ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 2000);
+    roles = roles.map((r) => {
+      if (r.id !== op.role) return r;
+      const next = { ...r };
+      if (t) next[op.key] = t;
+      else delete next[op.key];
+      return next;
+    });
   } else {
-    roles = roles.map((r) => (r.id === op.role ? (op.person ? { ...r, person: op.person } : { id: r.id, name: r.name }) : r));
+    roles = roles.map((r) => {
+      if (r.id !== op.role) return r;
+      const { person: _old, ...rest } = r; // eslint-disable-line @typescript-eslint/no-unused-vars
+      return op.person ? { ...rest, person: op.person } : rest;
+    });
   }
   return editProject(ws, id, { roles });
 }

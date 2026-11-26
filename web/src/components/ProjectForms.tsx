@@ -20,6 +20,16 @@ import { useOverflow } from './Overflow';
 import { OVERFLOW_TEXT } from '../workspace/terms';
 import { WorkPadButton } from './WorkPadOpen';
 import { requestTour, tourAutoStart } from '../workspace/tour';
+import * as Rp from '../workspace/gpmReport';
+import { costCurve, portfolioOf } from '../workspace/gpmCalc';
+import { APP_VERSION } from '../workspace/feedback';
+
+/** V113: Farben der Grafiken in der Oberfläche (folgen Darstellung und Akzentfarbe) */
+const UI_COLORS: Rp.SvgColors = { ink: 'var(--strong)', muted: 'var(--muted)', line: 'var(--line)', bar: 'rgba(var(--accent-rgb), 0.45)', sum: 'var(--accent)', budget: '#5fb36a', dot: 'var(--accent)' };
+const todayDay = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 const FORM_KEY = 'esource.formChapter.v1';
 const loadForm = (): string => {
@@ -49,6 +59,9 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
   const [panel, setPanel] = useState(false);
   const [useTask, setUseTask] = useState('');
   const [usePerson, setUsePerson] = useState('');
+  // V113: Einzelansicht (Arbeitspaket, Statusbericht) – gewählte Zeile; Ziel für neue Abnahmekriterien
+  const [rec, setRec] = useState('');
+  const [acceptTask, setAcceptTask] = useState('');
   const body = useRef<HTMLDivElement>(null);
   const by = ws.profile?.name || undefined;
   const base = inPad ? 'pjf-pad' : 'pjf';
@@ -95,11 +108,12 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
     const id = newId();
     const r = Fk.addRow(ws, p.id, form, { id, now: at, by, init });
     if (!r) {
-      tell(form.source === 'conflicts' ? T.conflictsNone : T.usesNone);
+      tell(form.source === 'conflicts' ? T.conflictsNone : form.source === 'accept' ? T.acceptNone : T.usesNone);
       return;
     }
     run({ op: 'add', pid: p.id, form, id, at, by, init });
     tell(T.added, () => run({ op: 'remove', pid: p.id, form, row: r.id, at: Date.now() }));
+    if (form.layout === 'record') setRec(r.id);
     focusRow(r.id);
   };
   const remove = (rowId: string, i: number) => {
@@ -127,6 +141,38 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
   const templates = Fk.templatesOf(ws);
   const tasks = Fk.rowsOf(ws, p.id, Fk.GPM_D.forms.find((f) => f.id === 'tasks')!);
   const persons = Ps.personList(ws);
+  const taskForm = Fk.GPM_D.forms.find((f) => f.id === 'tasks')!;
+  const msForm = Fk.GPM_D.forms.find((f) => f.id === 'milestones')!;
+  const targets = [...Fk.rowsOf(ws, p.id, msForm), ...tasks];
+  const recRow = rows.find((r) => r.id === rec) ?? rows[0];
+  const recAt = recRow ? rows.indexOf(recRow) : -1;
+  const openReport = () => {
+    const html = Rp.reportHtml(ws, p.id, { version: APP_VERSION, day: todayDay() });
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    const w = window.open(url, '_blank');
+    if (w) tell(T.reportOpened);
+    else {
+      // Fenster gesperrt (z. B. Pop-up-Blocker): Bericht unsichtbar laden und gleich den Druckdialog öffnen
+      document.querySelector('iframe.pjf__print')?.remove();
+      const fr = document.createElement('iframe');
+      fr.className = 'pjf__print';
+      fr.title = T.report;
+      fr.setAttribute('aria-hidden', 'true');
+      fr.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none';
+      fr.srcdoc = html;
+      fr.onload = () => {
+        fr.contentWindow?.focus();
+        fr.contentWindow?.print();
+      };
+      document.body.append(fr);
+      tell(T.reportSaved);
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+  };
+  const curve = form.layout === 'chart' ? costCurve(ws, p.id) : null;
+  const dots = form.layout === 'portfolio' ? portfolioOf(p) : [];
+  const dotsOpen = form.layout === 'portfolio' ? dots.filter((d) => (form.filter === 'sh' ? d.attitude === undefined || d.power === undefined : !d.side || !d.area)).length : 0;
+  const eur = (v: number) => `${v.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
 
   return (
     <section className="dc pjs pjf" aria-labelledby={`${base}-head`}>
@@ -153,7 +199,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
             />
           </span>
         )}
-        {Fk.canAddRow(form) && form.source !== 'uses' && (
+        {Fk.canAddRow(form) && form.source !== 'uses' && form.source !== 'accept' && (
           <button type="button" className="help__run pjf__addrow" title={T.addRowHint} onClick={() => add()}>
             <Icon name="plus" size={13} className="icon icon--inline" /> {T.addRow}
           </button>
@@ -169,6 +215,9 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
             {T.dup(dups.size)}
           </span>
         )}
+        <button type="button" className="help__run pjf__report" title={T.reportHint} onClick={openReport}>
+          <Icon name="export" size={13} className="icon icon--inline" /> {T.report}
+        </button>
         {!inPad && <WorkPadButton tab="forms" project={p.id} />}
         {topOvf.knob}
         <button type="button" className="help__run pjf__tour" title={T.tourHint} aria-label={T.tourHint} onClick={() => requestTour('forms')}>
@@ -209,8 +258,90 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
           <button type="submit" className="fbq__save" disabled={!useTask || !usePerson}>{T.usesAdd}</button>
         </form>
       )}
+      {form.source === 'accept' && (
+        <form className="dc__new" aria-label={T.addRowHint} onSubmit={(e) => (e.preventDefault(), add(acceptTask ? { task: acceptTask } : undefined))}>
+          <label>
+            <span className="fbq__label">{T.acceptAt}</span>
+            <select value={acceptTask} onChange={(e) => setAcceptTask(e.target.value)}>
+              <option value="">{T.none}</option>
+              {targets.map((t, i) => (
+                <option key={t.id} value={t.id}>{String(Fk.cellValue(ws, p.id, taskForm, t.id, 'code') ?? '')} {String(Fk.cellValue(ws, p.id, taskForm, t.id, 'title') ?? i + 1)}</option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="fbq__save" disabled={!targets.length}>{T.acceptAdd}</button>
+        </form>
+      )}
+      {form.layout === 'chart' && curve && (
+        <figure className="pjf__figure">
+          {curve.months.length ? (
+            <>
+              <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: Rp.curveSvg(curve, UI_COLORS, 720, 260) }} />
+              <figcaption className="help__text">
+                {T.chartSum(eur(curve.total), curve.hours.toLocaleString('de-DE'), curve.unplanned)}
+                {curve.actual > 0 && ` · ${T.chartActual(eur(curve.actual))}`}
+              </figcaption>
+            </>
+          ) : (
+            <p className="lc__muted">{T.chartNone}</p>
+          )}
+        </figure>
+      )}
+      {form.layout === 'portfolio' && (
+        <figure className="pjf__figure">
+          <div className="pjf__svg is-portfolio" dangerouslySetInnerHTML={{ __html: form.filter === 'sh' ? Rp.shSvg(dots, UI_COLORS) : Rp.envSvg(dots, UI_COLORS) }} />
+          <figcaption className="help__text">
+            {T.portfolioHint[form.filter ?? 'env']}
+            {dotsOpen > 0 && <> {T.portfolioOpen(dotsOpen)}</>}
+          </figcaption>
+        </figure>
+      )}
       <div ref={body} className="pjf__body">
-        {form.layout === 'fields' ? (
+        {form.layout === 'record' ? (
+          !recRow ? (
+            <p className="lc__muted">{T.recordNone[form.source] ?? T.empty}</p>
+          ) : (
+            <>
+              <div className="pjf__recbar">
+                <button type="button" className="remind__x" aria-label={T.recordPrev} title={T.recordPrev} disabled={recAt <= 0} onClick={() => setRec(rows[recAt - 1].id)}>
+                  <Icon name="chevronUp" size={12} />
+                </button>
+                <label>
+                  <span className="sr-only">{T.recordPick(T.recordWhat[form.source] ?? '')}</span>
+                  <select value={recRow.id} onChange={(e) => setRec(e.target.value)} aria-label={T.recordPick(T.recordWhat[form.source] ?? '')}>
+                    {rows.map((r, i) => (
+                      <option key={r.id} value={r.id}>
+                        {form.source === 'reports'
+                          ? `${Rp.displayValue(ws, p, { key: 'date', label: '', kind: 'date' }, Fk.cellValue(ws, p.id, form, r.id, 'date'))}`
+                          : `${'  '.repeat(r.depth ?? 0)}${String(Fk.cellValue(ws, p.id, form, r.id, 'code') ?? '')} ${rowLabel(r.id, i)}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="button" className="remind__x" aria-label={T.recordNext} title={T.recordNext} disabled={recAt >= rows.length - 1} onClick={() => setRec(rows[recAt + 1].id)}>
+                  <Icon name="chevronDown" size={12} />
+                </button>
+                <span className="lc__muted">{T.recordOf(recAt + 1, rows.length)}</span>
+                <button type="button" className="remind__x" aria-label={`${T.remove}: ${rowLabel(recRow.id, recAt)}`} title={T.remove} onClick={() => remove(recRow.id, recAt)}>
+                  <Icon name="trash" size={12} />
+                </button>
+              </div>
+              {form.source === 'reports' && <p className="help__text">{T.reportFrozen}</p>}
+              <div className="pjf__fields" data-row={recRow.id} key={recRow.id}>
+                {cols.map((c) => (
+                  <label key={c.key} className={`pjf__field${c.kind === 'long' || c.kind === 'lines' ? ' is-wide' : ''}`}>
+                    <span className="fbq__label">
+                      {c.label}
+                      {c.required && <span className="pjf__req" title={T.required} aria-label={T.required}>*</span>}
+                    </span>
+                    <Cell ws={ws} p={p} form={form} rowId={recRow.id} col={c} miss={miss.has(`${recRow.id}|${c.key}`)} label={c.label} onSet={setValue} />
+                    {c.help && <span className="pjf__help">{c.help}</span>}
+                  </label>
+                ))}
+              </div>
+            </>
+          )
+        ) : form.layout === 'fields' ? (
           <div className="pjf__fields" data-row={rows[0]?.id}>
             {cols.map((c) => (
               <label key={c.key} className={`pjf__field${c.kind === 'long' || c.kind === 'lines' ? ' is-wide' : ''}`}>
@@ -224,9 +355,10 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
             ))}
           </div>
         ) : !rows.length ? (
-          <p className="lc__muted">{form.source === 'persons' ? T.personsNone : form.source === 'conflicts' && (p.goals?.length ?? 0) < 2 ? T.conflictsNone : T.empty}</p>
+          form.layout === 'chart' ? null : <p className="lc__muted">{form.source === 'persons' ? T.personsNone : form.source === 'conflicts' && (p.goals?.length ?? 0) < 2 ? T.conflictsNone : T.empty}</p>
         ) : (
           <div className="pjs__left">
+            {form.layout === 'chart' && <p className="fbq__label pjf__tabhead">{T.chartTable}</p>}
             <table className="pc__table pjf__table" aria-labelledby={`${base}-head`}>
               <thead>
                 <tr>
@@ -260,7 +392,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
                             </button>
                           </>
                         )}
-                        {form.source !== 'persons' && (
+                        {form.source !== 'persons' && form.layout === 'table' && (
                           <button type="button" className="remind__x" aria-label={`${T.remove}: ${lbl}`} title={T.remove} onClick={() => remove(r.id, i)}>
                             <Icon name="trash" size={12} />
                           </button>
@@ -307,7 +439,7 @@ function Cell({ ws, p, form, rowId, col, miss, label, onSet }: { ws: Workspace; 
   };
   const common = { 'aria-label': label, 'aria-invalid': miss || undefined, 'aria-required': col.required || undefined } as const;
   if (col.readonly) {
-    const text = v === undefined || v === '' ? T.none : col.kind === 'money' ? `${fmtNum(v, 'money')} €` : String(v);
+    const text = v === undefined || v === '' ? T.none : col.kind === 'money' ? `${fmtNum(v, 'money')} €` : col.kind === 'date' && typeof v === 'string' ? dmy(v) : typeof v === 'number' ? `${fmtNum(v, col.kind)}${col.kind === 'pct' ? ' %' : ''}` : String(v);
     return <span className="pjf__ro" aria-label={`${label}: ${text}`}>{text}</span>;
   }
   if (col.kind === 'bool')

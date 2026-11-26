@@ -17,7 +17,9 @@ import type {
   ProjectForms,
   Workspace,
 } from './types';
-import { addItem, editCharter, editItem, goalsOf, moveItem, nextCode, planCost, planHours, removeItem, riskLevels, riskValue, riskValueAfter, setPhase, setUse, undoRemoveItem, useCost, type GpmList, type GpmUndo, GOAL_KINDS, GOAL_LEVELS, MODELS, PROCURE_STATES, STAKE_STRATEGIES } from './gpm';
+import { addItem, editCharter, editItem, goalsOf, moveItem, nextCode, parseWp, planCost, planHours, removeItem, riskLevels, riskValue, riskValueAfter, setPhase, setUse, undoRemoveItem, useCost, type GpmList, type GpmUndo, COMM_STRATEGIES, GOAL_KINDS, GOAL_LEVELS, MODELS, PROCURE_STATES, PROGRESS_METHODS, REPORT_LIGHTS, STAKE_STRATEGIES } from './gpm';
+import { costCurve, newReport, progressOf } from './gpmCalc';
+import { ganttOf } from './gantt';
 import { type Act, createNote, deleteNote, notesOf, type NoteUndo, restoreNotes, titleOf, updateNote } from './notes';
 import { editProject, editRoles, projectById, rolesOf } from './projects';
 import { addSteer, editRisk, risksOf, RISK_STATES, RISK_STRATEGIES, steerCode } from './risks';
@@ -51,6 +53,9 @@ export const PROCURE_STATE_LABEL = { open: 'offen', asked: 'angefragt', offered:
 export const MODEL_LABEL = { classic: 'klassisch', agile: 'agil', hybrid: 'hybrid' } as const;
 const RISK_STRATEGY_LABEL = { avoid: 'vermeiden', reduce: 'vermindern', transfer: 'übertragen', accept: 'akzeptieren' } as const;
 const RISK_STATE_LABEL = { open: 'offen', doing: 'in Bearbeitung', occurred: 'eingetreten', closed: 'erledigt' } as const;
+export const COMM_STRATEGY_LABEL = { push: 'Bringschuld', pull: 'Holschuld' } as const;
+export const REPORT_LIGHT_LABEL = { green: 'grün – im Plan', yellow: 'gelb – Abweichung, beherrschbar', red: 'rot – Eingriff nötig' } as const;
+export const PROGRESS_METHOD_LABEL = { zero: '0/100', half: '50/50', twenty: '20/80', effort: 'aufwandsproportional', steps: 'Meilensteine/Teilschritte', estimate: 'Schätzung' } as const;
 
 export const FIELDS: Record<FormSource, readonly FieldSpec[]> = {
   charter: [
@@ -184,6 +189,71 @@ export const FIELDS: Record<FormSource, readonly FieldSpec[]> = {
   roles: [
     { key: 'name', label: 'Rolle bzw. Instanz', kind: 'text', gpm: true },
     { key: 'person', label: 'Besetzt mit', kind: 'person', gpm: true },
+    { key: 'tasks', label: 'Aufgaben', kind: 'long', gpm: true, help: 'AKV: Was die Rolle im Projekt tut' },
+    { key: 'powers', label: 'Kompetenzen/Befugnisse', kind: 'long', gpm: true, help: 'AKV: Was die Rolle entscheiden und freigeben darf' },
+    { key: 'duty', label: 'Verantwortung', kind: 'long', gpm: true, help: 'AKV: Wofür die Rolle geradesteht' },
+  ],
+  // ---------------------------------------------------------------- Stufe 2 (V113)
+  accept: [
+    { key: 'task', label: 'Meilenstein bzw. Arbeitspaket', kind: 'text', readonly: true },
+    { key: 'text', label: 'Abnahmekriterium', kind: 'long', gpm: true },
+    { key: 'due', label: 'Datum', kind: 'date', gpm: true },
+    { key: 'by', label: 'Leistung von', kind: 'text', gpm: true, help: 'Wer die Leistung erbringt (Rolle, Person, Firma)' },
+    { key: 'acceptor', label: 'Abnahme durch', kind: 'text', gpm: true, help: 'Wer abnimmt (z. B. Auftraggeber, Prüfgesellschaft)' },
+    { key: 'doc', label: 'Prüfdokument', kind: 'text', help: 'Womit die Abnahme belegt wird (Protokoll, Bescheinigung …)' },
+    { key: 'ok', label: 'abgenommen', kind: 'bool' },
+  ],
+  comms: [
+    { key: 'content', label: 'Inhalt', kind: 'text', gpm: true, help: 'Was kommuniziert wird: Bericht, Protokoll, Besprechung …' },
+    { key: 'sender', label: 'Sender', kind: 'text', gpm: true },
+    { key: 'receiver', label: 'Empfänger', kind: 'text', gpm: true },
+    { key: 'strategy', label: 'Strategie', kind: 'choice', options: opts(COMM_STRATEGIES, COMM_STRATEGY_LABEL), help: 'Bringschuld = der Sender liefert, Holschuld = der Empfänger holt sich die Information' },
+    { key: 'doc', label: 'Dokumentation', kind: 'text', help: 'Wo und in welcher Form es abgelegt wird' },
+    { key: 'info', label: 'Information', kind: 'text', help: 'Auf welchem Weg informiert wird (E-Mail, Termin, Aushang …)' },
+    { key: 'freq', label: 'Häufigkeit', kind: 'text', gpm: true },
+  ],
+  reports: [
+    { key: 'date', label: 'Stichtag', kind: 'date', gpm: true },
+    { key: 'from', label: 'Berichtszeitraum von', kind: 'date' },
+    { key: 'to', label: 'bis', kind: 'date' },
+    { key: 'light', label: 'Ampel', kind: 'choice', options: opts(REPORT_LIGHTS, REPORT_LIGHT_LABEL), gpm: true },
+    { key: 'progTime', label: 'Fortschritt Termin (%)', kind: 'pct', help: 'Anteil der verstrichenen Projektzeit (beim Anlegen gerechnet)' },
+    { key: 'progCost', label: 'Fortschritt Kosten (%)', kind: 'pct', help: 'Ist-Kosten im Verhältnis zu den Plan-Kosten' },
+    { key: 'progWork', label: 'Fortschritt Leistung (%)', kind: 'pct', gpm: true, help: 'Fertigstellungsgrad aller Arbeitspakete, gewichtet mit dem Plan-Aufwand' },
+    { key: 'planHours', label: 'Plan-Aufwand (Ph)', kind: 'number', readonly: true },
+    { key: 'actHours', label: 'Ist-Aufwand (Ph)', kind: 'number', readonly: true },
+    { key: 'planCost', label: 'Plan-Kosten (€)', kind: 'money', readonly: true },
+    { key: 'actCost', label: 'Ist-Kosten (€)', kind: 'money', readonly: true },
+    { key: 'done', label: 'Erledigte Aktivitäten', kind: 'long', gpm: true },
+    { key: 'next', label: 'Nächste Schritte', kind: 'long' },
+    { key: 'measures', label: 'Steuerungsmaßnahmen', kind: 'long', gpm: true },
+    { key: 'note', label: 'Bemerkung', kind: 'long' },
+  ],
+  wp: [
+    { key: 'code', label: 'PSP-Code', kind: 'text', readonly: true },
+    { key: 'title', label: 'Arbeitspaket', kind: 'text', gpm: true },
+    { key: 'phase', label: 'Phase', kind: 'phase' },
+    { key: 'assignee', label: 'AP-Verantwortlich', kind: 'person', gpm: true },
+    { key: 'goal', label: 'Ziel und Inhalt', kind: 'long', gpm: true },
+    { key: 'activities', label: 'Aktivitäten', kind: 'lines', gpm: true, help: 'Eine Zeile je Aktivität' },
+    { key: 'results', label: 'Ergebnisse bzw. Lieferobjekte', kind: 'lines', gpm: true, help: 'Eine Zeile je Ergebnis' },
+    { key: 'inputs', label: 'Voraussetzungen und Schnittstellen', kind: 'long' },
+    { key: 'risks', label: 'Chancen und Risiken', kind: 'long' },
+    { key: 'start', label: 'Beginn', kind: 'date', readonly: true, help: 'aus dem Gantt' },
+    { key: 'end', label: 'Ende', kind: 'date', readonly: true, help: 'aus dem Gantt' },
+    { key: 'hours', label: 'Aufwand (Ph)', kind: 'number', help: 'Von Hand; sonst Summe der Einsätze' },
+    { key: 'cost', label: 'Kosten (€)', kind: 'money', help: 'Von Hand; sonst Stunden × Stundensatz der Einsätze' },
+    { key: 'method', label: 'Fortschrittsmessung', kind: 'choice', options: opts(PROGRESS_METHODS, PROGRESS_METHOD_LABEL), gpm: true, help: '0/100: erst fertig zählt · 50/50 bzw. 20/80: Anteil beim Beginn · aufwandsproportional: Ist ÷ Plan · Teilschritte: Abnahmekriterien bzw. Unter-Vorgänge · Schätzung: von Hand' },
+    { key: 'progress', label: 'Fertigstellungsgrad (%)', kind: 'pct', help: 'Gerechnet nach der Fortschrittsmessung; eine Eingabe geht vor' },
+    { key: 'releasePl', label: 'Freigabe Projektleitung', kind: 'date' },
+    { key: 'releaseOwner', label: 'Freigabe AP-Verantwortlich', kind: 'date' },
+  ],
+  costs: [
+    { key: 'month', label: 'Monat', kind: 'text', readonly: true },
+    { key: 'cost', label: 'Plan-Kosten (€)', kind: 'money', readonly: true },
+    { key: 'costSum', label: 'Summe (€)', kind: 'money', readonly: true },
+    { key: 'hours', label: 'Aufwand (Ph)', kind: 'number', readonly: true },
+    { key: 'hoursSum', label: 'Summe (Ph)', kind: 'number', readonly: true },
   ],
 };
 export const fieldSpec = (src: FormSource, key: string): FieldSpec | undefined => FIELDS[src].find((f) => f.key === key);
@@ -201,15 +271,22 @@ export const GPM_D: FormTemplate = {
     { id: 'goals', chapter: '2.2', name: 'Projektziele', source: 'goals', layout: 'table', columns: cols('goals'), filter: 'perf,social', stage: 1, icb: '4.5.2' },
     { id: 'nongoals', chapter: '2.2', name: 'Nicht-Ziele', source: 'goals', layout: 'table', columns: cols('goals', ['code', 'text', 'consequence']), filter: 'non', stage: 1, icb: '4.5.2 · 4.5.3' },
     { id: 'conflicts', chapter: '2.3', name: 'Zielkonflikte', source: 'conflicts', layout: 'table', columns: cols('conflicts'), stage: 1, icb: '4.5.2' },
+    { id: 'accept', chapter: '3.1', name: 'Abnahmekriterien', source: 'accept', layout: 'table', columns: cols('accept'), stage: 2, icb: '4.5.3 · 4.5.6' },
     { id: 'stakeholders', chapter: '4', name: 'Stakeholderanalyse', source: 'stakeholders', layout: 'table', columns: cols('stakeholders'), stage: 1, icb: '4.5.12 · 4.3.4' },
+    { id: 'envPortfolio', chapter: '4', name: 'Umfeld-Portfolio', source: 'stakeholders', layout: 'portfolio', columns: cols('stakeholders', ['code', 'name', 'side', 'area']), filter: 'env', stage: 2, icb: '4.5.12' },
+    { id: 'shPortfolio', chapter: '4', name: 'Stakeholder-Portfolio', source: 'stakeholders', layout: 'portfolio', columns: cols('stakeholders', ['code', 'name', 'attitude', 'power', 'conflict']), filter: 'sh', stage: 2, icb: '4.5.12 · 4.3.4' },
     { id: 'risks', chapter: '5', name: 'Chancen und Risiken', source: 'risks', layout: 'table', columns: cols('risks'), stage: 1, icb: '4.5.11' },
-    { id: 'roles', chapter: '6.2', name: 'Projektorganisation', source: 'roles', layout: 'table', columns: cols('roles'), stage: 1, icb: '4.5.5 · 4.3.2' },
+    { id: 'roles', chapter: '6.2', name: 'Projektorganisation (AKV)', source: 'roles', layout: 'table', columns: cols('roles'), stage: 1, icb: '4.5.5 · 4.3.2' },
+    { id: 'comms', chapter: '6.3', name: 'Kommunikationsplan (DKI-Matrix)', source: 'comms', layout: 'table', columns: cols('comms'), stage: 2, icb: '4.5.5 · 4.5.12' },
     { id: 'phases', chapter: '7', name: 'Phasenplan', source: 'phases', layout: 'table', columns: cols('phases'), stage: 1, icb: '4.5.4' },
     { id: 'milestones', chapter: '7', name: 'Meilensteine', source: 'milestones', layout: 'table', columns: cols('milestones'), stage: 1, icb: '4.5.4' },
     { id: 'tasks', chapter: '8', name: 'Arbeitspakete', source: 'tasks', layout: 'table', columns: cols('tasks'), stage: 1, icb: '4.5.3 · 4.5.4' },
+    { id: 'wp', chapter: '8.3', name: 'Arbeitspaketbeschreibung', source: 'wp', layout: 'record', columns: cols('wp'), stage: 2, icb: '4.5.3 · 4.5.10' },
     { id: 'persons', chapter: '10', name: 'Ressourcen', source: 'persons', layout: 'table', columns: cols('persons'), stage: 1, icb: '4.5.8' },
     { id: 'uses', chapter: '10', name: 'Einsatz je Arbeitspaket', source: 'uses', layout: 'table', columns: cols('uses'), stage: 1, icb: '4.5.8 · 4.5.7' },
+    { id: 'costs', chapter: '11', name: 'Kostenganglinie', source: 'costs', layout: 'chart', columns: cols('costs'), stage: 2, icb: '4.5.7' },
     { id: 'procure', chapter: '11', name: 'Beschaffung', source: 'procure', layout: 'table', columns: cols('procure'), stage: 1, icb: '4.5.9' },
+    { id: 'reports', chapter: '12', name: 'Statusbericht', source: 'reports', layout: 'record', columns: cols('reports'), stage: 2, icb: '4.5.10' },
   ],
 };
 
@@ -338,8 +415,28 @@ export function rowsOf(ws: Workspace, pid: string, form: FormDef): FormRow[] {
       return notesOf(ws).filter((n) => n.project === pid && n.type === 'procurement' && n.state !== 'archived').map((n) => ({ id: n.id, note: n.id }));
     case 'roles':
       return rolesOf(p).map((r) => ({ id: r.id }));
+    case 'accept': {
+      const out: FormRow[] = [];
+      for (const t of taskRows(ws, pid)) {
+        const n = noteOf(ws, t.id);
+        (n?.accept ?? []).forEach((_, i) => out.push({ id: `${t.id}#${i}`, note: t.id }));
+      }
+      return out;
+    }
+    case 'comms':
+      return (p.comms ?? []).map((x) => ({ id: x.id }));
+    case 'reports':
+      return [...(p.reports ?? [])].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).map((x) => ({ id: x.id }));
+    case 'wp':
+      return taskRows(ws, pid).filter((n) => !n.milestone).map((n) => ({ id: n.id, note: n.id, depth: n.depth }));
+    case 'costs':
+      return costCurve(ws, pid).months.map((m) => ({ id: m.month }));
   }
 }
+const splitCheck = (rowId: string) => {
+  const i = rowId.lastIndexOf('#');
+  return { note: rowId.slice(0, i), i: Number(rowId.slice(i + 1)) };
+};
 
 // ---------------------------------------------------------------- Lesen und Schreiben einer Zelle
 
@@ -418,6 +515,40 @@ export function cellValue(ws: Workspace, pid: string, form: FormDef, rowId: stri
       const r = rolesOf(p).find((x) => x.id === rowId);
       return r ? (r as unknown as Record<string, CellValue>)[key] : undefined;
     }
+    case 'accept': {
+      const { note, i } = splitCheck(rowId);
+      const n = noteOf(ws, note);
+      const c = n?.accept?.[i];
+      if (!n || !c) return undefined;
+      if (key === 'task') return `${taskRows(ws, pid).find((t) => t.id === note)?.code ?? ''} ${titleOf(n)}`.trim();
+      if (key === 'ok') return !!c.ok;
+      return (c as unknown as Record<string, CellValue>)[key];
+    }
+    case 'comms':
+    case 'reports':
+      return ((p[form.source] ?? []) as unknown as Record<string, CellValue>[]).find((x) => x.id === rowId)?.[key];
+    case 'wp': {
+      const n = noteOf(ws, rowId);
+      if (!n) return undefined;
+      if (key === 'code') return taskRows(ws, pid).find((t) => t.id === rowId)?.code;
+      if (key === 'title') return titleOf(n);
+      if (key === 'results') return n.results?.join('\n');
+      if (key === 'hours') return planHours(ws, n);
+      if (key === 'cost') return planCost(ws, n);
+      if (key === 'phase' || key === 'assignee') return n[key];
+      if (key === 'start' || key === 'end') {
+        const r = ganttOf(ws, pid).byId.get(rowId);
+        return r?.planned ? r[key] : undefined;
+      }
+      if (key === 'progress') return n.wp?.progress ?? progressOf(ws, n);
+      return (n.wp as Record<string, CellValue> | undefined)?.[key];
+    }
+    case 'costs': {
+      const m = costCurve(ws, pid).months.find((x) => x.month === rowId);
+      if (!m) return undefined;
+      if (key === 'month') return `${rowId.slice(5, 7)}/${rowId.slice(0, 4)}`;
+      return (m as unknown as Record<string, CellValue>)[key];
+    }
   }
 }
 
@@ -428,7 +559,8 @@ export function cellAuto(ws: Workspace, pid: string, form: FormDef, rowId: strin
     const l = riskLevels(noteOf(ws, rowId)?.risk, p?.budget);
     return key === 'p' ? l.pAuto : l.iAuto;
   }
-  if (form.source === 'tasks' && (key === 'hours' || key === 'cost')) {
+  if (form.source === 'wp' && key === 'progress') return noteOf(ws, rowId)?.wp?.progress === undefined;
+  if ((form.source === 'tasks' || form.source === 'wp') && (key === 'hours' || key === 'cost')) {
     const n = noteOf(ws, rowId);
     return !!n?.use?.length && (key === 'hours' ? n.effort?.plan === undefined : n.cost?.plan === undefined);
   }
@@ -516,17 +648,48 @@ export function setCell(ws: Workspace, pid: string, form: FormDef, rowId: string
       }, now);
     case 'roles':
       if (key === 'name') return typeof val === 'string' ? editRoles(ws, pid, { kind: 'name', role: rowId, name: val }) : ws;
+      if (key === 'tasks' || key === 'powers' || key === 'duty') return editRoles(ws, pid, { kind: 'akv', role: rowId, key, text: (val as string | null) ?? undefined });
       return editRoles(ws, pid, { kind: 'person', role: rowId, person: (val as string | null) ?? undefined });
+    case 'accept': {
+      const { note, i } = splitCheck(rowId);
+      return patchNote(ws, note, (n) => {
+        const list = [...(n.accept ?? [])];
+        const c = list[i];
+        if (!c) return n;
+        if (key === 'text') {
+          if (typeof val !== 'string' || !val.trim()) return n;
+          list[i] = { ...c, text: val.slice(0, 2000) };
+        } else if (key === 'ok') list[i] = setOpt(c, 'ok', val === true ? true : null);
+        else list[i] = setOpt(c, key, typeof val === 'string' ? val.slice(0, 300) : val);
+        return { ...n, accept: list };
+      }, now);
+    }
+    case 'comms':
+    case 'reports':
+      return editItem(ws, pid, form.source, rowId, { [key]: val }, now);
+    case 'wp':
+      if (key === 'title') return typeof val === 'string' ? updateNote(ws, rowId, { title: val }, act) : ws;
+      if (key === 'assignee') return updateNote(ws, rowId, { assignee: (val as string | null) ?? undefined }, act);
+      if (key === 'phase') return setPhase(ws, rowId, (val as string | null) ?? undefined, now);
+      if (key === 'results') {
+        const lines = typeof val === 'string' ? val.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 50) : [];
+        return patchNote(ws, rowId, (n) => setOpt(n, 'results', lines.length ? lines : null), now);
+      }
+      if (key === 'hours') return patchNote(ws, rowId, (n) => setOpt(n, 'effort', setOpt(n.effort ?? {}, 'plan', val)), now);
+      if (key === 'cost') return patchNote(ws, rowId, (n) => setOpt(n, 'cost', setOpt(n.cost ?? {}, 'plan', val)), now);
+      return patchNote(ws, rowId, (n) => setOpt(n, 'wp', parseWp(setOpt(n.wp ?? {}, key, val)) ?? null), now);
+    default:
+      return ws;
   }
 }
 
 // ---------------------------------------------------------------- Zeilen anlegen, löschen, verschieben
 
-const LIST: Partial<Record<FormSource, GpmList>> = { goals: 'goals', conflicts: 'conflicts', stakeholders: 'stakeholders', phases: 'phases' };
+const LIST: Partial<Record<FormSource, GpmList>> = { goals: 'goals', conflicts: 'conflicts', stakeholders: 'stakeholders', phases: 'phases', comms: 'comms', reports: 'reports' };
 /** Kann das Formular Zeilen anlegen? (Ressourcen entstehen über Einsätze; Einsätze brauchen Vorgang und Person.) */
-export const canAddRow = (form: FormDef): boolean => form.layout === 'table' && form.source !== 'persons';
+export const canAddRow = (form: FormDef): boolean => (form.layout === 'table' || form.layout === 'record') && form.source !== 'persons' && form.source !== 'costs';
 /** Kann man Zeilen von Hand verschieben? (nur Listen am Projekt) */
-export const canMoveRow = (form: FormDef): boolean => !!LIST[form.source];
+export const canMoveRow = (form: FormDef): boolean => !!LIST[form.source] && form.source !== 'reports' && form.layout === 'table';
 
 /** G4: Zeile anlegen; Einsatz braucht `init.task` und `init.person`, Zielkonflikt nimmt sonst die ersten zwei Ziele. */
 export function addRow(ws: Workspace, pid: string, form: FormDef, act: Act & { id: string; at?: number; init?: { task?: string; person?: string; a?: string; b?: string } }): { ws: Workspace; id: string } | null {
@@ -578,6 +741,26 @@ export function addRow(ws: Workspace, pid: string, form: FormDef, act: Act & { i
       const out = editRoles(ws, pid, { kind: 'add', name: 'Neue Rolle', rid: act.id });
       return out === ws ? null : { ws: out, id: act.id };
     }
+    case 'accept': {
+      // an den gewählten Meilenstein bzw. Vorgang, sonst an den ersten Meilenstein (sonst ersten Vorgang)
+      const rows = taskRows(ws, pid);
+      const t = (act.init?.task && rows.find((r) => r.id === act.init!.task)) || rows.find((r) => r.milestone) || rows[0];
+      const n = noteOf(ws, t?.id);
+      if (!n || (n.accept?.length ?? 0) >= 50) return null;
+      const out = patchNote(ws, n.id, (x) => ({ ...x, accept: [...(x.accept ?? []), { text: 'Neues Abnahmekriterium' }] }), now);
+      return { ws: out, id: `${n.id}#${(n.accept ?? []).length}` };
+    }
+    case 'comms': {
+      const out = addItem(ws, pid, 'comms', { id: act.id, content: 'Neuer Eintrag' }, act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
+    case 'reports': {
+      const day = new Date(now).toISOString().slice(0, 10);
+      const out = addItem(ws, pid, 'reports', newReport(ws, pid, act.id, day), act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
+    case 'wp':
+      return createNote(ws, { title: 'Neues Arbeitspaket', project: pid }, { now, by: act.by, id: act.id });
     default:
       return null;
   }
@@ -588,7 +771,8 @@ export type RowUndo =
   | { kind: 'gpm'; undo: GpmUndo }
   | { kind: 'note'; undo: NoteUndo }
   | { kind: 'use'; note: string; use: NonNullable<Note['use']> }
-  | { kind: 'roles'; pid: string; roles: Project['roles'] };
+  | { kind: 'roles'; pid: string; roles: Project['roles'] }
+  | { kind: 'accept'; note: string; accept: NonNullable<Note['accept']> };
 
 /** Zeile löschen (Notizen samt Unter-Notizen, wie überall); Ressourcen nicht (Personen-Cockpit). */
 export function removeRow(ws: Workspace, pid: string, form: FormDef, rowId: string, now = Date.now()): { ws: Workspace; undo: RowUndo } | null {
@@ -601,6 +785,7 @@ export function removeRow(ws: Workspace, pid: string, form: FormDef, rowId: stri
     case 'risks':
     case 'milestones':
     case 'tasks':
+    case 'wp':
     case 'procure': {
       const r = deleteNote(ws, rowId);
       return r ? { ws: r.ws, undo: { kind: 'note', undo: r.undo } } : null;
@@ -617,6 +802,16 @@ export function removeRow(ws: Workspace, pid: string, form: FormDef, rowId: stri
       const out = editRoles(ws, pid, { kind: 'remove', role: rowId });
       return out === ws ? null : { ws: out, undo: { kind: 'roles', pid, roles: p.roles } };
     }
+    case 'accept': {
+      const { note, i } = splitCheck(rowId);
+      const n = noteOf(ws, note);
+      if (!n?.accept?.[i]) return null;
+      const out = patchNote(ws, note, (x) => {
+        const list = (x.accept ?? []).filter((_, j) => j !== i);
+        return setOpt(x, 'accept', list.length ? list : null);
+      }, now);
+      return { ws: out, undo: { kind: 'accept', note, accept: n.accept } };
+    }
     default:
       return null;
   }
@@ -625,6 +820,7 @@ export function undoRemoveRow(ws: Workspace, u: RowUndo, now = Date.now()): Work
   if (u.kind === 'gpm') return undoRemoveItem(ws, u.undo, now);
   if (u.kind === 'note') return restoreNotes(ws, u.undo, { now });
   if (u.kind === 'use') return patchNote(ws, u.note, (n) => ({ ...n, use: u.use }), now);
+  if (u.kind === 'accept') return patchNote(ws, u.note, (n) => ({ ...n, accept: u.accept }), now);
   return editProject(ws, u.pid, { roles: u.roles }, now);
 }
 
@@ -950,7 +1146,7 @@ export function parseFormTemplates(v: unknown): FormTemplate[] {
         chapter: typeof f.chapter === 'string' ? f.chapter.slice(0, 12) : '',
         name: typeof f.name === 'string' && f.name.trim() ? f.name.trim().slice(0, 80) : 'Formular',
         source: f.source as FormSource,
-        layout: f.layout === 'fields' ? 'fields' : 'table',
+        layout: f.layout === 'fields' || f.layout === 'record' || f.layout === 'chart' || f.layout === 'portfolio' ? f.layout : 'table',
         columns,
         ...(typeof f.filter === 'string' && f.filter ? { filter: f.filter } : {}),
         ...(typeof f.stage === 'number' ? { stage: f.stage } : {}),

@@ -26,7 +26,7 @@ import type {
 import { type Node, isNode, leaves, removeLeaf } from './tree';
 import { parseFeedbackForm } from './feedback';
 import { parseChange, parseRisk } from './risks';
-import { parsePersonGpm, parseProcure, parseProjectGpm, parseResults, parseUses } from './gpm';
+import { parseCheckGpm, parsePersonGpm, parseProcure, parseProjectGpm, parseResults, parseRoleAkv, parseUses, parseWp } from './gpm';
 import { parseProjectForms } from './formKit';
 
 /** Höchstens so viele Sheets je Pad (Antwort 20). */
@@ -110,6 +110,8 @@ export function parseNoteExtras(v: Record<string, unknown>): Partial<Note> {
   if (use) out.use = use;
   const results = parseResults(v.results);
   if (results) out.results = results;
+  const wp = parseWp(v.wp);
+  if (wp) out.wp = wp;
   if (out.type === 'procurement') {
     const pr = parseProcure(v.procure);
     if (pr) out.procure = pr;
@@ -128,7 +130,7 @@ export function parseNoteExtras(v: Record<string, unknown>): Partial<Note> {
   if (Array.isArray(v.accept)) {
     const accept: NoteCheck[] = v.accept
       .filter((c): c is Record<string, unknown> => isObj(c) && !!text(c.text))
-      .map((c) => ({ text: c.text as string, ...(c.ok === true ? { ok: true } : {}) }));
+      .map((c) => ({ text: c.text as string, ...(c.ok === true ? { ok: true } : {}), ...parseCheckGpm(c) }));
     if (accept.length) out.accept = accept;
   }
   const sources = parseSourceLinks(v.sources);
@@ -192,7 +194,7 @@ export function parseProjects(v: unknown, scopeIds: ReadonlySet<string>): Projec
       const roles = r.roles
         .filter((x): x is Record<string, unknown> => isObj(x) && typeof x.id === 'string' && !!x.id && !!text(x.name))
         .slice(0, 12)
-        .map((x) => ({ id: x.id as string, name: (x.name as string).slice(0, 60), ...(typeof x.person === 'string' && x.person ? { person: x.person } : {}) }))
+        .map((x) => ({ id: x.id as string, name: (x.name as string).slice(0, 60), ...(typeof x.person === 'string' && x.person ? { person: x.person } : {}), ...parseRoleAkv(x) }))
         .filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i);
       if (roles.length) p.roles = roles;
     }

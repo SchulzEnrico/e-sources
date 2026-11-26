@@ -9593,3 +9593,16 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 /* V112 (Enrico: „Achte auf den Anfasser“ · „Im Desk Mode ist das perfekt“): gleicher runder Knopf wie die Anfasser der
    Portale (NF-08); ↕ sitzt 2 px tiefer in der Lücke, damit zum Fußknopf darüber immer Luft bleibt */
 .notegrip--s { margin-top: -6px; }
+
+/* ---------------------------------------------------------------- V113 F-226 Stufe 2: Formulare – Grafiken
+   (Kostenganglinie, Umfeld- und Stakeholder-Portfolio), Einzelansicht je Zeile (Arbeitspaket, Statusbericht) */
+.pjf__figure { margin: 6px 0 10px; padding: 8px 10px; border-radius: 10px; background: rgba(0, 0, 0, 0.18); box-shadow: inset 0 0 0 1px var(--line); }
+.pjf__svg { width: 100%; max-width: 760px; }
+.pjf__svg.is-portfolio { max-width: 600px; }
+.pjf__svg svg { display: block; width: 100%; height: auto; overflow: visible; }
+.pjf__svg svg text { font-family: inherit; }
+.pjf__figure figcaption { margin-top: 4px; }
+.pjf__recbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 8px; }
+.pjf__recbar select { max-width: min(46ch, 100%); }
+.pjf__tabhead { margin: 4px 0 2px; }
+@media (forced-colors: active) { .pjf__figure { border: 1px solid CanvasText; } .pjf__svg svg * { forced-color-adjust: auto; } }

@@ -135,10 +135,12 @@ describe('F-226 Baukasten (V109): Vorlage GPM Level D, Zellen, Zeilen, eigene Fe
     return { ws: Pj.editProject(ws, id, { budget: 400000, psp: { prefix: 'CG' } }), id };
   };
   const form = (id: string) => Fk.GPM_D.forms.find((f) => f.id === id)!;
-  it('Vorlage: Kapitel in Leitfaden-Reihenfolge, jede Spalte im Feldkatalog, Stufe 1', () => {
-    expect(Fk.GPM_D.forms.map((f) => f.chapter)).toEqual(['2.1', '2.2', '2.2', '2.3', '4', '5', '6.2', '7', '7', '8', '10', '10', '11']);
+  it('Vorlage: Kapitel in Leitfaden-Reihenfolge, jede Spalte im Feldkatalog, Stufe 1 und 2', () => {
+    expect(Fk.GPM_D.forms.map((f) => f.chapter)).toEqual(['2.1', '2.2', '2.2', '2.3', '3.1', '4', '4', '4', '5', '6.2', '6.3', '7', '7', '8', '8.3', '10', '10', '11', '11', '12']);
+    const chapters = Fk.GPM_D.forms.map((f) => parseFloat(f.chapter));
+    expect([...chapters].sort((a, b) => a - b)).toEqual(chapters);
     for (const f of Fk.GPM_D.forms) {
-      expect(f.stage).toBe(1);
+      expect([1, 2]).toContain(f.stage);
       for (const c of f.columns) expect(Fk.fieldSpec(f.source, c.key)).toBeDefined();
     }
   });
@@ -373,5 +375,131 @@ describe('F-226 Feinschliff (V111): Person löschen, doppelte Codes', () => {
     const d = Fk.dupCodesOf(w2, pid, form);
     expect(d.size).toBe(1);
     expect([...d.values()][0].sort()).toEqual([g1.id, g2.id].sort());
+  });
+});
+
+describe('F-226 Stufe 2 (V113): Abnahmekriterien, AKV, DKI, Arbeitspaket, Statusbericht, Ganglinie, Report', () => {
+  const sample = () => Sp.addSampleProject(W.defaultWorkspace(), 5);
+  const pid = Sp.SAMPLE_PROJECT;
+  const form = (id: string) => Fk.GPM_D.forms.find((f) => f.id === id)!;
+  it('Abnahmekriterien: Zeilen aus den Meilensteinen, Angaben schreiben, anlegen, löschen mit Rückgängig', () => {
+    const ws = sample();
+    const f = form('accept');
+    const rows = Fk.rowsOf(ws, pid, f);
+    expect(rows.length).toBeGreaterThan(3);
+    const r0 = rows[0].id;
+    let w = Fk.setCell(ws, pid, f, r0, 'by', 'PL');
+    w = Fk.setCell(w, pid, f, r0, 'acceptor', 'Auftraggeber');
+    w = Fk.setCell(w, pid, f, r0, 'due', '2027-02-26');
+    w = Fk.setCell(w, pid, f, r0, 'doc', 'Abnahmeprotokoll');
+    w = Fk.setCell(w, pid, f, r0, 'ok', false);
+    expect(Fk.cellValue(w, pid, f, r0, 'by')).toBe('PL');
+    expect(Fk.cellValue(w, pid, f, r0, 'ok')).toBe(false);
+    expect(String(Fk.cellValue(w, pid, f, r0, 'task'))).toMatch(/^CG-\S+ \S/);
+    expect(Fk.setCell(w, pid, f, r0, 'text', '   ')).toBe(w);
+    const add = Fk.addRow(w, pid, f, { id: 'x', now: 5 })!;
+    expect(Fk.rowsOf(add.ws, pid, f).length).toBe(rows.length + 1);
+    const rm = Fk.removeRow(add.ws, pid, f, r0, 6)!;
+    expect(Fk.rowsOf(rm.ws, pid, f).length).toBe(rows.length);
+    const back = Fk.undoRemoveRow(rm.ws, rm.undo, 7);
+    expect(Fk.cellValue(back, pid, f, r0, 'acceptor')).toBe('Auftraggeber');
+    // Speichern und Laden behält die Angaben
+    const again = parseWorkspace(JSON.parse(JSON.stringify(back)))!;
+    expect(Fk.cellValue(again, pid, f, r0, 'doc')).toBe('Abnahmeprotokoll');
+  });
+  it('AKV an der Instanz: schreiben, Person ändern behält AKV, Laden behält AKV', () => {
+    const ws = sample();
+    const f = form('roles');
+    const r = Fk.rowsOf(ws, pid, f)[0].id;
+    let w = Fk.setCell(ws, pid, f, r, 'tasks', 'Plant und steuert');
+    w = Fk.setCell(w, pid, f, r, 'powers', 'Gibt Arbeitspakete frei');
+    w = Fk.setCell(w, pid, f, r, 'person', '');
+    expect(Fk.cellValue(w, pid, f, r, 'tasks')).toBe('Plant und steuert');
+    expect(Fk.cellValue(w, pid, f, r, 'person')).toBeUndefined();
+    const again = parseWorkspace(JSON.parse(JSON.stringify(w)))!;
+    expect(Fk.cellValue(again, pid, f, r, 'powers')).toBe('Gibt Arbeitspakete frei');
+  });
+  it('DKI-Matrix: Zeile anlegen, Strategie wählen, verschieben, Laden', () => {
+    const ws = sample();
+    const f = form('comms');
+    const a = Fk.addRow(ws, pid, f, { id: 'c1', now: 1 })!;
+    const b = Fk.addRow(a.ws, pid, f, { id: 'c2', now: 2 })!;
+    let w = Fk.setCell(b.ws, pid, f, 'c2', 'content', 'Statusbericht');
+    w = Fk.setCell(w, pid, f, 'c2', 'strategy', 'push');
+    w = Fk.setCell(w, pid, f, 'c2', 'strategy', 'quatsch');
+    w = Fk.moveRow(w, pid, f, 'c2', -1, 3);
+    expect(Fk.rowsOf(w, pid, f).map((r) => r.id).slice(0, 1)).toEqual(['c2']);
+    const again = parseWorkspace(JSON.parse(JSON.stringify(w)))!;
+    expect(Fk.cellValue(again, pid, f, 'c2', 'content')).toBe('Statusbericht');
+  });
+  it('Arbeitspaket: Fortschrittsmessung, Fertigstellungsgrad gerechnet oder von Hand', async () => {
+    const C = await import('./gpmCalc');
+    const ws = sample();
+    const f = form('wp');
+    const id = Fk.rowsOf(ws, pid, f).find((r) => (Gp.planHours(ws, NLo.noteById(ws, r.id)!) ?? 0) > 0)!.id;
+    let w = Fk.setCell(ws, pid, f, id, 'method', 'zero');
+    expect(Fk.cellValue(w, pid, f, id, 'progress')).toBe(NLo.noteById(w, id)!.state === 'done' ? 100 : 0);
+    w = Fk.setCell(w, pid, f, id, 'method', 'estimate');
+    w = Fk.setCell(w, pid, f, id, 'progress', 40);
+    expect(Fk.cellValue(w, pid, f, id, 'progress')).toBe(NLo.noteById(w, id)!.state === 'done' ? 40 : 40);
+    expect(Fk.cellAuto(w, pid, f, id, 'progress')).toBe(false);
+    w = Fk.setCell(w, pid, f, id, 'activities', 'A\nB');
+    expect(NLo.noteById(w, id)!.wp!.activities).toBe('A\nB');
+    const n = { ...NLo.noteById(w, id)!, state: 'open' as const, wp: { method: 'half' as const } };
+    expect(C.progressOf(w, n)).toBe(0);
+    expect(C.progressOf(w, { ...n, state: 'doing' })).toBe(50);
+    expect(C.progressOf(w, { ...n, state: 'done' })).toBe(100);
+    expect(C.progressOf(w, { ...n, wp: { method: 'effort' }, effort: { plan: 100, actual: 25 } })).toBe(25);
+    expect(C.progressOf(w, { ...n, wp: { method: 'steps' }, accept: [{ text: 'a', ok: true }, { text: 'b' }] })).toBe(50);
+    const again = parseWorkspace(JSON.parse(JSON.stringify(w)))!;
+    expect(NLo.noteById(again, id)!.wp!.progress).toBe(40);
+  });
+  it('Statusbericht: Anlegen friert Plan/Ist ein, neueste oben, Felder schreiben', () => {
+    const ws = sample();
+    const f = form('reports');
+    const now = Date.parse('2027-03-15T10:00:00Z');
+    const a = Fk.addRow(ws, pid, f, { id: 'r1', now })!;
+    const rep = Pj.projectById(a.ws, pid)!.reports![0];
+    expect(rep.date).toBe('2027-03-15');
+    expect(rep.planHours).toBeGreaterThan(0);
+    expect(rep.progTime).toBeGreaterThan(0);
+    expect(['green', 'yellow', 'red']).toContain(rep.light);
+    const b = Fk.addRow(a.ws, pid, f, { id: 'r2', now: now + 86400000 * 14 })!;
+    expect(Fk.rowsOf(b.ws, pid, f).map((r) => r.id)).toEqual(['r2', 'r1']);
+    expect(Pj.projectById(b.ws, pid)!.reports!.find((r) => r.id === 'r2')!.from).toBe('2027-03-16');
+    const w = Fk.setCell(b.ws, pid, f, 'r1', 'measures', 'Zusatzschicht');
+    expect(Fk.cellValue(w, pid, f, 'r1', 'measures')).toBe('Zusatzschicht');
+    expect(Fk.setCell(w, pid, f, 'r1', 'planHours', 1)).toBe(w);
+  });
+  it('Kostenganglinie: Summe = Plan-Kosten mit Termin, Summenlinie steigt', async () => {
+    const C = await import('./gpmCalc');
+    const ws = sample();
+    const c = C.costCurve(ws, pid);
+    expect(c.months.length).toBeGreaterThan(2);
+    const last = c.months[c.months.length - 1];
+    expect(Math.abs(last.costSum - c.total)).toBeLessThan(1);
+    for (let i = 1; i < c.months.length; i++) expect(c.months[i].costSum).toBeGreaterThanOrEqual(c.months[i - 1].costSum);
+    expect(Fk.rowsOf(ws, pid, form('costs')).length).toBe(c.months.length);
+  });
+  it('Portfolio: Stakeholder mit Lage', async () => {
+    const C = await import('./gpmCalc');
+    const ws = sample();
+    const dots = C.portfolioOf(Pj.projectById(ws, pid));
+    expect(dots.length).toBe(Pj.projectById(ws, pid)!.stakeholders!.length);
+    expect(dots.some((d) => d.side === 'ex')).toBe(true);
+  });
+  it('Report: alle Formulare in Kapitelfolge, Kopf/Fuß, Texte maskiert', async () => {
+    const R = await import('./gpmReport');
+    const ws = Pj.editProject(sample(), pid, { name: 'Color <b>Gentlemen</b>' });
+    const html = R.reportHtml(ws, pid, { version: 'V113', day: '2027-03-15' });
+    expect(html).toContain('<!DOCTYPE html>');
+    expect(html).toContain('Color &lt;b&gt;Gentlemen&lt;/b&gt;');
+    let at = -1;
+    for (const f of Fk.GPM_D.forms) {
+      const i = html.indexOf(`id="f-${f.id}"`);
+      expect(i).toBeGreaterThan(at);
+      at = i;
+    }
+    expect(html).toContain('counter(page)');
   });
 });

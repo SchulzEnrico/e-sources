@@ -461,7 +461,10 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   };
   // gezeigt wird immer mindestens 260 × 200 px und ganz im Desk (z. B. nach kleinerem Fenster)
   // F-207 (M4): ein alter Platz über der Main Stage rückt in der Anzeige daneben (beim Ziehen nicht – dort „hier nicht“)
-  const p = live || !stage ? fit(live ?? place) : avoidStage(fit(place), stage);
+  // V113 (Enrico: Anfasser „nicht richtig positioniert“): Im Notizen-Modus (gekachelt) gilt die Kachel des Baums genau –
+  // reicht der Platz nicht für die Mindestgröße, wird das Pad knapp (Überlauf F-228) statt über den Nachbarn zu rutschen;
+  // so liegen Pads und die Anfasser in der Lücke immer an derselben Stelle
+  const p = tile && !live ? place : live || !stage ? fit(live ?? place) : avoidStage(fit(place), stage);
   /** M4: Pad läge über der Stage? */
   const onStage = (r: PadPlace) => !!stage && overlaps(r, stage);
   const where = PAD_TEXT.where(p.x + p.w / 2, p.y + p.h / 2);
@@ -780,8 +783,9 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               onChange={setSheetPick}
               options={[
                 { id: '', name: PAD_TEXT.addSheet, hint: `${explain(TERMS.sheet)} – ${PAD_TEXT.addSheetMenuHint}` },
-                // kurze Namen, damit das Rad die Reiter nicht verdrängt (bis F-228 Überlauf); voller Name im Hinweis
-                ...KINDS.map((k) => ({ id: k, name: PAD_TEXT.addSheetShort[k], icon: KIND_ICON[k], hint: PAD_TEXT.addSheetKindHint(No.VIEW_BASE[k]) })),
+                // kurze Namen im Kopf, damit das Rad die Reiter nicht verdrängt; V113 (F-228 Rest): in der schwebenden
+                // Leiste (Kopf läuft über) ist Platz – dort stehen die vollen Namen
+                ...KINDS.map((k) => ({ id: k, name: headOvf.open ? No.VIEW_BASE[k] : PAD_TEXT.addSheetShort[k], icon: KIND_ICON[k], hint: PAD_TEXT.addSheetKindHint(No.VIEW_BASE[k]) })),
                 { id: 'decision', name: PAD_TEXT.addDecisionShort, icon: 'sliders' as const, hint: PAD_TEXT.addDecisionHint },
               ]}
               onPress={(id) => {

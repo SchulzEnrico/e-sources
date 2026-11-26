@@ -581,6 +581,14 @@ export interface NoteRemind {
 export interface NoteCheck {
   text: string;
   ok?: boolean;
+  /** F-226 Stufe 2 (V113, L11): Termin der Abnahme (JJJJ-MM-TT). */
+  due?: string;
+  /** L11: Leistung von (Rolle, Person oder Firma, frei). */
+  by?: string;
+  /** L11: Abnahme durch. */
+  acceptor?: string;
+  /** L11: Prüfdokument. */
+  doc?: string;
 }
 
 /** F-206: Eintrag der Spur (Zeitleiste einer Notiz). */
@@ -695,6 +703,8 @@ export interface Note {
   results?: string[];
   /** F-226 (ICB4 4.5.9): Angaben zur Beschaffung (nur bei `type: 'procurement'`). */
   procure?: NoteProcure;
+  /** F-226 Stufe 2 (V113, L17): Arbeitspaket-Beschreibung nach GPM 8.3. */
+  wp?: NoteWp;
   /**
    * F-206 Schritt 10 (V100, K1): Dauer in Arbeitstagen (Mo–Fr, K7), ganze Tage ab 0. Fehlt = Abstand
    * „nicht beginnen vor“ bis „fällig am“, sonst 1 Tag; Meilenstein = 0 (`durationOf` in schedule.ts).
@@ -865,6 +875,10 @@ export interface Project {
   phases?: ProjectPhase[];
   /** F-226 (G1/G4): Formulare – Vorlage, eigene Felder und ihre Werte. */
   forms?: ProjectForms;
+  /** F-226 Stufe 2 (V113, L8): Kommunikationsplan (DKI-Matrix). */
+  comms?: CommItem[];
+  /** F-226 Stufe 2 (V113, L12): Statusberichte. */
+  reports?: StatusReport[];
   created: number;
   changed: number;
 }
@@ -875,6 +889,52 @@ export interface ProjectRole {
   name: string;
   /** Person-Id */
   person?: string;
+  /** F-226 Stufe 2 (V113, L10): AKV – Aufgaben, Kompetenzen/Befugnisse, Verantwortung. */
+  tasks?: string;
+  powers?: string;
+  duty?: string;
+}
+
+/** F-226 Stufe 2 (V113, L8): Zeile der DKI-Matrix (Dokumentation, Kommunikation, Information). */
+export interface CommItem {
+  id: string;
+  /** Was: Bericht, Protokoll, Besprechung … */
+  content: string;
+  sender?: string;
+  receiver?: string;
+  /** Bring- oder Holschuld */
+  strategy?: 'push' | 'pull';
+  /** Wie dokumentiert (Ablage, Format) */
+  doc?: string;
+  /** Wie informiert (E-Mail, Termin, Aushang …) */
+  info?: string;
+  /** Wie oft */
+  freq?: string;
+}
+
+/** F-226 Stufe 2 (V113, L12): Statusbericht – Werte beim Anlegen eingefroren, Text frei. */
+export interface StatusReport {
+  id: string;
+  /** Stichtag JJJJ-MM-TT */
+  date: string;
+  from?: string;
+  to?: string;
+  /** Ampel */
+  light?: 'green' | 'yellow' | 'red';
+  /** Fortschrittsgrad in % – Termin, Kosten, Leistung */
+  progTime?: number;
+  progCost?: number;
+  progWork?: number;
+  /** eingefroren: Plan und Ist (Ph, €), Rest */
+  planHours?: number;
+  actHours?: number;
+  planCost?: number;
+  actCost?: number;
+  /** erledigte bzw. geplante Aktivitäten, Steuerungsmaßnahmen, Bemerkung */
+  done?: string;
+  next?: string;
+  measures?: string;
+  note?: string;
 }
 
 /** F-206 Schritt 10 (V100, K5): Soll eines Vorgangs im Basisplan. */
@@ -995,6 +1055,27 @@ export interface DecisionScore {
   why?: string;
   by?: string;
 }
+
+/** F-226 Stufe 2 (V113, L17/L12): Arbeitspaket-Beschreibung (GPM 8.3). */
+export interface NoteWp {
+  /** Ziel bzw. Inhalt des Arbeitspakets */
+  goal?: string;
+  /** Aktivitäten, eine Zeile je Aktivität */
+  activities?: string;
+  /** Voraussetzungen bzw. Schnittstellen */
+  inputs?: string;
+  /** Chancen und Risiken im Arbeitspaket */
+  risks?: string;
+  /** Fortschrittsmessung */
+  method?: ProgressMethod;
+  /** Fertigstellungsgrad in % (bei Schätzung bzw. aufwandsproportional von Hand) */
+  progress?: number;
+  /** Freigabe Projektleitung bzw. AP-Verantwortlicher (JJJJ-MM-TT) */
+  releasePl?: string;
+  releaseOwner?: string;
+}
+/** Fortschrittsmessmethoden nach GPM: 0/100, 50/50, 20/80, aufwandsproportional, Meilensteine, Schätzung. */
+export type ProgressMethod = 'zero' | 'half' | 'twenty' | 'effort' | 'steps' | 'estimate';
 
 /** F-222 (N2): Paarvergleich – Schlüssel „a|b“ (a vor b in der Kriterienliste), 2 = a wichtiger, 1 = gleich, 0 = b wichtiger. */
 export type DecisionPairs = Record<string, 0 | 1 | 2>;
@@ -1171,7 +1252,7 @@ export interface FormFieldDef {
   required?: boolean;
 }
 /** F-226: Woher ein Formular seine Zeilen nimmt. */
-export type FormSource = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'risks' | 'phases' | 'milestones' | 'tasks' | 'uses' | 'persons' | 'procure' | 'roles';
+export type FormSource = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'risks' | 'phases' | 'milestones' | 'tasks' | 'uses' | 'persons' | 'procure' | 'roles' | 'accept' | 'comms' | 'reports' | 'wp' | 'costs';
 /** F-226: Spalte bzw. Feld eines Formulars – eingebautes Feld (`key`) oder eigenes (`custom:<id>`). */
 export interface FormColumn {
   key: string;
@@ -1185,8 +1266,8 @@ export interface FormDef {
   chapter: string;
   name: string;
   source: FormSource;
-  /** Tabelle (Zeilen) oder Feldliste (ein Objekt) */
-  layout: 'table' | 'fields';
+  /** Tabelle (Zeilen) oder Feldliste (ein Objekt); V113: `record` = Feldliste je Zeile (Auswahl-Rad), `chart` = Ganglinie, `portfolio` = Grafik */
+  layout: 'table' | 'fields' | 'record' | 'chart' | 'portfolio';
   columns: FormColumn[];
   /** Zeilen-Filter, z. B. Ziel-Art `non` */
   filter?: string;

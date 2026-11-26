@@ -5,6 +5,7 @@
  * Alle Felder sind optional, Dateiformat 11 bleibt. Tests in workspace.test.ts („F-226“).
  */
 import type {
+  CommItem,
   GoalConflict,
   GoalKind,
   GoalLevel,
@@ -12,7 +13,9 @@ import type {
   NoteProcure,
   NoteRisk,
   NoteUse,
+  NoteWp,
   Person,
+  ProgressMethod,
   ProcureState,
   Project,
   ProjectCharter,
@@ -22,6 +25,7 @@ import type {
   RiskMeasure,
   StakeStrategy,
   Stakeholder,
+  StatusReport,
   Workspace,
 } from './types';
 
@@ -121,9 +125,63 @@ export const parsePhase = (r: Record<string, unknown>): ProjectPhase | undefined
   return tidy({ id: id(r.id)!, name, focus: txt(r.focus), goal: txt(r.goal), start: isDay(r.start) ? r.start : undefined, end: isDay(r.end) ? r.end : undefined, share: pct(r.share), release: isDay(r.release) ? r.release : undefined });
 };
 
+// ---------------------------------------------------------------- Stufe 2 (V113): DKI-Matrix, Statusbericht, Arbeitspaket, AKV
+
+export const COMM_STRATEGIES = ['push', 'pull'] as const;
+export const REPORT_LIGHTS = ['green', 'yellow', 'red'] as const;
+export const PROGRESS_METHODS: readonly ProgressMethod[] = ['zero', 'half', 'twenty', 'effort', 'steps', 'estimate'];
+export const parseComm = (r: Record<string, unknown>): CommItem | undefined => {
+  const content = txt(r.content, 300);
+  if (!content || !id(r.id)) return undefined;
+  return tidy({ id: id(r.id)!, content, sender: txt(r.sender, 200), receiver: txt(r.receiver, 300), strategy: pick(r.strategy, COMM_STRATEGIES), doc: txt(r.doc, 300), info: txt(r.info, 300), freq: txt(r.freq, 120) });
+};
+export const parseReport = (r: Record<string, unknown>): StatusReport | undefined => {
+  if (!id(r.id) || !isDay(r.date)) return undefined;
+  return tidy({
+    id: id(r.id)!,
+    date: r.date,
+    from: isDay(r.from) ? r.from : undefined,
+    to: isDay(r.to) ? r.to : undefined,
+    light: pick(r.light, REPORT_LIGHTS),
+    progTime: pct(r.progTime),
+    progCost: pct(r.progCost),
+    progWork: pct(r.progWork),
+    planHours: money(r.planHours),
+    actHours: money(r.actHours),
+    planCost: money(r.planCost),
+    actCost: money(r.actCost),
+    done: txt(r.done),
+    next: txt(r.next),
+    measures: txt(r.measures),
+    note: txt(r.note),
+  });
+};
+export function parseWp(v: unknown): NoteWp | undefined {
+  if (!isObj(v)) return undefined;
+  const out = tidy<NoteWp>({
+    goal: txt(v.goal),
+    activities: txt(v.activities),
+    inputs: txt(v.inputs),
+    risks: txt(v.risks),
+    method: pick(v.method, PROGRESS_METHODS),
+    progress: pct(v.progress),
+    releasePl: isDay(v.releasePl) ? v.releasePl : undefined,
+    releaseOwner: isDay(v.releaseOwner) ? v.releaseOwner : undefined,
+  });
+  return Object.keys(out).length ? out : undefined;
+}
+/** AKV an einer Instanz (L10). */
+export function parseRoleAkv(r: Record<string, unknown>): { tasks?: string; powers?: string; duty?: string } {
+  return tidy({ tasks: txt(r.tasks), powers: txt(r.powers), duty: txt(r.duty) });
+}
+/** Abnahmekriterium mit Angaben (L11). */
+export function parseCheckGpm(c: Record<string, unknown>): { due?: string; by?: string; acceptor?: string; doc?: string } {
+  return tidy({ due: isDay(c.due) ? c.due : undefined, by: txt(c.by, 200), acceptor: txt(c.acceptor, 200), doc: txt(c.doc, 300) });
+}
+
 /** Liest die GPM-Teile eines Projekts; Bezüge (Oberziel, Konfliktziele, Personen) werden bereinigt. */
-export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases'> {
-  const out: Pick<Project, 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases'> = {};
+export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports'> {
+  const out: Pick<Project, 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports'> = {};
   const charter = sanitizeCharter(r.charter);
   if (charter) out.charter = charter;
   const goals = list(r.goals, parseGoal);
@@ -139,6 +197,10 @@ export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, 'char
   if (sh) out.stakeholders = sh;
   const ph = list(r.phases, parsePhase);
   if (ph) out.phases = ph;
+  const comms = list(r.comms, parseComm);
+  if (comms) out.comms = comms;
+  const reports = list(r.reports, parseReport);
+  if (reports) out.reports = reports;
   return out;
 }
 
@@ -324,9 +386,9 @@ export function hoursOf(n: Note, person: string): number {
 // ---------------------------------------------------------------- Bearbeiten
 
 /** Listen am Projekt, die die Formulare bearbeiten. */
-export type GpmList = 'goals' | 'conflicts' | 'stakeholders' | 'phases';
+export type GpmList = 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports';
 type ItemOf<L extends GpmList> = NonNullable<Project[L]>[number];
-const PARSE: { [L in GpmList]: (r: Record<string, unknown>) => ItemOf<L> | undefined } = { goals: parseGoal, conflicts: parseConflict, stakeholders: parseStakeholder, phases: parsePhase };
+const PARSE: { [L in GpmList]: (r: Record<string, unknown>) => ItemOf<L> | undefined } = { goals: parseGoal, conflicts: parseConflict, stakeholders: parseStakeholder, phases: parsePhase, comms: parseComm, reports: parseReport };
 
 function withProject(ws: Workspace, pid: string, fn: (p: Project) => Project | null, now: number): Workspace {
   const list = ws.projects ?? [];
@@ -408,7 +470,7 @@ function goalLoops(goals: ProjectGoal[], id: string, parent: string): boolean {
 export interface GpmUndo {
   pid: string;
   list: GpmList;
-  item: ProjectGoal | GoalConflict | Stakeholder | ProjectPhase;
+  item: ProjectGoal | GoalConflict | Stakeholder | ProjectPhase | CommItem | StatusReport;
   index: number;
   /** mitgelöschte Zielkonflikte (beim Löschen eines Ziels) */
   conflicts?: { item: GoalConflict; index: number }[];

@@ -3365,7 +3365,7 @@ function DeskApp(props: DeskProps) {
     notify(`„${name}“ angelegt und in neuem Browserfenster geöffnet.`);
   };
   /** V117 (PD2): „Eigener Desk“ – neuer Desk nur für ein Projekt, in eigenem Fenster, gleich im Projekt-Modus. */
-  const addOwnDesk = (pid: string, justMade?: string) => {
+  const addOwnDesk = (pid: string, justMade?: string, sheet?: string) => {
     // V118 (F-230 F4): direkt nach einem Import steht das Projekt erst im nächsten Stand – Name kommt mit
     const pj = projectById(ws, pid) ?? (justMade ? { name: justMade } : undefined);
     if (!pj) return;
@@ -3375,7 +3375,7 @@ function DeskApp(props: DeskProps) {
     setDeskModes(modes);
     saveModes(modes);
     Dp.saveShown(dest, pid);
-    dispatch({ type: 'deskOwn', win: dest, project: pid, std: standardContent(ws, display.standard, setup) });
+    dispatch({ type: 'deskOwn', win: dest, project: pid, std: standardContent(ws, display.standard, setup), ...(sheet ? { sheet } : {}) });
     if (!openAppWindow(dest)) return props.onSwitch(dest, DESK_PROJECT_TEXT.ownHere(pj.name, name));
     notify(DESK_PROJECT_TEXT.ownMade(pj.name, name));
   };

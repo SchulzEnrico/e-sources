@@ -49,7 +49,7 @@ function MsgLine({ msg, onUndo }: { msg: Msg; onUndo: () => void }) {
   );
 }
 
-export function DeskProjectMenu(p: { ws: Workspace; win: string; deskName: string; dispatch: (a: Action) => void; onOpen: () => void; say: (t: string) => void; onOwn?: (project: string, justMade?: string) => void }) {
+export function DeskProjectMenu(p: { ws: Workspace; win: string; deskName: string; dispatch: (a: Action) => void; onOpen: () => void; say: (t: string) => void; onOwn?: (project: string, justMade?: string, sheet?: string) => void }) {
   const { ws, win, dispatch } = p;
   const b = Dp.bindingOf(ws, win);
   const bound = b ? projectById(ws, b.project) : undefined;
@@ -63,7 +63,7 @@ export function DeskProjectMenu(p: { ws: Workspace; win: string; deskName: strin
     tell(T.undone);
   };
   // V118 (F-230, F10): Export/Import am Desk – Meldung und Rückfrage hier am ⋮
-  const xc = useExchange(ws, dispatch, tell, (pid, name) => (p.onOwn ? p.onOwn(pid, name) : undefined));
+  const xc = useExchange(ws, dispatch, tell, (pid, name, sheet) => (p.onOwn ? p.onOwn(pid, name, sheet) : undefined));
   const bind = (pid: string) => {
     const before = ws.deskProjects?.[win]?.project;
     dispatch({ type: 'deskBind', win, project: pid });

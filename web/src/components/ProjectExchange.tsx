@@ -1,13 +1,16 @@
 /**
- * F-230 (V118, Bauplan 4, F10): Export und Import „ohne Verlust“ für MS Project, iTaskX und andere Planer (MSPDI-XML).
- * Im Steckbrief neben „Eigener Desk“ und im ⋮ am Desk. Import legt immer ein neues Projekt an (F4); gibt es Personen
- * schon, fragt E-Sources am Ort, ob zusammengeführt wird (F5). .mpp-Dateien: Hinweis „In MS Project als XML speichern“ (F8).
+ * F-230 (V118 Bauplan 4, V119 Bauplan 5, F10): Export und Import „ohne Verlust“ für MS Project, iTaskX und andere Planer
+ * (MSPDI-XML) sowie Trello (Board als JSON-Datei, F3). Im Steckbrief neben „Eigener Desk“ und im ⋮ am Desk.
+ * „Exportieren …“ fragt am Ort nach dem Format (vorgewählt: woher das Projekt kam); „Importieren …“ erkennt XML bzw.
+ * Trello-JSON selbst. Import legt immer ein neues Projekt an (F4); gibt es Personen schon, fragt E-Sources am Ort, ob
+ * zusammengeführt wird (F5). .mpp-Dateien: Hinweis „In MS Project als XML speichern“ (F8).
  * Meldungen am Ort mit Rückgängig (#perfekte Fokussierung), alles mit der Tastatur bedienbar.
  */
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { Workspace } from '../workspace/types';
 import * as Mx from '../workspace/mspdi';
+import * as Tr from '../workspace/trello';
 import { APP_VERSION } from '../workspace/feedback';
 import { projectById } from '../workspace/projects';
 import { EXCHANGE_TEXT as T } from '../workspace/terms';
@@ -22,29 +25,50 @@ function download(name: string, text: string, type: string) {
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
-const fileName = (s: string) => `${s.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Projekt'}.xml`;
+type Kind = 'mspdi' | 'trello';
+const fileName = (s: string, kind: Kind) => `${s.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Projekt'}${kind === 'trello' ? '.trello.json' : '.xml'}`;
 
-type Ask = { xml: string; name: string; clashes: string[]; merge: Set<string> };
+type Ask = { kind: Kind; text: string; name: string; clashes: string[]; merge: Set<string> };
 
 /**
  * Export/Import mit Rückfrage am Ort. `tell(text, undo?)` zeigt die Meldung dort, wo bedient wurde;
  * `onImported` bekommt das neue Projekt (z. B. zeigen, eigener Desk).
  */
-export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: (text: string, undo?: () => void) => void, onImported?: (pid: string, name: string) => void) {
+export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: (text: string, undo?: () => void) => void, onImported?: (pid: string, name: string, sheet?: string) => void) {
   const input = useRef<HTMLInputElement>(null);
   const [ask, setAsk] = useState<Ask | null>(null);
+  /** Formatwahl beim Export (Projekt-Id) */
+  const [pick, setPick] = useState<string | null>(null);
 
-  const exportProject = (pid: string) => {
+  const exportAs = (pid: string, kind: Kind) => {
+    setPick(null);
     const p = projectById(ws, pid);
     if (!p) return;
-    download(fileName(p.name), Mx.exportMspdi(ws, pid, { generator: `E-Sources ${APP_VERSION}` }), 'application/xml');
-    tell(T.exported(fileName(p.name)));
+    const gen = `E-Sources ${APP_VERSION}`;
+    const name = fileName(p.name, kind);
+    if (kind === 'trello') download(name, Tr.exportTrello(ws, pid, { generator: gen }), 'application/json');
+    else download(name, Mx.exportMspdi(ws, pid, { generator: gen }), 'application/xml');
+    tell(kind === 'trello' ? T.exportedTrello(name) : T.exported(name));
   };
-  const run = (xml: string, name: string, merge: string[]) => {
+  const exportProject = (pid: string) => {
     setAsk(null);
-    const r = Mx.importMspdi(ws, xml, { merge, name });
-    if (!r.ok) return tell(T.error[r.error] + (r.detail ? ` (${r.detail})` : ''));
+    setPick(pid);
+  };
+  const run = (a: Pick<Ask, 'kind' | 'text' | 'name'>, merge: string[]) => {
+    setAsk(null);
     const before = ws;
+    if (a.kind === 'trello') {
+      const r = Tr.importTrello(ws, a.text, { merge, name: a.name });
+      if (!r.ok) return tell(T.error[r.error] + (r.detail ? ` (${r.detail})` : ''));
+      dispatch({ type: 'exchange', ws: r.ws });
+      const pj = projectById(r.ws, r.project)!;
+      const over = r.notes.find((n) => n.startsWith('listsOver:'));
+      tell(T.importedTrello(pj.name, r.cards, r.lists, r.checklists, r.persons, r.merged.length, r.kept) + (over ? ` ${T.listsOver(Number(over.split(':')[1]))}` : ''), () => dispatch({ type: 'exchange', ws: before }));
+      onImported?.(r.project, pj.name, r.view);
+      return;
+    }
+    const r = Mx.importMspdi(ws, a.text, { merge, name: a.name });
+    if (!r.ok) return tell(T.error[r.error] + (r.detail ? ` (${r.detail})` : ''));
     dispatch({ type: 'exchange', ws: r.ws });
     const pj = projectById(r.ws, r.project)!;
     const tooMany = r.notes.find((n) => n.startsWith('calTooMany:'));
@@ -54,27 +78,54 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
   const onFile = async (f: File | undefined) => {
     if (!f) return;
     if (/\.mpp$/i.test(f.name)) return tell(T.mpp);
-    const xml = await f.text();
-    const clashes = Mx.mspdiNameClashes(ws, xml);
-    if (clashes.length) return setAsk({ xml, name: f.name, clashes, merge: new Set(clashes) });
-    run(xml, f.name, []);
+    const text = await f.text();
+    const kind: Kind = /\.json$/i.test(f.name) || Tr.isTrello(text) ? 'trello' : 'mspdi';
+    const clashes = kind === 'trello' ? Tr.trelloNameClashes(ws, text) : Mx.mspdiNameClashes(ws, text);
+    if (clashes.length) return setAsk({ kind, text, name: f.name, clashes, merge: new Set(clashes) });
+    run({ kind, text, name: f.name }, []);
+  };
+  const esc = (close: () => void) => (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      close();
+    }
   };
 
+  const from = pick ? projectById(ws, pick)?.foreign?.from?.kind : undefined;
   const node: ReactNode = (
     <>
       <input
         ref={input}
         type="file"
         hidden
-        accept=".xml,.mpp,application/xml,text/xml"
+        accept=".xml,.mpp,.json,application/xml,text/xml,application/json"
         aria-label={T.import}
         onChange={(e) => {
           void onFile(e.target.files?.[0]);
           e.target.value = '';
         }}
       />
+      {pick && (
+        <div className="pjx__ask" role="group" aria-label={T.pickHead} onKeyDown={esc(() => (setPick(null), tell(T.exportCancelled)))}>
+          <p className="fbq__label">{T.pickHead}</p>
+          <span className="pjx__btns pjx__btns--col">
+            <button type="button" className={`help__run${from !== 'trello' ? ' lc__primary' : ''}`} autoFocus={from !== 'trello'} title={T.exportMspdiHint} onClick={() => exportAs(pick, 'mspdi')}>
+              {T.pickMspdi}
+            </button>
+            <button type="button" className={`help__run${from === 'trello' ? ' lc__primary' : ''}`} autoFocus={from === 'trello'} title={T.exportTrelloHint} onClick={() => exportAs(pick, 'trello')}>
+              {T.pickTrello}
+            </button>
+          </span>
+          <p className="lc__muted">{T.pickHint}</p>
+          <span className="pjx__btns">
+            <button type="button" className="help__run" onClick={() => (setPick(null), tell(T.exportCancelled))}>
+              {T.askCancel}
+            </button>
+          </span>
+        </div>
+      )}
       {ask && (
-        <div className="pjx__ask" role="group" aria-label={T.askHead}>
+        <div className="pjx__ask" role="group" aria-label={T.askHead} onKeyDown={esc(() => (setAsk(null), tell(T.cancelled)))}>
           <p className="fbq__label">{T.askHead}</p>
           <ul className="pjx__list">
             {ask.clashes.map((n) => (
@@ -97,7 +148,7 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
           </ul>
           <p className="lc__muted">{T.askHint}</p>
           <span className="pjx__btns">
-            <button type="button" className="help__run lc__primary" autoFocus onClick={() => run(ask.xml, ask.name, [...ask.merge])}>
+            <button type="button" className="help__run lc__primary" autoFocus onClick={() => run(ask, [...ask.merge])}>
               {T.askGo}
             </button>
             <button type="button" className="help__run" onClick={() => (setAsk(null), tell(T.cancelled))}>
@@ -108,5 +159,5 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
       )}
     </>
   );
-  return { exportProject, pickImport: () => input.current?.click(), node };
+  return { exportProject, pickImport: () => (setPick(null), input.current?.click()), node };
 }

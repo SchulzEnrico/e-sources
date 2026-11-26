@@ -753,7 +753,7 @@ export const TOURS: Record<TourId, TourStep[]> = {
       id: 'exchange',
       title: 'Import und Export',
       target: `${PJ} .pj__xchg`,
-      text: '„Exportieren …“ speichert das Projekt als XML für MS Project oder iTaskX, „Importieren …“ lädt so eine Datei als neues Projekt mit eigenem Desk. Was E-Sources nicht kennt, bleibt erhalten und geht beim nächsten Export zurück – nichts geht verloren.',
+      text: '„Exportieren …“ fragt nach dem Format und speichert das Projekt als XML für MS Project oder iTaskX bzw. als JSON-Datei eines Trello-Boards; „Importieren …“ lädt so eine Datei als neues Projekt mit eigenem Desk (Trello-Listen werden ein Kanban-Sheet). Was E-Sources nicht kennt, bleibt erhalten und geht beim nächsten Export zurück – nichts geht verloren.',
     },
     {
       id: 'brief',

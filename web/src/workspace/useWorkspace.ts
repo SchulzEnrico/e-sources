@@ -242,7 +242,7 @@ export type Action =
   // V117 (Projekt-Desk, PD1–PD7)
   | { type: 'deskBind'; win: string; project?: string }
   | { type: 'deskAssign'; win: string; on: boolean }
-  | { type: 'deskOwn'; win: string; project: string; std?: ReturnType<typeof DL.standardContent> }
+  | { type: 'deskOwn'; win: string; project: string; std?: ReturnType<typeof DL.standardContent>; sheet?: string }
   /* V116 (K7): Arbeitskalender */
   | { type: 'calRegion'; region?: Cal.Region; project?: string }
   | { type: 'calFree'; day: string; name?: string; remove?: boolean; project?: string }
@@ -522,7 +522,9 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'deskOwn': {
       // PD2 „Eigener Desk“: neuer Desk mit dem Standard-Layout, gleich an das Projekt gebunden
       const made = a.std ? DL.addDeskWith(ws, a.win, a.std) : Win.addDesk(ws, a.win, W.newPanel(`Portal ${ws.nextNumber}`));
-      return Dp.bindDesk(made, a.win, a.project);
+      const bound = Dp.bindDesk(made, a.win, a.project);
+      // V119 (F-230 Trello): das Kanban-Sheet des importierten Boards gleich in einem Pad des neuen Desks
+      return a.sheet ? Pd.openSheetInPad(bound, a.win, a.sheet).ws : bound;
     }
     case 'wheelPrefs':
       return Wo.setWheel(ws, a.wheel, a.prefs);

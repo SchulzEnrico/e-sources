@@ -71,7 +71,7 @@ let lastShown: string | undefined;
 export const shownProjectId = (): string | undefined => lastShown;
 
 /** V117 (Projekt-Desk): Desk dieses Fensters – zuletzt gezeigtes Projekt (PD9), merken, „Eigener Desk“ (PD2). */
-export type ProjectDeskProps = { win: string; shown?: string; onShow: (id: string | undefined) => void; onOwn: (project: string, justMade?: string) => void };
+export type ProjectDeskProps = { win: string; shown?: string; onShow: (id: string | undefined) => void; onOwn: (project: string, justMade?: string, sheet?: string) => void };
 
 export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void; desk?: ProjectDeskProps }) {
   const allRows = Pj.projectRows(ws);
@@ -406,7 +406,7 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
           ) : view === 'psp' ? (
             <ProjectPsp key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} onPickProject={(id) => (setSel(id), setViewState('brief'), focusRow(id))} />
           ) : (
-          <ProjectBrief key={shown.id} ws={ws} p={shown} row={rowsAll.find((r) => r.project.id === shown.id)!} dispatch={dispatch} say={say} boxRef={infoRef} onRename={() => startRename(shown)} onRemove={() => askRemove(shown)} onOwnDesk={desk ? () => desk.onOwn(shown.id) : undefined} onImported={(pid, name) => (setSel(pid), desk?.onOwn(pid, name))} />
+          <ProjectBrief key={shown.id} ws={ws} p={shown} row={rowsAll.find((r) => r.project.id === shown.id)!} dispatch={dispatch} say={say} boxRef={infoRef} onRename={() => startRename(shown)} onRemove={() => askRemove(shown)} onOwnDesk={desk ? () => desk.onOwn(shown.id) : undefined} onImported={(pid, name, sheet) => (setSel(pid), desk?.onOwn(pid, name, sheet))} />
           )}
         </div>
       )}
@@ -437,7 +437,7 @@ function UndoLine({ undo, dispatch, say, onBack }: { undo: { text: string; u: Pj
 type Patch = Partial<Omit<Project, 'id' | 'created' | 'changed'>>;
 
 /** Steckbrief der gewählten Zeile (MS Project: „Projektinfo“, ICB4: Projektsteckbrief). */
-function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, onOwnDesk, onImported }: { ws: Workspace; p: Project; row: Pj.ProjectRow; dispatch: (a: Action) => void; say: (t: string) => void; boxRef: React.RefObject<HTMLElement>; onRename: () => void; onRemove: () => void; onOwnDesk?: () => void; onImported?: (pid: string, name: string) => void }) {
+function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, onOwnDesk, onImported }: { ws: Workspace; p: Project; row: Pj.ProjectRow; dispatch: (a: Action) => void; say: (t: string) => void; boxRef: React.RefObject<HTMLElement>; onRename: () => void; onRemove: () => void; onOwnDesk?: () => void; onImported?: (pid: string, name: string, sheet?: string) => void }) {
   // V118 (F-230, F10): Export/Import am Ort, Meldung unter den Knöpfen mit Rückgängig
   const [xMsg, setXMsg] = useState<{ text: string; undo?: () => void } | null>(null);
   const xTimer = useRef(0);

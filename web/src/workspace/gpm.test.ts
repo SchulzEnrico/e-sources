@@ -10,6 +10,7 @@ import * as Gp from './gpm';
 import * as Fk from './formKit';
 import * as Sp from './sampleProject';
 import * as Gt from './gantt';
+import * as Sch from './schedule';
 import * as H from './help';
 import { TOURS } from './tour';
 
@@ -136,7 +137,7 @@ describe('F-226 Baukasten (V109): Vorlage GPM Level D, Zellen, Zeilen, eigene Fe
   };
   const form = (id: string) => Fk.GPM_D.forms.find((f) => f.id === id)!;
   it('Vorlage: Kapitel in Leitfaden-Reihenfolge, jede Spalte im Feldkatalog, Stufe 1 und 2', () => {
-    expect(Fk.GPM_D.forms.map((f) => f.chapter)).toEqual(['2.1', '2.2', '2.2', '2.3', '3.1', '4', '4', '4', '5', '6.2', '6.3', '7', '7', '8', '8.3', '10', '10', '11', '11', '11', '12']);
+    expect(Fk.GPM_D.forms.map((f) => f.chapter)).toEqual(['2.1', '2.2', '2.2', '2.3', '2.4', '3.1', '4', '4', '4', '5', '6.2', '6.3', '6.4', '7', '7', '7', '8', '8.3', '9', '10', '10', '11', '11', '11', '12', '13', '14', '14']);
     const chapters = Fk.GPM_D.forms.map((f) => parseFloat(f.chapter));
     expect([...chapters].sort((a, b) => a - b)).toEqual(chapters);
     for (const f of Fk.GPM_D.forms) {
@@ -528,5 +529,116 @@ describe('F-226 Stufe 2 Rest (V114): Earned Value', () => {
     const html = R.reportHtml(ws, pid, { version: 'V114', day: '2027-03-15' });
     expect(html).toContain('id="f-ev"');
     expect(html).toContain('Projekt (Stichtag');
+  });
+});
+
+describe('F-226 Stufe 2 Rest (V115): MTA, Dokumentation, Prüfung, Abschluss, Lessons Learned, Veränderung, Auflagen', () => {
+  const pid = Sp.SAMPLE_PROJECT;
+  const sample = (): Workspace => Sp.addSampleProject(W.defaultWorkspace(), 5);
+  const form = (id: string) => Fk.GPM_D.forms.find((x) => x.id === id)!;
+  it('Listen: Zeile anlegen mit Code, Zelle schreiben, löschen, laden', () => {
+    let ws = sample();
+    for (const [fid, key, val] of [['docs', 'place', 'Laufwerk P:'], ['rules', 'source', 'law'], ['checks', 'result', 'passed'], ['lessons', 'kind', 'good'], ['changes', 'resistance', 'high']] as const) {
+      const f = form(fid);
+      expect(Fk.canAddRow(f)).toBe(true);
+      const r = Fk.addRow(ws, pid, f, { id: `x-${fid}`, now: 1 })!;
+      expect(r).not.toBeNull();
+      ws = r.ws;
+      ws = Fk.setCell(ws, pid, f, `x-${fid}`, key, val, { now: 2 });
+      expect(Fk.cellValue(ws, pid, f, `x-${fid}`, key)).toBe(val);
+    }
+    expect(Fk.cellValue(ws, pid, form('docs'), 'x-docs', 'code')).toBe('D-1');
+    expect(Fk.cellValue(ws, pid, form('rules'), 'x-rules', 'code')).toBe('A-1');
+    // Unsinn bei Auswahl bleibt draußen
+    ws = Fk.setCell(ws, pid, form('checks'), 'x-checks', 'result', 'super', { now: 3 });
+    expect(Fk.cellValue(ws, pid, form('checks'), 'x-checks', 'result')).toBeUndefined();
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    const p = Pj.projectById(back, pid)!;
+    expect(p.docs?.[0].place).toBe('Laufwerk P:');
+    expect(p.lessons?.[0].kind).toBe('good');
+    const rm = Fk.removeRow(ws, pid, form('changes'), 'x-changes', 4)!;
+    expect(Pj.projectById(rm.ws, pid)!.changes).toBeUndefined();
+  });
+  it('Abschluss: Felder schreiben, Häkchen „archiviert“, leer = weg', () => {
+    let ws = sample();
+    const f = form('close');
+    expect(f.layout).toBe('fields');
+    ws = Fk.setCell(ws, pid, f, pid, 'date', '2027-06-30', { now: 1 });
+    ws = Fk.setCell(ws, pid, f, pid, 'archived', true, { now: 2 });
+    expect(Pj.projectById(ws, pid)!.close).toEqual({ date: '2027-06-30', archived: true });
+    ws = Fk.setCell(ws, pid, f, pid, 'archived', false, { now: 3 });
+    ws = Fk.setCell(ws, pid, f, pid, 'date', '', { now: 4 });
+    expect(Pj.projectById(ws, pid)!.close).toBeUndefined();
+  });
+  it('MTA: Statusbericht hält Meilenstein-Termine fest, Reihe je Meilenstein, heute als letzter Punkt', async () => {
+    const C = await import('./gpmCalc');
+    const R = await import('./gpmReport');
+    let ws = sample();
+    const rep = form('reports');
+    ws = Fk.addRow(ws, pid, rep, { id: 'r-mta', now: Date.parse('2027-02-01T10:00:00Z') })!.ws;
+    const r = Pj.projectById(ws, pid)!.reports!.find((x) => x.id === 'r-mta')!;
+    expect(Object.keys(r.ms ?? {}).length).toBeGreaterThan(0);
+    const m = C.mtaOf(ws, pid, '2027-03-01');
+    expect(m.points.map((x) => x.label)).toEqual(['01.02.', 'heute']);
+    const row = m.rows.find((x) => r.ms![x.id])!;
+    expect(row.series[0]).toBe(r.ms![row.id]);
+    expect(row.delta).toBe(0);
+    expect(row.trend).toBe('same');
+    expect(Fk.canAddRow(form('mta'))).toBe(false);
+    expect(R.mtaSvg(m, R.mtaNames(ws, pid), R.PRINT_COLORS)).toContain('<svg');
+    const html = R.reportHtml(ws, pid, { version: 'V115', day: '2027-03-01' });
+    for (const id of ['mta', 'docs', 'checks', 'close', 'lessons', 'changes', 'rules']) expect(html).toContain(`id="f-${id}"`);
+  });
+});
+
+describe('F-206 Schritt 10 (V115): Basisplan', () => {
+  const pid = Sp.SAMPLE_PROJECT;
+  it('speichern hält Termine fest, Abweichung nach Verschieben, Rückgängig und Laden', async () => {
+    const Bl = await import('./baseline');
+    const C = await import('./gpmCalc');
+    let ws = Sp.addSampleProject(W.defaultWorkspace(), 5);
+    const r = Bl.saveBaseline(ws, pid, '2026-11-26T09:00:00.000Z', 6)!;
+    expect(r.prev).toBeUndefined();
+    ws = r.ws;
+    const b = Pj.projectById(ws, pid)!.baseline!;
+    expect(Object.keys(b.tasks).length).toBeGreaterThan(20);
+    let cmp = Bl.compare(ws, pid);
+    expect(cmp.end).toBe(0);
+    expect([...cmp.rows.values()].every((d) => d.added || d.end === 0)).toBe(true);
+    // ersten Vorgang ohne Vorgänger 5 Arbeitstage länger machen → Projektende verschiebt sich, wenn er kritisch ist
+    const g = Gt.ganttOf(ws, pid);
+    const critTask = g.rows.find((x) => x.critical && !x.node.summary && x.days > 1)!;
+    ws = Sch.setTaskPlan(ws, critTask.id, { duration: critTask.days + 5 }, 7);
+    cmp = Bl.compare(ws, pid);
+    expect(cmp.rows.get(critTask.id)!.end).toBe(5);
+    expect(cmp.end).toBe(5);
+    // MTA nimmt den Basisplan als ersten Punkt
+    const m = C.mtaOf(ws, pid, '2026-11-27');
+    expect(m.points[0].label).toBe('Basisplan');
+    expect(m.rows.some((x) => (x.delta ?? 0) > 0)).toBe(true);
+    // laden und löschen
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(Pj.projectById(back, pid)!.baseline!.tasks[critTask.id].end).toBe(b.tasks[critTask.id].end);
+    ws = Bl.setBaseline(ws, pid, undefined);
+    expect(Pj.projectById(ws, pid)!.baseline).toBeUndefined();
+    expect(Bl.compare(ws, pid).rows.size).toBe(0);
+  });
+});
+
+describe('F-206 Schritt 10 (V115): Netzplan', () => {
+  it('ColorGentlemen: alle Vorgänge ohne Sammelvorgänge, Spalten folgen den Abhängigkeiten, kritischer Pfad ohne Puffer', async () => {
+    const Nw = await import('./network');
+    const ws = Sp.addSampleProject(W.defaultWorkspace(), 5);
+    const g = Gt.ganttOf(ws, Sp.SAMPLE_PROJECT);
+    const net = Nw.networkOf(ws, Sp.SAMPLE_PROJECT, g);
+    expect(net.nodes.length).toBe(g.rows.filter((r) => r.planned && r.node.kind === 'task' && !r.node.summary).length);
+    expect(net.nodes.every((n) => !n.row.node.summary)).toBe(true);
+    for (const l of net.links) expect(net.byId.get(l.to)!.col).toBeGreaterThan(net.byId.get(l.from)!.col);
+    expect(net.cols).toBeGreaterThan(3);
+    for (const n of net.nodes) {
+      if (n.row.critical) expect([n.ls, n.lf]).toEqual([n.es, n.ef]);
+      else expect(n.lf >= n.ef).toBe(true);
+    }
+    expect(net.links.some((l) => l.critical)).toBe(true);
   });
 });

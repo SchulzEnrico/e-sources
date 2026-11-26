@@ -10,7 +10,7 @@ import { ganttOf, type Gantt } from './gantt';
 import { planCost, planHours, useTotals } from './gpm';
 import { notesOf } from './notes';
 import { projectById } from './projects';
-import { addDays, isWorkday } from './schedule';
+import { addDays, isWorkday, workdaysBetween } from './schedule';
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const round = (v: number, d = 0) => Math.round(v * 10 ** d) / 10 ** d;
@@ -214,7 +214,91 @@ export function newReport(ws: Workspace, pid: string, id: string, day: string): 
     actHours: s.actHours,
     planCost: s.planCost,
     actCost: s.actCost,
+    ...(() => {
+      const ms = milestoneEnds(ws, pid, day);
+      return Object.keys(ms).length ? { ms } : {};
+    })(),
   };
+}
+
+// ---------------------------------------------------------------- Meilenstein-Trendanalyse (V115, ICB4 4.5.4)
+
+/** Ende aller Meilensteine des Projekts laut Gantt (Notiz-Id → Tag). */
+export function milestoneEnds(ws: Workspace, pid: string, day?: string, g: Gantt = ganttOf(ws, pid, day)): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const n of leafTasks(ws, pid, g)) {
+    const r = g.byId.get(n.id);
+    if (n.milestone && r?.planned) out[n.id] = r.end;
+  }
+  return out;
+}
+export interface MtaRow {
+  id: string;
+  /** Soll aus dem Basisplan */
+  base?: string;
+  /** Prognose je Berichtszeitpunkt (gleiche Reihenfolge wie `points`), zuletzt heute */
+  series: (string | undefined)[];
+  /** heute laut Gantt */
+  now?: string;
+  /** Abweichung heute gegen Basisplan bzw. erste Prognose in Arbeitstagen (+ = später) */
+  delta?: number;
+  /** Richtung seit dem letzten Bericht */
+  trend?: 'earlier' | 'same' | 'later';
+  /** schon erreicht (erledigt) */
+  done: boolean;
+}
+export interface Mta {
+  /** Berichtszeitpunkte (Stichtage, aufsteigend; der Basisplan zählt als erster, heute als letzter) */
+  points: { day: string; label: string }[];
+  rows: MtaRow[];
+}
+const signedDays = (a: string, b: string) => (a === b ? 0 : a < b ? workdaysBetween(addDays(a, 1), b) : -workdaysBetween(addDays(b, 1), a));
+/** MTA: je Meilenstein die Prognose aus Basisplan, jedem Statusbericht und heute. */
+export function mtaOf(ws: Workspace, pid: string, day: string): Mta {
+  const p = projectById(ws, pid);
+  const g = ganttOf(ws, pid, day);
+  const now = milestoneEnds(ws, pid, day, g);
+  const reps = [...(p?.reports ?? [])].filter((r) => r.date <= day).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const dmy = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.`;
+  const points: Mta['points'] = [];
+  const cols: (Record<string, string> | undefined)[] = [];
+  const bl = p?.baseline;
+  if (bl) {
+    points.push({ day: bl.at.slice(0, 10) || (p?.start ?? day), label: 'Basisplan' });
+    cols.push(Object.fromEntries(Object.entries(bl.tasks ?? {}).filter(([, t]) => t.end).map(([k, t]) => [k, t.end as string])));
+  }
+  for (const r of reps) {
+    points.push({ day: r.date, label: dmy(r.date) });
+    cols.push(r.ms);
+  }
+  // Spalten bis hier sind Soll bzw. festgehaltene Prognosen; „heute“ zählt nicht als erste Prognose
+  const fixed = cols.length;
+  if (!reps.some((r) => r.date === day)) {
+    points.push({ day, label: 'heute' });
+    cols.push(now);
+  }
+  const notes = new Map(notesOf(ws).map((n) => [n.id, n]));
+  const rows: MtaRow[] = [];
+  for (const r of g.rows) {
+    const n = notes.get(r.id);
+    if (!n?.milestone || (n.project !== pid && r.node.owner !== pid)) continue;
+    const series = cols.map((c) => c?.[r.id]);
+    const base = bl?.tasks?.[r.id]?.end;
+    const first = base ?? series.slice(0, fixed).find((x) => x);
+    const cur = now[r.id];
+    const known = series.filter((x): x is string => !!x);
+    const prev = known.length >= 2 ? known[known.length - 2] : undefined;
+    rows.push({
+      id: r.id,
+      ...(base ? { base } : {}),
+      series,
+      ...(cur ? { now: cur } : {}),
+      ...(first && cur ? { delta: signedDays(first, cur) } : {}),
+      ...(prev && cur ? { trend: cur < prev ? 'earlier' : cur > prev ? 'later' : 'same' } : {}),
+      done: n.state === 'done',
+    });
+  }
+  return { points, rows };
 }
 
 // ---------------------------------------------------------------- Kosten- und Aufwandsganglinie (ICB4 4.5.7)

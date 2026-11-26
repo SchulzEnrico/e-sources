@@ -879,6 +879,13 @@ export interface Project {
   comms?: CommItem[];
   /** F-226 Stufe 2 (V113, L12): Statusberichte. */
   reports?: StatusReport[];
+  /** F-226 Stufe 2 Rest (V115): Dokumentation (ICB4 4.5.5), Prüfungen am Lieferobjekt (4.5.6), Lessons Learned (4.5.10), Veränderung (4.5.13), Auflagen (4.3.3), Abschluss (4.5.10). */
+  docs?: DocItem[];
+  checks?: QualityCheck[];
+  lessons?: Lesson[];
+  changes?: ChangeItem[];
+  rules?: RuleItem[];
+  close?: ProjectClose;
   created: number;
   changed: number;
 }
@@ -912,6 +919,96 @@ export interface CommItem {
   freq?: string;
 }
 
+/** F-226 Stufe 2 Rest (V115, ICB4 4.5.5): Dokument im Projekt (Dokumentenmanagement). */
+export interface DocItem {
+  id: string;
+  code?: string;
+  title: string;
+  /** Art: Plan, Protokoll, Bericht, Vertrag, Nachweis … */
+  kind?: string;
+  /** Person-Id */
+  owner?: string;
+  version?: string;
+  date?: string;
+  state?: 'draft' | 'review' | 'released' | 'archived';
+  /** Ablageort bzw. Link */
+  place?: string;
+  /** Verteiler */
+  dist?: string;
+}
+/** V115 (ICB4 4.5.6): Prüfung am Lieferobjekt (Qualitätsprüfung). */
+export interface QualityCheck {
+  id: string;
+  /** Lieferobjekt bzw. Ergebnis */
+  object: string;
+  /** Arbeitspaket (Code oder Name, frei) */
+  task?: string;
+  criterion?: string;
+  method?: 'visual' | 'measure' | 'test' | 'review' | 'accept';
+  date?: string;
+  /** Person-Id */
+  by?: string;
+  result?: 'open' | 'passed' | 'defects' | 'failed';
+  defects?: string;
+  action?: string;
+  due?: string;
+}
+/** V115 (ICB4 4.5.10): Erfahrung aus dem Projekt. */
+export interface Lesson {
+  id: string;
+  topic: string;
+  kind?: 'good' | 'bad' | 'improve';
+  /** Phase-Id */
+  phase?: string;
+  what?: string;
+  cause?: string;
+  advice?: string;
+  /** Person-Id */
+  owner?: string;
+  shared?: boolean;
+}
+/** V115 (ICB4 4.5.13): Veränderung in der Organisation (Change und Transformation). */
+export interface ChangeItem {
+  id: string;
+  area: string;
+  today?: string;
+  target?: string;
+  affected?: string;
+  resistance?: 'low' | 'mid' | 'high';
+  measure?: string;
+  /** Person-Id */
+  owner?: string;
+  due?: string;
+  state?: 'planned' | 'running' | 'done';
+}
+/** V115 (ICB4 4.3.3): Auflage – Gesetz, Norm, Vertrag, interne Regel. */
+export interface RuleItem {
+  id: string;
+  code?: string;
+  title: string;
+  source?: 'law' | 'norm' | 'contract' | 'internal' | 'authority';
+  authority?: string;
+  duty?: string;
+  proof?: string;
+  due?: string;
+  /** Person-Id */
+  owner?: string;
+  state?: 'open' | 'met' | 'na';
+}
+/** V115 (ICB4 4.5.10): Projektabschluss. */
+export interface ProjectClose {
+  date?: string;
+  result?: string;
+  goals?: string;
+  acceptedBy?: string;
+  acceptedOn?: string;
+  handover?: string;
+  open?: string;
+  team?: string;
+  archived?: boolean;
+  thanks?: string;
+}
+
 /** F-226 Stufe 2 (V113, L12): Statusbericht – Werte beim Anlegen eingefroren, Text frei. */
 export interface StatusReport {
   id: string;
@@ -935,6 +1032,8 @@ export interface StatusReport {
   next?: string;
   measures?: string;
   note?: string;
+  /** V115 (MTA): Ende der Meilensteine laut Gantt am Stichtag, je Notiz-Id */
+  ms?: Record<string, string>;
 }
 
 /** F-206 Schritt 10 (V100, K5): Soll eines Vorgangs im Basisplan. */
@@ -1252,7 +1351,7 @@ export interface FormFieldDef {
   required?: boolean;
 }
 /** F-226: Woher ein Formular seine Zeilen nimmt. */
-export type FormSource = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'risks' | 'phases' | 'milestones' | 'tasks' | 'uses' | 'persons' | 'procure' | 'roles' | 'accept' | 'comms' | 'reports' | 'wp' | 'costs' | 'ev';
+export type FormSource = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'risks' | 'phases' | 'milestones' | 'tasks' | 'uses' | 'persons' | 'procure' | 'roles' | 'accept' | 'comms' | 'reports' | 'wp' | 'costs' | 'ev' | 'mta' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'close';
 /** F-226: Spalte bzw. Feld eines Formulars – eingebautes Feld (`key`) oder eigenes (`custom:<id>`). */
 export interface FormColumn {
   key: string;

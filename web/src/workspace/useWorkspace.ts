@@ -32,7 +32,8 @@ import * as Pd from './pads';
 import * as NT from './noteTree';
 import * as NL from './notesLayouts';
 import * as RS from './ruleSet';
-import type { BoardTemplate, ColState, FocusView, NoteState, NoteView, NoteViewKind, PadPlace, Person, Project, SourceLink, SourceSpot } from './types';
+import type { BoardTemplate, ColState, FocusView, NoteState, NoteView, NoteViewKind, PadPlace, Person, Project, ProjectBaseline, SourceLink, SourceSpot } from './types';
+import * as Bl from './baseline';
 import * as BT from './boardTemplates';
 import * as Sh from './sheets';
 import * as Ps from './persons';
@@ -231,6 +232,8 @@ export type Action =
   | { type: 'pspShift'; project: string; id: string; out: boolean }
   | { type: 'taskPlan'; id: string; plan: Sc.TaskPlan }
   | { type: 'taskPreds'; project: string; id: string; links: Gt.PredInput['links'] }
+  | { type: 'baselineSave'; project: string; at: string }
+  | { type: 'baselineSet'; project: string; b?: ProjectBaseline }
   | { type: 'sampleProject'; on: boolean }
   /* F-221 (V102): Feedback */
   | { type: 'fbAdd'; id: string; v: Fb.NewFeedback; at: string }
@@ -492,6 +495,10 @@ function step(ws: Workspace, a: Action): Workspace {
     }
     case 'taskPlan':
       return Sc.setTaskPlan(ws, a.id, a.plan);
+    case 'baselineSave':
+      return Bl.saveBaseline(ws, a.project, a.at)?.ws ?? ws;
+    case 'baselineSet':
+      return Bl.setBaseline(ws, a.project, a.b);
     case 'taskPreds': {
       const r = Gt.setPreds(ws, a.project, a.id, a.links);
       return r.ok ? r.ws : ws;

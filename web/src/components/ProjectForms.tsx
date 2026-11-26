@@ -21,7 +21,7 @@ import { OVERFLOW_TEXT } from '../workspace/terms';
 import { WorkPadButton } from './WorkPadOpen';
 import { requestTour, tourAutoStart } from '../workspace/tour';
 import * as Rp from '../workspace/gpmReport';
-import { costCurve, portfolioOf } from '../workspace/gpmCalc';
+import { costCurve, earnedValue, mtaOf, portfolioOf } from '../workspace/gpmCalc';
 import { APP_VERSION } from '../workspace/feedback';
 
 /** V113: Farben der Grafiken in der Oberfläche (folgen Darstellung und Akzentfarbe) */
@@ -45,10 +45,7 @@ const parseNum = (v: string): number | '' | undefined => {
   const x = Number(v.replace(/\./g, '').replace(',', '.').replace(/[€%\s]/g, '').replace('−', '-'));
   return Number.isFinite(x) ? x : undefined;
 };
-const fmtNum = (v: Fk.CellValue, kind: Fk.FieldKind): string => {
-  if (typeof v !== 'number') return v === undefined ? '' : String(v);
-  return kind === 'money' ? v.toLocaleString('de-DE', { maximumFractionDigits: 2 }) : String(v).replace('.', ',');
-};
+const fmtNum = (v: Fk.CellValue, kind: Fk.FieldKind, digits?: number): string => (typeof v !== 'number' ? (v === undefined ? '' : String(v)) : Fk.fmtNumber(v, kind, digits));
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
 
 export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void; inPad?: boolean }) {
@@ -169,7 +166,8 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
     }
     window.setTimeout(() => URL.revokeObjectURL(url), 120000);
   };
-  const curve = form.layout === 'chart' ? costCurve(ws, p.id) : null;
+  const curve = form.layout === 'chart' && form.source === 'costs' ? costCurve(ws, p.id) : null;
+  const mta = form.source === 'mta' ? mtaOf(ws, p.id, Fk.evDay()) : null;
   const dots = form.layout === 'portfolio' ? portfolioOf(p) : [];
   const dotsOpen = form.layout === 'portfolio' ? dots.filter((d) => (form.filter === 'sh' ? d.attitude === undefined || d.power === undefined : !d.side || !d.area)).length : 0;
   const eur = (v: number) => `${v.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
@@ -287,6 +285,18 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
           )}
         </figure>
       )}
+      {mta && (
+        <figure className="pjf__figure">
+          {mta.rows.some((r) => r.series.some(Boolean)) ? (
+            <>
+              <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: Rp.mtaSvg(mta, Rp.mtaNames(ws, p.id), UI_COLORS, 720, 300) }} />
+              <figcaption className="help__text">{T.mtaSum(mta.points.length, !!p.baseline)}</figcaption>
+            </>
+          ) : (
+            <p className="lc__muted">{T.mtaNone}</p>
+          )}
+        </figure>
+      )}
       {form.layout === 'portfolio' && (
         <figure className="pjf__figure">
           <div className="pjf__svg is-portfolio" dangerouslySetInnerHTML={{ __html: form.filter === 'sh' ? Rp.shSvg(dots, UI_COLORS) : Rp.envSvg(dots, UI_COLORS) }} />
@@ -358,7 +368,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
           form.layout === 'chart' ? null : <p className="lc__muted">{form.source === 'persons' ? T.personsNone : form.source === 'conflicts' && (p.goals?.length ?? 0) < 2 ? T.conflictsNone : T.empty}</p>
         ) : (
           <div className="pjs__left">
-            {form.layout === 'chart' && <p className="fbq__label pjf__tabhead">{T.chartTable}</p>}
+            {form.layout === 'chart' && <p className="fbq__label pjf__tabhead">{form.source === 'mta' ? T.mtaTable : T.chartTable}</p>}
             <table className="pc__table pjf__table" aria-labelledby={`${base}-head`}>
               <thead>
                 <tr>
@@ -392,7 +402,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
                             </button>
                           </>
                         )}
-                        {form.source !== 'persons' && form.layout === 'table' && (
+                        {Fk.canRemoveRow(form) && (
                           <button type="button" className="remind__x" aria-label={`${T.remove}: ${lbl}`} title={T.remove} onClick={() => remove(r.id, i)}>
                             <Icon name="trash" size={12} />
                           </button>
@@ -402,6 +412,25 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
                   );
                 })}
               </tbody>
+              {form.source === 'ev' && rows.length > 0 && (() => {
+                // V115: Summenzeile wie im Bericht – Kennzahlen für das ganze Projekt zum Stichtag
+                const day = Fk.evDay();
+                const t = earnedValue(ws, p.id, day).total;
+                const money = (v: number) => `${Fk.fmtNumber(Math.round(v), 'money')} €`;
+                const sum: Record<string, string> = { code: '', title: `Projekt (Stichtag ${dmy(day)})`, bac: money(t.bac), pv: money(t.pv), ev: money(t.ev), ac: money(t.ac), sv: money(t.sv), cv: money(t.cv), spi: t.spi !== undefined ? Fk.fmtNumber(t.spi, 'number', 2) : T.none, cpi: t.cpi !== undefined ? Fk.fmtNumber(t.cpi, 'number', 2) : T.none, eac: money(t.eac) };
+                return (
+                  <tfoot>
+                    <tr className="pjf__sum">
+                      {cols.map((c) => (
+                        <td key={c.key} className={`pjf__cell is-${c.kind}`}>
+                          <span className="pjf__ro">{sum[c.key] ?? ''}</span>
+                        </td>
+                      ))}
+                      <td />
+                    </tr>
+                  </tfoot>
+                );
+              })()}
             </table>
           </div>
         )}
@@ -439,7 +468,7 @@ function Cell({ ws, p, form, rowId, col, miss, label, onSet }: { ws: Workspace; 
   };
   const common = { 'aria-label': label, 'aria-invalid': miss || undefined, 'aria-required': col.required || undefined } as const;
   if (col.readonly) {
-    const text = v === undefined || v === '' ? T.none : col.kind === 'money' ? `${fmtNum(v, 'money')} €` : col.kind === 'date' && typeof v === 'string' ? dmy(v) : typeof v === 'number' ? `${fmtNum(v, col.kind)}${col.kind === 'pct' ? ' %' : ''}` : String(v);
+    const text = v === undefined || v === '' ? T.none : col.kind === 'money' ? `${fmtNum(v, 'money')} €` : col.kind === 'date' && typeof v === 'string' ? dmy(v) : typeof v === 'number' ? `${fmtNum(v, col.kind, col.digits)}${col.kind === 'pct' ? ' %' : ''}` : String(v);
     return <span className="pjf__ro" aria-label={`${label}: ${text}`}>{text}</span>;
   }
   if (col.kind === 'bool')

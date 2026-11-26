@@ -17,8 +17,8 @@ import type {
   ProjectForms,
   Workspace,
 } from './types';
-import { addItem, editCharter, editItem, goalsOf, moveItem, nextCode, parseWp, planCost, planHours, removeItem, riskLevels, riskValue, riskValueAfter, setPhase, setUse, undoRemoveItem, useCost, type GpmList, type GpmUndo, COMM_STRATEGIES, GOAL_KINDS, GOAL_LEVELS, MODELS, PROCURE_STATES, PROGRESS_METHODS, REPORT_LIGHTS, STAKE_STRATEGIES } from './gpm';
-import { costCurve, earnedValue, newReport, progressOf } from './gpmCalc';
+import { addItem, editCharter, editItem, goalsOf, moveItem, nextCode, parseWp, planCost, planHours, removeItem, riskLevels, riskValue, riskValueAfter, setPhase, setUse, undoRemoveItem, useCost, type GpmList, type GpmUndo, COMM_STRATEGIES, CHANGE_RESIST, CHANGE_STATES, CHECK_METHODS, CHECK_RESULTS, DOC_STATES, editClose, LESSON_KINDS, RULE_SOURCES, RULE_STATES, GOAL_KINDS, GOAL_LEVELS, MODELS, PROCURE_STATES, PROGRESS_METHODS, REPORT_LIGHTS, STAKE_STRATEGIES } from './gpm';
+import { costCurve, earnedValue, mtaOf, newReport, progressOf } from './gpmCalc';
 import { ganttOf } from './gantt';
 import { type Act, createNote, deleteNote, notesOf, type NoteUndo, restoreNotes, titleOf, updateNote } from './notes';
 import { editProject, editRoles, projectById, rolesOf } from './projects';
@@ -43,6 +43,8 @@ export interface FieldSpec {
   gpm?: boolean;
   /** Erklärung des Begriffs (NF: Begriffe erklären) */
   help?: string;
+  /** V115: feste Nachkommastellen in der Anzeige (SPI/CPI = 2) */
+  digits?: number;
 }
 const opts = <T extends string>(vs: readonly T[], labels: Record<T, string>) => vs.map((v) => ({ v, label: labels[v] }));
 
@@ -54,6 +56,16 @@ export const MODEL_LABEL = { classic: 'klassisch', agile: 'agil', hybrid: 'hybri
 const RISK_STRATEGY_LABEL = { avoid: 'vermeiden', reduce: 'vermindern', transfer: 'übertragen', accept: 'akzeptieren' } as const;
 const RISK_STATE_LABEL = { open: 'offen', doing: 'in Bearbeitung', occurred: 'eingetreten', closed: 'erledigt' } as const;
 export const COMM_STRATEGY_LABEL = { push: 'Bringschuld', pull: 'Holschuld' } as const;
+// V115: Auswahl-Texte der Stufe 2 (Rest)
+export const DOC_STATE_LABEL = { draft: 'Entwurf', review: 'in Prüfung', released: 'freigegeben', archived: 'archiviert' } as const;
+export const CHECK_METHOD_LABEL = { visual: 'Sichtprüfung', measure: 'Messung', test: 'Test/Funktionsprüfung', review: 'Review', accept: 'Abnahmeprüfung' } as const;
+export const CHECK_RESULT_LABEL = { open: 'offen', passed: 'bestanden', defects: 'mit Mängeln', failed: 'nicht bestanden' } as const;
+export const LESSON_KIND_LABEL = { good: 'lief gut', bad: 'lief schlecht', improve: 'Verbesserung' } as const;
+export const CHANGE_RESIST_LABEL = { low: 'gering', mid: 'mittel', high: 'hoch' } as const;
+export const CHANGE_STATE_LABEL = { planned: 'geplant', running: 'läuft', done: 'umgesetzt' } as const;
+export const RULE_SOURCE_LABEL = { law: 'Gesetz/Verordnung', norm: 'Norm/Standard', contract: 'Vertrag', internal: 'interne Regel', authority: 'Auflage einer Behörde' } as const;
+export const RULE_STATE_LABEL = { open: 'offen', met: 'erfüllt', na: 'nicht zutreffend' } as const;
+export const MTA_TREND_LABEL = { earlier: 'früher', same: 'gleich', later: 'später' } as const;
 export const REPORT_LIGHT_LABEL = { green: 'grün – im Plan', yellow: 'gelb – Abweichung, beherrschbar', red: 'rot – Eingriff nötig' } as const;
 export const PROGRESS_METHOD_LABEL = { zero: '0/100', half: '50/50', twenty: '20/80', effort: 'aufwandsproportional', steps: 'Meilensteine/Teilschritte', estimate: 'Schätzung' } as const;
 
@@ -257,9 +269,87 @@ export const FIELDS: Record<FormSource, readonly FieldSpec[]> = {
     { key: 'ac', label: 'Ist-Kosten AC (€)', kind: 'money', readonly: true, help: 'Actual Cost: Ist-Kosten von Hand' },
     { key: 'sv', label: 'Terminabweichung SV (€)', kind: 'money', readonly: true, help: 'EV − PV; negativ = hinter dem Plan' },
     { key: 'cv', label: 'Kostenabweichung CV (€)', kind: 'money', readonly: true, help: 'EV − AC; negativ = teurer als geplant' },
-    { key: 'spi', label: 'SPI', kind: 'number', readonly: true, help: 'Termin-Kennzahl EV ÷ PV; unter 1 = verspätet' },
-    { key: 'cpi', label: 'CPI', kind: 'number', readonly: true, help: 'Kosten-Kennzahl EV ÷ AC; unter 1 = teurer' },
+    { key: 'spi', label: 'SPI', kind: 'number', readonly: true, digits: 2, help: 'Termin-Kennzahl EV ÷ PV; unter 1 = verspätet' },
+    { key: 'cpi', label: 'CPI', kind: 'number', readonly: true, digits: 2, help: 'Kosten-Kennzahl EV ÷ AC; unter 1 = teurer' },
     { key: 'eac', label: 'Prognose EAC (€)', kind: 'money', readonly: true, help: 'Estimate at Completion: BAC ÷ CPI' },
+  ],
+  // ---------------------------------------------------------------- Stufe 2 Rest (V115)
+  mta: [
+    { key: 'code', label: 'Code', kind: 'text', readonly: true },
+    { key: 'title', label: 'Meilenstein', kind: 'text', readonly: true },
+    { key: 'base', label: 'Basisplan', kind: 'date', readonly: true, help: 'Soll-Termin aus dem gespeicherten Basisplan' },
+    { key: 'first', label: 'Erste Prognose', kind: 'date', readonly: true, help: 'Termin im ersten Statusbericht' },
+    { key: 'last', label: 'Letzter Bericht', kind: 'date', readonly: true, help: 'Termin im letzten Statusbericht' },
+    { key: 'now', label: 'Heute (Gantt)', kind: 'date', readonly: true, help: 'Termin, wie der Gantt ihn heute rechnet' },
+    { key: 'delta', label: 'Abweichung (AT)', kind: 'number', readonly: true, help: 'Arbeitstage gegen Basisplan bzw. erste Prognose; + = später' },
+    { key: 'trend', label: 'Trend', kind: 'choice', readonly: true, options: opts(['earlier', 'same', 'later'] as const, MTA_TREND_LABEL), help: 'Richtung seit dem letzten Bericht' },
+  ],
+  docs: [
+    { key: 'code', label: 'Nr.', kind: 'text' },
+    { key: 'title', label: 'Dokument', kind: 'text', gpm: true },
+    { key: 'kind', label: 'Art', kind: 'text', help: 'Plan, Protokoll, Bericht, Vertrag, Nachweis …' },
+    { key: 'owner', label: 'Verantwortlich', kind: 'person', gpm: true },
+    { key: 'version', label: 'Version', kind: 'text' },
+    { key: 'date', label: 'Stand', kind: 'date' },
+    { key: 'state', label: 'Status', kind: 'choice', options: opts(DOC_STATES, DOC_STATE_LABEL), gpm: true, help: 'Entwurf → in Prüfung → freigegeben → archiviert' },
+    { key: 'place', label: 'Ablageort', kind: 'text', gpm: true, help: 'Ordner, Laufwerk oder Link' },
+    { key: 'dist', label: 'Verteiler', kind: 'text', help: 'Wer das Dokument bekommt' },
+  ],
+  checks: [
+    { key: 'object', label: 'Lieferobjekt', kind: 'text', gpm: true, help: 'Was geprüft wird: Ergebnis, Bauteil, Dokument' },
+    { key: 'task', label: 'Arbeitspaket', kind: 'text', help: 'Code oder Name des Arbeitspakets' },
+    { key: 'criterion', label: 'Prüfkriterium', kind: 'long', gpm: true, help: 'Woran gemessen wird – oft ein Abnahmekriterium' },
+    { key: 'method', label: 'Prüfart', kind: 'choice', options: opts(CHECK_METHODS, CHECK_METHOD_LABEL) },
+    { key: 'date', label: 'Datum', kind: 'date', gpm: true },
+    { key: 'by', label: 'Prüfer', kind: 'person', gpm: true },
+    { key: 'result', label: 'Ergebnis', kind: 'choice', options: opts(CHECK_RESULTS, CHECK_RESULT_LABEL), gpm: true },
+    { key: 'defects', label: 'Mängel', kind: 'long' },
+    { key: 'action', label: 'Maßnahme', kind: 'long', help: 'Nacharbeit, erneute Prüfung' },
+    { key: 'due', label: 'Frist', kind: 'date' },
+  ],
+  changes: [
+    { key: 'area', label: 'Bereich', kind: 'text', gpm: true, help: 'Wo sich etwas ändert: Abteilung, Prozess, System' },
+    { key: 'today', label: 'Heute (Ist)', kind: 'long' },
+    { key: 'target', label: 'Künftig (Soll)', kind: 'long', gpm: true },
+    { key: 'affected', label: 'Betroffene', kind: 'text', gpm: true },
+    { key: 'resistance', label: 'Widerstand', kind: 'choice', options: opts(CHANGE_RESIST, CHANGE_RESIST_LABEL), help: 'Erwarteter Widerstand der Betroffenen' },
+    { key: 'measure', label: 'Maßnahme', kind: 'long', gpm: true, help: 'Information, Beteiligung, Schulung, Begleitung' },
+    { key: 'owner', label: 'Verantwortlich', kind: 'person' },
+    { key: 'due', label: 'Termin', kind: 'date' },
+    { key: 'state', label: 'Stand', kind: 'choice', options: opts(CHANGE_STATES, CHANGE_STATE_LABEL) },
+  ],
+  rules: [
+    { key: 'code', label: 'Nr.', kind: 'text' },
+    { key: 'title', label: 'Auflage', kind: 'text', gpm: true, help: 'Gesetz, Norm, Vertragspflicht oder interne Regel, die das Projekt einhalten muss' },
+    { key: 'source', label: 'Herkunft', kind: 'choice', options: opts(RULE_SOURCES, RULE_SOURCE_LABEL), gpm: true },
+    { key: 'authority', label: 'Stelle', kind: 'text', help: 'Behörde, Prüfstelle, Vertragspartner' },
+    { key: 'duty', label: 'Anforderung', kind: 'long', gpm: true },
+    { key: 'proof', label: 'Nachweis', kind: 'text', help: 'Womit die Einhaltung belegt wird' },
+    { key: 'due', label: 'Frist', kind: 'date' },
+    { key: 'owner', label: 'Verantwortlich', kind: 'person' },
+    { key: 'state', label: 'Stand', kind: 'choice', options: opts(RULE_STATES, RULE_STATE_LABEL) },
+  ],
+  close: [
+    { key: 'date', label: 'Abschlussdatum', kind: 'date', gpm: true },
+    { key: 'result', label: 'Ergebnis', kind: 'long', gpm: true, help: 'Was erreicht und übergeben wurde' },
+    { key: 'goals', label: 'Zielerreichung', kind: 'long', gpm: true, help: 'Je Ziel: erreicht, teilweise, nicht – mit Begründung' },
+    { key: 'acceptedBy', label: 'Abnahme durch', kind: 'text', gpm: true },
+    { key: 'acceptedOn', label: 'Abnahme am', kind: 'date', gpm: true },
+    { key: 'handover', label: 'Übergabe in die Linie', kind: 'long', help: 'Wer betreibt das Ergebnis künftig, was wurde übergeben' },
+    { key: 'open', label: 'Offene Punkte', kind: 'long', help: 'Restarbeiten mit Verantwortlichen' },
+    { key: 'team', label: 'Auflösung des Teams', kind: 'long', help: 'Rückführung der Mitarbeitenden, Würdigung' },
+    { key: 'archived', label: 'Dokumentation archiviert', kind: 'bool' },
+    { key: 'thanks', label: 'Abschlussveranstaltung', kind: 'long' },
+  ],
+  lessons: [
+    { key: 'topic', label: 'Thema', kind: 'text', gpm: true },
+    { key: 'kind', label: 'Art', kind: 'choice', options: opts(LESSON_KINDS, LESSON_KIND_LABEL), gpm: true },
+    { key: 'phase', label: 'Phase', kind: 'phase' },
+    { key: 'what', label: 'Was ist passiert', kind: 'long', gpm: true },
+    { key: 'cause', label: 'Ursache', kind: 'long' },
+    { key: 'advice', label: 'Empfehlung für künftige Projekte', kind: 'long', gpm: true },
+    { key: 'owner', label: 'Eingebracht von', kind: 'person' },
+    { key: 'shared', label: 'weitergegeben', kind: 'bool', help: 'In die Wissensdatenbank bzw. an andere Projekte gegeben' },
   ],
   costs: [
     { key: 'month', label: 'Monat', kind: 'text', readonly: true },
@@ -268,6 +358,12 @@ export const FIELDS: Record<FormSource, readonly FieldSpec[]> = {
     { key: 'hours', label: 'Aufwand (Ph)', kind: 'number', readonly: true },
     { key: 'hoursSum', label: 'Summe (Ph)', kind: 'number', readonly: true },
   ],
+};
+/** V115: Zahl deutsch – Euro ganz oder mit genau zwei Nachkommastellen, `digits` fest (SPI/CPI), sonst wie eingegeben. */
+export const fmtNumber = (v: number, kind: FieldKind, digits?: number): string => {
+  if (digits !== undefined) return v.toLocaleString('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  if (kind === 'money') return v.toLocaleString('de-DE', { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 });
+  return String(v).replace('.', ',');
 };
 /** Stichtag für Earned Value: heute. */
 export const evDay = (): string => new Date().toISOString().slice(0, 10);
@@ -286,6 +382,7 @@ export const GPM_D: FormTemplate = {
     { id: 'goals', chapter: '2.2', name: 'Projektziele', source: 'goals', layout: 'table', columns: cols('goals'), filter: 'perf,social', stage: 1, icb: '4.5.2' },
     { id: 'nongoals', chapter: '2.2', name: 'Nicht-Ziele', source: 'goals', layout: 'table', columns: cols('goals', ['code', 'text', 'consequence']), filter: 'non', stage: 1, icb: '4.5.2 · 4.5.3' },
     { id: 'conflicts', chapter: '2.3', name: 'Zielkonflikte', source: 'conflicts', layout: 'table', columns: cols('conflicts'), stage: 1, icb: '4.5.2' },
+    { id: 'rules', chapter: '2.4', name: 'Auflagen', source: 'rules', layout: 'table', columns: cols('rules'), stage: 2, icb: '4.3.3' },
     { id: 'accept', chapter: '3.1', name: 'Abnahmekriterien', source: 'accept', layout: 'table', columns: cols('accept'), stage: 2, icb: '4.5.3 · 4.5.6' },
     { id: 'stakeholders', chapter: '4', name: 'Stakeholderanalyse', source: 'stakeholders', layout: 'table', columns: cols('stakeholders'), stage: 1, icb: '4.5.12 · 4.3.4' },
     { id: 'envPortfolio', chapter: '4', name: 'Umfeld-Portfolio', source: 'stakeholders', layout: 'portfolio', columns: cols('stakeholders', ['code', 'name', 'side', 'area']), filter: 'env', stage: 2, icb: '4.5.12' },
@@ -293,16 +390,22 @@ export const GPM_D: FormTemplate = {
     { id: 'risks', chapter: '5', name: 'Chancen und Risiken', source: 'risks', layout: 'table', columns: cols('risks'), stage: 1, icb: '4.5.11' },
     { id: 'roles', chapter: '6.2', name: 'Projektorganisation (AKV)', source: 'roles', layout: 'table', columns: cols('roles'), stage: 1, icb: '4.5.5 · 4.3.2' },
     { id: 'comms', chapter: '6.3', name: 'Kommunikationsplan (DKI-Matrix)', source: 'comms', layout: 'table', columns: cols('comms'), stage: 2, icb: '4.5.5 · 4.5.12' },
+    { id: 'docs', chapter: '6.4', name: 'Dokumentation', source: 'docs', layout: 'table', columns: cols('docs'), stage: 2, icb: '4.5.5' },
     { id: 'phases', chapter: '7', name: 'Phasenplan', source: 'phases', layout: 'table', columns: cols('phases'), stage: 1, icb: '4.5.4' },
     { id: 'milestones', chapter: '7', name: 'Meilensteine', source: 'milestones', layout: 'table', columns: cols('milestones'), stage: 1, icb: '4.5.4' },
+    { id: 'mta', chapter: '7', name: 'Meilenstein-Trendanalyse', source: 'mta', layout: 'chart', columns: cols('mta'), stage: 2, icb: '4.5.4 · 4.5.10' },
     { id: 'tasks', chapter: '8', name: 'Arbeitspakete', source: 'tasks', layout: 'table', columns: cols('tasks'), stage: 1, icb: '4.5.3 · 4.5.4' },
     { id: 'wp', chapter: '8.3', name: 'Arbeitspaketbeschreibung', source: 'wp', layout: 'record', columns: cols('wp'), stage: 2, icb: '4.5.3 · 4.5.10' },
+    { id: 'checks', chapter: '9', name: 'Prüfung am Lieferobjekt', source: 'checks', layout: 'table', columns: cols('checks'), stage: 2, icb: '4.5.6' },
     { id: 'persons', chapter: '10', name: 'Ressourcen', source: 'persons', layout: 'table', columns: cols('persons'), stage: 1, icb: '4.5.8' },
     { id: 'uses', chapter: '10', name: 'Einsatz je Arbeitspaket', source: 'uses', layout: 'table', columns: cols('uses'), stage: 1, icb: '4.5.8 · 4.5.7' },
     { id: 'costs', chapter: '11', name: 'Kostenganglinie', source: 'costs', layout: 'chart', columns: cols('costs'), stage: 2, icb: '4.5.7' },
     { id: 'ev', chapter: '11', name: 'Earned Value (Fertigstellungswert)', source: 'ev', layout: 'table', columns: cols('ev'), stage: 2, icb: '4.5.7' },
     { id: 'procure', chapter: '11', name: 'Beschaffung', source: 'procure', layout: 'table', columns: cols('procure'), stage: 1, icb: '4.5.9' },
     { id: 'reports', chapter: '12', name: 'Statusbericht', source: 'reports', layout: 'record', columns: cols('reports'), stage: 2, icb: '4.5.10' },
+    { id: 'changes', chapter: '13', name: 'Veränderung', source: 'changes', layout: 'table', columns: cols('changes'), stage: 2, icb: '4.5.13' },
+    { id: 'close', chapter: '14', name: 'Projektabschluss', source: 'close', layout: 'fields', columns: cols('close'), stage: 2, icb: '4.5.10' },
+    { id: 'lessons', chapter: '14', name: 'Lessons Learned', source: 'lessons', layout: 'table', columns: cols('lessons'), stage: 2, icb: '4.5.10' },
   ],
 };
 
@@ -318,6 +421,7 @@ export interface FormCol {
   readonly?: boolean;
   required?: boolean;
   help?: string;
+  digits?: number;
   /** eigenes Feld (aus Vorlage oder Projekt) */
   custom?: FormFieldDef;
   /** eigenes Feld nur dieses Projekts (löschbar) */
@@ -347,7 +451,7 @@ export function columnsOf(p: Project | undefined, form: FormDef, withHidden = fa
     }
     const s = fieldSpec(form.source, c.key);
     if (!s) continue;
-    out.push({ key: s.key, label: c.label ?? s.label, kind: s.kind, ...(s.options ? { options: s.options } : {}), ...(s.readonly ? { readonly: true } : {}), ...((c.required ?? s.gpm) ? { required: true } : {}), ...(s.help ? { help: s.help } : {}) });
+    out.push({ key: s.key, label: c.label ?? s.label, kind: s.kind, ...(s.options ? { options: s.options } : {}), ...(s.readonly ? { readonly: true } : {}), ...((c.required ?? s.gpm) ? { required: true } : {}), ...(s.help ? { help: s.help } : {}), ...(s.digits !== undefined ? { digits: s.digits } : {}) });
   }
   for (const f of form.fields ?? []) if (!form.columns.some((c) => c.key === `custom:${f.id}`) && (withHidden || !hidden.has(`custom:${f.id}`))) out.push(customCol(f, false));
   for (const f of p?.forms?.extra?.[form.id] ?? []) if (withHidden || !hidden.has(`custom:${f.id}`)) out.push(customCol(f, true));
@@ -440,7 +544,16 @@ export function rowsOf(ws: Workspace, pid: string, form: FormDef): FormRow[] {
       return out;
     }
     case 'comms':
-      return (p.comms ?? []).map((x) => ({ id: x.id }));
+    case 'docs':
+    case 'checks':
+    case 'lessons':
+    case 'changes':
+    case 'rules':
+      return (p[form.source] ?? []).map((x) => ({ id: x.id }));
+    case 'close':
+      return [{ id: pid }];
+    case 'mta':
+      return mtaOf(ws, pid, evDay()).rows.map((r) => ({ id: r.id, note: r.id }));
     case 'reports':
       return [...(p.reports ?? [])].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).map((x) => ({ id: x.id }));
     case 'wp':
@@ -544,7 +657,25 @@ export function cellValue(ws: Workspace, pid: string, form: FormDef, rowId: stri
     }
     case 'comms':
     case 'reports':
+    case 'docs':
+    case 'checks':
+    case 'lessons':
+    case 'changes':
+    case 'rules':
       return ((p[form.source] ?? []) as unknown as Record<string, CellValue>[]).find((x) => x.id === rowId)?.[key];
+    case 'close':
+      return key === 'archived' ? !!p.close?.archived : (p.close as Record<string, CellValue> | undefined)?.[key];
+    case 'mta': {
+      if (key === 'code') return taskRows(ws, pid).find((t) => t.id === rowId)?.code;
+      if (key === 'title') { const n = noteOf(ws, rowId); return n ? titleOf(n) : undefined; }
+      const m = mtaOf(ws, pid, evDay());
+      const r = m.rows.find((x) => x.id === rowId);
+      if (!r) return undefined;
+      const reps = r.series.filter((_, i) => m.points[i].label !== 'Basisplan' && m.points[i].label !== 'heute').filter((x): x is string => !!x);
+      if (key === 'first') return reps[0];
+      if (key === 'last') return reps[reps.length - 1];
+      return (r as unknown as Record<string, CellValue>)[key];
+    }
     case 'wp': {
       const n = noteOf(ws, rowId);
       if (!n) return undefined;
@@ -690,7 +821,14 @@ export function setCell(ws: Workspace, pid: string, form: FormDef, rowId: string
     }
     case 'comms':
     case 'reports':
+    case 'docs':
+    case 'checks':
+    case 'lessons':
+    case 'changes':
+    case 'rules':
       return editItem(ws, pid, form.source, rowId, { [key]: val }, now);
+    case 'close':
+      return editClose(ws, pid, { [key]: val }, now);
     case 'wp':
       if (key === 'title') return typeof val === 'string' ? updateNote(ws, rowId, { title: val }, act) : ws;
       if (key === 'assignee') return updateNote(ws, rowId, { assignee: (val as string | null) ?? undefined }, act);
@@ -709,10 +847,14 @@ export function setCell(ws: Workspace, pid: string, form: FormDef, rowId: string
 
 // ---------------------------------------------------------------- Zeilen anlegen, löschen, verschieben
 
-const LIST: Partial<Record<FormSource, GpmList>> = { goals: 'goals', conflicts: 'conflicts', stakeholders: 'stakeholders', phases: 'phases', comms: 'comms', reports: 'reports' };
+const LIST: Partial<Record<FormSource, GpmList>> = { goals: 'goals', conflicts: 'conflicts', stakeholders: 'stakeholders', phases: 'phases', comms: 'comms', reports: 'reports', docs: 'docs', checks: 'checks', lessons: 'lessons', changes: 'changes', rules: 'rules' };
+/** V115: gerechnete Formulare ohne eigene Zeilen. */
+const COMPUTED: readonly FormSource[] = ['persons', 'costs', 'ev', 'mta'];
 /** Kann das Formular Zeilen anlegen? (Ressourcen entstehen über Einsätze; Einsätze brauchen Vorgang und Person.) */
-export const canAddRow = (form: FormDef): boolean => (form.layout === 'table' || form.layout === 'record') && form.source !== 'persons' && form.source !== 'costs' && form.source !== 'ev';
+export const canAddRow = (form: FormDef): boolean => (form.layout === 'table' || form.layout === 'record') && !COMPUTED.includes(form.source);
 /** Kann man Zeilen von Hand verschieben? (nur Listen am Projekt) */
+/** V115: Zeilen löschen – nicht bei gerechneten Formularen (Earned Value, Kosten) und Ressourcen. */
+export const canRemoveRow = (form: FormDef): boolean => form.layout === 'table' && !COMPUTED.includes(form.source);
 export const canMoveRow = (form: FormDef): boolean => !!LIST[form.source] && form.source !== 'reports' && form.layout === 'table';
 
 /** G4: Zeile anlegen; Einsatz braucht `init.task` und `init.person`, Zielkonflikt nimmt sonst die ersten zwei Ziele. */
@@ -776,6 +918,26 @@ export function addRow(ws: Workspace, pid: string, form: FormDef, act: Act & { i
     }
     case 'comms': {
       const out = addItem(ws, pid, 'comms', { id: act.id, content: 'Neuer Eintrag' }, act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
+    case 'docs': {
+      const out = addItem(ws, pid, 'docs', { id: act.id, code: nextCode((p.docs ?? []).map((x) => x.code ?? ''), 'D-'), title: 'Neues Dokument', state: 'draft' }, act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
+    case 'rules': {
+      const out = addItem(ws, pid, 'rules', { id: act.id, code: nextCode((p.rules ?? []).map((x) => x.code ?? ''), 'A-'), title: 'Neue Auflage', state: 'open' }, act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
+    case 'checks': {
+      const out = addItem(ws, pid, 'checks', { id: act.id, object: 'Neues Lieferobjekt', result: 'open' }, act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
+    case 'lessons': {
+      const out = addItem(ws, pid, 'lessons', { id: act.id, topic: 'Neue Erfahrung' }, act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
+    case 'changes': {
+      const out = addItem(ws, pid, 'changes', { id: act.id, area: 'Neuer Bereich', state: 'planned' }, act.at, now);
       return out === ws ? null : { ws: out, id: act.id };
     }
     case 'reports': {

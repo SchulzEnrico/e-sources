@@ -8,7 +8,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
-import type { Project, Workspace } from '../workspace/types';
+import type { Project, ProjectBaseline, Workspace } from '../workspace/types';
+import * as Bl from '../workspace/baseline';
 import * as Gt from '../workspace/gantt';
 import * as Sc from '../workspace/schedule';
 import { noteById } from '../workspace/notes';
@@ -27,13 +28,13 @@ const HEAD = 40;
 const LANE = 18;
 const PREF_KEY = 'esource.gantt.v1';
 
-interface Prefs { scale: Scale; crit: boolean }
+interface Prefs { scale: Scale; crit: boolean; base: boolean }
 function loadPrefs(): Prefs {
   try {
     const v = JSON.parse(localStorage.getItem(PREF_KEY) ?? '{}');
-    return { scale: SCALES.includes(v.scale) ? v.scale : 'week', crit: v.crit !== false };
+    return { scale: SCALES.includes(v.scale) ? v.scale : 'week', crit: v.crit !== false, base: v.base !== false };
   } catch {
-    return { scale: 'week', crit: true };
+    return { scale: 'week', crit: true, base: true };
   }
 }
 
@@ -88,6 +89,30 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
       }
       return n;
     });
+  // V115 (Schritt 10, K4): Basisplan – speichern/ersetzen/löschen mit Rückgängig am Ort
+  const [baseMsg, setBaseMsg] = useState<{ text: string; undo?: { b?: ProjectBaseline } } | null>(null);
+  const cmp = Bl.compare(ws, p.id);
+  const hasBase = !!p.baseline;
+  const showBase = hasBase && prefs.base;
+  const saveBase = () => {
+    const prev = p.baseline;
+    dispatch({ type: 'baselineSave', project: p.id, at: new Date().toISOString() });
+    const text = prev ? G.baseReplaced(fmtDay(prev.at.slice(0, 10))) : G.baseSaved;
+    setBaseMsg({ text, undo: { b: prev } });
+    say(text);
+  };
+  const dropBase = () => {
+    const prev = p.baseline;
+    dispatch({ type: 'baselineSet', project: p.id });
+    setBaseMsg({ text: G.baseDropped, undo: { b: prev } });
+    say(G.baseDropped);
+  };
+  const undoBase = () => {
+    if (!baseMsg?.undo) return;
+    dispatch({ type: 'baselineSet', project: p.id, b: baseMsg.undo.b });
+    setBaseMsg({ text: G.baseUndone });
+    say(G.baseUndone);
+  };
   const barRefs = useRef(new Map<string, HTMLDivElement>());
   const boxRef = useRef<HTMLDivElement>(null);
   // Balken des gewählten Vorgangs waagerecht ins Bild holen – die feste Tabelle links verdeckt sonst den Anfang
@@ -113,8 +138,9 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
   // Zeitachse: ab Montag vor dem Anfang bis gut eine Woche nach dem Ende (Stichtage eingeschlossen)
   const dues = g.rows.map((r) => r.due).filter((d): d is string => Sc.isDay(d));
   const pd = phases.flatMap((x) => [x.start, x.end]);
-  const first = [g.start, ...dues, ...pd].filter(Boolean).sort()[0] ?? todayText();
-  const last = [g.end, ...dues, ...pd].filter(Boolean).sort().reverse()[0] ?? first;
+  const bd = showBase ? [p.baseline!.start, p.baseline!.end].filter((d): d is string => !!d) : [];
+  const first = [g.start, ...dues, ...pd, ...bd].filter(Boolean).sort()[0] ?? todayText();
+  const last = [g.end, ...dues, ...pd, ...bd].filter(Boolean).sort().reverse()[0] ?? first;
   const from = Sc.addDays(first, -(((new Date(dayMs(first)).getUTCDay() + 6) % 7) + 7));
   const to = Sc.addDays(last, 14);
   const w = DAY_W[prefs.scale];
@@ -185,9 +211,28 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
           <input type="checkbox" checked={crit} onChange={(e) => setPref({ crit: e.target.checked })} />
           {G.showCritical}
         </label>
+        <span className="gt__basebox">
+          <button type="button" className="fbq__save" title={explain(TERMS.baseline)} onClick={saveBase}>{hasBase ? G.baseReplace : G.baseSave}</button>
+          {hasBase && (
+            <>
+              <button type="button" className="help__run" onClick={dropBase}>{G.baseDrop}</button>
+              <label className="pc__check">
+                <input type="checkbox" checked={prefs.base} onChange={(e) => setPref({ base: e.target.checked })} />
+                {G.baseShow}
+              </label>
+            </>
+          )}
+          {baseMsg && (
+            <span className="gt__basemsg" role="status">
+              {baseMsg.text}
+              {baseMsg.undo && <button type="button" className="help__run" onClick={undoBase}>{G.undo}</button>}
+            </span>
+          )}
+        </span>
         <p className="lc__keys gt__sum" role="status">
           {G.summary(fmtDay(g.start), fmtDay(g.end), workdays)} · <span className={crit ? 'pj__crit-tag' : ''}>{G.criticalCount(g.critical.length)}</span>
           {g.late.length > 0 && <> · <span className="pj__late">{G.lateCount(g.late.length)}</span></>}
+          {hasBase && <> · {G.baseLine(fmtDay(p.baseline!.at.slice(0, 10)), cmp.end, cmp.cost, cmp.removed.length)}</>}
         </p>
       </div>
       {phases.length > 0 && (
@@ -207,6 +252,8 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
               <th scope="col">{G.colStart}</th>
               <th scope="col">{G.colEnd}</th>
               <th scope="col" title={explain(TERMS.predecessors)}>{G.colPreds}</th>
+              {showBase && <th scope="col" title={G.colBaseHint}>{G.colBase}</th>}
+              {showBase && <th scope="col" title={G.colVarHint}>{G.colVar}</th>}
             </tr>
           </thead>
           <tbody>
@@ -256,6 +303,15 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
                     {gr.late && <span aria-hidden="true"> !</span>}
                   </td>
                   <td className="pc__num gt__preds">{pt || <span className="lc__muted">–</span>}</td>
+                  {showBase && (() => {
+                    const d = cmp.rows.get(r.id);
+                    return (
+                      <>
+                        <td className="pc__num">{d?.base?.end ? fmtDay(d.base.end) : <span className="lc__muted">–</span>}</td>
+                        <td className={`pc__num${d?.end && d.end > 0 ? ' pj__late' : ''}`}>{d?.added ? <span className="lc__muted">{G.baseNew}</span> : d?.end === undefined ? <span className="lc__muted">–</span> : G.varDays(d.end)}</td>
+                      </>
+                    );
+                  })()}
                 </tr>
               );
             })}
@@ -305,19 +361,29 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
               const tip = `${gr.nr} ${r.title}: ${gr.start === gr.end ? fmtDay(gr.start) : `${fmtDay(gr.start)} – ${fmtDay(gr.end)}`}`;
               const pick = () => setSel(r.id);
               const open = () => (r.kind === 'task' ? openNote(r.id) : onPickProject(r.id));
+              const bt = showBase ? p.baseline!.tasks[r.id] : undefined;
+              const baseBar = bt?.start && bt.end ? (r.milestone ? <div className="gt__basems" style={{ left: x(bt.end) + w / 2 - 5, top: top + 9 }} title={G.baseTip(fmtDay(bt.end), '')} /> : <div className="gt__basebar" style={{ left: x(bt.start), width: Math.max(3, x(bt.end) + w - x(bt.start)), top: top + 21 }} title={G.baseTip(fmtDay(bt.start), fmtDay(bt.end))} />) : null;
               const due = gr.due && !r.summary ? <span className={`gt__due${gr.late ? ' is-late' : ''}`} style={{ left: x(gr.due) + w / 2 - 5, top: top + 2 }} title={G.deadlineMark(fmtDay(gr.due))}>⇩</span> : null;
-              if (r.summary) return <div key={r.id} ref={ref} className={`gt__sumbar${crit && gr.critical ? ' is-crit' : ''}`} style={{ left, width: Math.max(2, right - left), top: top + 9 }} title={tip} onClick={pick} onDoubleClick={open} />;
+              if (r.summary)
+                return (
+                  <div key={r.id}>
+                    <div ref={ref} className={`gt__sumbar${crit && gr.critical ? ' is-crit' : ''}`} style={{ left, width: Math.max(2, right - left), top: top + 9 }} title={tip} onClick={pick} onDoubleClick={open} />
+                    {baseBar}
+                  </div>
+                );
               if (r.milestone)
                 return (
                   <div key={r.id}>
                     <div ref={ref} className={`gt__ms${crit && gr.critical ? ' is-crit' : ''}`} style={{ left: left + w / 2 - 7, top: top + 7 }} title={tip} onClick={pick} onDoubleClick={open} />
                     <span className="gt__label" style={{ left: left + w / 2 + 10, top }}>{fmtDay(gr.start)}</span>
+                    {baseBar}
                     {due}
                   </div>
                 );
               return (
                 <div key={r.id}>
                   <div ref={ref} className={`gt__bar${crit && gr.critical ? ' is-crit' : ''}${gr.manual ? ' is-manual' : ''}${r.done ? ' is-done' : ''}`} style={{ left, width: Math.max(3, right - left), top: top + 7 }} title={tip} onClick={pick} onDoubleClick={open} />
+                  {baseBar}
                   {due}
                 </div>
               );

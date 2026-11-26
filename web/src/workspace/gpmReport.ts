@@ -7,7 +7,7 @@
  */
 import type { FormDef, Project, Workspace } from './types';
 import * as Fk from './formKit';
-import { costCurve, earnedValue, portfolioOf, projectStatus, type CostCurve, type PortfolioDot } from './gpmCalc';
+import { costCurve, earnedValue, mtaOf, portfolioOf, projectStatus, type CostCurve, type Mta, type PortfolioDot } from './gpmCalc';
 import { personById } from './persons';
 import { projectById } from './projects';
 
@@ -20,9 +20,9 @@ export function displayValue(ws: Workspace, p: Project, col: Fk.FormCol, v: Fk.C
   if (v === undefined || v === '' || v === null) return '';
   if (col.kind === 'bool') return v === true ? 'ja' : 'nein';
   if (col.kind === 'date' && typeof v === 'string') return dmy(v);
-  if (col.kind === 'money' && typeof v === 'number') return `${v.toLocaleString('de-DE', { maximumFractionDigits: 2 })} €`;
+  if (col.kind === 'money' && typeof v === 'number') return `${Fk.fmtNumber(v, 'money')} €`;
   if (col.kind === 'pct' && typeof v === 'number') return `${String(v).replace('.', ',')} %`;
-  if (typeof v === 'number') return String(v).replace('.', ',');
+  if (typeof v === 'number') return Fk.fmtNumber(v, col.kind, col.digits);
   if (col.kind === 'choice') return col.options?.find((o) => o.v === v)?.label ?? String(v);
   if (col.kind === 'person') return personById(ws, String(v))?.name ?? String(v);
   if (col.kind === 'goal') {
@@ -78,6 +78,45 @@ export function curveSvg(c: CostCurve, col: SvgColors, w = 640, h = 260, title =
   parts.push(`<rect x="${pad.l}" y="${h - 14}" width="10" height="10" fill="${col.bar}"/><text x="${pad.l + 14}" y="${h - 5}" font-size="10" fill="${col.ink}">Plan-Kosten je Monat (linke Achse)</text>`);
   parts.push(`<line x1="${pad.l + 220}" y1="${h - 9}" x2="${pad.l + 240}" y2="${h - 9}" stroke="${col.sum}" stroke-width="2"/><text x="${pad.l + 244}" y="${h - 5}" font-size="10" fill="${col.ink}">Summenlinie (rechte Achse)</text>`);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(`${title}: ${ms.length} Monate, gesamt ${eur(c.total)}`)}">${parts.join('')}</svg>`;
+}
+
+/** V115: Meilenstein-Trendanalyse – waagerecht die Berichtszeitpunkte, senkrecht der prognostizierte Termin je Meilenstein;
+ * die Winkelhalbierende (Prognose = Berichtstag) zeigt, wann ein Meilenstein erreicht ist. Steigt eine Linie, rutscht der Termin. */
+export function mtaSvg(m: Mta, names: Map<string, string>, col: SvgColors, w = 640, h = 300): string {
+  const rows = m.rows.filter((r) => r.series.some(Boolean));
+  if (!rows.length || !m.points.length) return '';
+  const days = [...m.points.map((x) => x.day), ...rows.flatMap((r) => r.series.filter((x): x is string => !!x))].sort();
+  const lo = Date.parse(days[0]);
+  const hi = Math.max(lo + 864e5, Date.parse(days[days.length - 1]));
+  const pad = { l: 70, r: 120, t: 14, b: 36 };
+  const iw = w - pad.l - pad.r;
+  const ih = h - pad.t - pad.b;
+  const n = m.points.length;
+  const x = (i: number) => pad.l + (n === 1 ? iw / 2 : (i / (n - 1)) * iw);
+  const y = (d: string) => pad.t + ih - ((Date.parse(d) - lo) / (hi - lo)) * ih;
+  const dm = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(2, 4)}`;
+  const parts: string[] = [];
+  parts.push(`<line x1="${pad.l}" y1="${pad.t + ih}" x2="${pad.l + iw}" y2="${pad.t + ih}" stroke="${col.line}"/><line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${pad.t + ih}" stroke="${col.line}"/>`);
+  for (const f of [0, 0.5, 1]) {
+    const d = new Date(lo + (hi - lo) * f).toISOString().slice(0, 10);
+    parts.push(`<text x="${pad.l - 6}" y="${(y(d) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="${col.muted}">${dm(d)}</text>`);
+  }
+  // Winkelhalbierende: Prognose = Berichtstag
+  const diag = m.points.map((pt, i) => `${x(i).toFixed(1)},${y(pt.day).toFixed(1)}`).join(' ');
+  parts.push(`<polyline points="${diag}" fill="none" stroke="${col.muted}" stroke-dasharray="4 3"/>`);
+  m.points.forEach((pt, i) => parts.push(`<text x="${x(i).toFixed(1)}" y="${pad.t + ih + 14}" text-anchor="middle" font-size="10" fill="${col.muted}">${esc(pt.label)}</text>`));
+  const palette = [col.sum, col.budget, col.bar, '#c88a2e', '#7a5cc4', '#3a9bb0', '#b0567a', '#6b8e23'];
+  rows.forEach((r, k) => {
+    const c = palette[k % palette.length];
+    const pts = r.series.map((d, i) => (d ? `${x(i).toFixed(1)},${y(d).toFixed(1)}` : '')).filter(Boolean);
+    const nm = names.get(r.id) ?? r.id;
+    if (pts.length > 1) parts.push(`<polyline points="${pts.join(' ')}" fill="none" stroke="${c}" stroke-width="2"/>`);
+    r.series.forEach((d, i) => d && parts.push(`<circle cx="${x(i).toFixed(1)}" cy="${y(d).toFixed(1)}" r="3" fill="${c}"><title>${esc(`${nm}: ${dm(d)} (${m.points[i].label})`)}</title></circle>`));
+    const last = [...r.series].reverse().find(Boolean);
+    if (last) parts.push(`<text x="${pad.l + iw + 8}" y="${(y(last) + 4).toFixed(1)}" font-size="10" fill="${c}">${esc(nm.slice(0, 22))}</text>`);
+  });
+  parts.push(`<text x="${pad.l}" y="${h - 4}" font-size="10" fill="${col.ink}">Gestrichelt: Prognose = Berichtstag (Meilenstein erreicht) · steigende Linie = Termin rutscht</text>`);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(`Meilenstein-Trendanalyse: ${rows.length} Meilensteine, ${n} Zeitpunkte`)}">${parts.join('')}</svg>`;
 }
 
 const lab = (d: PortfolioDot) => esc(d.code || d.name.slice(0, 14));
@@ -150,8 +189,14 @@ export function shSvg(dots: PortfolioDot[], col: SvgColors, w = 560, h = 340): s
 }
 
 /** Grafik eines Formulars mit Layout `chart` bzw. `portfolio` (sonst ''). */
+/** Code + Titel der Meilensteine für die MTA-Beschriftung. */
+export function mtaNames(ws: Workspace, pid: string): Map<string, string> {
+  const f = Fk.GPM_D.forms.find((x) => x.source === 'mta')!;
+  return new Map(Fk.rowsOf(ws, pid, f).map((r) => [r.id, [Fk.cellValue(ws, pid, f, r.id, 'code'), Fk.cellValue(ws, pid, f, r.id, 'title')].filter(Boolean).join(' ')]));
+}
 export function formSvg(ws: Workspace, pid: string, form: FormDef, col: SvgColors): string {
   const p = projectById(ws, pid);
+  if (form.source === 'mta') return mtaSvg(mtaOf(ws, pid, Fk.evDay()), mtaNames(ws, pid), col);
   if (form.layout === 'chart') return curveSvg(costCurve(ws, pid), col);
   if (form.layout === 'portfolio') return form.filter === 'sh' ? shSvg(portfolioOf(p), col) : envSvg(portfolioOf(p), col);
   return '';
@@ -236,7 +281,7 @@ function formSection(ws: Workspace, p: Project, f: FormDef): string {
       for (const r of rows) out.push(`<tr>${cols.map((c) => `<td>${esc(val(r.id, c))}</td>`).join('')}</tr>`);
       if (f.source === 'ev') {
         const t = earnedValue(ws, p.id, Fk.evDay()).total;
-        const sum: Record<string, string> = { title: `Projekt (Stichtag ${Fk.evDay().split('-').reverse().join('.')})`, bac: eur(t.bac), pv: eur(t.pv), ev: eur(t.ev), ac: eur(t.ac), sv: eur(t.sv), cv: eur(t.cv), spi: t.spi?.toLocaleString('de-DE') ?? '–', cpi: t.cpi?.toLocaleString('de-DE') ?? '–', eac: eur(t.eac) };
+        const sum: Record<string, string> = { title: `Projekt (Stichtag ${Fk.evDay().split('-').reverse().join('.')})`, bac: eur(t.bac), pv: eur(t.pv), ev: eur(t.ev), ac: eur(t.ac), sv: eur(t.sv), cv: eur(t.cv), spi: t.spi !== undefined ? Fk.fmtNumber(t.spi, 'number', 2) : '–', cpi: t.cpi !== undefined ? Fk.fmtNumber(t.cpi, 'number', 2) : '–', eac: eur(t.eac) };
         out.push(`<tr class="sum">${cols.map((x) => `<td>${esc(sum[x.key] ?? '')}</td>`).join('')}</tr>`);
       }
       if (f.source === 'costs') {

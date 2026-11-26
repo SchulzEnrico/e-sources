@@ -591,7 +591,13 @@ export const TOURS: Record<TourId, TourStep[]> = {
       id: 'chapter',
       title: 'Kapitel',
       target: '.pjf .pjf__chapter',
-      text: 'Das Rad „Kapitel“ wählt das Formular: 2.1 Steckbrief, 2.2 Ziele und Nicht-Ziele, 2.3 Zielkonflikte, 4 Stakeholder, 5 Chancen und Risiken, 6.2 Organisation, 7 Phasen und Meilensteine, 8 Arbeitspakete, 10 Ressourcen und Einsatz, 11 Beschaffung. Maus darüber und scrollen oder klicken; mit der Tastatur Pfeile.',
+      text: 'Das Rad „Kapitel“ wählt das Formular in der Reihenfolge des GPM-Leitfadens: 2 Steckbrief, Ziele, Zielkonflikte, Auflagen · 3.1 Abnahmekriterien · 4 Stakeholder und Portfolios · 5 Chancen und Risiken · 6 Organisation (AKV), Kommunikationsplan, Dokumentation · 7 Phasen, Meilensteine, Meilenstein-Trendanalyse · 8 Arbeitspakete und ihre Beschreibung · 9 Prüfung am Lieferobjekt · 10 Ressourcen und Einsatz · 11 Kostenganglinie, Earned Value, Beschaffung · 12 Statusbericht · 13 Veränderung · 14 Abschluss und Lessons Learned. Maus darüber und scrollen oder klicken; mit der Tastatur Pfeile.',
+    },
+    {
+      id: 'computed',
+      title: 'Gerechnete Formulare',
+      target: '.pjf .pjf__figure',
+      text: 'Manche Formulare rechnet E-Sources selbst und zeigt sie als Grafik mit Tabelle: Kostenganglinie, Earned Value (mit Summenzeile für das Projekt) und die Meilenstein-Trendanalyse. Die MTA bekommt mit jedem Statusbericht einen neuen Punkt – der Bericht hält die Termine der Meilensteine fest. Hier gibt es kein „+ Zeile“.',
     },
     {
       id: 'table',
@@ -616,6 +622,12 @@ export const TOURS: Record<TourId, TourStep[]> = {
       title: 'Felder',
       target: '.pjf .pjf__fieldsbtn',
       text: '„Felder“ blendet Spalten aus (GPM-Pflichtfelder bleiben), legt eigene Felder an (Text, Zahl, Datum, Auswahl, Ja/Nein, Person; auch als Pflicht) und speichert alle Formulare des Projekts als eigene Vorlage für andere Projekte.',
+    },
+    {
+      id: 'report',
+      title: 'Bericht',
+      target: '.pjf .pjf__report',
+      text: '„Bericht“ setzt alle Formulare zu einem Projektbericht zusammen – mit Deckblatt, Inhaltsverzeichnis, Kopf- und Fußzeile und „Seite x von y“, breite Tabellen im Querformat. Im neuen Fenster sicherst du ihn über „Drucken bzw. als PDF sichern“.',
     },
     {
       id: 'pad',

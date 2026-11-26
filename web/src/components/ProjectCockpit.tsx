@@ -21,6 +21,7 @@ import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
 import { openNote } from './SourceChips';
 import { ProjectPsp } from './ProjectPsp';
+import { ProjectNetwork } from './ProjectNetwork';
 import { ProjectGantt } from './ProjectGantt';
 import { ProjectDecisions } from './ProjectDecisions';
 import { ProjectFeedback } from './ProjectFeedback';
@@ -40,10 +41,11 @@ const euro = (n: number) => `${n.toLocaleString('de-DE', { maximumFractionDigits
 const TASKS_SHOWN = 12;
 
 /** V100 (J2): Ansicht rechts neben der Projektliste – je Gerät gemerkt; weitere (Gantt …) folgen. */
-type ProjectView = 'brief' | 'forms' | 'psp' | 'gantt' | 'risks' | 'changes' | 'decide' | 'feedback';
+type ProjectView = 'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'risks' | 'changes' | 'decide' | 'feedback';
 // V107 (F-225 P8, R1/R3): Risiken und Änderungen nach dem Gantt – Steuerung nach dem Plan
 // V109 (F-226, G2): „Formulare“ direkt nach dem Steckbrief – Kapitel nach GPM-Leitfaden
-const VIEWS: ProjectView[] = ['brief', 'forms', 'psp', 'gantt', 'risks', 'changes', 'decide', 'feedback'];
+// V115 (Schritt 10): Netzplan nach dem Gantt
+const VIEWS: ProjectView[] = ['brief', 'forms', 'psp', 'gantt', 'net', 'risks', 'changes', 'decide', 'feedback'];
 const VIEW_KEY = 'esource.projectView.v1';
 function loadView(): ProjectView {
   try {
@@ -187,7 +189,7 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
     !d ? <span className="lc__muted">{T.none}</span> : derived ? <span className="pj__derived" title={T.derivedHint}>{dmy(d)}<span className="sr-only"> ({T.derived})</span></span> : dmy(d);
 
   return (
-    <section className={`lc__group pc pj${view === 'psp' ? ' is-psp' : view === 'gantt' || view === 'forms' || view === 'decide' || view === 'feedback' || view === 'risks' || view === 'changes' ? ' is-gantt' : ''}`} aria-labelledby="pj-head">
+    <section className={`lc__group pc pj${view === 'psp' ? ' is-psp' : view === 'gantt' || view === 'net' || view === 'forms' || view === 'decide' || view === 'feedback' || view === 'risks' || view === 'changes' ? ' is-gantt' : ''}`} aria-labelledby="pj-head">
       <header className="lc__head lc__band">
         <Icon name="project" size={15} className="icon icon--inline" />
         <h3 id="pj-head" className="lc__head-title" title={explain(TERMS.projects)}>
@@ -363,6 +365,8 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
             <ProjectFeedback key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
           ) : view === 'decide' ? (
             <ProjectDecisions key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
+          ) : view === 'net' ? (
+            <ProjectNetwork key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
           ) : view === 'gantt' ? (
             <ProjectGantt key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} onPickProject={(id) => (setSel(id), setViewState('brief'), focusRow(id))} />
           ) : view === 'psp' ? (

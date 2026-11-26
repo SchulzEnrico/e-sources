@@ -5,7 +5,13 @@
  * Alle Felder sind optional, Dateiformat 11 bleibt. Tests in workspace.test.ts („F-226“).
  */
 import type {
+  ChangeItem,
   CommItem,
+  DocItem,
+  Lesson,
+  ProjectClose,
+  QualityCheck,
+  RuleItem,
   GoalConflict,
   GoalKind,
   GoalLevel,
@@ -154,8 +160,68 @@ export const parseReport = (r: Record<string, unknown>): StatusReport | undefine
     next: txt(r.next),
     measures: txt(r.measures),
     note: txt(r.note),
+    ms: parseDayMap(r.ms),
   });
 };
+/** V115 (MTA): Notiz-Id → Tag; höchstens 200 Einträge. */
+function parseDayMap(v: unknown): Record<string, string> | undefined {
+  if (!isObj(v)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, d] of Object.entries(v).slice(0, 200)) if (id(k) && isDay(d)) out[k] = d;
+  return Object.keys(out).length ? out : undefined;
+}
+
+// ---------------------------------------------------------------- V115: Listen der Stufe 2 (Rest)
+
+/** Feldart für einfache Listen: Text kurz/lang, Tag, Ja/Nein, Id, Auswahl. */
+type SimpleKind = 'short' | 'long' | 'day' | 'bool' | 'ref' | readonly string[];
+function parseSimple<T>(r: Record<string, unknown>, need: string, spec: Record<string, SimpleKind>): T | undefined {
+  const first = txt(r[need], 300);
+  if (!first || !id(r.id)) return undefined;
+  const out: Record<string, unknown> = { id: id(r.id) };
+  for (const [k, kind] of Object.entries(spec)) {
+    const v = r[k];
+    out[k] =
+      k === need ? first
+      : kind === 'short' ? txt(v, 300)
+      : kind === 'long' ? txt(v)
+      : kind === 'day' ? (isDay(v) ? v : undefined)
+      : kind === 'bool' ? (v === true ? true : undefined)
+      : kind === 'ref' ? id(v)
+      : pick(v, kind);
+  }
+  return tidy(out) as T;
+}
+export const DOC_STATES = ['draft', 'review', 'released', 'archived'] as const;
+export const CHECK_METHODS = ['visual', 'measure', 'test', 'review', 'accept'] as const;
+export const CHECK_RESULTS = ['open', 'passed', 'defects', 'failed'] as const;
+export const LESSON_KINDS = ['good', 'bad', 'improve'] as const;
+export const CHANGE_RESIST = ['low', 'mid', 'high'] as const;
+export const CHANGE_STATES = ['planned', 'running', 'done'] as const;
+export const RULE_SOURCES = ['law', 'norm', 'contract', 'internal', 'authority'] as const;
+export const RULE_STATES = ['open', 'met', 'na'] as const;
+export const parseDoc = (r: Record<string, unknown>) => parseSimple<DocItem>(r, 'title', { code: 'short', title: 'short', kind: 'short', owner: 'ref', version: 'short', date: 'day', state: DOC_STATES, place: 'short', dist: 'short' });
+export const parseQCheck = (r: Record<string, unknown>) => parseSimple<QualityCheck>(r, 'object', { object: 'short', task: 'short', criterion: 'long', method: CHECK_METHODS, date: 'day', by: 'ref', result: CHECK_RESULTS, defects: 'long', action: 'long', due: 'day' });
+export const parseLesson = (r: Record<string, unknown>) => parseSimple<Lesson>(r, 'topic', { topic: 'short', kind: LESSON_KINDS, phase: 'ref', what: 'long', cause: 'long', advice: 'long', owner: 'ref', shared: 'bool' });
+export const parseChange = (r: Record<string, unknown>) => parseSimple<ChangeItem>(r, 'area', { area: 'short', today: 'long', target: 'long', affected: 'short', resistance: CHANGE_RESIST, measure: 'long', owner: 'ref', due: 'day', state: CHANGE_STATES });
+export const parseRule = (r: Record<string, unknown>) => parseSimple<RuleItem>(r, 'title', { code: 'short', title: 'short', source: RULE_SOURCES, authority: 'short', duty: 'long', proof: 'short', due: 'day', owner: 'ref', state: RULE_STATES });
+/** Abschluss: alles optional; leer = undefined. */
+export function sanitizeClose(v: unknown): ProjectClose | undefined {
+  if (!isObj(v)) return undefined;
+  const c: ProjectClose = tidy({
+    date: isDay(v.date) ? v.date : undefined,
+    result: txt(v.result),
+    goals: txt(v.goals),
+    acceptedBy: txt(v.acceptedBy, 300),
+    acceptedOn: isDay(v.acceptedOn) ? v.acceptedOn : undefined,
+    handover: txt(v.handover),
+    open: txt(v.open),
+    team: txt(v.team),
+    archived: v.archived === true ? true : undefined,
+    thanks: txt(v.thanks),
+  });
+  return Object.keys(c).length ? c : undefined;
+}
 export function parseWp(v: unknown): NoteWp | undefined {
   if (!isObj(v)) return undefined;
   const out = tidy<NoteWp>({
@@ -180,8 +246,9 @@ export function parseCheckGpm(c: Record<string, unknown>): { due?: string; by?: 
 }
 
 /** Liest die GPM-Teile eines Projekts; Bezüge (Oberziel, Konfliktziele, Personen) werden bereinigt. */
-export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports'> {
-  const out: Pick<Project, 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports'> = {};
+type GpmPart = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'close';
+export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, GpmPart> {
+  const out: Pick<Project, GpmPart> = {};
   const charter = sanitizeCharter(r.charter);
   if (charter) out.charter = charter;
   const goals = list(r.goals, parseGoal);
@@ -201,6 +268,18 @@ export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, 'char
   if (comms) out.comms = comms;
   const reports = list(r.reports, parseReport);
   if (reports) out.reports = reports;
+  const docs = list(r.docs, parseDoc);
+  if (docs) out.docs = docs;
+  const checks = list(r.checks, parseQCheck);
+  if (checks) out.checks = checks;
+  const lessons = list(r.lessons, parseLesson);
+  if (lessons) out.lessons = lessons;
+  const changes = list(r.changes, parseChange);
+  if (changes) out.changes = changes;
+  const rules = list(r.rules, parseRule);
+  if (rules) out.rules = rules;
+  const close = sanitizeClose(r.close);
+  if (close) out.close = close;
   return out;
 }
 
@@ -386,9 +465,9 @@ export function hoursOf(n: Note, person: string): number {
 // ---------------------------------------------------------------- Bearbeiten
 
 /** Listen am Projekt, die die Formulare bearbeiten. */
-export type GpmList = 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports';
+export type GpmList = 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules';
 type ItemOf<L extends GpmList> = NonNullable<Project[L]>[number];
-const PARSE: { [L in GpmList]: (r: Record<string, unknown>) => ItemOf<L> | undefined } = { goals: parseGoal, conflicts: parseConflict, stakeholders: parseStakeholder, phases: parsePhase, comms: parseComm, reports: parseReport };
+const PARSE: { [L in GpmList]: (r: Record<string, unknown>) => ItemOf<L> | undefined } = { goals: parseGoal, conflicts: parseConflict, stakeholders: parseStakeholder, phases: parsePhase, comms: parseComm, reports: parseReport, docs: parseDoc, checks: parseQCheck, lessons: parseLesson, changes: parseChange, rules: parseRule };
 
 function withProject(ws: Workspace, pid: string, fn: (p: Project) => Project | null, now: number): Workspace {
   const list = ws.projects ?? [];
@@ -470,7 +549,7 @@ function goalLoops(goals: ProjectGoal[], id: string, parent: string): boolean {
 export interface GpmUndo {
   pid: string;
   list: GpmList;
-  item: ProjectGoal | GoalConflict | Stakeholder | ProjectPhase | CommItem | StatusReport;
+  item: ItemOf<GpmList>;
   index: number;
   /** mitgelöschte Zielkonflikte (beim Löschen eines Ziels) */
   conflicts?: { item: GoalConflict; index: number }[];
@@ -566,6 +645,27 @@ export function editCharter(ws: Workspace, pid: string, patch: Record<string, un
       const q = { ...p };
       if (charter) q.charter = charter;
       else delete q.charter;
+      return q;
+    },
+    now,
+  );
+}
+
+/** V115: Abschluss-Felder ändern; `null` oder '' löscht. */
+export function editClose(ws: Workspace, pid: string, patch: Record<string, unknown>, now = Date.now()): Workspace {
+  return withProject(
+    ws,
+    pid,
+    (p) => {
+      const merged: Record<string, unknown> = { ...p.close };
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === null || v === '' || v === false) delete merged[k];
+        else if (v !== undefined) merged[k] = v;
+      }
+      const close = sanitizeClose(merged);
+      const q = { ...p };
+      if (close) q.close = close;
+      else delete q.close;
       return q;
     },
     now,

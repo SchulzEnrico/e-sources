@@ -7,7 +7,7 @@
 import type { Note, Project, Workspace } from './types';
 import { createNote, isFinished, notesOf, setParent, titleOf, type Act } from './notes';
 import { headText } from './sheets';
-import { projectById, projectsOf } from './projects';
+import { isTask, projectById, projectsOf } from './projects';
 import { durationOf } from './schedule';
 
 export type PspStyle = NonNullable<NonNullable<Project['psp']>['style']>;
@@ -72,7 +72,7 @@ export function withPrefix(prefix: string | undefined, code: string): string {
 /** Vorgänge eines Projekts auf oberster Ebene (ohne Eltern-Notiz im selben Projekt). */
 function topTasks(notes: Note[], owner: string): Note[] {
   const mine = new Set(notes.filter((n) => n.project === owner).map((n) => n.id));
-  return notes.filter((n) => n.project === owner && (!n.parent || !mine.has(n.parent)) && n.state !== 'archived');
+  return notes.filter((n) => n.project === owner && isTask(n) && (!n.parent || !mine.has(n.parent)) && n.state !== 'archived');
 }
 
 /**
@@ -89,7 +89,7 @@ export function pspTree(ws: Workspace, projectId: string): PspNode[] {
 
   const taskNode = (n: Note, owner: Project, code: string, depth: number): PspNode => {
     seen.add(n.id);
-    const kids = notes.filter((c) => c.parent === n.id && c.project === owner.id && c.state !== 'archived' && !seen.has(c.id));
+    const kids = notes.filter((c) => c.parent === n.id && c.project === owner.id && isTask(c) && c.state !== 'archived' && !seen.has(c.id));
     const children = ordered(kids.map((c) => c.id), owner.order?.[n.id]).map((id, i) => taskNode(byId.get(id)!, owner, `${code}.${pspSegment(i, depth + 1, style)}`, depth + 1));
     const own = n.effort?.plan ?? 0;
     return {

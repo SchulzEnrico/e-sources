@@ -33,6 +33,7 @@ import * as Sp from './sampleProject';
 import * as Gt from './gantt';
 import * as Fb from './feedback';
 import * as Dc from './decisions';
+import * as Rk from './risks';
 import * as Terms from './terms';
 import * as Rs from './reset';
 import * as Zm from './zoom';
@@ -5994,7 +5995,7 @@ describe('F-217 Touren prüfen (V98)', () => {
     expect(new Set(t.map((s) => s.id)).size).toBe(t.length);
     expect(Tour.TOUR_KEY.projects).toBe('esource.tour.projects.v1');
     const psp = (sel: string) => !sel.includes('pj__brief') && !sel.includes('pj__roles');
-    expect(Tour.tourSteps(psp, t).map((s) => s.id)).toEqual(['intro', 'list', 'views', 'report', 'inbox', 'add', 'again']);
+    expect(Tour.tourSteps(psp, t).map((s) => s.id)).toEqual(['intro', 'list', 'views', 'report', 'inbox', 'steer', 'add', 'again']);
     expect(Tour.tourSteps(() => true, t).map((s) => s.id)).toContain('roles');
     expect(H.searchHelp('Tour Projekte')[0].id).toBe('tourProjects');
     expect(H.searchHelp('Lenkungskreis').map((e) => e.id)).toContain('projectFeedback');
@@ -6307,7 +6308,7 @@ describe('F-206 Schritt 10 Beispielprojekt ColorGentlemen (V100)', () => {
   it('legt Projekt, 39 Vorgänge mit Vorgängern und PSP-Codes wie im Report an und entfernt sie ganz', () => {
     const ws = Sp.addSampleProject(base(), 5);
     expect(Sp.hasSampleProject(ws)).toBe(true);
-    expect(Pj.notesOfProject(ws, Sp.SAMPLE_PROJECT)).toHaveLength(39);
+    expect(Pj.tasksOfProject(ws, Sp.SAMPLE_PROJECT)).toHaveLength(39);
     const rows = Psp.pspRows(Psp.pspTree(ws, Sp.SAMPLE_PROJECT));
     expect(rows.find((r) => r.id === 'cg-31')!.code).toBe('CG-1.6.4');
     expect(rows.find((r) => r.id === 'cg-2')!.effort).toBe(830);
@@ -6317,7 +6318,7 @@ describe('F-206 Schritt 10 Beispielprojekt ColorGentlemen (V100)', () => {
     expect(ws.notes!.find((n) => n.id === 'cg-32')).toMatchObject({ milestone: true, notBefore: '2026-12-01' });
     expect(Sp.addSampleProject(ws)).toBe(ws);
     const r = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
-    expect(Pj.notesOfProject(r, Sp.SAMPLE_PROJECT)).toHaveLength(39);
+    expect(Pj.tasksOfProject(r, Sp.SAMPLE_PROJECT)).toHaveLength(39);
     const gone = Sp.removeSampleProject(ws);
     expect(gone.notes).toHaveLength(0);
     expect(Sp.hasSampleProject(gone)).toBe(false);
@@ -6791,5 +6792,104 @@ describe('F-225 Feedback in Projekten (V105)', () => {
     expect(p.roles!.map((r) => r.id)).toEqual(['lead', 'steering', 'client', 'r-qs']);
     expect(p.feedbackForm).toEqual({ off: ['steps'], required: ['impact'] });
     expect(Fb.feedbackById(back, 'fb-q')!.to).toBe('r-qs');
+  });
+});
+
+describe('F-225 P8 Risiken und Änderungsanträge (V107)', () => {
+  const base = () => {
+    const { ws, id } = Pj.addProject(W.defaultWorkspace(), 'Umbau Halle')!;
+    return { ws: Pj.editProject(ws, id, { psp: { prefix: 'UH' } }), id };
+  };
+  it('R1: Risiken und Änderungen zählen nicht als Vorgänge (Liste, PSP)', () => {
+    const { ws: w0, id } = base();
+    let ws = Psp.addPspTask(w0, id, 'Gerüst stellen', { id: 'n-t' })!.ws;
+    ws = Rk.addSteer(ws, id, 'risk', { title: 'Lieferverzug Stahl' }, { id: 'n-r' })!.ws;
+    ws = Rk.addSteer(ws, id, 'change', { title: 'Zweites Tor' }, { id: 'n-c' })!.ws;
+    expect(Pj.tasksOfProject(ws, id).map((n) => n.id)).toEqual(['n-t']);
+    expect(Pj.rowOf(ws, Pj.projectById(ws, id)!).tasks).toBe(1);
+    expect(Psp.pspTree(ws, id).map((n) => n.id)).toEqual(['n-t']);
+    expect(Rk.isTask(NLo.noteById(ws, 'n-r')!)).toBe(false);
+  });
+  it('R2/R3/R8: Wert, Ton, Nummern mit Präfix, Ordnung und Matrix', () => {
+    const { ws: w0, id } = base();
+    let ws = Rk.addSteer(w0, id, 'risk', { title: 'A' }, { id: 'r1' })!.ws;
+    ws = Rk.addSteer(ws, id, 'risk', { title: 'B' }, { id: 'r2' })!.ws;
+    ws = Rk.addSteer(ws, id, 'risk', { title: 'C' }, { id: 'r3' })!.ws;
+    ws = Rk.editRisk(ws, 'r1', { p: 2, i: 3 });
+    ws = Rk.editRisk(ws, 'r2', { p: 4, i: 5, strategy: 'reduce' });
+    expect(Rk.riskScore(NLo.noteById(ws, 'r2')!.risk)).toBe(20);
+    expect(Rk.riskTone(20)).toBe('alert');
+    expect(Rk.riskTone(8)).toBe('warn');
+    expect(Rk.riskTone(7)).toBe('calm');
+    expect(Rk.riskTone(undefined)).toBe('none');
+    expect(Rk.risksOf(ws, id).map((n) => n.id)).toEqual(['r2', 'r1', 'r3']);
+    expect(Rk.steerCode(ws, NLo.noteById(ws, 'r3')!)).toBe('UH-R-3');
+    expect(Rk.steerCodeFor({ psp: { prefix: 'CG-1.' } }, 'change', 2)).toBe('CG-Ä-2');
+    expect(Rk.steerCodeFor(undefined, 'risk', 1)).toBe('R-1');
+    const cell = Rk.riskMatrix(ws, id).find((r) => r.p === 4)!.cells.find((c) => c.i === 5)!;
+    expect(cell.ids).toEqual(['r2']);
+    expect(Rk.unratedRisks(ws, id).map((n) => n.id)).toEqual(['r3']);
+    ws = Rk.editRisk(ws, 'r2', { state: 'closed' });
+    expect(Rk.risksOf(ws, id).at(-1)!.id).toBe('r2');
+    expect(Rk.steerCounts(ws, id)).toEqual({ risks: 2, high: 0, changes: 0 });
+    // ungültige Stufe bleibt draußen, null entfernt
+    ws = Rk.editRisk(ws, 'r1', { p: 9 as never, strategy: null });
+    expect(NLo.noteById(ws, 'r1')!.risk!.p).toBeUndefined();
+  });
+  it('R4/R5/R6: Änderungsantrag entscheiden, danach Vorgang anlegen', () => {
+    const { ws: w0, id } = base();
+    let ws = Rk.addSteer(w0, id, 'change', { title: 'Zweites Tor' }, { id: 'c1' })!.ws;
+    expect(NLo.noteById(ws, 'c1')!.change).toMatchObject({ no: 1, state: 'asked', decider: 'steering' });
+    ws = Rk.editChange(ws, 'c1', { days: 5, cost: 12000.456 });
+    expect(NLo.noteById(ws, 'c1')!.change!.cost).toBe(12000.46);
+    expect(Rk.canMakeTask(ws, NLo.noteById(ws, 'c1')!)).toBe(false);
+    ws = Rk.decideChange(ws, 'c1', 'approved', { text: 'Budget reicht', who: 'Lenkungskreis', now: Date.parse('2026-11-25T10:00:00Z') });
+    const c = NLo.noteById(ws, 'c1')!.change!;
+    expect(c.decided).toEqual({ at: '2026-11-25T10:00:00.000Z', text: 'Budget reicht', who: 'Lenkungskreis' });
+    const t = Rk.makeTask(ws, 'c1', { id: 't1' })!;
+    expect(NLo.noteById(t.ws, 't1')!.title).toBe('Änderung UH-Ä-1: Zweites Tor');
+    expect(NLo.noteById(t.ws, 'c1')!.change!.task).toBe('t1');
+    expect(Pj.tasksOfProject(t.ws, id).map((n) => n.id)).toEqual(['t1']);
+    expect(Rk.canMakeTask(t.ws, NLo.noteById(t.ws, 'c1')!)).toBe(false);
+    // zurück in Prüfung nimmt die Entscheidung weg
+    expect(NLo.noteById(Rk.decideChange(ws, 'c1', 'review'), 'c1')!.change!.decided).toBeUndefined();
+  });
+  it('R7: Meldung wird zu Risiko – Vermerk, Bezug, nur einmal, Rückgängig', () => {
+    const { ws: w0, id } = base();
+    let ws = Fb.addFeedback(w0, { kind: 'bug', title: 'Kran wackelt', project: id, what: 'Seit Montag', impact: 'Stillstand' }, { id: 'fb1' })!.ws;
+    const r = Rk.becomeFromFeedback(ws, 'fb1', 'risk', { id: 'nr', label: 'Wurde zu Risiko' })!;
+    expect(r.code).toBe('UH-R-1');
+    const n = NLo.noteById(r.ws, 'nr')!;
+    expect(n).toMatchObject({ type: 'risk', project: id, title: 'Kran wackelt', text: 'Seit Montag' });
+    expect(n.risk).toMatchObject({ no: 1, effect: 'Stillstand', from: 'fb1', state: 'open' });
+    const f = Fb.feedbackById(r.ws, 'fb1')!;
+    expect(f.became).toEqual({ note: 'nr', type: 'risk' });
+    expect(f.marks!.at(-1)!.text).toBe('Wurde zu Risiko UH-R-1');
+    expect(Rk.becomeFromFeedback(r.ws, 'fb1', 'change', { id: 'nx', label: 'x' })).toBeNull();
+    ws = Rk.undoBecome(r.ws, r.undo);
+    expect(NLo.noteById(ws, 'nr')).toBeUndefined();
+    expect(Fb.feedbackById(ws, 'fb1')!.became).toBeUndefined();
+    // Meldung an E-Sources (ohne Projekt) geht nicht
+    ws = Fb.addFeedback(ws, { kind: 'wish', title: 'App' }, { id: 'fb2' })!.ws;
+    expect(Rk.becomeFromFeedback(ws, 'fb2', 'risk', { id: 'n2', label: 'x' })).toBeNull();
+  });
+  it('R10: Beispielprojekt hat 3 Risiken und 1 Änderungsantrag, die keine Vorgänge sind; Entfernen nimmt sie mit', () => {
+    const ws = Sp.addSampleProject(W.defaultWorkspace());
+    expect(Rk.risksOf(ws, Sp.SAMPLE_PROJECT).map((n) => Rk.steerCode(ws, n))).toEqual(['CG-R-1', 'CG-R-2', 'CG-R-3']);
+    expect(Rk.changesOf(ws, Sp.SAMPLE_PROJECT)).toHaveLength(1);
+    expect(Pj.tasksOfProject(ws, Sp.SAMPLE_PROJECT).some((n) => n.type === 'risk')).toBe(false);
+    expect(Rk.risksOf(Sp.removeSampleProject(ws), Sp.SAMPLE_PROJECT)).toHaveLength(0);
+  });
+  it('Dateiformat 11: Risiko, Änderung und „wurde zu“ bleiben erhalten', () => {
+    const { ws: w0, id } = base();
+    let ws = Rk.addSteer(w0, id, 'risk', { title: 'A', risk: { p: 3, i: 4, owner: 'pn-ich', measure: 'Zweiter Lieferant' } }, { id: 'r1' })!.ws;
+    ws = Rk.addSteer(ws, id, 'change', { title: 'B' }, { id: 'c1' })!.ws;
+    ws = Rk.decideChange(ws, 'c1', 'rejected', { text: 'zu teuer', now: Date.parse('2026-11-25T10:00:00Z') });
+    ws = Fb.addFeedback(ws, { kind: 'bug', title: 'X', project: id }, { id: 'fb1' })!.ws;
+    ws = Fb.setBecame(ws, 'fb1', { note: 'r1', type: 'risk' }, 'Wurde zu Risiko UH-R-1');
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(NLo.noteById(back, 'r1')!.risk).toEqual(NLo.noteById(ws, 'r1')!.risk);
+    expect(NLo.noteById(back, 'c1')!.change).toEqual(NLo.noteById(ws, 'c1')!.change);
+    expect(Fb.feedbackById(back, 'fb1')!.became).toEqual({ note: 'r1', type: 'risk' });
   });
 });

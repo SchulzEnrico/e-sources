@@ -414,6 +414,8 @@ export interface Feedback {
   fixedIn?: string;
   /** FB9: Vermerke */
   marks?: FeedbackMark[];
+  /** F-225 P8 (V107, R7): wurde zu Risiko bzw. Änderungsantrag (Notiz-Id) */
+  became?: { note: string; type: 'risk' | 'change' };
 }
 
 /** V88 (BL1): Spalte einer Board-Vorlage – Name, Bedeutung, WIP-Limit, ohne Karten. */
@@ -479,6 +481,60 @@ export interface SourceLink {
 
 /** F-206 (V65, M1): Arten nach ICB4; fehlt = gewöhnliche Note (Gedanke, Task, Reminder). */
 export type NoteType = 'requirement' | 'risk' | 'stakeholder' | 'procurement' | 'change' | 'minutes';
+
+/** F-225 P8 (V107, R2): Strategie gegen ein Risiko (ICB4 Chancen und Risiken). */
+export type RiskStrategy = 'avoid' | 'reduce' | 'transfer' | 'accept';
+/** F-225 P8 (R2): Zustand eines Risikos. */
+export type RiskState = 'open' | 'doing' | 'occurred' | 'closed';
+/** Stufe 1–5 (Eintrittswahrscheinlichkeit bzw. Auswirkung). */
+export type RiskLevel = 1 | 2 | 3 | 4 | 5;
+/** F-225 P8 (V107, R2): Risiko nach ICB4 – Titel/Text der Notiz = Bezeichnung und Beschreibung. */
+export interface NoteRisk {
+  /** R8: laufende Nummer je Projekt (R-1, R-2 …) */
+  no: number;
+  cause?: string;
+  event?: string;
+  effect?: string;
+  /** Eintrittswahrscheinlichkeit 1–5 */
+  p?: RiskLevel;
+  /** Auswirkung 1–5 */
+  i?: RiskLevel;
+  strategy?: RiskStrategy;
+  measure?: string;
+  /** Risikoeigner (Person-Id) */
+  owner?: string;
+  state?: RiskState;
+  /** R7: entstanden aus Meldung (Feedback-Id) */
+  from?: string;
+  /** R6: Vorgang für die Maßnahme (Notiz-Id) */
+  task?: string;
+}
+/** F-225 P8 (R4): Zustand eines Änderungsantrags. */
+export type ChangeState = 'asked' | 'review' | 'approved' | 'rejected' | 'parked';
+/** F-225 P8 (V107, R4): Änderungsantrag (Change Request) nach ICB4. */
+export interface NoteChange {
+  /** R8: laufende Nummer je Projekt (Ä-1, Ä-2 …) */
+  no: number;
+  /** Begründung */
+  why?: string;
+  /** Auswirkung auf den Termin in Arbeitstagen (+ später, − früher) */
+  days?: number;
+  /** Auswirkung auf die Kosten in Euro */
+  cost?: number;
+  /** Auswirkung auf die Leistung (Qualität) */
+  perf?: string;
+  /** Auswirkung auf den Umfang (Scope) */
+  scope?: string;
+  /** beantragt von (Person-Id oder Name) */
+  by?: string;
+  /** entscheidet – Id der Instanz im Projekt (ab Werk Lenkungskreis) */
+  decider?: string;
+  state?: ChangeState;
+  /** Entscheidung: ISO-Zeitpunkt, Begründung, wer */
+  decided?: { at: string; text?: string; who?: string };
+  from?: string;
+  task?: string;
+}
 
 /** F-206 (V65): Plan- und Istwert (Aufwand in Stunden, Kosten in Euro). */
 export interface PlanActual {
@@ -591,6 +647,10 @@ export interface Note {
   due?: string;
   /** V65: Art nach ICB4 (M1). */
   type?: NoteType;
+  /** F-225 P8 (V107, R2): Angaben als Risiko (nur bei `type: 'risk'`). */
+  risk?: NoteRisk;
+  /** F-225 P8 (V107, R4): Angaben als Änderungsantrag (nur bei `type: 'change'`). */
+  change?: NoteChange;
   /** V65: Projekt (Id aus Workspace.projects). */
   project?: string;
   /** V65: zuständig (Id aus Workspace.persons). */

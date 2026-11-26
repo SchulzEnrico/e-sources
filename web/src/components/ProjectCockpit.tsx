@@ -24,6 +24,7 @@ import { ProjectPsp } from './ProjectPsp';
 import { ProjectGantt } from './ProjectGantt';
 import { ProjectDecisions } from './ProjectDecisions';
 import { ProjectFeedback } from './ProjectFeedback';
+import { ProjectSteer, STEER_EVENT, takeSteer } from './ProjectSteer';
 import { PROJECT_FEEDBACK_TEXT, PSP_TEXT } from '../workspace/terms';
 import * as Ps from '../workspace/persons';
 
@@ -38,8 +39,9 @@ const euro = (n: number) => `${n.toLocaleString('de-DE', { maximumFractionDigits
 const TASKS_SHOWN = 12;
 
 /** V100 (J2): Ansicht rechts neben der Projektliste – je Gerät gemerkt; weitere (Gantt …) folgen. */
-type ProjectView = 'brief' | 'psp' | 'gantt' | 'decide' | 'feedback';
-const VIEWS: ProjectView[] = ['brief', 'psp', 'gantt', 'decide', 'feedback'];
+type ProjectView = 'brief' | 'psp' | 'gantt' | 'risks' | 'changes' | 'decide' | 'feedback';
+// V107 (F-225 P8, R1/R3): Risiken und Änderungen nach dem Gantt – Steuerung nach dem Plan
+const VIEWS: ProjectView[] = ['brief', 'psp', 'gantt', 'risks', 'changes', 'decide', 'feedback'];
 const VIEW_KEY = 'esource.projectView.v1';
 function loadView(): ProjectView {
   try {
@@ -75,6 +77,20 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
     if (!tourAutoStart('projects')) return;
     const t = window.setTimeout(() => requestTour('projects', true), 700);
     return () => window.clearTimeout(t);
+  }, []);
+  // V107 (F-225 P8, R7): „Öffnen“ an der Karte einer Meldung zeigt das Risiko bzw. die Änderung
+  const [steerFocus, setSteerFocus] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    const on = () => {
+      const t = takeSteer();
+      if (!t) return;
+      setSel(t.project);
+      setViewState(t.kind === 'risk' ? 'risks' : 'changes');
+      setSteerFocus(t.note);
+    };
+    on();
+    window.addEventListener(STEER_EVENT, on);
+    return () => window.removeEventListener(STEER_EVENT, on);
   }, []);
   /** V106: neue Meldungen am gezeigten Projekt – Zahl am Rad „Ansicht“ (Eintrag „Meldungen“). */
   const fresh = shown ? newCountOf(ws, shown.id) : 0;
@@ -169,7 +185,7 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
     !d ? <span className="lc__muted">{T.none}</span> : derived ? <span className="pj__derived" title={T.derivedHint}>{dmy(d)}<span className="sr-only"> ({T.derived})</span></span> : dmy(d);
 
   return (
-    <section className={`lc__group pc pj${view === 'psp' ? ' is-psp' : view === 'gantt' || view === 'decide' || view === 'feedback' ? ' is-gantt' : ''}`} aria-labelledby="pj-head">
+    <section className={`lc__group pc pj${view === 'psp' ? ' is-psp' : view === 'gantt' || view === 'decide' || view === 'feedback' || view === 'risks' || view === 'changes' ? ' is-gantt' : ''}`} aria-labelledby="pj-head">
       <header className="lc__head lc__band">
         <Icon name="project" size={15} className="icon icon--inline" />
         <h3 id="pj-head" className="lc__head-title" title={explain(TERMS.projects)}>
@@ -337,7 +353,9 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
             {error && !adding && <p className="layouts__error" role="alert">{error}</p>}
           </div>
 
-          {view === 'feedback' ? (
+          {view === 'risks' || view === 'changes' ? (
+            <ProjectSteer key={`${shown.id}-${view}`} ws={ws} p={shown} kind={view === 'risks' ? 'risk' : 'change'} dispatch={dispatch} say={say} focus={steerFocus} />
+          ) : view === 'feedback' ? (
             <ProjectFeedback key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
           ) : view === 'decide' ? (
             <ProjectDecisions key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
@@ -390,7 +408,7 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove }:
   const cases = casesOf(ws);
   // Übergeordnetes Projekt: nur solche, die keinen Kreis ergeben
   const parents = Pj.projectRows(ws).filter((r) => r.project.id !== p.id && !Pj.parentLoops(ws, p.id, r.project.id));
-  const tasks = Pj.notesOfProject(ws, p.id);
+  const tasks = Pj.tasksOfProject(ws, p.id);
   const openTasks = [...tasks].sort((a, b) => Number(isFinished(a.state)) - Number(isFinished(b.state)) || (a.due ?? '9999').localeCompare(b.due ?? '9999'));
   const derivedNow = (row.derived.start || row.derived.end) && (!p.start || !p.end);
   const saveBrief = (k: 'goal' | 'approach' | 'org') => {

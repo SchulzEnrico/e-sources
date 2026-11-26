@@ -25,6 +25,7 @@ import type {
 } from './types';
 import { type Node, isNode, leaves, removeLeaf } from './tree';
 import { parseFeedbackForm } from './feedback';
+import { parseChange, parseRisk } from './risks';
 
 /** Höchstens so viele Sheets je Pad (Antwort 20). */
 export const PAD_SHEETS_MAX = 9;
@@ -85,6 +86,15 @@ export const DURATION_MAX = 2000;
 export function parseNoteExtras(v: Record<string, unknown>): Partial<Note> {
   const out: Partial<Note> = {};
   if (NOTE_TYPES.includes(v.type as NoteType)) out.type = v.type as NoteType;
+  // F-225 P8 (V107): Angaben als Risiko bzw. Änderungsantrag – nur passend zur Art
+  if (out.type === 'risk') {
+    const r = parseRisk(v.risk);
+    if (r) out.risk = r;
+  }
+  if (out.type === 'change') {
+    const c = parseChange(v.change);
+    if (c) out.change = c;
+  }
   if (typeof v.project === 'string' && v.project) out.project = v.project;
   if (typeof v.assignee === 'string' && v.assignee) out.assignee = v.assignee;
   const effort = parsePlanActual(v.effort);

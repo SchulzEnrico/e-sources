@@ -152,6 +152,15 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
     if (after.length) init.after = after;
     next = createNote(next, init, { id: noteId(r.nr), now }).ws;
   }
+  // V107 (F-225 P8, R10): Risiken und ein Änderungsantrag – gekennzeichnete Beispiele (nicht aus dem Report)
+  const ex = 'Beispiel für E-Sources (nicht aus dem Projektreport).';
+  const steer: { id: string; init: Partial<Note> }[] = [
+    { id: 'cg-r1', init: { title: 'Lieferverzug Lackieranlage', text: ex, type: 'risk', risk: { no: 1, cause: 'Hohe Auslastung beim Hersteller (Fuchs Lackieranlagen)', event: 'Lackieranlage 1 kommt später als geplant', effect: 'Inbetriebnahme und Projektende verschieben sich, Werkvertrag mit der Hamburger Mobile startet später', p: 3, i: 5, strategy: 'reduce', measure: 'Liefertermin mit Vertragsstrafe vereinbaren und Zwischentermine abfragen', owner: ME_ID, state: 'open' } } },
+    { id: 'cg-r2', init: { title: 'Lackiermeister/in nicht rechtzeitig gefunden', text: ex, type: 'risk', risk: { no: 2, cause: 'Fachkräftemangel im Hamburger Umland', event: 'Stelle bis zur Inbetriebnahme unbesetzt', effect: 'Anlagen stehen, Einarbeitung der Mitarbeiter verzögert sich', p: 3, i: 4, strategy: 'reduce', measure: 'Personaldienstleister früh beauftragen, Übergangslösung mit einem Meister aus einer anderen Betriebsstätte', owner: personId('GL'), state: 'doing' } } },
+    { id: 'cg-r3', init: { title: 'Abnahme durch den Bezirksschornsteinfeger verzögert', text: ex, type: 'risk', risk: { no: 3, event: 'Abnahme der Abluftanlage erst nach dem geplanten Termin', effect: 'Lackieranlage darf noch nicht in Betrieb gehen', p: 2, i: 4, strategy: 'accept', owner: personId('PA'), state: 'open' } } },
+    { id: 'cg-c1', init: { title: 'Zweite Lackierkabine für Transporter auslegen', text: ex, type: 'change', change: { no: 1, why: 'Die Hamburger Mobile möchte auch Transporter instand setzen lassen.', days: 5, cost: 18000, perf: 'Kabine 1 m länger und höher', scope: 'Größere Kabine statt Standardkabine bei Lackieranlage 2', by: 'Gebietsleitung (CG)', decider: 'steering', state: 'asked' } } },
+  ];
+  for (const x of steer) next = createNote(next, { ...x.init, project: SAMPLE_PROJECT }, { id: x.id, now }).ws;
   return next;
 }
 

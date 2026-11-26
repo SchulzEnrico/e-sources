@@ -56,6 +56,7 @@ import { PROBE, PROBE_KIND } from './workspace/probe';
 import { Help } from './components/Help';
 import { Tour } from './components/Tour';
 import { ProjectCockpit, shownProjectId } from './components/ProjectCockpit';
+import { STEER_EVENT } from './components/ProjectSteer';
 import { SlotMachine } from './components/SlotMachine';
 import { type Cleanup, type InviteWhy, type RedundantSlot, INVITE_KEY, INVITE_LATER, INVITE_PAUSE, dupCount, inviteWhy } from './workspace/jackpot';
 import { TOUR_EVENT, type TourId, setToursAuto, tourAutoStart, tourRequestedAuto, toursAuto } from './workspace/tour';
@@ -1336,6 +1337,15 @@ function DeskApp(props: DeskProps) {
     if (!projectsMode && !notesOff) setDeskMode('projects');
     window.setTimeout(() => setTour('projects'), projectsMode ? 0 : 400);
   };
+  // V107 (F-225 P8, R7): „Öffnen“ an Risiko/Änderung aus einer Meldung – in den Projekt-Modus wechseln
+  useEffect(() => {
+    const on = () => {
+      setOverview(false);
+      if (!projectsMode && !notesOff) setDeskMode('projects');
+    };
+    window.addEventListener(STEER_EVENT, on);
+    return () => window.removeEventListener(STEER_EVENT, on);
+  }, [projectsMode, notesOff]); // eslint-disable-line react-hooks/exhaustive-deps
   // V81 (D12): im Notizen-Modus gibt es kein Dock – dort zählen alle Pads, auch die aus dem Dock
   const allPads = padsOn(ws, win);
   useEffect(() => {

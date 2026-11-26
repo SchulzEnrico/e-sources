@@ -21,7 +21,7 @@ import type {
 } from './types';
 
 /** App-Stand für die Meldung (FB6) – bei jedem Chat mitzählen. */
-export const APP_VERSION = 'V106';
+export const APP_VERSION = 'V107';
 export const FEEDBACK_MAX = 2000;
 export const TITLE_MAX = 200;
 export const TEXT_MAX = 8000;
@@ -263,6 +263,20 @@ export function addMark(ws: Workspace, id: string, kind: 'note' | 'decision' | '
   }
   return put(ws, out);
 }
+
+/**
+ * F-225 P8 (V107, R7): Meldung wurde zu Risiko bzw. Änderungsantrag – merkt die Notiz und schreibt einen
+ * Vermerk „Wurde zu Risiko CG-R-3“ in die Spur (Bezug, ohne Lastenheft-Nummern auszulesen).
+ */
+export function setBecame(ws: Workspace, id: string, became: NonNullable<Feedback['became']>, text: string, opts: { now?: Date; by?: string } = {}): Workspace {
+  const f = feedbackById(ws, id);
+  if (!f) return ws;
+  const at = (opts.now ?? new Date()).toISOString();
+  return put(ws, mark({ ...f, became, changed: at }, { at, kind: 'ref', text: clean(text, 200), ...(opts.by ? { by: opts.by } : {}) }));
+}
+
+/** R7: Rückgängig – Meldung so, wie sie vorher war. */
+export const restoreFeedbackItem = (ws: Workspace, f: Feedback): Workspace => (feedbackById(ws, f.id) ? put(ws, f) : ws);
 
 export type FeedbackUndo = { item: Feedback; index: number; related: { id: string; related?: string[] }[] };
 
@@ -759,7 +773,7 @@ export function mergeFeedbackFile(ws: Workspace, text: string): MergeResult {
     const theirs: Feedback = { ...g };
     for (const k of ['state', 'to', 'refs', 'related', 'decision', 'fixedIn', 'marks'] as const) delete theirs[k];
     const ours: Partial<Feedback> = {};
-    for (const k of ['state', 'to', 'refs', 'related', 'decision', 'fixedIn'] as const) if (f[k] !== undefined) (ours as Record<string, unknown>)[k] = f[k];
+    for (const k of ['state', 'to', 'refs', 'related', 'decision', 'fixedIn', 'became'] as const) if (f[k] !== undefined) (ours as Record<string, unknown>)[k] = f[k];
     list[i] = { ...theirs, ...ours, ...(f.project ? { project: f.project } : {}), ...(marks.length ? { marks } : {}) };
     updated++;
   }
@@ -860,6 +874,9 @@ export function parseFeedback(v: unknown): Feedback[] {
         .slice(-MARKS_MAX);
       if (marks.length) f.marks = marks;
     }
+    // F-225 P8 (V107): Meldung wurde zu Risiko bzw. Änderungsantrag
+    if (isObj(r.became) && typeof r.became.note === 'string' && r.became.note && (r.became.type === 'risk' || r.became.type === 'change'))
+      f.became = { note: r.became.note, type: r.became.type };
     out.push(f);
   }
   // „ähnlich“ nur auf vorhandene Meldungen

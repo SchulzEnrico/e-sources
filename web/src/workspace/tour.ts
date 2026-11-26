@@ -597,7 +597,7 @@ export const TOURS: Record<TourId, TourStep[]> = {
       id: 'views',
       title: 'Ansicht',
       target: `${PJ} .pj__viewwheel`,
-      text: 'Das Rad wählt, was rechts zum gewählten Projekt steht: Steckbrief, PSP (Projektstrukturplan), Gantt (Balkenplan), Entscheidungen (Nutzwertanalyse) und Meldungen. Maus darüber und scrollen oder klicken; mit der Tastatur Pfeile.',
+      text: 'Das Rad wählt, was rechts zum gewählten Projekt steht: Steckbrief, PSP (Projektstrukturplan), Gantt (Balkenplan), Risiken, Änderungen, Entscheidungen (Nutzwertanalyse) und Meldungen. Maus darüber und scrollen oder klicken; mit der Tastatur Pfeile.',
     },
     {
       id: 'brief',
@@ -622,6 +622,12 @@ export const TOURS: Record<TourId, TourStep[]> = {
       title: 'Meldungen',
       target: `${PJ} .pj__viewwheel`,
       text: 'Unter Ansicht › „Meldungen“ stehen alle Meldungen an dieses Projekt; die Zahl am Rad zeigt neue. Mit der Befugnis „Feedback bearbeiten“ (Cockpit „Personen“) siehst du sie als Board und stellst über „Formular einstellen“ ein, welche Felder das Formular zeigt und welche Pflicht sind.',
+    },
+    {
+      id: 'steer',
+      title: 'Risiken und Änderungen',
+      target: `${PJ} .pj__viewwheel`,
+      text: 'Unter Ansicht › „Risiken“ und „Änderungen“ steuerst du das Projekt nach IPMA ICB4: Risiken mit Bewertung (W × A) und Risikomatrix, Änderungsanträge mit Auswirkung auf Termin, Kosten, Leistung und Umfang. Sie zählen nicht als Vorgänge. Aus einer Meldung wird eins mit „Wird zu …“ in ihrer Karte.',
     },
     {
       id: 'add',

@@ -16,6 +16,10 @@ export const PROJECT_STATES: ProjectState[] = ['idea', 'planned', 'running', 'pa
 export const projectsOf = (ws: Workspace): Project[] => ws.projects ?? [];
 export const projectById = (ws: Workspace, id: string | undefined): Project | undefined => (id ? projectsOf(ws).find((p) => p.id === id) : undefined);
 export const notesOfProject = (ws: Workspace, id: string): Note[] => notesOf(ws).filter((n) => n.project === id);
+/** F-225 P8 (V107, R1): Vorgang = Notiz, die kein Risiko und kein Änderungsantrag ist (Steuerungsobjekte nach ICB4). */
+export const isTask = (n: Pick<Note, 'type'>): boolean => n.type !== 'risk' && n.type !== 'change';
+/** R1: Vorgänge eines Projekts (ohne Risiken und Änderungsanträge) – für Liste, Steckbrief, PSP, Gantt. */
+export const tasksOfProject = (ws: Workspace, id: string): Note[] => notesOfProject(ws, id).filter(isTask);
 
 function withProjects(ws: Workspace, projects: Project[]): Workspace {
   if (projects.length) return { ...ws, projects };
@@ -186,7 +190,7 @@ export interface ProjectRow {
 }
 
 export function rowOf(ws: Workspace, project: Project, depth = 0, today = dayOf()): ProjectRow {
-  const ns = notesOfProject(ws, project.id);
+  const ns = tasksOfProject(ws, project.id);
   const fin = ns.filter((n) => isFinished(n.state));
   const effort = ns.reduce((s, n) => s + (n.effort?.plan ?? 0), 0);
   const doneEffort = fin.reduce((s, n) => s + (n.effort?.plan ?? 0), 0);

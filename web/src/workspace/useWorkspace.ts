@@ -41,6 +41,7 @@ import * as Sc from './schedule';
 import * as Gt from './gantt';
 import * as Fb from './feedback';
 import * as Dc from './decisions';
+import * as Rk from './risks';
 import * as Sp from './sampleProject';
 import * as FL from './focusLoad';
 import * as St from './stage';
@@ -228,6 +229,14 @@ export type Action =
   | { type: 'fbList'; list: import('./types').Feedback[] }
   | { type: 'fbRemove'; id: string }
   | { type: 'fbRestore'; undo: Fb.FeedbackUndo }
+  /* F-225 P8 (V107): Risiken und Änderungsanträge (ICB4) */
+  | { type: 'steerAdd'; project: string; kind: Rk.SteerType; id: string; title: string; text?: string; at: number; by?: string }
+  | { type: 'riskEdit'; id: string; patch: Rk.RiskPatch }
+  | { type: 'changeEdit'; id: string; patch: Rk.ChangePatch }
+  | { type: 'changeDecide'; id: string; state: import('./types').ChangeState; text?: string; who?: string; at: number }
+  | { type: 'steerTask'; id: string; task: string; at: number; by?: string }
+  | { type: 'fbBecome'; id: string; kind: Rk.SteerType; note: string; label: string; at: number; by?: string }
+  | { type: 'fbBecomeUndo'; undo: Rk.BecomeUndo }
   // F-222 (V104): Nutzwertanalyse
   | { type: 'dcAdd'; id: string; ids: string[]; title: string; projectId?: string; at: string; names: { criterion: string[]; option: string[] } }
   | { type: 'dcExample'; id: string; ids: string[]; which: 'flat' | 'painter'; projectId?: string; at: string }
@@ -497,6 +506,20 @@ function step(ws: Workspace, a: Action): Workspace {
       return Fb.removeFeedback(ws, a.id)?.ws ?? ws;
     case 'fbRestore':
       return Fb.undoRemoveFeedback(ws, a.undo);
+    case 'steerAdd':
+      return Rk.addSteer(ws, a.project, a.kind, { title: a.title, text: a.text }, { id: a.id, now: a.at, by: a.by })?.ws ?? ws;
+    case 'riskEdit':
+      return Rk.editRisk(ws, a.id, a.patch);
+    case 'changeEdit':
+      return Rk.editChange(ws, a.id, a.patch);
+    case 'changeDecide':
+      return Rk.decideChange(ws, a.id, a.state, { text: a.text, who: a.who, now: a.at });
+    case 'steerTask':
+      return Rk.makeTask(ws, a.id, { id: a.task, now: a.at, by: a.by })?.ws ?? ws;
+    case 'fbBecome':
+      return Rk.becomeFromFeedback(ws, a.id, a.kind, { id: a.note, label: a.label, now: a.at, by: a.by })?.ws ?? ws;
+    case 'fbBecomeUndo':
+      return Rk.undoBecome(ws, a.undo);
     case 'fbAskEase':
       return Fb.setAskEase(ws, a.on);
     case 'sampleProject':

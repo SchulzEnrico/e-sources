@@ -12,9 +12,12 @@ import type { Feedback, FeedbackFieldDef, FeedbackKind, FeedbackSeverity, Feedba
 import * as Fb from '../workspace/feedback';
 import * as Ps from '../workspace/persons';
 import * as Pj from '../workspace/projects';
+import * as Rk from '../workspace/risks';
+import { noteById } from '../workspace/notes';
+import { openSteer } from './ProjectSteer';
 import { getPic, putPic, shrinkImage } from '../workspace/imageStore';
 import { newId } from '../workspace/workspace';
-import { FEEDBACK_CARD_TEXT as C, FEEDBACK_TEXT as T, PROJECT_FEEDBACK_TEXT as PF } from '../workspace/terms';
+import { FEEDBACK_CARD_TEXT as C, FEEDBACK_TEXT as T, PROJECT_FEEDBACK_TEXT as PF, STEER_TEXT as ST } from '../workspace/terms';
 
 /** F-225 (V106): „keine Auswahl“ im Rad eines eigenen Auswahl-Felds */
 const NONE = '__none';
@@ -128,6 +131,8 @@ export function FeedbackCard(props: {
   const [picMsg, setPicMsg] = useState('');
   const [markKind, setMarkKind] = useState<'note' | 'decision' | 'ref'>('note');
   const [markText, setMarkText] = useState('');
+  // V107 (F-225 P8, R7): „Wird zu …“ – Meldung am Ort mit Rückgängig
+  const [become, setBecome] = useState<{ text: string; undo: Rk.BecomeUndo } | null>(null);
   const by = ws.profile?.name || undefined;
   // V105 (F-224): ohne Befugnis „Feedback bearbeiten“ nie Bearbeitung
   const triage = (props.triage ?? loadTriage()) && Ps.canTriage(ws);
@@ -433,6 +438,45 @@ export function FeedbackCard(props: {
               <span className="fbq__hint">{PF.forwardHint}</span>
             </div>
           )}
+          {/* V107 (F-225 P8, R7): Meldung wird zu Risiko bzw. Änderungsantrag des Projekts (ICB4) */}
+          {triage && proj && (() => {
+            const made = f.became ? noteById(ws, f.became.note) : undefined;
+            if (made && f.became)
+              return (
+                <div className="fbc__wheel fbc__become">
+                  <span className="fbq__label">{ST.became[f.became.type]}</span>
+                  <span>
+                    <b>{Rk.steerCode(ws, made)}</b> {made.title}{' '}
+                    <button type="button" className="help__run" onClick={() => (finish(), openSteer(proj.id, made.id, f.became!.type))}>{ST.open}</button>
+                  </span>
+                  {become && (
+                    <span className="fbc__saved" role="status">
+                      {become.text}{' '}
+                      <button type="button" className="note__undo" onClick={() => (dispatch({ type: 'fbBecomeUndo', undo: become.undo }), setBecome(null))}>{ST.undo}</button>
+                    </span>
+                  )}
+                </div>
+              );
+            const make = (k: Rk.SteerType) => {
+              const note = newId();
+              const at = Date.now();
+              const label = ST.became[k];
+              const r = Rk.becomeFromFeedback(ws, id, k, { id: note, label, now: at, by });
+              if (!r) return;
+              dispatch({ type: 'fbBecome', id, kind: k, note, label, at, by });
+              setBecome({ text: ST.becameShort(k, r.code), undo: r.undo });
+            };
+            return (
+              <div className="fbc__wheel fbc__become" role="group" aria-label={ST.become}>
+                <span className="fbq__label">{ST.become}</span>
+                <span>
+                  <button type="button" className="help__run" onClick={() => make('risk')}>{ST.becomeRisk}</button>{' '}
+                  <button type="button" className="help__run" onClick={() => make('change')}>{ST.becomeChange}</button>
+                </span>
+                <span className="fbq__hint">{ST.becomeHint}</span>
+              </div>
+            );
+          })()}
           {f.kind !== 'praise' && (
             <div className="fbc__wheel">
               <span className="fbq__label">

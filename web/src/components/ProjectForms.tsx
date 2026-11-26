@@ -16,6 +16,8 @@ import { newId } from '../workspace/workspace';
 import { FORMS_TEXT as T, PSP_TEXT } from '../workspace/terms';
 import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
+import { WorkPadButton } from './WorkPadOpen';
+import { requestTour, tourAutoStart } from '../workspace/tour';
 
 const FORM_KEY = 'esource.formChapter.v1';
 const loadForm = (): string => {
@@ -37,7 +39,7 @@ const fmtNum = (v: Fk.CellValue, kind: Fk.FieldKind): string => {
 };
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
 
-export function ProjectForms({ ws, p, dispatch, say }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void }) {
+export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void; inPad?: boolean }) {
   const tpl = Fk.templateOf(ws, p);
   const [fid, setFidState] = useState(loadForm);
   const form = tpl.forms.find((f) => f.id === fid) ?? tpl.forms[0];
@@ -47,11 +49,17 @@ export function ProjectForms({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
   const [usePerson, setUsePerson] = useState('');
   const body = useRef<HTMLDivElement>(null);
   const by = ws.profile?.name || undefined;
-  const base = 'pjf';
+  const base = inPad ? 'pjf-pad' : 'pjf';
   const tell = (text: string, undo?: () => void) => (setMsg({ text, ...(undo ? { undo } : {}) }), say(text));
   const run = (op: Fk.FormOp) => dispatch({ type: 'form', op });
 
   useEffect(() => setMsg(null), [form.id, p.id]);
+  // V110: Tour „Formulare“ startet einmal von selbst, wenn man die Formulare zum ersten Mal öffnet
+  useEffect(() => {
+    if (!tourAutoStart('forms')) return;
+    const t = window.setTimeout(() => requestTour('forms', true), 700);
+    return () => window.clearTimeout(t);
+  }, []);
 
   const setFid = (id: string) => {
     setFidState(id);
@@ -116,7 +124,7 @@ export function ProjectForms({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
     <section className="dc pjs pjf" aria-labelledby={`${base}-head`}>
       <header className="dc__top">
         <h4 id={`${base}-head`} className="dc__head">{T.head(p.name)}</h4>
-        <span className="layouts__label pj__wheel">
+        <span className="layouts__label pj__wheel pjf__chapter">
           <span aria-hidden="true">{T.chapter}</span>
           <ModeWheel
             label={T.chapter}
@@ -138,16 +146,20 @@ export function ProjectForms({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
           </span>
         )}
         {Fk.canAddRow(form) && form.source !== 'uses' && (
-          <button type="button" className="help__run" title={T.addRowHint} onClick={() => add()}>
+          <button type="button" className="help__run pjf__addrow" title={T.addRowHint} onClick={() => add()}>
             <Icon name="plus" size={13} className="icon icon--inline" /> {T.addRow}
           </button>
         )}
-        <button type="button" className="help__run" aria-expanded={panel} aria-controls={`${base}-fields`} title={T.fieldsHint} onClick={() => setPanel(!panel)}>
+        <button type="button" className="help__run pjf__fieldsbtn" aria-expanded={panel} aria-controls={`${base}-fields`} title={T.fieldsHint} onClick={() => setPanel(!panel)}>
           {T.fields}
         </button>
         <span className={`pjf__open${openCount ? ' is-open' : ''}`} title={T.openHint}>
           {openCount ? T.open(openCount) : T.allSet}
         </span>
+        {!inPad && <WorkPadButton tab="forms" project={p.id} />}
+        <button type="button" className="help__run pjf__tour" title={T.tourHint} aria-label={T.tourHint} onClick={() => requestTour('forms')}>
+          <Icon name="tour" size={13} className="icon icon--inline" /> {T.tour}
+        </button>
       </header>
       <p className="help__text dc__why">
         {form.chapter} {form.name}

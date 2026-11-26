@@ -15,6 +15,8 @@ import * as Ps from '../workspace/persons';
 import { newId } from '../workspace/workspace';
 import { DECISION_TEXT as T } from '../workspace/terms';
 import { Icon } from './Icon';
+import { WorkPadButton, openWorkPad } from './WorkPadOpen';
+import * as Pr from '../workspace/prepare';
 import { ModeWheel } from './ModeWheel';
 
 type Step = 'crit' | 'pair' | 'score' | 'result';
@@ -55,11 +57,11 @@ export function ProjectDecisions({ ws, p, dispatch, say }: { ws: Workspace; p: P
 type Scope = 'all' | 'free' | string;
 
 /** V108 (E1): Entscheidungen mit oder ohne Projekt; ohne `p` mit Rad „Zeigen“ (Cockpit-Modus „Entscheidungen“). */
-export function Decisions({ ws, p, dispatch, say, open }: { ws: Workspace; p?: Project; dispatch: (a: Action) => void; say: (t: string) => void; open?: string | null }) {
+export function Decisions({ ws, p, dispatch, say, open, scope: scope0, inPad }: { ws: Workspace; p?: Project; dispatch: (a: Action) => void; say: (t: string) => void; open?: string | null; scope?: string; inPad?: boolean }) {
   const projects = ws.projects ?? [];
   const [scope, setScope] = useState<Scope>(() => {
     const o = open ? Dc.decisionsOf(ws).find((x) => x.id === open) : undefined;
-    return o ? (o.projectId ? o.projectId : 'free') : 'all';
+    return o ? (o.projectId ? o.projectId : 'free') : scope0 ?? 'all';
   });
   const shownScope: Scope = p ? p.id : scope === 'all' || scope === 'free' || projects.some((x) => x.id === scope) ? scope : 'all';
   const list =
@@ -100,9 +102,9 @@ export function Decisions({ ws, p, dispatch, say, open }: { ws: Workspace; p?: P
   };
 
   return (
-    <section className="dc" aria-labelledby="dc-head">
+    <section className="dc" aria-labelledby={inPad ? 'dc-pad-head' : 'dc-head'}>
       <header className="dc__top">
-        <h4 id="dc-head" className="dc__head">{p ? T.head(p.name) : T.headAll}</h4>
+        <h4 id={inPad ? 'dc-pad-head' : 'dc-head'} className="dc__head">{p ? T.head(p.name) : T.headAll}</h4>
         {!p && (
           <span className="dc__scope">
             <span className="fbq__label">{T.scopeLabel}</span>
@@ -122,6 +124,7 @@ export function Decisions({ ws, p, dispatch, say, open }: { ws: Workspace; p?: P
           <Icon name="plus" size={13} className="icon icon--inline" /> {T.add}
         </button>
         <button type="button" className="dc__example" title={T.exampleHint} onClick={example}>{T.example}</button>
+        {!inPad && <WorkPadButton tab="decisions" project={p?.id ?? (shownScope !== 'all' && shownScope !== 'free' ? shownScope : undefined)} decision={d?.id} />}
       </header>
       <p className="help__text dc__why">{T.why}</p>
       {adding && (
@@ -483,5 +486,45 @@ function ResultStep({ d, lock, op, by, say, may }: { d: Decision; lock: boolean;
         </details>
       ) : null}
     </>
+  );
+}
+
+/**
+ * V110 (F-222 E2): „Entscheidung vorbereiten …“ am Ort – an einer Notiz und am Änderungsantrag.
+ * Zeigt schon vorbereitete Entscheidungen mit „Öffnen“ (im Pad im Vollbild, E1-C); Rückmeldung mit Rückgängig am Ort.
+ */
+export function PrepareLine({ ws, from, title, project, dispatch, say, compact }: { ws: Workspace; from: Pr.PrepareFrom; title: string; project?: string; dispatch: (a: Action) => void; say: (t: string) => void; compact?: boolean }) {
+  const [msg, setMsg] = useState<{ text: string; id?: string } | null>(null);
+  const made = Pr.decisionsFrom(ws, from);
+  const open = (d: Decision) => openWorkPad({ tab: 'decisions', decision: d.id, ...(d.projectId ? { project: d.projectId } : project ? { project } : {}) });
+  const prepare = () => {
+    const id = newId();
+    dispatch({ type: 'dcPrepare', from, id, ids: Array.from({ length: 16 }, newId), at: new Date().toISOString(), names: prepareNames() });
+    const text = T.prepared(title);
+    setMsg({ text, id });
+    say(text);
+  };
+  return (
+    <div className={`dc__prep${compact ? ' is-compact' : ''}`}>
+      <button type="button" className="help__run" title={T.prepareHint} onClick={prepare}>
+        <Icon name="sliders" size={13} className="icon icon--inline" /> {T.prepare}
+      </button>
+      {made.map((d) => (
+        <span key={d.id} className="dc__prepd">
+          {T.preparedWith}: „{d.title}“ <span className="lc__muted">({T.states[Dc.stateOf(d)] ?? ''})</span>
+          <button type="button" className="note__undo" onClick={() => open(d)}>{T.openIt}</button>
+        </span>
+      ))}
+      {msg && (
+        <span className="sheet__msg dc__msg" role="status">
+          {msg.text}
+          {msg.id && (
+            <button type="button" className="note__undo" onClick={() => (dispatch({ type: 'dcRemove', id: msg.id! }), setMsg(null), say(T.undone))}>
+              {T.undo}
+            </button>
+          )}
+        </span>
+      )}
+    </div>
   );
 }

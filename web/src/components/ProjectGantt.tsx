@@ -24,6 +24,7 @@ const SCALES: Scale[] = ['day', 'week', 'month'];
 const DAY_W: Record<Scale, number> = { day: 22, week: 7, month: 2.6 };
 const ROW = 28;
 const HEAD = 40;
+const LANE = 18;
 const PREF_KEY = 'esource.gantt.v1';
 
 interface Prefs { scale: Scale; crit: boolean }
@@ -64,6 +65,18 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
   });
   const { rows, closed, toggle, setSel, cur, note, tell, durRef, onKey, rowRef } = nav;
   const g = Gt.ganttOf(ws, p.id);
+  const phases = Gt.phaseBars(ws, p.id, g);
+  const phaseName = new Map((p.phases ?? []).map((x) => [x.id, x.name]));
+  // überlappende Phasen in eigene Spuren (wie Sammelbalken übereinander)
+  const laneEnd: string[] = [];
+  const lanes = new Map<string, number>();
+  for (const ph of [...phases].sort((a, b) => a.start.localeCompare(b.start))) {
+    let l = laneEnd.findIndex((e) => e < ph.start);
+    if (l < 0) l = laneEnd.length;
+    laneEnd[l] = ph.end;
+    lanes.set(ph.id, l);
+  }
+  const head = HEAD + (phases.length ? laneEnd.length * LANE + 4 : 0);
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const setPref = (patch: Partial<Prefs>) =>
     setPrefs((x) => {
@@ -99,8 +112,9 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
 
   // Zeitachse: ab Montag vor dem Anfang bis gut eine Woche nach dem Ende (Stichtage eingeschlossen)
   const dues = g.rows.map((r) => r.due).filter((d): d is string => Sc.isDay(d));
-  const first = [g.start, ...dues].filter(Boolean).sort()[0] ?? todayText();
-  const last = [g.end, ...dues].filter(Boolean).sort().reverse()[0] ?? first;
+  const pd = phases.flatMap((x) => [x.start, x.end]);
+  const first = [g.start, ...dues, ...pd].filter(Boolean).sort()[0] ?? todayText();
+  const last = [g.end, ...dues, ...pd].filter(Boolean).sort().reverse()[0] ?? first;
   const from = Sc.addDays(first, -(((new Date(dayMs(first)).getUTCDay() + 6) % 7) + 7));
   const to = Sc.addDays(last, 14);
   const w = DAY_W[prefs.scale];
@@ -176,8 +190,13 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
           {g.late.length > 0 && <> · <span className="pj__late">{G.lateCount(g.late.length)}</span></>}
         </p>
       </div>
+      {phases.length > 0 && (
+        <p className="lc__keys gt__phaselist">
+          <strong>{G.phases}:</strong> {phases.map((ph) => G.phaseLine(ph.name, fmtDay(ph.start), fmtDay(ph.end), ph.tasks, ph.from === 'tasks', ph.outside)).join(' · ')}
+        </p>
+      )}
       {loopNames.length > 0 && <p className="layouts__error" role="alert">{G.loops(loopNames.join(' · '))}</p>}
-      <div ref={boxRef} className="gt" style={{ ['--gt-row' as string]: `${ROW}px`, ['--gt-head' as string]: `${HEAD}px` }}>
+      <div ref={boxRef} className="gt" style={{ ['--gt-row' as string]: `${ROW}px`, ['--gt-head' as string]: `${head}px`, ['--gt-lane' as string]: `${LANE}px`, ['--gt-lanes' as string]: laneEnd.length }}>
         <table className="pc__table pj__psp-table gt__table" role="treegrid" aria-labelledby="gt-head" aria-describedby="gt-keys">
           <thead>
             <tr>
@@ -197,7 +216,8 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
               const n = r.kind === 'task' ? noteById(ws, r.id) : undefined;
               const dur = n ? Sc.durationInfo(n) : null;
               const pt = Gt.predsText(gr.preds);
-              const extra = [r.kind === 'project' ? T.subproject : '', r.summary ? T.summary : '', r.milestone ? T.milestone : '', crit && gr.critical ? G.critical : '', gr.late ? G.lateShort : '', gr.manual ? T.manual : '', pt ? G.predsWord(pt) : '', r.done ? T.done : ''].filter(Boolean).join(', ');
+              const ph = n?.phase ? phaseName.get(n.phase) : undefined;
+              const extra = [ph ? G.phaseWord(ph) : '', r.kind === 'project' ? T.subproject : '', r.summary ? T.summary : '', r.milestone ? T.milestone : '', crit && gr.critical ? G.critical : '', gr.late ? G.lateShort : '', gr.manual ? T.manual : '', pt ? G.predsWord(pt) : '', r.done ? T.done : ''].filter(Boolean).join(', ');
               const dates = gr.planned ? G.dates(fmtDay(gr.start), fmtDay(gr.end), gr.days) : G.noDates;
               return (
                 <tr key={r.id} className={`${on ? 'is-sel' : ''}${r.done ? ' is-done' : ''}${r.summary ? ' is-sum' : ''}${crit && gr.critical ? ' is-crit' : ''}`} aria-level={r.depth + 1} aria-expanded={r.summary ? !closed.has(r.id) : undefined} aria-selected={on}>
@@ -242,7 +262,7 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
           </tbody>
         </table>
         <div className="gt__chart" style={{ width }} aria-hidden="true">
-          <div className="gt__head">
+          <div className={`gt__head${phases.length ? ' has-phases' : ''}`}>
             <div className="gt__months">
               {months.map((m, k) => (
                 <span key={k} style={{ left: m.left, width: m.width }}>{m.width > 30 ? m.label : ''}</span>
@@ -253,6 +273,15 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
                 <span key={k} style={{ left: t.left, width: t.width }}>{t.label}</span>
               ))}
             </div>
+            {phases.length > 0 && (
+              <div className="gt__phases">
+                {phases.map((ph, k) => (
+                  <span key={ph.id} className={`gt__phase is-${k % 4}${ph.from === 'tasks' ? ' is-calc' : ''}`} style={{ left: x(ph.start), width: Math.max(3, x(ph.end) + w - x(ph.start)), top: (lanes.get(ph.id) ?? 0) * LANE + 2 }} title={G.phaseLine(ph.name, fmtDay(ph.start), fmtDay(ph.end), ph.tasks, ph.from === 'tasks', ph.outside)}>
+                    {ph.name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <div className={`gt__body is-${prefs.scale}`} style={{ height: rows.length * ROW, ['--gt-day' as string]: `${w}px` }}>
             {rows.map((r, i) => (
@@ -298,7 +327,7 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
       </div>
       <p id="gt-keys" className="lc__keys">{G.rowKeys}</p>
       <p className="lc__keys gt__legend" aria-hidden="true">
-        {G.legend}: <span className="gt__lg gt__lg--task" /> {G.legendItems.task} <span className="gt__lg gt__lg--crit" /> {G.legendItems.crit} <span className="gt__lg gt__lg--sum" /> {G.legendItems.sum} <span className="gt__lg gt__lg--ms" /> {G.legendItems.ms} <span className="gt__lg gt__lg--manual" /> {G.legendItems.manual} <span className="gt__due is-legend">⇩</span> {G.legendItems.due}
+        {G.legend}: <span className="gt__lg gt__lg--task" /> {G.legendItems.task} <span className="gt__lg gt__lg--crit" /> {G.legendItems.crit} <span className="gt__lg gt__lg--sum" /> {G.legendItems.sum} <span className="gt__lg gt__lg--ms" /> {G.legendItems.ms} <span className="gt__lg gt__lg--manual" /> {G.legendItems.manual} <span className="gt__due is-legend">⇩</span> {G.legendItems.due}{phases.length > 0 && <> <span className="gt__lg gt__lg--phase" /> {G.legendItems.phase}</>}
       </p>
       {note && <p className="layouts__undo" role="status">{note}</p>}
       {cur && <TaskInfo key={cur.id} ws={ws} projectId={p.id} node={cur} dispatch={dispatch} tell={tell} durRef={durRef} predRef={predRef} onPickProject={onPickProject} />}

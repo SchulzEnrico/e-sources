@@ -167,7 +167,7 @@ export function undoRemovePerson(ws: Workspace, u: PersonUndo): Workspace {
 
 /** Anzahl offener Aufgaben einer Person (P19 Rückfrage, P17 Limit, Tabelle). */
 export function openCount(ws: Workspace, id: string): number {
-  return notesOf(ws).filter((n) => !isFinished(n.state) && assigneeOf(n) === id).length;
+  return notesOf(ws).filter((n) => !isFinished(n.state) && (assigneeOf(n) === id || !!n.use?.some((u) => u.person === id))).length;
 }
 
 /** Wer ist zuständig? Zuständig, sonst die Person, an die delegiert wurde. */

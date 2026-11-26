@@ -298,6 +298,23 @@ export function planHours(ws: Workspace, n: Note): number | undefined {
 export function planCost(ws: Workspace, n: Note): number | undefined {
   return n.cost?.plan ?? useTotals(ws, n)?.cost;
 }
+/** V110: Wirkt eine der Personen am Vorgang mit? Mit Einsätzen zählen die Einsätze, sonst der Zuständige (bzw. delegiert an). */
+export function involves(n: Note, who: ReadonlySet<string>): boolean {
+  if (n.use?.length) return n.use.some((u) => who.has(u.person));
+  const a = n.assignee ?? n.delegated?.person;
+  return !!a && who.has(a);
+}
+/** V110: Plan-Stunden der Personen `who` am Vorgang – Einsätze; ohne Einsätze der ganze Aufwand des Zuständigen. */
+export function hoursFor(n: Note, who: ReadonlySet<string>): number | undefined {
+  if (n.use?.length) {
+    const own = n.use.filter((u) => who.has(u.person));
+    if (!own.length) return undefined;
+    const h = own.reduce((s, u) => s + (u.hours ?? 0), 0);
+    return h > 0 ? Math.round(h * 100) / 100 : undefined;
+  }
+  const a = n.assignee ?? n.delegated?.person;
+  return a && who.has(a) ? n.effort?.plan : undefined;
+}
 /** Stunden einer Person an einem Vorgang (Einsatz; ohne Einsätze der Zuständige mit dem ganzen Aufwand). */
 export function hoursOf(n: Note, person: string): number {
   if (n.use?.length) return n.use.find((u) => u.person === person)?.hours ?? 0;

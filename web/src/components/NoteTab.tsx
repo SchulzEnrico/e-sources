@@ -19,6 +19,7 @@ import { ProjectChip } from './ProjectChips';
 import { PeopleRow } from './PersonChips';
 import { recentPlaces } from '../workspace/remind';
 import { Icon } from './Icon';
+import { PrepareLine } from './ProjectDecisions';
 import type { IconName } from '../workspace/icons';
 
 const KIND_ICON: Record<NoteViewKind | 'note', IconName> = { note: 'note', block: 'note', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix' };
@@ -228,6 +229,7 @@ export function NoteTab({ ws, noteId, dispatch, draft, sheet }: NoteProps) {
           {NOTE_TEXT.due}
           <input type="date" value={n.due ?? ''} onChange={(e) => edit({ due: e.target.value || undefined })} />
         </label>
+        <PrepareLine ws={ws} from={{ kind: 'note', id: n.id }} title={title || NOTE_TEXT.untitled} project={n.project} dispatch={dispatch} say={() => undefined} compact />
         <button ref={delBtn} type="button" className="note__del" title={NOTE_TEXT.removeHint} aria-expanded={ask > 0} onClick={askDelete}>
           <Icon name="trash" size={14} /> {NOTE_TEXT.remove}
         </button>

@@ -12,7 +12,8 @@
 import type { FocusView, Note, Person, Workspace } from './types';
 import { FOCUS_VIEWS } from './noteObjects';
 import { notesOf, isFinished, shownNote, hasDraft } from './notes';
-import { assigneeOf, capacityOn, personById, personList } from './persons';
+import { capacityOn, personById, personList } from './persons';
+import { hoursFor, involves } from './gpm';
 
 export const URGENT_WEIGHT = 1.5;
 export const WARN_AT = 0.8;
@@ -128,10 +129,10 @@ export function loadOf(ws: Workspace, personId: string, o: LoadOpts): FocusLoad 
     if (draft && !o.drafts && raw.unsaved) continue;
     const n = draft && o.drafts ? shownNote(raw) : raw;
     if (isFinished(n.state)) continue;
-    const a = assigneeOf(n);
-    if (!a || !who.has(a)) continue;
-    const plan = n.effort?.plan;
-    const tentative = draft && o.drafts && (raw.unsaved || JSON.stringify(raw.effort) !== JSON.stringify(n.effort) || raw.assignee !== n.assignee);
+    // V110 (F-226 G7): mehrere Ressourcen je Vorgang – jede zählt mit ihren Einsatz-Stunden
+    if (!involves(n, who)) continue;
+    const plan = hoursFor(n, who);
+    const tentative = draft && o.drafts && (raw.unsaved || JSON.stringify(raw.effort) !== JSON.stringify(n.effort) || JSON.stringify(raw.use) !== JSON.stringify(n.use) || raw.assignee !== n.assignee);
     const days = spanOf(n);
     if (!days.length) {
       noDate.count++;

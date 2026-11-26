@@ -58,6 +58,7 @@ import { Tour } from './components/Tour';
 import { ProjectCockpit, shownProjectId } from './components/ProjectCockpit';
 import { STEER_EVENT } from './components/ProjectSteer';
 import { DECISION_EVENT } from './components/ProjectDecisions';
+import { WORKPAD_EVENT, WorkPad, type WorkPadOpen } from './components/WorkPad';
 import { SlotMachine } from './components/SlotMachine';
 import { type Cleanup, type InviteWhy, type RedundantSlot, INVITE_KEY, INVITE_LATER, INVITE_PAUSE, dupCount, inviteWhy } from './workspace/jackpot';
 import { TOUR_EVENT, type TourId, setToursAuto, tourAutoStart, tourRequestedAuto, toursAuto } from './workspace/tour';
@@ -774,6 +775,13 @@ function DeskApp(props: DeskProps) {
         window.setTimeout(() => setTour((x) => (auto && x ? x : 'projects'), auto), 0);
         return;
       }
+      // V110 (F-226): Tour „Formulare“ – wo die Formulare gerade offen sind (Projekt-Modus oder Pad)
+      if (id === 'forms') {
+        const auto = tourRequestedAuto();
+        setOverview(false);
+        window.setTimeout(() => setTour((x) => (auto && x ? x : 'forms')), 0);
+        return;
+      }
       // F-217 (V98): auch „Notizen & Aufgaben“ und „Main Stage“
       if (id !== 'sources' && id !== 'notes' && id !== 'stage') return;
       setOverview(false);
@@ -1342,6 +1350,16 @@ function DeskApp(props: DeskProps) {
     if (!projectsMode && !notesOff) setDeskMode('projects');
     window.setTimeout(() => setTour('projects'), projectsMode ? 0 : 400);
   };
+  // V110 (F-226 G2, F-222 E1-C): Formulare/Entscheidungen im Pad im Vollbild
+  const [workPad, setWorkPad] = useState<WorkPadOpen | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => {
+      setOverview(false);
+      setWorkPad({ ...(e as CustomEvent<WorkPadOpen>).detail });
+    };
+    window.addEventListener(WORKPAD_EVENT, on);
+    return () => window.removeEventListener(WORKPAD_EVENT, on);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // V108 (F-222 E2): „Öffnen“ an einer vorbereiteten Entscheidung – Cockpit „Entscheidungen“ mit ihr
   useEffect(() => {
     const on = (e: Event) => openDecisionRef.current((e as CustomEvent<string>).detail);
@@ -3268,6 +3286,10 @@ function DeskApp(props: DeskProps) {
         return startFeedbackTour();
       case 'tourProjects':
         return openProjectsTour();
+      case 'tourForms':
+        setOverview(false);
+        if (!document.querySelector('.pjf__chapter')) setWorkPad({ tab: 'forms' });
+        return void window.setTimeout(() => setTour('forms'), 400);
       case 'tourNotes':
       case 'tourStage':
         setOverview(false);
@@ -4684,6 +4706,7 @@ function DeskApp(props: DeskProps) {
             </div>
           )}
           {padLayer}
+          {workPad && <WorkPad ws={ws} dispatch={dispatch} say={sayLive} at={workPad} onClose={() => setWorkPad(null)} />}
           {planPrev && (
             <div
               className="planprev"

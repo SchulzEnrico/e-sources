@@ -9,6 +9,7 @@ import { createNote, isFinished, notesOf, setParent, titleOf, type Act } from '.
 import { headText } from './sheets';
 import { isTask, projectById, projectsOf } from './projects';
 import { durationOf } from './schedule';
+import { planHours } from './gpm';
 
 export type PspStyle = NonNullable<NonNullable<Project['psp']>['style']>;
 
@@ -91,7 +92,7 @@ export function pspTree(ws: Workspace, projectId: string): PspNode[] {
     seen.add(n.id);
     const kids = notes.filter((c) => c.parent === n.id && c.project === owner.id && isTask(c) && c.state !== 'archived' && !seen.has(c.id));
     const children = ordered(kids.map((c) => c.id), owner.order?.[n.id]).map((id, i) => taskNode(byId.get(id)!, owner, `${code}.${pspSegment(i, depth + 1, style)}`, depth + 1));
-    const own = n.effort?.plan ?? 0;
+    const own = planHours(ws, n) ?? 0;
     return {
       kind: 'task',
       id: n.id,

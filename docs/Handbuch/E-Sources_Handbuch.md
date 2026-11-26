@@ -1,6 +1,6 @@
 # E-Sources – Benutzerhandbuch
 
-Stand: **V109** (26.11.2026) · Lastenheft F-227
+Stand: **V110** (26.11.2026) · Lastenheft F-227
 
 E-Sources ist eine Arbeitsfläche aus Fenstern (Desks, Slots, Panels) für Quellen, Notizen, Aufgaben und Projekte. Dieses Handbuch beschreibt, was man damit tun kann und wie. Es wird mit jeder Version fortgeschrieben.
 
@@ -51,20 +51,21 @@ E-Sources ist eine Arbeitsfläche aus Fenstern (Desks, Slots, Panels) für Quell
 
 ## 7. Projekte
 
-*Stand V109.* Im Projekt-Modus steht links die Projektliste, rechts das gewählte Projekt. Das Rad „Ansicht“ wechselt zwischen Steckbrief · Formulare · PSP · Gantt · Risiken · Änderungen · Entscheidungen · Meldungen.
+*Stand V110.* Im Projekt-Modus steht links die Projektliste, rechts das gewählte Projekt. Das Rad „Ansicht“ wechselt zwischen Steckbrief · Formulare · PSP · Gantt · Risiken · Änderungen · Entscheidungen · Meldungen.
 
 - **Steckbrief:** Ziel, Vorgehen, Organisation, Termine, Budget, Priorität, Zustand und die Instanzen des Projekts (z. B. Projektleitung, Auftraggeber).
 - **Formulare:** die Projektformulare nach GPM-Leitfaden – siehe 7.1.
-- **PSP und Gantt:** Vorgänge mit Codes, Dauer, Vorgängern, Puffer und kritischem Pfad.
-- **Risiken:** Ursache, Ereignis, Auswirkung, Eintrittswahrscheinlichkeit × Auswirkung = Risikowert, Strategie, Maßnahme, Eigner; als Liste oder Risikomatrix (5 × 5, auch mit der Tastatur bedienbar).
-- **Änderungen:** Änderungsanträge mit Auswirkung auf Termin, Kosten, Leistung und Umfang. Entscheiden kann nur, wer die Befugnis „Entscheiden“ hat.
+- **PSP und Gantt:** Vorgänge mit Codes, Dauer, Vorgängern, Puffer und kritischem Pfad. Der Aufwand im PSP und in der Projektliste kommt aus der Eingabe von Hand, sonst aus den Einsätzen (7.1). In den Angaben eines Vorgangs wählt das Rad „Phase“ seine Phase aus dem Phasenplan.
+- **Phasenbalken im Gantt:** Gibt es Phasen, zeigt der Kopf des Gantt eine dritte Zeile mit einem Balken je Phase – Beginn und Ende aus dem Phasenplan, sonst aus den Vorgängen der Phase gerechnet (gestrichelter Rand). Überlappende Phasen stehen untereinander. Über dem Balkenplan steht dieselbe Liste als Text, mit Hinweis, wenn Vorgänge außerhalb von Beginn/Ende liegen.
+- **Risiken:** Ursache, Ereignis, Auswirkung, Eintrittswahrscheinlichkeit × Auswirkung = Risikowert, Strategie, Eigner; als Liste oder Risikomatrix (5 × 5, auch mit der Tastatur bedienbar). In den Angaben: Häkchen „Chance statt Risiko“; **EW in %** und **Tragweite in €** – daraus rechnen sich W und A (Marke „gerechnet“, die Räder entfallen dann) und der Risikowert in Euro. **Maßnahmen:** „+ Maßnahme“ legt bis zu 10 an, je mit Art (präventiv = vorbeugend, korrektiv = wenn es eintritt), Text, Kosten, „beschlossen“ und – bei präventiven – EW und Tragweite danach. Beschlossene präventive Maßnahmen senken den Wert („nach beschlossenen präventiven Maßnahmen: …“); die Kosten beschlossener Maßnahmen stehen darunter. Löschen mit Rückgängig am Ort. Das alte Textfeld heißt jetzt „Maßnahme (Text)“.
+- **Änderungen:** Änderungsanträge mit Auswirkung auf Termin, Kosten, Leistung und Umfang. Entscheiden kann nur, wer die Befugnis „Entscheiden“ hat. „Entscheidung vorbereiten …“ legt dazu eine Nutzwertanalyse an (Kapitel 8); ist sie bewertet, steht bei der Entscheidung „Nutzwert empfiehlt: …“ – nur ein Vorschlag, entschieden wird am Antrag.
 - **Meldungen:** Feedback zum Projekt. In der Karte einer Meldung macht „Wird zu …“ daraus ein Risiko, einen Änderungsantrag oder eine Entscheidung.
 
 **Beispielprojekt:** ⚙ › Beispielprojekt legt „ColorGentlemen“ an. Es stammt aus einem Projektmanagement-Report nach IPMA ICB4 Level D, mit Steckbrief, Zielen, Stakeholdern, Phasen, PSP, Terminen, Ressourcen, Chancen und Risiken und Änderungen – alles in den Formularen. Über denselben Weg lässt es sich wieder ganz entfernen. Ein schon angelegtes Beispielprojekt bekommt die neuen Inhalte erst, wenn man es entfernt und neu anlegt.
 
 ### 7.1 Formulare (GPM Level D)
 
-*Stand V109.* Projekt-Modus › Rad „Ansicht“ › **Formulare**. Jedes Formular ist Eingabe und Ausgabe zugleich: Was man hier einträgt, steht sofort im Projekt (Steckbrief, Gantt, Risiken, Personen …), und was dort steht, zeigt das Formular. Es gibt keine zweite Kopie der Daten.
+*Stand V110.* Projekt-Modus › Rad „Ansicht“ › **Formulare**. Jedes Formular ist Eingabe und Ausgabe zugleich: Was man hier einträgt, steht sofort im Projekt (Steckbrief, Gantt, Risiken, Personen …), und was dort steht, zeigt das Formular. Es gibt keine zweite Kopie der Daten.
 
 - **Kapitel-Rad:** wählt das Formular in der Reihenfolge des GPM-Leitfadens (Z01D Rev. 09): 2.1 Projektsteckbrief · 2.2 Projektziele · 2.2 Nicht-Ziele · 2.3 Zielkonflikte · 4 Stakeholderanalyse · 5 Chancen und Risiken · 6.2 Projektorganisation · 7 Phasenplan · 7 Meilensteine · 8 Arbeitspakete · 10 Ressourcen · 10 Einsatz je Arbeitspaket · 11 Beschaffung. Neben jedem Kapitel steht das ICB4-Element (z. B. 4.5.2).
 - **Pflichtfelder:** Felder, die der Leitfaden verlangt, tragen ein Sternchen. Oben steht, wie viele noch leer sind („3 Pflichtfelder offen“); leere Pflichtfelder sind gestrichelt umrandet.
@@ -73,16 +74,19 @@ E-Sources ist eine Arbeitsfläche aus Fenstern (Desks, Slots, Panels) für Quell
 - **Gerechnet:** Was mit „gerechnet“ markiert ist, kommt aus anderen Angaben. Bei Risiken ergeben sich W (Wahrscheinlichkeit) und A (Auswirkung) aus EW in Prozent und Tragweite in Euro im Verhältnis zum Budget; ohne diese Zahlen setzt man W und A von Hand. Risikowert = EW × Tragweite. Bei Arbeitspaketen kommen Aufwand und Kosten aus den Einsätzen; eine Eingabe von Hand geht vor.
 - **Chancen:** Im Formular „Chancen und Risiken“ macht das Häkchen „Chance“ aus einem Risiko eine Chance.
 - **Ressourcen und Einsatz:** Unter „Ressourcen“ stehen alle Personen, die am Projekt mitarbeiten, mit Stundensatz und Qualifikation. Unter „Einsatz je Arbeitspaket“ wählt man Arbeitspaket und Ressource und trägt die Stunden ein; die Kosten rechnen sich aus dem Stundensatz.
-- **Phasen:** Im Phasenplan angelegte Phasen lassen sich bei Meilensteinen und Arbeitspaketen auswählen.
+- **Phasen:** Im Phasenplan angelegte Phasen lassen sich bei Meilensteinen und Arbeitspaketen auswählen (auch in PSP und Gantt unter „Phase“); sie erscheinen als Phasenbalken im Gantt.
+- **Auslastung:** Hat ein Arbeitspaket Einsätze, zählt im Cockpit „Fokus“ und in den Personen jede Ressource mit ihren eigenen Stunden – nicht mehr nur der Zuständige mit dem ganzen Aufwand. Ohne Einsätze bleibt es beim Zuständigen.
+- **Im Pad:** Der Knopf „Im Pad“ öffnet die Formulare im **Pad im Vollbild** – über Desk, Notizen- oder Projekt-Modus, mit mehr Platz. Oben zwei Reiter: Formulare · Entscheidungen (Pfeile links/rechts wechseln), bei mehreren Projekten das Rad „Projekt“. Alt/⌥ + Enter oder der Knopf daneben schaltet zwischen Vollbild und Fenster (merkt sich das Gerät), Esc im Kopf oder ✕ schließt, der Fokus geht zurück an den Knopf.
+- **Tour:** Der Knopf „Tour“ zeigt die Formulare Schritt für Schritt; sie startet einmal von selbst beim ersten Öffnen. Auch über die Hilfe (?) und die Suche („Tour Formulare“).
 - **Felder:** Der Knopf „Felder“ blendet Spalten ein und aus (Pflichtfelder bleiben), legt eigene Felder an (Text, Zahl, Datum, Auswahl, Ja/Nein, Person – auf Wunsch als Pflichtfeld) und speichert alle Formulare des Projekts als eigene Vorlage. Hat man mehr als eine Vorlage, erscheint oben das Rad „Vorlage“.
 
-*Folgt (F-226 Stufe 2): Abnahmekriterien, AKV je Rolle, Kommunikationsplan (DKI-Matrix), Arbeitspaket-Formular, Statusbericht, Kostenganglinie, Ausgabe als Report (PDF), Portfolios als Grafik; Formulare im Pad im Vollbild; Phasenbalken im Gantt.*
+*Folgt (F-226 Stufe 2): Abnahmekriterien, AKV je Rolle, Kommunikationsplan (DKI-Matrix), Arbeitspaket-Formular, Statusbericht, Kostenganglinie, Ausgabe als Report (PDF), Portfolios als Grafik.*
 
 ## 8. Entscheidungen (Nutzwertanalyse)
 
-*Stand V108.* Die Nutzwertanalyse hilft, wenn mehrere Lösungen in Frage kommen und mehrere Gesichtspunkte zählen.
+*Stand V110.* Die Nutzwertanalyse hilft, wenn mehrere Lösungen in Frage kommen und mehrere Gesichtspunkte zählen.
 
-**Wo:** im Cockpit › Rad › „Entscheidungen“ (alle Entscheidungen; „Zeigen“: Alle · Frei · je Projekt) und im Projekt-Modus › „Ansicht“ › „Entscheidungen“ (nur die des Projekts). Freie Entscheidungen gehören zu keinem Projekt, z. B. „Welche Wohnung?“.
+**Wo:** im Cockpit › Rad › „Entscheidungen“ (alle Entscheidungen; „Zeigen“: Alle · Frei · je Projekt), im Projekt-Modus › „Ansicht“ › „Entscheidungen“ (nur die des Projekts) und im **Pad im Vollbild** (Knopf „Im Pad“, Reiter „Entscheidungen“ – siehe 7.1). Freie Entscheidungen gehören zu keinem Projekt, z. B. „Welche Wohnung?“.
 
 **So geht es:**
 1. „+ Entscheidung“ – Titel eingeben. Es entstehen 3 Kriterien und 2 Lösungen zum Umbenennen.
@@ -93,7 +97,7 @@ E-Sources ist eine Arbeitsfläche aus Fenstern (Desks, Slots, Panels) für Quell
 
 Die Rangliste steht in jedem Schritt rechts und rechnet sofort mit. „Beispiel ansehen“ legt eine fertige Analyse an (frei: Wohnung, im Projekt: Malerbetrieb). In Projekten braucht „Entscheiden für“ die Befugnis „Entscheiden“. Die Suche findet Entscheidungen über Titel, Frage, Kriterien und Lösungen.
 
-**Entscheidung vorbereiten:** In der Karte einer Projektmeldung macht „Wird zu …“ › Entscheidung eine Nutzwertanalyse daraus. Titel, Frage und Projekt werden übernommen, „Öffnen“ springt hin, und es gibt Rückgängig. *Aus Notiz und Änderungsantrag folgt.*
+**Entscheidung vorbereiten:** In der Karte einer Projektmeldung macht „Wird zu …“ › Entscheidung eine Nutzwertanalyse daraus. Titel, Frage und Projekt werden übernommen, „Öffnen“ springt hin, und es gibt Rückgängig. Dasselbe geht mit dem Knopf **„Entscheidung vorbereiten …“** an jeder Notiz (Titel, erster Absatz als Frage, Projekt der Notiz – ohne Projekt eine freie Entscheidung) und am Änderungsantrag (Titel „CG-Ä-n: …“, Frage = Begründung, Kriterien Termin · Kosten · Leistung · Umfang, Lösungen „Änderung umsetzen“ · „Nicht umsetzen“). Danach steht dort „Entscheidung: … (Zustand)“ mit „Öffnen“ (im Pad im Vollbild), die Meldung „vorbereitet“ hat Rückgängig. *Bezüge an Lösungen als Chips, Ziehen zum Umsortieren, Punkte-Spalten und eine eigene Tour folgen.*
 
 ## 9. Feedback und Meldungen
 
@@ -120,5 +124,6 @@ Die Rangliste steht in jedem Schritt rechts und rechnet sofort mit. „Beispiel 
 | Version | Datum | Abschnitt | Änderung |
 | --- | --- | --- | --- |
 | V108 | 26.11.2026 | – | Handbuch angelegt (Gerüst) |
+| V110 | 26.11.2026 | 7, 7.1, 8 | Pad im Vollbild für Formulare und Entscheidungen, Phasenbalken im Gantt und Phase je Vorgang, Risiken mit EW %/Tragweite €/Chance und Maßnahmen-Liste, Auslastung aus Einsätzen, Tour „Formulare“, „Entscheidung vorbereiten …“ an Notiz und Änderungsantrag mit Vorschlag „Nutzwert empfiehlt“ |
 | V109 | 26.11.2026 | 7, 7.1 | Ansicht „Formulare“ (Baukasten nach GPM Level D): Kapitel-Rad, Pflichtfelder, Zeilen, gerechnete Werte, Chancen, Ressourcen je Vorgang mit Stundensatz, eigene Felder, eigene Vorlagen; Beispielprojekt in den Formularen |
 | V108 | 26.11.2026 | 4, 7, 8 | Cockpit-Modus „Entscheidungen“, Projekt-Ansichten, Beispielprojekt aus dem Report, Nutzwertanalyse inkl. freier Entscheidungen, Suche, „Wird zu …“ › Entscheidung |

@@ -363,3 +363,43 @@ export function setPreds(ws: Workspace, projectId: string, id: string, links: Pr
   }
   return { ok: true, ws: next };
 }
+
+/** F-226 G8 (V110): Phasenbalken im Gantt – Beginn/Ende aus dem Phasenplan, sonst aus den Vorgängen der Phase. */
+export interface PhaseBar {
+  id: string;
+  name: string;
+  start: string;
+  end: string;
+  /** 'plan' = Beginn und Ende stehen im Phasenplan; 'tasks' = (teils) aus den Vorgängen der Phase gerechnet. */
+  from: 'plan' | 'tasks';
+  /** Vorgänge und Meilensteine der Phase mit Terminen. */
+  tasks: number;
+  /** Ein Vorgang der Phase liegt außerhalb von Beginn/Ende laut Phasenplan. */
+  outside: boolean;
+}
+export function phaseBars(ws: Workspace, projectId: string, g: Gantt = ganttOf(ws, projectId)): PhaseBar[] {
+  const p = projectById(ws, projectId);
+  if (!p?.phases?.length) return [];
+  const phaseOf = new Map<string, string>();
+  for (const n of ws.notes ?? []) if (n.project === projectId && n.phase) phaseOf.set(n.id, n.phase);
+  const out: PhaseBar[] = [];
+  for (const ph of p.phases) {
+    const rows = g.rows.filter((r) => r.planned && r.node.kind === 'task' && phaseOf.get(r.id) === ph.id);
+    const s0 = rows.map((r) => r.start).sort()[0];
+    const e0 = rows.map((r) => r.end).sort().reverse()[0];
+    const start = isDay(ph.start) ? ph.start! : s0;
+    const end = isDay(ph.end) ? ph.end! : e0;
+    if (!start || !end) continue;
+    const plan = isDay(ph.start) && isDay(ph.end);
+    out.push({
+      id: ph.id,
+      name: ph.name,
+      start: start <= end ? start : end,
+      end: start <= end ? end : start,
+      from: plan ? 'plan' : 'tasks',
+      tasks: rows.length,
+      outside: plan && rows.some((r) => r.start < start || r.end > end),
+    });
+  }
+  return out;
+}

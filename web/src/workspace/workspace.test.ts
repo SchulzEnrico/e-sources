@@ -6331,8 +6331,8 @@ describe('F-206 Schritt 10 Beispielprojekt ColorGentlemen (V100)', () => {
     expect(Pj.roleOf(p, 'client')!.person).toBe('pn-cg-meier');
     expect(Pj.roleOf(p, 'steering')).toBeUndefined();
     const n = (id: string) => ws.notes!.find((x) => x.id === id)!;
-    expect(n('cg-31').effort).toEqual({ plan: 295, actual: 198 });
-    expect(n('cg-31').cost).toEqual({ plan: 10320, actual: 6920 });
+    expect(n('cg-31').effort).toEqual({ actual: 198 }); // V110: Plan aus den Einsätzen (295 Ph, siehe gpm.test)
+    expect(n('cg-31').cost).toEqual({ actual: 6920 });
     expect(n('cg-37').accept!.map((c) => !!c.ok)).toEqual([true, true]);
     expect(n('cg-38').accept![0].ok).toBeUndefined();
     expect(ws.persons!.find((x) => x.id === 'pn-cg-lm')!.away).toEqual([{ from: '2026-12-01', to: '2027-02-25', why: 'noch nicht eingestellt (ab M3)' }]);

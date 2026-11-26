@@ -261,8 +261,9 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
       due: shift(r.end),
       ...(r.parent && byNr.has(r.parent) ? { parent: noteId(r.parent) } : {}),
       ...(ms ? { milestone: true } : { duration: r.days }),
-      ...(r.effort ? { effort: { plan: r.effort, ...(r.actual ? { actual: r.actual.effort } : {}) } } : {}),
-      ...(r.cost ? { cost: { plan: r.cost, ...(r.actual ? { actual: r.actual.cost } : {}) } } : {}),
+      // V110: CG-1.6.4 rechnet Plan-Aufwand und -Kosten aus den Einsätzen (keine Hand-Werte davor, „gerechnet“)
+      ...(r.effort ? { effort: { ...(r.nr === 31 ? {} : { plan: r.effort }), ...(r.actual ? { actual: r.actual.effort } : {}) } } : {}),
+      ...(r.cost ? { cost: { ...(r.nr === 31 ? {} : { plan: r.cost }), ...(r.actual ? { actual: r.actual.cost } : {}) } } : {}),
       ...(r.accept ? { accept: r.accept.map(([text, ok]) => ({ text, ...(ok ? { ok: true as const } : {}) })) } : {}),
       ...(r.who ? { assignee: personId(r.who) } : {}),
       ...(r.results ? { results: r.results } : {}),

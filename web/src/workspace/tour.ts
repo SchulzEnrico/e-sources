@@ -30,7 +30,7 @@ export interface TourStep {
   keep?: boolean;
 }
 
-export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev' | 'sync' | 'notes' | 'stage' | 'feedback' | 'projects';
+export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev' | 'sync' | 'notes' | 'stage' | 'feedback' | 'projects' | 'forms';
 
 const t = (id: string) => helpById(id)?.text ?? '';
 
@@ -580,6 +580,55 @@ export const TOURS: Record<TourId, TourStep[]> = {
       text: 'Diese Tour findest du in „Main Stage …“, in der Hilfe (?) und in der Suche („Tour Main Stage“).',
     },
   ],
+  // V110 (F-226): Formulare nach GPM – Kapitel, Zeilen, Pflichtfelder, gerechnet, Felder, Pad im Vollbild
+  forms: [
+    {
+      id: 'intro',
+      title: 'Formulare',
+      text: 'Die Formulare folgen dem GPM-Leitfaden für die Zertifizierung IPMA Level D: Du gibst das Projekt so ein, wie es im Projektreport steht – und alles, was du hier einträgst, steht auch im Steckbrief, im PSP, im Gantt und bei den Risiken (und umgekehrt). Mit → weiter, mit Esc beenden.',
+    },
+    {
+      id: 'chapter',
+      title: 'Kapitel',
+      target: '.pjf .pjf__chapter',
+      text: 'Das Rad „Kapitel“ wählt das Formular: 2.1 Steckbrief, 2.2 Ziele und Nicht-Ziele, 2.3 Zielkonflikte, 4 Stakeholder, 5 Chancen und Risiken, 6.2 Organisation, 7 Phasen und Meilensteine, 8 Arbeitspakete, 10 Ressourcen und Einsatz, 11 Beschaffung. Maus darüber und scrollen oder klicken; mit der Tastatur Pfeile.',
+    },
+    {
+      id: 'table',
+      title: 'Zeilen und Zellen',
+      target: '.pjf .pjf__body',
+      text: 'Jede Zeile ist ein echtes Objekt des Projekts (Ziel, Stakeholder, Arbeitspaket …). Tab wandert durch die Felder, Enter übernimmt, Esc verwirft; Alt/⌥+↑/↓ verschiebt die Zeile. Löschen geht mit Rückgängig am Ort.',
+    },
+    {
+      id: 'add',
+      title: 'Neue Zeile',
+      target: '.pjf .pjf__addrow',
+      text: '„+ Zeile“ legt eine neue Zeile in diesem Formular an – im Formular „Einsatz je AP“ wählst du dafür Arbeitspaket und Ressource.',
+    },
+    {
+      id: 'open',
+      title: 'Pflichtfelder',
+      target: '.pjf .pjf__open',
+      text: 'Hier steht, wie viele Pflichtfelder nach GPM noch leer sind; leere Pflichtfelder sind in der Tabelle markiert. Werte mit der Marke „gerechnet“ ergeben sich aus anderen Angaben – z. B. W und A aus EW % und Tragweite, Aufwand und Kosten aus den Einsätzen. Eine Eingabe von Hand geht vor.',
+    },
+    {
+      id: 'fields',
+      title: 'Felder',
+      target: '.pjf .pjf__fieldsbtn',
+      text: '„Felder“ blendet Spalten aus (GPM-Pflichtfelder bleiben), legt eigene Felder an (Text, Zahl, Datum, Auswahl, Ja/Nein, Person; auch als Pflicht) und speichert alle Formulare des Projekts als eigene Vorlage für andere Projekte.',
+    },
+    {
+      id: 'pad',
+      title: 'Im Pad',
+      target: '.pjf .workpad__open',
+      text: '„Im Pad“ öffnet die Formulare im Pad im Vollbild – mit mehr Platz zum Ausfüllen. Dort wechselst du oben zwischen Formularen und Entscheidungen, Alt/⌥+Enter schaltet zwischen Vollbild und Fenster, Esc im Kopf schließt.',
+    },
+    {
+      id: 'again',
+      title: 'Tour wieder starten',
+      text: 'Über den Knopf „Tour“ in den Formularen, die Hilfe (?) oder die Suche („Tour Formulare“) startest du diese Tour jederzeit wieder.',
+    },
+  ],
   // V106 (F-225 Rest, F-217): Projekt-Modus – Liste, Ansichten, Steckbrief, Instanzen, Meldungen
   projects: [
     {
@@ -737,7 +786,7 @@ export function tourSteps(has: (selector: string) => boolean, steps: TourStep[] 
 }
 
 /** Speicherschlüssel je Tour; die Starttour behält ihren bisherigen Schlüssel. */
-export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1', sync: 'esource.tour.sync.v1', notes: 'esource.tour.notes.v1', stage: 'esource.tour.stage.v1', feedback: 'esource.tour.feedback.v1', projects: 'esource.tour.projects.v1' };
+export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1', sync: 'esource.tour.sync.v1', notes: 'esource.tour.notes.v1', stage: 'esource.tour.stage.v1', feedback: 'esource.tour.feedback.v1', projects: 'esource.tour.projects.v1', forms: 'esource.tour.forms.v1' };
 
 /** Wurde die Tour schon gezeigt (beendet oder übersprungen)? */
 export function tourSeen(id: TourId = 'start'): boolean {

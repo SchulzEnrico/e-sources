@@ -14,6 +14,8 @@ import { hoursText } from '../workspace/focusLoad';
 import { newId } from '../workspace/workspace';
 import { noteById, titleOf } from '../workspace/notes';
 import * as Gt from '../workspace/gantt';
+import * as Fk from '../workspace/formKit';
+import { projectById } from '../workspace/projects';
 import { GANTT_TEXT as G, PSP_TEXT as T, TERMS } from '../workspace/terms';
 import { noticeLater } from '../workspace/flash';
 import { Icon } from './Icon';
@@ -344,6 +346,7 @@ export function TaskInfo({ ws, projectId, node, dispatch, tell, durRef, predRef,
         <span aria-hidden="true">{T.plan}</span>
         <ModeWheel label={T.planLabel} value={Sc.isManual(n) ? 'manual' : 'auto'} onChange={(v) => plan({ manual: v === 'manual' }, `${T.plan}: ${v === 'manual' ? T.manual : T.auto}`)} options={[{ id: 'auto', name: T.auto }, { id: 'manual', name: T.manual }]} />
       </div>
+      <PhasePick ws={ws} projectId={projectId} noteId={n.id} phase={n.phase} dispatch={dispatch} tell={tell} />
       <label className="pc__check">
         <input type="checkbox" checked={!!n.milestone} onChange={(e) => (plan({ milestone: e.target.checked }, `${T.milestone}: ${e.target.checked ? 'an' : 'aus'}`), e.target.checked && setDur(''))} />
         {T.milestoneLabel}
@@ -352,5 +355,28 @@ export function TaskInfo({ ws, projectId, node, dispatch, tell, durRef, predRef,
         <Icon name="note" size={13} className="icon icon--inline" /> {T.open}
       </button>
     </fieldset>
+  );
+}
+
+/** V110 (F-226 G8): Phase des Vorgangs in den Angaben (PSP und Gantt) – schreibt wie das Formular „8 Arbeitspakete“. */
+function PhasePick({ ws, projectId, noteId, phase, dispatch, tell }: { ws: Workspace; projectId: string; noteId: string; phase?: string; dispatch: (a: Action) => void; tell: (t: string) => void }) {
+  const phases = projectById(ws, projectId)?.phases ?? [];
+  if (!phases.length) return null;
+  const form = Fk.GPM_D.forms.find((f) => f.id === 'tasks')!;
+  const value = phase && phases.some((x) => x.id === phase) ? phase : '';
+  return (
+    <div className="layouts__label pj__wheel" title={G.phaseHint}>
+      <span aria-hidden="true">{G.phaseLabel}</span>
+      <ModeWheel
+        label={G.phaseLabel}
+        value={value}
+        wrap
+        onChange={(v) => {
+          dispatch({ type: 'form', op: { op: 'cell', pid: projectId, form, row: noteId, key: 'phase', value: v || undefined, at: Date.now(), by: ws.profile?.name || undefined } });
+          tell(G.phaseSet(phases.find((x) => x.id === v)?.name ?? G.phaseEmpty));
+        }}
+        options={[{ id: '', name: G.phaseEmpty, hint: G.phaseHint }, ...phases.map((x) => ({ id: x.id, name: x.name, hint: x.focus || G.phaseHint }))]}
+      />
+    </div>
   );
 }

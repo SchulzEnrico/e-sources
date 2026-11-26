@@ -8164,7 +8164,8 @@ h3.cases__name { font-size: 1.05em; }
 .area.is-notes > .notedrop,
 .area.is-notes > .ghost,
 .area > .padgone,
-.area.is-notes > .padgone { visibility: visible; }
+.area.is-notes > .padgone,
+.area.is-notes > .workpad { visibility: visible; }
 .area > .ghost { position: fixed; z-index: 70; }
 .padgone {
   position: absolute;
@@ -8979,7 +8980,7 @@ b.pc__week.is-warn { color: #e0a040; }
 
 /* V99 (F-206 Schritt 10): Projekt-Modus – Projektliste und Steckbrief füllen den Desk (Aufbau wie Cockpit „Personen“).
    Portale ruhen unsichtbar dahinter (wie im Notizen-Modus), Pads schweben darüber wie im Desk-Modus. */
-.area.is-projects > :not(.projlayer):not(.padlayer):not(.planprev):not(.padgone) { visibility: hidden; }
+.area.is-projects > :not(.projlayer):not(.padlayer):not(.planprev):not(.padgone):not(.workpad) { visibility: hidden; }
 .projlayer { position: absolute; inset: 0; z-index: 10; overflow: auto; padding: 12px 16px 24px; background: var(--panel); }
 .projlayer .pj { max-width: 1600px; margin: 0 auto; }
 .projlayer .help__run { opacity: 1; }
@@ -9381,3 +9382,38 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 .pjf__own li { display: flex; align-items: center; gap: 6px; }
 .pjf__warn { font-size: 12px; color: rgb(224, 140, 60); }
 @media (forced-colors: active) { .pjf__cell.is-miss input, .pjf__cell.is-miss textarea, .pjf__cell.is-miss select { outline: 2px dashed CanvasText; } }
+
+/* V110 (F-226 G2, F-222 E1-C): Pad im Vollbild für Formulare und Entscheidungen */
+.workpad { z-index: 40; inset: 4% 6%; }
+.workpad.is-full { inset: 0; border-radius: 0; }
+.workpad__head { cursor: default; }
+.workpad__wheel { flex: none; margin: 0 6px; }
+.workpad__body { overflow: auto; padding: 10px 16px 24px; }
+.workpad__body .help__run { opacity: 1; }
+.workpad__body > .dc { max-width: 1800px; margin: 0 auto; }
+/* V110 (F-226 G8): Phasenbalken im Gantt – dritte Zeile im Kopf und zarte Fläche über den Zeilen */
+.gt__head.has-phases .gt__months, .gt__head.has-phases .gt__ticks { height: 20px; }
+.gt__phases { position: relative; height: calc(var(--gt-lanes) * var(--gt-lane) + 4px); border-top: 1px solid var(--line); }
+.gt__phase { position: absolute; height: calc(var(--gt-lane) - 3px); display: flex; align-items: center; padding: 0 6px; box-sizing: border-box; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); background: rgba(var(--accent-rgb), 0.28); border: 1px solid rgba(var(--accent-rgb), 0.6); }
+.gt__phase.is-1 { background: rgba(var(--tint), 0.16); border-color: rgba(var(--tint), 0.4); }
+.gt__phase.is-2 { background: rgba(var(--accent-rgb), 0.16); }
+.gt__phase.is-3 { background: rgba(var(--tint), 0.1); border-color: rgba(var(--tint), 0.3); }
+.gt__phase.is-calc { border-style: dashed; }
+.gt__phaseband { position: absolute; top: 0; bottom: 0; pointer-events: none; background: rgba(var(--accent-rgb), 0.05); border-left: 1px dashed rgba(var(--accent-rgb), 0.35); }
+.gt__phaseband.is-1, .gt__phaseband.is-3 { background: rgba(var(--tint), 0.03); }
+.gt__lg--phase { background: rgba(var(--accent-rgb), 0.28); border: 1px solid rgba(var(--accent-rgb), 0.6); border-radius: 3px; }
+.gt__phaselist { margin: 2px 0 6px; }
+@media (forced-colors: active) { .gt__phase { border: 1px solid CanvasText; } }
+/* V110 (F-226 L4): Maßnahmen je Risiko */
+.pjs__measures { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px 8px; margin: 8px 0; }
+.pjs__measure { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; align-items: end; padding: 6px 28px 6px 8px; margin: 6px 0; border-left: 3px solid rgba(var(--accent-rgb), 0.7); background: rgba(var(--tint), 0.04); border-radius: 4px; }
+.pjs__measure.is-corr { border-left-color: rgba(var(--tint), 0.45); }
+.pjs__mdel { position: absolute; top: 4px; right: 4px; }
+.pjs__madd { margin: 6px 0 0; }
+.pjs__auto { font-variant-numeric: tabular-nums; }
+/* V110 (F-222 E2/E4): Entscheidung vorbereiten am Ort, Vorschlag am Änderungsantrag */
+.dc__prep { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 6px 0; }
+.dc__prep.is-compact { margin: 0; }
+.dc__prepd { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.pjs__suggest { margin: 4px 0; padding: 4px 8px; border-left: 3px solid rgba(var(--accent-rgb), 0.7); background: rgba(var(--accent-rgb), 0.07); border-radius: 4px; }
+.pjs__measure > label.fbc__field:first-of-type { grid-column: span 2; }

@@ -8,10 +8,11 @@
  */
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
-import type { ChangeState, Note, Project, RiskLevel, RiskState, RiskStrategy, Workspace } from '../workspace/types';
+import type { ChangeState, Note, Project, RiskLevel, RiskMeasure, RiskState, RiskStrategy, Workspace } from '../workspace/types';
 import * as Rk from '../workspace/risks';
 import * as Ps from '../workspace/persons';
 import * as Pj from '../workspace/projects';
+import * as Gp from '../workspace/gpm';
 import { noteById, titleOf } from '../workspace/notes';
 import { feedbackById } from '../workspace/feedback';
 import { newId } from '../workspace/workspace';
@@ -19,6 +20,9 @@ import { STEER_TEXT as T, PSP_TEXT } from '../workspace/terms';
 import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
 import { openNote } from './SourceChips';
+import { PrepareLine } from './ProjectDecisions';
+import * as Pr from '../workspace/prepare';
+import { DECISION_TEXT as DT } from '../workspace/terms';
 
 type Kind = Rk.SteerType;
 
@@ -395,29 +399,56 @@ function TaskLine({ ws, n, dispatch, tell }: DetailProps) {
 const LEVEL_OPTS = [{ id: '0', name: T.levelNone, hint: T.levelNone }, ...([1, 2, 3, 4, 5] as const).map((l) => ({ id: String(l), name: String(l), hint: T.levels[l - 1] }))];
 
 function RiskDetails(props: DetailProps) {
-  const { ws, n, dispatch } = props;
+  const { ws, p, n, dispatch } = props;
   const r = n.risk!;
   const edit = (patch: Rk.RiskPatch) => dispatch({ type: 'riskEdit', id: n.id, patch });
-  const sc = Rk.riskScore(r);
+  const lv = Gp.riskLevels(r, p.budget);
+  const sc = lv.p && lv.i ? lv.p * lv.i : Rk.riskScore(r);
   const tone = Rk.riskTone(sc);
   const people = Ps.personsOf(ws);
+  const value = Gp.riskValue(r);
+  const after = Gp.riskValueAfter(r);
+  const level = (k: 'p' | 'i', label: string, auto: boolean) => {
+    const v = lv[k];
+    return (
+      <div className="fbc__wheel">
+        <span className="fbq__label">{label}</span>
+        {auto ? (
+          <span className="pjs__auto" title={T.autoHint(label)}>
+            {v} – {v ? T.levels[v - 1] : ''} <span className="pjf__auto">{T.auto}</span>
+          </span>
+        ) : (
+          <>
+            <ModeWheel label={label} value={String(r[k] ?? 0)} options={LEVEL_OPTS} onChange={(x) => edit({ [k]: x === '0' ? null : (Number(x) as RiskLevel) })} />
+            <span className="fbq__hint">{r[k] ? T.levels[r[k]! - 1] : ''}</span>
+          </>
+        )}
+      </div>
+    );
+  };
   return (
     <article className="pjs__card" aria-label={`${Rk.steerCode(ws, n)} ${titleOf(n)}`}>
       <Head ws={ws} n={n} dispatch={dispatch} />
+      <label className="pc__check" title={T.chanceHint}>
+        <input type="checkbox" checked={!!r.chance} onChange={(e) => edit({ chance: e.target.checked ? true : null })} />
+        {T.chance}
+      </label>
       <Field label={T.cause} hint={T.causeHint} value={r.cause ?? ''} area onSave={(v) => edit({ cause: v || null })} />
       <Field label={T.event} hint={T.eventHint} value={r.event ?? ''} area onSave={(v) => edit({ event: v || null })} />
       <Field label={T.effect} hint={T.effectHint} value={r.effect ?? ''} area onSave={(v) => edit({ effect: v || null })} />
-      <div className="fbc__wheel">
-        <span className="fbq__label">{T.p}</span>
-        <ModeWheel label={T.p} value={String(r.p ?? 0)} options={LEVEL_OPTS} onChange={(v) => edit({ p: v === '0' ? null : (Number(v) as RiskLevel) })} />
-        <span className="fbq__hint">{r.p ? T.levels[r.p - 1] : ''}</span>
-      </div>
-      <div className="fbc__wheel">
-        <span className="fbq__label">{T.i}</span>
-        <ModeWheel label={T.i} value={String(r.i ?? 0)} options={LEVEL_OPTS} onChange={(v) => edit({ i: v === '0' ? null : (Number(v) as RiskLevel) })} />
-        <span className="fbq__hint">{r.i ? T.levels[r.i - 1] : ''}</span>
-      </div>
-      <p className={`pjs__scoreline is-${tone}`} role="status">{T.score(sc, T.tones[tone])}</p>
+      <fieldset className="pjs__impact">
+        <legend className="fbq__label">{T.colScoreHint.split(' =')[0]}</legend>
+        <NumField label={T.ew} hint={T.ewHint} value={r.ew} onSave={(v) => edit({ ew: v === null ? null : Math.min(100, v) })} />
+        <NumField label={T.impact} hint={T.impactHint} value={r.impact} onSave={(v) => edit({ impact: v })} />
+        {r.impact !== undefined && !p.budget && <p className="lc__keys">{T.impactNoBudget}</p>}
+      </fieldset>
+      {level('p', T.p, lv.pAuto)}
+      {level('i', T.i, lv.iAuto)}
+      <p className={`pjs__scoreline is-${tone}`} role="status">
+        {T.score(sc, T.tones[tone])}
+        {value !== undefined && <> · {r.chance ? T.valueChance(euro(value)) : T.value(euro(value))}</>}
+        {!r.chance && after !== undefined && after !== value && <> · {T.valueAfter(euro(after))}</>}
+      </p>
       <div className="fbc__wheel">
         <span className="fbq__label">{T.strategy}</span>
         <ModeWheel
@@ -428,7 +459,8 @@ function RiskDetails(props: DetailProps) {
         />
         <span className="fbq__hint">{r.strategy ? T.strategyHints[r.strategy] : ''}</span>
       </div>
-      <Field label={T.measure} hint={T.measureHint} value={r.measure ?? ''} area onSave={(v) => edit({ measure: v || null })} />
+      <Measures {...props} />
+      <Field label={T.measureLegacy} hint={T.measureHint} value={r.measure ?? ''} area onSave={(v) => edit({ measure: v || null })} />
       <label className="fbc__field">
         <span className="fbq__label">{T.owner}</span>
         <select value={r.owner ?? ''} onChange={(e) => edit({ owner: e.target.value || null })}>
@@ -450,11 +482,79 @@ function RiskDetails(props: DetailProps) {
   );
 }
 
+const euro = (v: number) => `${v.toLocaleString('de-DE', { maximumFractionDigits: 2 })} €`;
+const MEASURE_MAX = 10;
+
+/** V110 (F-226 L4): Maßnahmen je Risiko – präventiv/korrektiv mit Kosten, Beschluss und Werten danach. */
+function Measures({ n, dispatch, tell }: DetailProps) {
+  const r = n.risk!;
+  const list = r.measures ?? [];
+  const box = useRef<HTMLFieldSetElement>(null);
+  const save = (ms: RiskMeasure[]) => dispatch({ type: 'riskEdit', id: n.id, patch: { measures: ms.length ? ms : null } });
+  const change = (id: string, patch: Partial<RiskMeasure>) =>
+    save(list.map((m) => {
+      if (m.id !== id) return m;
+      const x: Record<string, unknown> = { ...m, ...patch };
+      for (const k of Object.keys(x)) if (x[k] === undefined || x[k] === null) delete x[k];
+      return x as unknown as RiskMeasure;
+    }));
+  const add = () => {
+    if (list.length >= MEASURE_MAX) return tell(T.measureMax);
+    const id = newId();
+    save([...list, { id, kind: 'prev', text: T.measureNew }]);
+    tell(T.measureAdded, () => save(list));
+    window.setTimeout(() => box.current?.querySelector<HTMLInputElement>(`[data-measure="${CSS.escape(id)}"] input[type=text]`)?.select(), 0);
+  };
+  const remove = (m: RiskMeasure) => {
+    const before = list;
+    save(list.filter((x) => x.id !== m.id));
+    tell(T.measureRemoved(m.text), () => save(before));
+  };
+  const cost = list.filter((m) => m.decided).reduce((s, m) => s + (m.cost ?? 0), 0);
+  return (
+    <fieldset ref={box} className="pjs__measures">
+      <legend className="fbq__label">{T.measuresHead}</legend>
+      <p className="lc__keys">{T.measuresHint}</p>
+      {list.length === 0 && <p className="lc__muted">{T.measuresNone}</p>}
+      {list.map((m, i) => (
+        <div key={m.id} className={`pjs__measure is-${m.kind}`} data-measure={m.id} role="group" aria-label={`${T.measuresHead} ${i + 1}: ${m.text}`}>
+          <div className="fbc__wheel">
+            <span className="fbq__label">{T.measureKind}</span>
+            <ModeWheel label={T.measureKind} value={m.kind} options={(['prev', 'corr'] as const).map((k) => ({ id: k, name: T.measureKinds[k], hint: T.measureKindHints[k] }))} onChange={(v) => change(m.id, { kind: v as RiskMeasure['kind'] })} />
+          </div>
+          <Field label={T.measureText} hint={T.measureTextPh} value={m.text} onSave={(v) => v.trim() && change(m.id, { text: v.trim() })} />
+          <NumField label={T.measureCost} value={m.cost} onSave={(v) => change(m.id, { cost: v ?? undefined })} />
+          {m.kind === 'prev' && (
+            <>
+              <NumField label={T.measureEwAfter} value={m.ewAfter} onSave={(v) => change(m.id, { ewAfter: v === null ? undefined : Math.min(100, v) })} />
+              <NumField label={T.measureImpactAfter} value={m.impactAfter} onSave={(v) => change(m.id, { impactAfter: v ?? undefined })} />
+            </>
+          )}
+          <label className="pc__check">
+            <input type="checkbox" checked={!!m.decided} onChange={(e) => change(m.id, { decided: e.target.checked ? true : undefined })} />
+            {T.measureDecided}
+          </label>
+          <button type="button" className="note__undo pjs__mdel" title={T.measureRemove(m.text)} aria-label={T.measureRemove(m.text)} onClick={() => remove(m)}>
+            <Icon name="close" size={12} />
+          </button>
+        </div>
+      ))}
+      <p className="pjs__madd">
+        <button type="button" className="help__run" title={T.measureAddHint} disabled={list.length >= MEASURE_MAX} onClick={add}>
+          <Icon name="plus" size={13} className="icon icon--inline" /> {T.measureAdd}
+        </button>
+        {cost > 0 && <span className="lc__keys"> {T.measureSum(euro(cost))}</span>}
+      </p>
+    </fieldset>
+  );
+}
+
 function ChangeDetails(props: DetailProps) {
   const { ws, p, n, dispatch, tell } = props;
   const c = n.change!;
   const edit = (patch: Rk.ChangePatch) => dispatch({ type: 'changeEdit', id: n.id, patch });
   const may = Ps.hasRight(Ps.meOf(ws), 'decide');
+  const sug = Pr.suggestionFor(ws, n.id);
   const [why, setWhy] = useState('');
   const [denied, setDenied] = useState(false);
   const roles = Pj.rolesOf(p);
@@ -491,8 +591,14 @@ function ChangeDetails(props: DetailProps) {
           ))}
         </select>
       </label>
+      <PrepareLine ws={ws} from={{ kind: 'note', id: n.id }} title={`${Rk.steerCode(ws, n)}: ${titleOf(n)}`} project={p.id} dispatch={dispatch} say={() => undefined} />
       <fieldset className="pjs__decide">
         <legend className="fbq__label">{T.decide}</legend>
+        {sug && (
+          <p className="pjs__suggest" title={DT.suggestHint}>
+            <Icon name="sliders" size={12} className="icon icon--inline" /> {DT.suggest(sug.option, sug.decided)} <span className="lc__muted">– {DT.suggestHint}</span>
+          </p>
+        )}
         <label className="fbc__field">
           <span className="fbq__label">{T.decideText}</span>
           <input type="text" value={why} maxLength={500} onChange={(e) => setWhy(e.target.value)} />

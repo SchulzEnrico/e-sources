@@ -17,6 +17,7 @@ import type { Action } from '../workspace/useWorkspace';
 import { FOCUS_VIEWS } from '../workspace/noteObjects';
 import * as Ps from '../workspace/persons';
 import * as FL from '../workspace/focusLoad';
+import * as Gp from '../workspace/gpm';
 import { dayOf, notesOf, titleOf } from '../workspace/notes';
 import { PROFILE_COLORS } from '../workspace/profile';
 import { FOCUS_TEXT as T, PERSON_TEXT, TERMS } from '../workspace/terms';
@@ -59,6 +60,7 @@ export function FocusCockpit({ ws, dispatch, onOpen, onPersons }: { ws: Workspac
   };
   const colorOf = (id: string) => PROFILE_COLORS[Ps.personById(ws, id)?.color ?? 0]?.hex;
 
+  const whoSet = FL.membersOf(ws, p);
   const shown = sel === 'none' ? load.noDate.notes : (load.weeks[sel]?.notes ?? []);
   const tasks = shown.map((id) => notesOf(ws).find((n) => n.id === id)).filter((n): n is NonNullable<typeof n> => !!n);
   const selName = sel === 'none' ? T.noDate : load.weeks[sel] ? `${T.kw(FL.isoWeek(load.weeks[sel].week))} (${dm(load.weeks[sel].week)}–${dm(FL.addDays(load.weeks[sel].week, 4))})` : '';
@@ -243,7 +245,10 @@ export function FocusCockpit({ ws, dispatch, onOpen, onPersons }: { ws: Workspac
                   <span className="fc__title">{titleOf(n) || '…'}</span>
                   {n.urgent && <span className="fc__tag is-urgent">{T.urgent}</span>}
                   {n.due && <span className="fc__tag">{T.due(dm(n.due))}</span>}
-                  <span className="fc__tag">{n.effort?.plan !== undefined ? FL.hoursText(n.effort.plan) : T.noEffort}</span>
+                  {(() => {
+                    const h = Gp.hoursFor(n, whoSet);
+                    return <span className="fc__tag" title={n.use?.length ? T.useHint : undefined}>{h !== undefined ? FL.hoursText(h) : T.noEffort}</span>;
+                  })()}
                 </button>
               </li>
             );

@@ -7,6 +7,7 @@
 import type { Note, Project, ProjectRole, Workspace } from './types';
 import { dayOf, isFinished, notesOf } from './notes';
 import { cleanName } from './profile';
+import { planHours } from './gpm';
 
 export const PROJECTS_MAX = 200;
 export type ProjectState = NonNullable<Project['state']>;
@@ -193,8 +194,8 @@ export interface ProjectRow {
 export function rowOf(ws: Workspace, project: Project, depth = 0, today = dayOf()): ProjectRow {
   const ns = tasksOfProject(ws, project.id);
   const fin = ns.filter((n) => isFinished(n.state));
-  const effort = ns.reduce((s, n) => s + (n.effort?.plan ?? 0), 0);
-  const doneEffort = fin.reduce((s, n) => s + (n.effort?.plan ?? 0), 0);
+  const effort = ns.reduce((s, n) => s + (planHours(ws, n) ?? 0), 0);
+  const doneEffort = fin.reduce((s, n) => s + (planHours(ws, n) ?? 0), 0);
   const progress = !ns.length ? 0 : effort > 0 ? Math.round((doneEffort / effort) * 100) : Math.round((fin.length / ns.length) * 100);
   const starts = ns.map((n) => n.notBefore).filter((d): d is string => !!d).sort();
   const ends = ns.map((n) => n.due).filter((d): d is string => !!d).sort();

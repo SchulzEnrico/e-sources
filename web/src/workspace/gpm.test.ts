@@ -9,6 +9,9 @@ import * as NLo from './notes';
 import * as Gp from './gpm';
 import * as Fk from './formKit';
 import * as Sp from './sampleProject';
+import * as Gt from './gantt';
+import * as H from './help';
+import { TOURS } from './tour';
 
 describe('F-226 Datenmodell (V109): Ziele, Stakeholder, Phasen, Risiken quantitativ, Einsätze', () => {
   const base = () => {
@@ -292,5 +295,57 @@ describe('F-226 Beispielprojekt ColorGentlemen in den Formularen (V109)', () => 
   });
   it('Entfernen nimmt alles mit', () => {
     expect(Pj.projectById(Sp.removeSampleProject(ws), pid)).toBeUndefined();
+  });
+});
+
+describe('F-226 Stufe 1 Rest (V110): Phasenbalken, Auslastung aus Einsätzen', () => {
+  const ws = Sp.addSampleProject(W.defaultWorkspace(), 5);
+  const pid = Sp.SAMPLE_PROJECT;
+  it('G8: Phasenbalken aus dem Phasenplan; ohne Termine aus den Vorgängen der Phase', () => {
+    const bars = Gt.phaseBars(ws, pid);
+    const p = Pj.projectById(ws, pid)!;
+    expect(bars.map((b) => b.id)).toEqual(p.phases!.filter((x) => x.start && x.end).map((x) => x.id));
+    expect(bars.every((b) => b.from === 'plan' && b.start <= b.end)).toBe(true);
+    expect(bars.reduce((s, b) => s + b.tasks, 0)).toBeGreaterThan(0);
+    // Phase ohne Termine: Balken aus ihren Vorgängen
+    const first = p.phases![0];
+    const w2 = Gp.editItem(ws, pid, 'phases', first.id, { start: null, end: null });
+    const b2 = Gt.phaseBars(w2, pid).find((b) => b.id === first.id);
+    const g = Gt.ganttOf(w2, pid);
+    const own = g.rows.filter((r) => r.planned && r.node.kind === 'task' && NLo.noteById(w2, r.id)?.phase === first.id);
+    if (own.length) {
+      expect(b2!.from).toBe('tasks');
+      expect(b2!.start).toBe(own.map((r) => r.start).sort()[0]);
+    } else expect(b2).toBeUndefined();
+  });
+  it('G5: editRisk schreibt W/A aus EW % und Tragweite mit (Liste und Matrix kennen sie)', () => {
+    const { ws: w0, id } = (() => {
+      const r = Pj.addProject(W.defaultWorkspace(), 'Werkstatt')!;
+      return { ws: Pj.editProject(r.ws, r.id, { budget: 400000 }), id: r.id };
+    })();
+    let ws = Rk.addSteer(w0, id, 'risk', { title: 'Lieferverzug' }, { id: 'r1' } as never)!.ws;
+    ws = Rk.editRisk(ws, 'r1', { ew: 30, impact: 10000 });
+    expect(NLo.noteById(ws, 'r1')!.risk).toMatchObject({ ew: 30, impact: 10000, p: 2, i: 2 });
+    expect(Rk.riskMatrix(ws, id).find((row) => row.p === 2)!.cells.find((c) => c.i === 2)!.ids).toEqual(['r1']);
+    ws = Rk.editRisk(ws, 'r1', { measures: [{ id: 'm1', kind: 'prev', text: 'Zweiter Lieferant', cost: 500, decided: true, ewAfter: 10 }] });
+    expect(Gp.riskValue(NLo.noteById(ws, 'r1')!.risk)).toBe(3000);
+    expect(Gp.riskValueAfter(NLo.noteById(ws, 'r1')!.risk)).toBe(1000);
+  });
+  it('G7: Auslastung aus Einsätzen – jede Ressource mit ihren Stunden; CG-1.6.4 ohne Hand-Werte', () => {
+    const n = NLo.notesOf(ws).find((x) => x.use?.length === 4)!;
+    expect(n.effort?.plan).toBeUndefined();
+    expect(Gp.planHours(ws, n)).toBe(295);
+    expect(Gp.planCost(ws, n)).toBe(10320);
+    const lm = n.use!.find((u) => u.hours === 180)!.person;
+    expect(Gp.involves(n, new Set([lm]))).toBe(true);
+    expect(Gp.hoursFor(n, new Set([lm]))).toBe(180);
+    expect(Gp.hoursFor(n, new Set(['niemand']))).toBeUndefined();
+    const plain = { ...n, use: undefined, assignee: 'x', effort: { plan: 12 } } as Note;
+    expect(Gp.hoursFor(plain, new Set(['x']))).toBe(12);
+  });
+  it('Hilfe und Tour „Formulare“: Suche findet beide, Tour hat Ziele in den Formularen', () => {
+    expect(H.searchHelp('Tour Formulare')[0].id).toBe('tourForms');
+    expect(H.searchHelp('Stakeholderanalyse')[0].id).toBe('projectForms');
+    expect(TOURS.forms.filter((x) => x.target).every((x) => x.target!.startsWith('.pjf'))).toBe(true);
   });
 });

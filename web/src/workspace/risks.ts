@@ -9,7 +9,7 @@ import { createNote, noteById, notesOf } from './notes';
 import { isTask, projectById, rolesOf } from './projects';
 import { feedbackById, restoreFeedbackItem, setBecame } from './feedback';
 import { decisionsOf } from './decisions';
-import { parseMeasures, parseRiskGpm } from './gpm';
+import { levelFromEw, levelFromImpact, parseMeasures, parseRiskGpm } from './gpm';
 
 export { isTask } from './projects';
 export const isSteering = (n: Pick<Note, 'type'>): boolean => !isTask(n);
@@ -194,7 +194,13 @@ export function editRisk(ws: Workspace, id: string, p: RiskPatch, now = Date.now
         if (v === null || v === '') delete merged[k];
         else if (v !== undefined) merged[k] = v;
       }
-      return { ...n, risk: { no: n.risk.no, ...sanitizeRisk(merged as Partial<NoteRisk>) } };
+      const risk: NoteRisk = { no: n.risk.no, ...sanitizeRisk(merged as Partial<NoteRisk>) };
+      // V110 (F-226 G5): mit Zahlen rechnen sich W/A – gespeichert, damit Liste, Matrix und Summen sie kennen
+      const pw = levelFromEw(risk.ew);
+      const iw = levelFromImpact(risk.impact, n.project ? projectById(ws, n.project)?.budget : undefined);
+      if (pw) risk.p = pw;
+      if (iw) risk.i = iw;
+      return { ...n, risk };
     },
     now,
   );

@@ -1,5 +1,6 @@
 import { CATEGORY_ICONS } from './icons';
 import { parseFit, parseZoom } from './zoom';
+import { parseCalendar } from './calendar';
 import { parseBoardTemplates } from './boardTemplates';
 import { parseFeedback, parseFeedbackPrefs, parseWheels } from './feedback';
 import { parseDecisions } from './decisions';
@@ -364,6 +365,8 @@ function parseWorkspaceRaw(data: unknown): Workspace | null {
   const feedback = parseFeedback(data.feedback);
   const feedbackPrefs = parseFeedbackPrefs(data.feedbackPrefs);
   const wheels = parseWheels(data.wheels);
+  // V116 (K7): Arbeitskalender
+  const calendar = parseCalendar(data.calendar);
   // F-222 (N11): Entscheidungen, Projekt-Bezug nur auf vorhandene Projekte
   const decisions = parseDecisions(data.decisions, new Set(projects.map((p) => p.id)));
   // F-226 (V109, G4): eigene Formular-Vorlagen
@@ -374,6 +377,7 @@ function parseWorkspaceRaw(data: unknown): Workspace | null {
     ...(feedback.length ? { feedback } : {}),
     ...(feedbackPrefs ? { feedbackPrefs } : {}),
     ...(wheels ? { wheels } : {}),
+    ...(calendar ? { calendar } : {}),
     ...(boardTemplates.length ? { boardTemplates } : {}),
     ...(pads.length ? { pads } : {}),
     ...(padDesks ? { padDesks } : {}),

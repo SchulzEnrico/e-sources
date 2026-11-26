@@ -19,14 +19,17 @@ import { newCountOf } from '../workspace/feedback';
 import { requestTour, tourAutoStart } from '../workspace/tour';
 import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
+import { ArrangedWheel } from './ArrangedWheel';
 import { openNote } from './SourceChips';
 import { ProjectPsp } from './ProjectPsp';
 import { ProjectNetwork } from './ProjectNetwork';
+import { ProjectResources } from './ProjectResources';
 import { ProjectGantt } from './ProjectGantt';
 import { ProjectDecisions } from './ProjectDecisions';
 import { ProjectFeedback } from './ProjectFeedback';
 import { ProjectSteer, STEER_EVENT, takeSteer } from './ProjectSteer';
 import { ProjectForms } from './ProjectForms';
+import { ProjectCalendar } from './ProjectCalendar';
 import { PROJECT_FEEDBACK_TEXT, PSP_TEXT } from '../workspace/terms';
 import * as Ps from '../workspace/persons';
 
@@ -41,11 +44,11 @@ const euro = (n: number) => `${n.toLocaleString('de-DE', { maximumFractionDigits
 const TASKS_SHOWN = 12;
 
 /** V100 (J2): Ansicht rechts neben der Projektliste – je Gerät gemerkt; weitere (Gantt …) folgen. */
-type ProjectView = 'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'risks' | 'changes' | 'decide' | 'feedback';
+type ProjectView = 'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback';
 // V107 (F-225 P8, R1/R3): Risiken und Änderungen nach dem Gantt – Steuerung nach dem Plan
 // V109 (F-226, G2): „Formulare“ direkt nach dem Steckbrief – Kapitel nach GPM-Leitfaden
 // V115 (Schritt 10): Netzplan nach dem Gantt
-const VIEWS: ProjectView[] = ['brief', 'forms', 'psp', 'gantt', 'net', 'risks', 'changes', 'decide', 'feedback'];
+const VIEWS: ProjectView[] = ['brief', 'forms', 'psp', 'gantt', 'net', 'res', 'risks', 'changes', 'decide', 'feedback'];
 const VIEW_KEY = 'esource.projectView.v1';
 function loadView(): ProjectView {
   try {
@@ -189,7 +192,7 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
     !d ? <span className="lc__muted">{T.none}</span> : derived ? <span className="pj__derived" title={T.derivedHint}>{dmy(d)}<span className="sr-only"> ({T.derived})</span></span> : dmy(d);
 
   return (
-    <section className={`lc__group pc pj${view === 'psp' ? ' is-psp' : view === 'gantt' || view === 'net' || view === 'forms' || view === 'decide' || view === 'feedback' || view === 'risks' || view === 'changes' ? ' is-gantt' : ''}`} aria-labelledby="pj-head">
+    <section className={`lc__group pc pj${view === 'psp' ? ' is-psp' : view === 'gantt' || view === 'net' || view === 'res' || view === 'forms' || view === 'decide' || view === 'feedback' || view === 'risks' || view === 'changes' ? ' is-gantt' : ''}`} aria-labelledby="pj-head">
       <header className="lc__head lc__band">
         <Icon name="project" size={15} className="icon icon--inline" />
         <h3 id="pj-head" className="lc__head-title" title={explain(TERMS.projects)}>
@@ -198,7 +201,7 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
         <span className="lc__head-tools">
           <span className="layouts__label pj__wheel pj__viewwheel">
             <span aria-hidden="true">{PSP_TEXT.view}</span>
-            <ModeWheel label={PSP_TEXT.viewLabel} value={view} onChange={(v) => setView(v as ProjectView)} options={VIEWS.map((v) => (v === 'feedback' && fresh > 0 ? { id: v, name: PROJECT_FEEDBACK_TEXT.viewFresh(PSP_TEXT.views[v], fresh), hint: `${PSP_TEXT.viewHint[v]} – ${PROJECT_FEEDBACK_TEXT.freshHint(fresh)}` } : { id: v, name: PSP_TEXT.views[v], hint: PSP_TEXT.viewHint[v] }))} />
+            <ArrangedWheel wheel="projectView" label={PSP_TEXT.viewLabel} value={view} onChange={(v) => setView(v as ProjectView)} options={VIEWS.map((v) => (v === 'feedback' && fresh > 0 ? { id: v, name: PROJECT_FEEDBACK_TEXT.viewFresh(PSP_TEXT.views[v], fresh), hint: `${PSP_TEXT.viewHint[v]} – ${PROJECT_FEEDBACK_TEXT.freshHint(fresh)}` } : { id: v, name: PSP_TEXT.views[v], hint: PSP_TEXT.viewHint[v] }))} />
           </span>
           <button type="button" className="help__run pj__tour" title={T.tourHint} aria-label={T.tourHint} onClick={() => requestTour('projects')}>
             <Icon name="tour" size={13} className="icon icon--inline" /> {T.tour}
@@ -367,6 +370,8 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
             <ProjectDecisions key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
           ) : view === 'net' ? (
             <ProjectNetwork key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
+          ) : view === 'res' ? (
+            <ProjectResources key={shown.id} ws={ws} p={shown} />
           ) : view === 'gantt' ? (
             <ProjectGantt key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} onPickProject={(id) => (setSel(id), setViewState('brief'), focusRow(id))} />
           ) : view === 'psp' ? (
@@ -409,6 +414,7 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove }:
     say(text);
   };
   const [budget, setBudget] = useState(p.budget !== undefined ? String(p.budget).replace('.', ',') : '');
+  const [limit, setLimit] = useState(p.taskLimit !== undefined ? String(p.taskLimit) : '');
   const [brief, setBrief] = useState({ goal: p.brief?.goal ?? '', approach: p.brief?.approach ?? '', org: p.brief?.org ?? '' });
   const state = p.state ?? 'idea';
   const clash = Pj.datesClash(p);
@@ -480,6 +486,24 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove }:
             ))}
           </select>
         </label>
+        {/* V116 (Schritt 10, J9): Task-Limit je Projekt – am Ort nachfragen, nicht sperren (P17) */}
+        <label className="layouts__label" title={T.taskLimitHint}>
+          {T.taskLimit}
+          <input
+            inputMode="numeric"
+            value={limit}
+            placeholder={T.taskLimitNone}
+            size={4}
+            onChange={(e) => setLimit(e.target.value.replace(/\D/g, '').slice(0, 2))}
+            onBlur={() => {
+              const x = limit ? Number(limit) : undefined;
+              const v = x && x >= 1 ? x : undefined;
+              if (v !== p.taskLimit) edit({ taskLimit: v }, `${T.taskLimit}: ${v ?? T.taskLimitNone}`);
+              setLimit(v === undefined ? '' : String(v));
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          />
+        </label>
       </fieldset>
 
       <fieldset className="pc__set">
@@ -522,6 +546,8 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove }:
           </p>
         )}
       </fieldset>
+
+      <ProjectCalendar ws={ws} dispatch={dispatch} />
 
       <fieldset className="pc__set pj__brief" title={explain(TERMS.projectBrief)}>
         <legend>{T.brief}</legend>

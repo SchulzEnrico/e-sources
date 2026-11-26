@@ -111,6 +111,8 @@ import { ModeWheel } from './components/ModeWheel';
 import { SyncDialog } from './components/Sync';
 import { type Anchor as FbAnchor, FEEDBACK_EVENT, FeedbackQuick, domPlace, mainView } from './components/FeedbackQuick';
 import { FeedbackCard } from './components/FeedbackCard';
+import { setWheelSource } from './components/wheelPrefs';
+import { setCalendar } from './workspace/calendar';
 import { askEase as fbAskEase, envOf as fbEnvOf, newCount as fbNewCount } from './workspace/feedback';
 import type { FeedbackEnv, FeedbackKind, FeedbackPlace } from './workspace/types';
 import { restoreBackup, useGistState, useGistSync } from './workspace/useGistSync';
@@ -4916,6 +4918,10 @@ export default function App(props: { sent?: string }) {
   }, []);
   // F-218 A1 (V92): Dauer der Meldungen am Ort für alle Bauteile
   setNoticeMs(noticeMs(ws));
+  // V116 (K7): Arbeitskalender (Feiertage, freie Tage) für alle Terminrechnungen
+  setCalendar(ws.calendar);
+  // F-220 (V116): Anheften und Belegung der Umschalt-Räder für alle Räder
+  useLayoutEffect(() => setWheelSource(ws.wheels, (wheel, prefs) => dispatch({ type: 'wheelPrefs', wheel, prefs })), [ws.wheels, dispatch]);
   // F-218 W3/W4 (V92): altes Erledigtes archivieren, Fälliges dringend – 30 s nach dem Start (Abgleich durch), dann stündlich
   useEffect(() => {
     const run = () => {

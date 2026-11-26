@@ -206,6 +206,7 @@ export function parseProjects(v: unknown, scopeIds: ReadonlySet<string>): Projec
     if (isNum(r.priority) && r.priority >= 1 && r.priority <= 5) p.priority = Math.round(r.priority);
     if (PROJECT_STATES.includes(r.state as NonNullable<Project['state']>)) p.state = r.state as Project['state'];
     if (isNum(r.points) && r.points > 0) p.points = r.points;
+    if (isNum(r.taskLimit) && r.taskLimit >= 1) p.taskLimit = Math.min(99, Math.floor(r.taskLimit));
     const sources = parseSourceLinks(r.sources);
     if (sources) p.sources = sources;
     const baseline = parseBaseline(r.baseline);

@@ -252,6 +252,8 @@ export function Menu(props: {
   className?: string;
   /** V111: eigenes Bedienteil statt des Knopfs (z. B. Auswahl-Rad „+ Sheet“) – bekommt „öffnen/schließen“ und den Zustand */
   control?: (toggle: () => void, open: boolean) => ReactNode;
+  /** F-220 (V116): Klasse für die Hülle (z. B. Rad mit ⋮) */
+  wrapClass?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -338,7 +340,7 @@ export function Menu(props: {
     f();
   };
   return (
-    <div className="menu" ref={ref}>
+    <div className={`menu${props.wrapClass ? ` ${props.wrapClass}` : ''}`} ref={ref}>
       {props.control ? props.control(() => setOpen((v) => !v), open) : <button
         ref={btn}
         className={props.className}

@@ -34,6 +34,8 @@ import * as NL from './notesLayouts';
 import * as RS from './ruleSet';
 import type { BoardTemplate, ColState, FocusView, NoteState, NoteView, NoteViewKind, PadPlace, Person, Project, ProjectBaseline, SourceLink, SourceSpot } from './types';
 import * as Bl from './baseline';
+import * as Wo from './wheelOrder';
+import * as Cal from './calendar';
 import * as BT from './boardTemplates';
 import * as Sh from './sheets';
 import * as Ps from './persons';
@@ -234,6 +236,12 @@ export type Action =
   | { type: 'taskPreds'; project: string; id: string; links: Gt.PredInput['links'] }
   | { type: 'baselineSave'; project: string; at: string }
   | { type: 'baselineSet'; project: string; b?: ProjectBaseline }
+  /* F-220 (V116): Umschalt-Rad anheften, belegen, automatisch ordnen; prefs fehlt = Werk */
+  | { type: 'wheelPrefs'; wheel: string; prefs?: import('./types').WheelPrefs }
+  /* V116 (K7): Arbeitskalender */
+  | { type: 'calRegion'; region?: Cal.Region }
+  | { type: 'calFree'; day: string; name?: string; remove?: boolean }
+  | { type: 'calSet'; cal?: import('./types').WorkCalendar }
   | { type: 'sampleProject'; on: boolean }
   /* F-221 (V102): Feedback */
   | { type: 'fbAdd'; id: string; v: Fb.NewFeedback; at: string }
@@ -499,6 +507,14 @@ function step(ws: Workspace, a: Action): Workspace {
       return Bl.saveBaseline(ws, a.project, a.at)?.ws ?? ws;
     case 'baselineSet':
       return Bl.setBaseline(ws, a.project, a.b);
+    case 'wheelPrefs':
+      return Wo.setWheel(ws, a.wheel, a.prefs);
+    case 'calRegion':
+      return Cal.setRegion(ws, a.region);
+    case 'calFree':
+      return a.remove ? Cal.removeFree(ws, a.day) : (Cal.addFree(ws, a.day, a.name) ?? ws);
+    case 'calSet':
+      return Cal.restoreCalendar(ws, a.cal);
     case 'taskPreds': {
       const r = Gt.setPreds(ws, a.project, a.id, a.links);
       return r.ok ? r.ws : ws;

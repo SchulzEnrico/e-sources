@@ -10,6 +10,7 @@ import type { Note, Person, PersonRight, Workspace } from './types';
 import { notesOf, noteById, isFinished, updateNote, type Act } from './notes';
 import { personIdFor } from './noteObjects';
 import { cleanName, profileOf } from './profile';
+import { isOffDay } from './calendar';
 
 export const ME_ID = 'pn-ich';
 /** P9: Kapazität ab Werk (Stunden je Woche, Mo–Fr). */
@@ -218,10 +219,25 @@ export function delegate(ws: Workspace, noteId: string, personId: string, act: A
 }
 
 /** P17: Task-Limit – `over` = mit dieser Aufgabe darüber. */
-export function limitOf(ws: Workspace, id: string): { count: number; limit?: number; over: boolean } {
+export function limitOf(ws: Workspace, id: string, project?: string): { count: number; limit?: number; over: boolean; inProject?: { count: number; limit: number; over: boolean } } {
   const count = openCount(ws, id);
   const limit = personById(ws, id)?.limit?.total;
-  return { count, limit, over: limit !== undefined && count + 1 > limit };
+  const totalOver = limit !== undefined && count + 1 > limit;
+  const inProject = project ? projectLimitOf(ws, id, project) : undefined;
+  return { count, limit, over: totalOver || !!inProject?.over, ...(inProject ? { inProject } : {}) };
+}
+
+/**
+ * V116 (Schritt 10, J9): Task-Limit je Projekt – höchstens so viele offene Aufgaben je Person in diesem Projekt.
+ * Gilt das kleinere aus dem Limit des Projekts (`Project.taskLimit`) und dem der Person („je Projekt“).
+ */
+export function projectLimitOf(ws: Workspace, id: string, project: string): { count: number; limit: number; over: boolean } | undefined {
+  const a = ws.projects?.find((p) => p.id === project)?.taskLimit;
+  const b = personById(ws, id)?.limit?.perProject;
+  const limit = a !== undefined && b !== undefined ? Math.min(a, b) : (a ?? b);
+  if (limit === undefined) return undefined;
+  const count = notesOf(ws).filter((n) => n.project === project && !isFinished(n.state) && (assigneeOf(n) === id || !!n.use?.some((u) => u.person === id))).length;
+  return { count, limit, over: count + 1 > limit };
 }
 
 /** P18: Befugnis – „ich“ ohne gesetzte Befugnisse hat alle. */
@@ -242,7 +258,7 @@ export function capacityOn(ws: Workspace, p: Person, day: string, seen: Set<stri
     }, 0);
   }
   const wd = new Date(`${day}T12:00:00Z`).getUTCDay();
-  if (wd === 0 || wd === 6) return 0;
+  if (wd === 0 || wd === 6 || isOffDay(day)) return 0; // V116 (K7): Feiertage haben keine Kapazität
   if (p.away?.some((a) => a.from <= day && a.to >= day)) return 0;
   return (p.capacity ?? CAPACITY_DEFAULT) / 5;
 }

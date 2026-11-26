@@ -283,6 +283,14 @@ export interface Workspace {
   decisions?: Decision[];
   /** F-226 (G4): eigene Formular-Vorlagen (die Vorlage „GPM Level D“ ist eingebaut). */
   formTemplates?: FormTemplate[];
+  /** F-206 Schritt 10 (V116, K7): Arbeitskalender für alle Projekte – Feiertage nach Bundesland, eigene freie Tage; fehlt = Mo–Fr. */
+  calendar?: WorkCalendar;
+}
+
+/** K7 (V116): Arbeitskalender. `region` = Bundesland (`DE` = nur bundesweite Feiertage). */
+export interface WorkCalendar {
+  region?: import('./calendar').Region;
+  free?: { day: string; name?: string }[];
 }
 
 /** F-220 (R2): Einstellung eines Umschalt-Rads; fehlt ein Feld = Werk. */
@@ -850,6 +858,8 @@ export interface Project {
   state?: 'idea' | 'planned' | 'running' | 'paused' | 'done' | 'stopped';
   /** M6: Aufwand in Punkten zeigen, 1 Punkt = so viele Stunden; fehlt = Stunden. */
   points?: number;
+  /** V116 (Schritt 10, J9): Task-Limit je Person in diesem Projekt (offene Aufgaben); fehlt = keins. */
+  taskLimit?: number;
   sources?: SourceLink[];
   /** F-206 Schritt 10 (V100, K4/K5): ein Basisplan (Soll) zum Vergleich mit dem Ist. */
   baseline?: ProjectBaseline;

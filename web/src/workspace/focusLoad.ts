@@ -11,6 +11,7 @@
  */
 import type { FocusView, Note, Person, Workspace } from './types';
 import { FOCUS_VIEWS } from './noteObjects';
+import { isOffDay } from './calendar';
 import { notesOf, isFinished, shownNote, hasDraft } from './notes';
 import { capacityOn, personById, personList } from './persons';
 import { hoursFor, involves } from './gpm';
@@ -51,9 +52,10 @@ export function addDays(day: string, n: number): string {
   d.setUTCDate(d.getUTCDate() + n);
   return toDay(d);
 }
+// V116 (K7): Feiertage und freie Tage des Arbeitskalenders zählen nicht
 const isWorkday = (day: string): boolean => {
   const w = parse(day).getUTCDay();
-  return w !== 0 && w !== 6;
+  return w !== 0 && w !== 6 && !isOffDay(day);
 };
 /** Montag der Woche. */
 export function mondayOf(day: string): string {

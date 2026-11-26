@@ -35,6 +35,9 @@ export const TERMS = {
   baseline: 'Basisplan = festgehaltenes Soll des Projekts (Anfang, Ende, Dauer, Aufwand, Kosten je Vorgang). Der Gantt zeigt es grau unter den Balken und die Abweichung in Arbeitstagen – wie in MS Project bzw. iTaskX',
   mta: 'Meilenstein-Trendanalyse (MTA) = je Meilenstein der Termin, den jeder Statusbericht vorhersagt; steigt die Linie, rutscht der Termin',
   networkPlan: 'Netzplan = Vorgänge als Kästen mit Pfeilen zu den Nachfolgern; jeder Kasten zeigt frühesten und spätesten Anfang und Ende und den Puffer (Vorgangsknoten-Netzplan nach DIN 69900)',
+  resourceUse: 'Ressourceneinsatz = geplante Stunden jeder Ressource je Woche gegen ihre Kapazität (wie „Ressource: Einsatz“ in MS Project bzw. iTaskX)',
+  workCalendar: 'Arbeitskalender = welche Tage Arbeitstage sind: Mo–Fr ohne Feiertage des Bundeslands und ohne eigene freie Tage; gilt für alle Projekte',
+  taskLimitProject: 'Task-Limit je Projekt = höchstens so viele offene Aufgaben je Person in einem Projekt; beim Zuweisen fragt E-Sources nach, sperrt aber nicht',
   summaryTask: 'Sammelvorgang = Vorgang mit Unter-Vorgängen; sein Aufwand ist die Summe darunter',
   projectDerived: 'gerechnet = nicht im Steckbrief eingetragen, sondern aus den Vorgängen genommen (frühestes „nicht beginnen vor“ bzw. spätestes „fällig am“)',
   rights: 'Befugnisse = was eine Person darf (nach IPMA ICB4: Aufgaben, Kompetenzen, Verantwortung): freigeben, Ausgaben freigeben, entscheiden, abnehmen',
@@ -1405,6 +1408,42 @@ export const WHEEL_TEXT = {
   between: (name: string, a: string, b: string) => `${name}, zwischen ${a} und ${b}`,
 };
 
+/** F-220 (V116, R1–R7): Umschalt-Räder nach Nutzung ordnen, anheften und belegen */
+export const WHEEL_ORDER_TEXT = {
+  menu: (wheel: string) => `${wheel}: Reihenfolge und Belegung`,
+  menuHint: '⋮, Rechtsklick oder Umschalt+F10 am Rad',
+  pin: (n: string) => `„${n}“ anheften`,
+  pinHint: 'Hält den Eintrag vorn fest – die Nutzung ordnet ihn nicht mehr um',
+  unpin: (n: string) => `„${n}“ lösen`,
+  unpinHint: 'Der Eintrag ordnet sich wieder nach deiner Nutzung',
+  front: 'Nach vorn (Alt+↑)',
+  back: 'Nach hinten (Alt+↓)',
+  moveHint: 'Verschiebt den gewählten Eintrag und heftet die Reihenfolge bis dorthin an',
+  assign: 'Rad belegen …',
+  assignHint: 'Einträge ein- oder ausblenden',
+  assignHead: 'Auf dem Rad zeigen',
+  assignLast: 'Ein Eintrag bleibt immer auf dem Rad',
+  backToMenu: '← Zurück',
+  auto: 'Automatisch ordnen',
+  autoHint: 'Häufig genutzte Einträge der letzten 30 Tage rücken nach vorn – neu geordnet beim nächsten Öffnen',
+  factory: 'Auf Werk zurück',
+  factoryHint: 'Ursprüngliche Reihenfolge, alle Einträge, automatisch ordnen an',
+  pinned: (n: string) => `„${n}“ angeheftet.`,
+  unpinned: (n: string) => `„${n}“ gelöst.`,
+  moved: (n: string, pos: number) => `„${n}“ steht jetzt an Platz ${pos} und ist angeheftet.`,
+  edge: (n: string, front: boolean) => `„${n}“ steht schon ganz ${front ? 'vorn' : 'hinten'}.`,
+  hidden: (n: string) => `„${n}“ ausgeblendet.`,
+  shown: (n: string) => `„${n}“ wieder auf dem Rad.`,
+  autoOn: 'Automatisch ordnen an.',
+  autoOff: 'Automatisch ordnen aus – Werk-Reihenfolge.',
+  factoryDone: 'Rad auf Werk zurückgesetzt.',
+  undo: 'Rückgängig',
+  undone: 'Rückgängig gemacht.',
+  firstSort: 'Nach deiner Nutzung geordnet – anheften hält fest (⋮ am Rad).',
+  order: (names: string[]) => `Reihenfolge: ${names.join(', ')}`,
+  pinMark: 'angeheftet',
+};
+
 /** F-215 (V69): Fußleiste mit Home-Knopf im Pad */
 export const FOOT_TEXT = {
   knobMoved: (v: number) => `Steuerknopf liegt jetzt ${v < 34 ? 'links' : v > 66 ? 'rechts' : 'in der Mitte'}.`,
@@ -1911,6 +1950,7 @@ export const PERSON_TEXT = {
   kind: { person: 'Person', team: 'Team', role: 'Rolle' } as Record<'person' | 'team' | 'role', string>,
   limitShort: (n: number, max: number) => `${n} / ${max}`,
   limitAsk: (name: string, n: number, max: number) => `${name} hat schon ${n} von ${max} offenen Aufgaben – trotzdem zuweisen?`,
+  limitAskProject: (name: string, n: number, max: number) => `${name} hat in diesem Projekt schon ${n} von ${max} offenen Aufgaben (Task-Limit je Projekt) – trotzdem zuweisen?`,
   anyway: 'Trotzdem',
   cancel: 'Abbrechen',
   assigned: (name: string) => `Zuständig: ${name}`,
@@ -2034,8 +2074,8 @@ export const SAMPLE_TEXT = {
 export const PSP_TEXT = {
   view: 'Ansicht',
   viewLabel: 'Ansicht des gewählten Projekts',
-  views: { brief: 'Steckbrief', forms: 'Formulare', psp: 'PSP', gantt: 'Gantt', net: 'Netzplan', risks: 'Risiken', changes: 'Änderungen', decide: 'Entscheidungen', feedback: 'Meldungen' } as Record<'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
-  viewHint: { brief: 'Steckbrief nach IPMA ICB4: Ziel, Termine, Budget, Organisation', forms: 'Projektformulare nach GPM-Leitfaden (Level D): Eingabe und Ausgabe wie im Report, Kapitel für Kapitel, erweiterbar', psp: 'Projektstrukturplan: Teilprojekte, Vorgänge und Arbeitspakete als Baum mit Code', gantt: 'Balkenplan: Vorgänge auf der Zeitachse mit Vorgängern, Puffer und kritischem Pfad', net: 'Netzplan: Vorgänge als Kästen mit frühesten und spätesten Terminen, Puffer und Pfeilen zu den Nachfolgern', risks: 'Risikoliste nach IPMA ICB4: Ursache, Ereignis, Auswirkung, Bewertung, Strategie und Maßnahme', changes: 'Änderungsanträge (Change Requests): Auswirkung auf Termin, Kosten, Leistung und Umfang, Entscheidung durch die Instanz', decide: 'Nutzwertanalyse: Lösungen nach gewichteten Kriterien vergleichen und begründet entscheiden', feedback: 'Projektmeldungen: Probleme, Wünsche und Fragen an die Instanzen des Projekts' } as Record<'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
+  views: { brief: 'Steckbrief', forms: 'Formulare', psp: 'PSP', gantt: 'Gantt', net: 'Netzplan', res: 'Ressourcen', risks: 'Risiken', changes: 'Änderungen', decide: 'Entscheidungen', feedback: 'Meldungen' } as Record<'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
+  viewHint: { brief: 'Steckbrief nach IPMA ICB4: Ziel, Termine, Budget, Organisation', forms: 'Projektformulare nach GPM-Leitfaden (Level D): Eingabe und Ausgabe wie im Report, Kapitel für Kapitel, erweiterbar', psp: 'Projektstrukturplan: Teilprojekte, Vorgänge und Arbeitspakete als Baum mit Code', gantt: 'Balkenplan: Vorgänge auf der Zeitachse mit Vorgängern, Puffer und kritischem Pfad', net: 'Netzplan: Vorgänge als Kästen mit frühesten und spätesten Terminen, Puffer und Pfeilen zu den Nachfolgern', res: 'Ressourceneinsatz: geplante Stunden je Ressource und Woche gegen die Kapazität, mit den Vorgängen darunter', risks: 'Risikoliste nach IPMA ICB4: Ursache, Ereignis, Auswirkung, Bewertung, Strategie und Maßnahme', changes: 'Änderungsanträge (Change Requests): Auswirkung auf Termin, Kosten, Leistung und Umfang, Entscheidung durch die Instanz', decide: 'Nutzwertanalyse: Lösungen nach gewichteten Kriterien vergleichen und begründet entscheiden', feedback: 'Projektmeldungen: Probleme, Wünsche und Fragen an die Instanzen des Projekts' } as Record<'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
   head: (name: string) => `PSP: ${name}`,
   prefix: 'Präfix',
   prefixHint: 'Steht vor jedem Code, z. B. WEB → WEB-1.2',
@@ -2108,6 +2148,26 @@ export const NET_TEXT = {
   succs: 'Nachfolger',
   open: 'Notiz öffnen',
   opened: 'Notiz geöffnet.',
+};
+
+/** F-206 Schritt 10 (V116): Ressourcen-Ansicht im Projekt (MS Project „Ressource: Einsatz“) */
+export const RES_TEXT = {
+  head: (name: string) => `Ressourcen: ${name}`,
+  empty: 'Noch keine Stunden geplant – gib Vorgängen im PSP Aufwand und Zuständige oder Einsätze (Formulare › Ressourcen).',
+  keys: 'Je Ressource die geplanten Stunden je Woche; rot = über der Kapazität. ▸ klappt die Vorgänge auf. Stunden verteilen sich gleichmäßig auf die Arbeitstage des Vorgangs (Feiertage zählen nicht).',
+  person: 'Ressource',
+  total: 'Gesamt',
+  week: (kw: number, mon: string) => `KW ${kw} (ab ${mon})`,
+  weekShort: (kw: number) => `KW ${kw}`,
+  cell: (h: string, cap: string) => `${h} von ${cap} Kapazität`,
+  overTag: 'über Kapazität',
+  showTasks: 'Vorgänge zeigen',
+  expand: (n: string) => `Vorgänge von ${n} zeigen`,
+  collapse: (n: string) => `Vorgänge von ${n} ausblenden`,
+  sum: (n: number, over: number, weeks: number) => `${n === 1 ? '1 Ressource' : `${n} Ressourcen`} · ${weeks} Wochen · ${over === 0 ? 'keine Woche über Kapazität' : over === 1 ? '1 Woche über Kapazität' : `${over} Wochen über Kapazität`}`,
+  open: (h: string) => `Ohne Ressource: ${h} (Aufwand ohne Zuständige)`,
+  cut: (n: number) => `Gezeigt werden die ersten ${n} Wochen.`,
+  capRow: 'Kapazität',
 };
 
 export const GANTT_TEXT = {
@@ -2183,6 +2243,28 @@ export const GANTT_TEXT = {
 };
 
 export const PROJECTS_TEXT = {
+  taskLimit: 'Task-Limit je Person',
+  taskLimitHint: 'Höchstens so viele offene Aufgaben je Person in diesem Projekt – beim Zuweisen fragt E-Sources nach, sperrt aber nicht (gilt das kleinere aus Projekt und Person)',
+  taskLimitNone: 'ohne',
+  calHead: 'Arbeitskalender (für alle Projekte)',
+  calHint: 'Feiertage und freie Tage zählen nicht als Arbeitstage – Gantt, Netzplan, Formulare und Projektfokus rechnen damit (wie der Standardkalender in MS Project bzw. iTaskX)',
+  calRegion: 'Feiertage',
+  calNone: 'keine (nur Mo–Fr)',
+  calRegions: { DE: 'nur bundesweite', BW: 'Baden-Württemberg', BY: 'Bayern', BE: 'Berlin', BB: 'Brandenburg', HB: 'Bremen', HH: 'Hamburg', HE: 'Hessen', MV: 'Mecklenburg-Vorpommern', NI: 'Niedersachsen', NW: 'Nordrhein-Westfalen', RP: 'Rheinland-Pfalz', SL: 'Saarland', SN: 'Sachsen', ST: 'Sachsen-Anhalt', SH: 'Schleswig-Holstein', TH: 'Thüringen' } as Record<string, string>,
+  calFree: 'Eigene freie Tage',
+  calFreeHint: 'z. B. Betriebsurlaub oder Brückentag',
+  calFreeName: 'Anlass (freiwillig)',
+  calFreeAdd: '+ Freier Tag',
+  calFreeNone: 'Keine eigenen freien Tage.',
+  calFreeRemove: (d: string) => `Freien Tag ${d} entfernen`,
+  calNext: (list: string) => `Nächste freie Tage: ${list}`,
+  calSet: (r: string) => `Feiertage: ${r}.`,
+  calAdded: (d: string) => `${d} ist jetzt frei.`,
+  calRemoved: (d: string) => `${d} ist wieder ein Arbeitstag.`,
+  calFull: 'Höchstens 120 eigene freie Tage.',
+  calBad: 'Bitte einen Tag wählen.',
+  calUndo: 'Rückgängig',
+  calUndone: 'Rückgängig gemacht.',
   head: 'Projektliste',
   tour: 'Tour',
   tourHint: 'Tour „Projekte“ starten – Liste, Ansichten, Instanzen und Meldungen',

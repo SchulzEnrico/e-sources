@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as P from './persons';
 import * as F from './focusLoad';
+import * as Pj from './projects';
 import { createNote, noteById, setState, setDraft } from './notes';
 import { setProfile } from './profile';
 import { defaultWorkspace } from './workspace';
@@ -245,5 +246,27 @@ describe('V96 Fokus: Darstellungen, Ring, Raster', () => {
     const tg = F.gridOf(ws, t.id, o);
     expect(tg.map((r) => [r.id, r.sum])).toEqual([[a, false], [b, false], [t.id, true]]);
     expect(tg[2].cells[0].hours).toBe(46);
+  });
+});
+
+describe('Task-Limit je Projekt (V116, Schritt 10 J9)', () => {
+  it('zählt nur offene Aufgaben im Projekt, kleineres Limit gilt', () => {
+    let ws = defaultWorkspace();
+    const a = P.addPerson(ws, 'Anna')!;
+    ws = a.ws;
+    const r = Pj.addProject(ws, 'Bau')!;
+    ws = Pj.editProject(r.ws, r.id, { taskLimit: 2 });
+    eq(Pj.projectById(ws, r.id)!.taskLimit, 2, 'gespeichert');
+    ws = note(ws, 'n1', { project: r.id, assignee: a.id });
+    ws = note(ws, 'n2', { assignee: a.id });
+    eq(P.projectLimitOf(ws, a.id, r.id), { count: 1, limit: 2, over: false }, 'eine im Projekt');
+    ws = note(ws, 'n3', { project: r.id, assignee: a.id });
+    eq(P.limitOf(ws, a.id, r.id).inProject, { count: 2, limit: 2, over: true }, 'voll');
+    eq(P.limitOf(ws, a.id, r.id).over, true, 'over');
+    ws = P.editPerson(ws, a.id, { limit: { perProject: 1 } });
+    eq(P.projectLimitOf(ws, a.id, r.id)!.limit, 1, 'Person enger');
+    ws = Pj.editProject(ws, r.id, { taskLimit: undefined });
+    eq(Pj.projectById(ws, r.id)!.taskLimit, undefined, 'entfernt');
+    eq(P.limitOf(ws, a.id).inProject, undefined, 'ohne Projekt');
   });
 });

@@ -15,6 +15,7 @@ import { Rules } from './Rules';
 import { RULE_SET_TEXT } from '../workspace/terms';
 import { LayoutCockpit, type LayoutOps } from './DeskLayouts';
 import { ModeWheel } from './ModeWheel';
+import { ArrangedWheel } from './ArrangedWheel';
 import { NotesCockpit } from './NotesCockpit';
 import { PersonCockpit } from './PersonCockpit';
 import { FeedbackCockpit } from './FeedbackCockpit';
@@ -289,7 +290,7 @@ export function Overview(p: OverviewProps) {
   const filterRef = useRef<HTMLInputElement>(null);
   // V112 F-228 Stufe 2: Cockpit-Kopf mit Überlauf – Name, Rad, Filter und Schließen bleiben, der Rest schwebt über „»“
   const headRef = useRef<HTMLDivElement>(null);
-  const headOvf = useOverflow(headRef, { label: OVERFLOW_TEXT.cockpitHead, keep: '.overview__name, .overview__mode, .overview__x, .radar__filter' });
+  const headOvf = useOverflow(headRef, { label: OVERFLOW_TEXT.cockpitHead, keep: '.overview__name, .overview__mode, .awheel, .overview__x, .radar__filter' });
   /** F-151: Panel-Zeile (oder ganze Area per Kachel) wird gerade gezogen. */
   const [drag, setDrag] = useState<{ name: string; whole: boolean; x: number; y: number; over: string | null; target: MoveTarget | null; dock: Dock | null } | null>(null);
   /** F-153: Kante wird gerade gezogen (Griffe ausblenden, außer dem gezogenen). */
@@ -910,7 +911,9 @@ export function Overview(p: OverviewProps) {
           {/* F-187/F-202: Umschalter Portale | Layouts | Sources (Pfeiltasten wechseln) */}
           {p.dispatch && (
             /* V83 (F-216, U6): Umschalter als Umschalt-Rad – Portale · Layouts · Library („Notizen“ kommt mit Schritt 5) */
-            <ModeWheel
+            /* F-220 (V116): ordnet sich nach Nutzung, ⋮ bzw. Rechtsklick: anheften, belegen */
+            <ArrangedWheel
+              wheel="cockpit"
               className="overview__mode"
               label={DESK_LAYOUT_TEXT.modeGroup}
               value={mode}

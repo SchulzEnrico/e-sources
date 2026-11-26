@@ -167,8 +167,10 @@ export function PeopleRow({ ws, note, onAssign, onEffort, onCreate, after }: Row
     setPick(false);
     // P17: Task-Limit am Ort nachfragen, nicht sperren
     if (id && id !== a) {
-      const lim = Ps.limitOf(ws, id);
+      const lim = Ps.limitOf(ws, id, note.project);
       const p = Ps.personById(ws, id);
+      // V116: Task-Limit je Projekt zuerst (meist das engere)
+      if (lim.inProject?.over && p) return setAsk({ id, text: T.limitAskProject(p.name, lim.inProject.count, lim.inProject.limit) });
       if (lim.over && p) return setAsk({ id, text: T.limitAsk(p.name, lim.count, lim.limit!) });
     }
     onAssign(id);

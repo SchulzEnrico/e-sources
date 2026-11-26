@@ -7,6 +7,7 @@
  */
 import type { Note, Workspace } from './types';
 import { DURATION_MAX } from './noteObjects';
+import { isOffDay, offBefore } from './calendar';
 
 // ---------------------------------------------------------------- Arbeitskalender (K7)
 
@@ -14,10 +15,10 @@ const toDate = (day: string) => new Date(`${day}T12:00:00Z`);
 const toDay = (d: Date) => d.toISOString().slice(0, 10);
 const isDayText = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-/** Arbeitstag? Vorerst Mo–Fr ohne Feiertage (K7). */
+/** Arbeitstag? Mo–Fr, ohne Feiertage und freie Tage des Arbeitskalenders (K7, V116: `calendar.ts`). */
 export function isWorkday(day: string): boolean {
   const wd = toDate(day).getUTCDay();
-  return wd !== 0 && wd !== 6;
+  return wd !== 0 && wd !== 6 && !isOffDay(day);
 }
 
 /** Tage weiterzählen (Kalendertage, auch negativ). */
@@ -64,17 +65,31 @@ export function endOf(start: string, duration: number): string {
  * Sa/So bekommen die Nummer des nächsten Montags. Rechnen in ganzen Arbeitstagen ohne Schleifen.
  */
 const EPOCH = Date.UTC(1970, 0, 5);
-export function workdayNo(day: string): number {
+function plainNo(day: string): number {
   const d = Math.round((toDate(day).getTime() - 12 * 3600e3 - EPOCH) / 864e5);
   const w = Math.floor(d / 7);
   const r = d - w * 7;
   return w * 5 + Math.min(r, 5);
 }
-/** Gegenstück zu workdayNo: der Arbeitstag mit dieser Nummer. */
-export function dayOfWorkdayNo(n: number): string {
+function plainDay(n: number): string {
   const w = Math.floor(n / 5);
   const r = n - w * 5;
   return toDay(new Date(EPOCH + (w * 7 + r) * 864e5 + 12 * 3600e3));
+}
+/** V116 (K7): freie Werktage (Feiertage) zählen nicht – sie bekommen wie Sa/So die Nummer des nächsten Arbeitstags. */
+export function workdayNo(day: string): number {
+  return plainNo(day) - offBefore(day);
+}
+/** Gegenstück zu workdayNo: der Arbeitstag mit dieser Nummer. */
+export function dayOfWorkdayNo(n: number): string {
+  let d = plainDay(n);
+  for (let i = 0; i < 400; i++) {
+    const m = workdayNo(d);
+    if (m < n) d = plainDay(plainNo(d) + (n - m));
+    else if (!isWorkday(d)) d = addDays(d, 1);
+    else return d;
+  }
+  return d;
 }
 
 // ---------------------------------------------------------------- Dauer und Planungsart (K1, K2)

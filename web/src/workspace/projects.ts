@@ -98,6 +98,7 @@ export function editProject(ws: Workspace, id: string, patch: Partial<Omit<Proje
     } else if (k === 'start' || k === 'end') set(k, typeof v === 'string' && DATE.test(v) ? v : undefined);
     else if (k === 'priority') set(k, typeof v === 'number' ? Math.min(5, Math.max(1, Math.round(v))) : undefined);
     else if (k === 'budget' || k === 'points') set(k, typeof v === 'number' && v >= 0 ? v : undefined);
+    else if (k === 'taskLimit') set(k, typeof v === 'number' && v >= 1 ? Math.min(99, Math.floor(v)) : undefined);
     else if (k === 'parent') {
       if (typeof v === 'string' && v && (v === id || !projectById(ws, v) || parentLoops(ws, id, v))) continue;
       set(k, (v as string) || undefined);

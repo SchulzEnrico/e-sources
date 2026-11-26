@@ -10,7 +10,7 @@ import type { Note, Workspace } from '../workspace/types';
 import * as NS from '../workspace/noteSources';
 import { notesOf, stateOf, titleOf } from '../workspace/notes';
 import { LIB_TEXT, NOTE_TEXT } from '../workspace/terms';
-import { ModeWheel } from './ModeWheel';
+import { ArrangedWheel } from './ArrangedWheel';
 import { Icon } from './Icon';
 import { noteForPage, openNote } from './SourceChips';
 
@@ -54,7 +54,8 @@ export function notesOfPanel(ws: Workspace, panelId: string): Note[] {
 
 export function LibraryWheel({ value, onChange, sources, notes }: { value: LibMode; onChange: (m: LibMode) => void; sources: number; notes: number }) {
   return (
-    <ModeWheel
+    <ArrangedWheel
+      wheel="library"
       className="lib-wheel"
       label={LIB_TEXT.wheel}
       value={value}

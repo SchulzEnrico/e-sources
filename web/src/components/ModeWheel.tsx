@@ -46,6 +46,10 @@ export function ModeWheel(props: {
    * Drehen (Scrollen, Wischen, Pfeile) wählt, Klick bzw. Enter/Leertaste löst die gewählte Stellung aus.
    */
   onPress?: (id: string) => void;
+  /** F-220 (V116, R3): Menü am Rad – Rechtsklick, Umschalt+F10 bzw. Kontextmenü-Taste */
+  onMenu?: () => void;
+  /** F-220 (R3): Alt+Pfeil verschiebt den gewählten Eintrag (−1 nach vorn, +1 nach hinten) */
+  onAltStep?: (dir: -1 | 1) => void;
 }) {
   const { options, value, onChange } = props;
   const count = options.length;
@@ -168,6 +172,12 @@ export function ModeWheel(props: {
     rollTo(cur < 0 ? turnFrom(-1, back ? -1 : 1, count, false, after) : clickTurn(cur, count, back), back ? -1 : 1);
   };
   const key = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (props.onMenu && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) return void (e.preventDefault(), props.onMenu());
+    if (props.onAltStep && e.altKey && !e.ctrlKey && !e.metaKey && e.key.startsWith('Arrow')) {
+      e.preventDefault();
+      e.stopPropagation();
+      return props.onAltStep(e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 1);
+    }
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     if (e.key === 'Enter' || e.key === ' ') return void (e.preventDefault(), props.onPress ? props.onPress(opt(at).id) : step(e.shiftKey));
     const back = e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'Home';
@@ -234,6 +244,7 @@ export function ModeWheel(props: {
       onPointerMove={move}
       onPointerUp={up}
       onPointerCancel={up}
+      onContextMenu={props.onMenu ? (e) => (e.preventDefault(), props.onMenu!()) : undefined}
     >
       {/* V83 (Enrico): außen Knopf wie „Überschrift H1“, mittig das Rad in der dunklen Mulde */}
       <span className="mwheel__dial">

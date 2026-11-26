@@ -9641,3 +9641,42 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 .nw__info { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin-top: 8px; font-size: 12px; }
 @media (forced-colors: active) { .nw__node.is-crit { border-color: Highlight; } .nw__links path { stroke: CanvasText; } }
 .nw .nw__node { border-radius: 8px; box-shadow: none; }
+
+/* F-220 (V116): Umschalt-Rad mit ⋮ – ordnet sich nach Nutzung, anheften und belegen; Meldung am Rad (F-214) */
+.awheel { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.awheel__more {
+  display: inline-grid; place-items: center; width: 18px; height: 22px; padding: 0; border-radius: 9px;
+  border: 1px solid transparent; background: transparent; box-shadow: none; color: var(--muted, var(--text)); opacity: 0.55;
+}
+.awheel:hover .awheel__more, .awheel__more:focus-visible, .awheel__more[aria-expanded='true'] { opacity: 1; border-color: var(--line); }
+.awheel__more:focus-visible { outline: 2px solid rgba(var(--accent-rgb), 0.7); outline-offset: 1px; }
+.awheel__msg {
+  position: absolute; left: 0; top: calc(100% + 4px); z-index: 30; display: flex; gap: 8px; align-items: center;
+  width: max-content; max-width: min(340px, 80vw); padding: 5px 10px; border-radius: 10px; font-size: 12px; line-height: 1.35;
+  background: rgba(var(--glass), 0.95); border: 1px solid var(--line); color: var(--strong);
+  box-shadow: inset 0 1px 0 rgba(var(--hi), 0.12), 0 10px 24px rgba(var(--lo), 0.5);
+}
+.awheel__msg .help__run { flex: none; opacity: 1; margin-top: 0; padding: 1px 8px; font-size: 12px; }
+/* V116 (K7): Feiertage / freie Tage im Gantt */
+.gt__off { position: absolute; top: 0; bottom: 0; background: rgba(127, 127, 127, 0.09); pointer-events: none; }
+.pj__cal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.pj__cal-list li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; }
+.pj__cal-list .help__run, .pj__cal .layouts__undo .help__run, .pj__cal-add .help__run { opacity: 1; margin-top: 0; }
+.pj__cal-add { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+.pj__cal-free { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+/* V116 (Schritt 10): Ressourcen-Ansicht */
+.rs__box { overflow: auto; max-height: 62vh; border: 1px solid var(--line); border-radius: 10px; }
+.rs__table { border-collapse: separate; border-spacing: 0; font-size: 12px; min-width: max-content; }
+.rs__table th, .rs__table td { padding: 3px 8px; border-bottom: 1px solid rgba(127,127,127,.15); white-space: nowrap; }
+.rs__table thead th { position: sticky; top: 0; z-index: 2; background: rgba(var(--glass), 0.96); }
+.rs__table .rs__name { position: sticky; left: 0; z-index: 1; text-align: left; background: rgba(var(--glass), 0.96); max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.rs__table thead .rs__name { z-index: 3; }
+.rs__num { text-align: right; font-variant-numeric: tabular-nums; }
+.rs__num.is-over { color: #fff; background: rgba(214, 64, 64, 0.75); font-weight: 600; }
+.rs__res th { font-weight: 600; }
+.rs__sub { padding-left: 34px !important; font-weight: 400; color: var(--text); }
+.rs__cap td, .rs__cap th { color: var(--muted, var(--text)); font-style: italic; }
+.rs__twist { border: none; background: transparent; box-shadow: none; padding: 0 4px; color: inherit; cursor: pointer; }
+.rs__open { border: none; background: transparent; box-shadow: none; padding: 0; color: inherit; text-align: left; cursor: pointer; }
+.rs__open:hover { text-decoration: underline; }
+.rs__twist:focus-visible, .rs__open:focus-visible { outline: 2px solid rgba(var(--accent-rgb), 0.7); outline-offset: 1px; }

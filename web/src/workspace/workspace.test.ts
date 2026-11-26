@@ -6336,7 +6336,8 @@ describe('F-206 Schritt 10 Beispielprojekt ColorGentlemen (V100)', () => {
     expect(n('cg-37').accept!.map((c) => !!c.ok)).toEqual([true, true]);
     expect(n('cg-38').accept![0].ok).toBeUndefined();
     expect(ws.persons!.find((x) => x.id === 'pn-cg-lm')!.away).toEqual([{ from: '2026-12-01', to: '2027-02-25', why: 'noch nicht eingestellt (ab M3)' }]);
-    expect(p.brief!.goal).toContain('L2.2 Prozesse festgelegt');
+    // V109 (F-226): Ziele stehen jetzt als Objekte, nicht mehr im Steckbrief-Text
+    expect(p.goals!.find((g) => g.code === 'L2.2')!.text).toBe('Prozesse festgelegt');
     expect(n('cg-c1').change).toMatchObject({ state: 'approved', decider: 'client' });
     const r = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
     expect(r.notes!.find((x) => x.id === 'cg-37')!.accept).toEqual(n('cg-37').accept);
@@ -6892,9 +6893,10 @@ describe('F-225 P8 Risiken und Änderungsanträge (V107)', () => {
     ws = Fb.addFeedback(ws, { kind: 'wish', title: 'App' }, { id: 'fb2' })!.ws;
     expect(Rk.becomeFromFeedback(ws, 'fb2', 'risk', { id: 'n2', label: 'x' })).toBeNull();
   });
-  it('R10: Beispielprojekt hat 3 Risiken und 2 Änderungsanträge, die keine Vorgänge sind; Entfernen nimmt sie mit', () => {
+  it('R10: Beispielprojekt hat 3 Risiken, 1 Chance (V109) und 2 Änderungsanträge, die keine Vorgänge sind; Entfernen nimmt sie mit', () => {
     const ws = Sp.addSampleProject(W.defaultWorkspace());
-    expect(Rk.risksOf(ws, Sp.SAMPLE_PROJECT).map((n) => Rk.steerCode(ws, n)).sort()).toEqual(['CG-R-1', 'CG-R-2', 'CG-R-3']);
+    expect(Rk.risksOf(ws, Sp.SAMPLE_PROJECT).map((n) => Rk.steerCode(ws, n)).sort()).toEqual(['CG-R-1', 'CG-R-2', 'CG-R-3', 'CG-R-4']);
+    expect(Rk.risksOf(ws, Sp.SAMPLE_PROJECT).filter((n) => n.risk!.chance).map((n) => n.id)).toEqual(['cg-ch1']);
     expect(Rk.changesOf(ws, Sp.SAMPLE_PROJECT)).toHaveLength(2);
     expect(Pj.tasksOfProject(ws, Sp.SAMPLE_PROJECT).some((n) => n.type === 'risk')).toBe(false);
     expect(Rk.risksOf(Sp.removeSampleProject(ws), Sp.SAMPLE_PROJECT)).toHaveLength(0);

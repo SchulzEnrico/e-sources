@@ -9350,3 +9350,34 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 .pjs__axes { margin: 0; font-size: 11px; opacity: 0.75; }
 .fbc__become { flex-wrap: wrap; }
 @media (forced-colors: active) { .pjs__cell, .pjs__score, .pjs__scoreline { border: 1px solid CanvasText; } }
+
+/* F-226 (V109): Projekt-Modus › Formulare (Baukasten nach GPM) */
+.pjf__open { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: rgba(80, 170, 110, 0.18); }
+.pjf__open.is-open { background: rgba(224, 176, 96, 0.28); }
+.pjf__keys { opacity: 0.75; }
+.pjf__body { margin-top: 8px; min-width: 0; }
+.pjf__fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 14px; }
+.pjf__field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pjf__field.is-wide { grid-column: 1 / -1; }
+.pjf__field input, .pjf__field textarea, .pjf__field select { width: 100%; box-sizing: border-box; }
+.pjf__help { font-size: 11px; opacity: 0.7; }
+.pjf__req { color: rgb(var(--accent-rgb)); margin-left: 2px; }
+.pjf__table { border-collapse: collapse; }
+.pjf__table th, .pjf__table td { vertical-align: top; }
+.pjf__table td.pjf__cell input, .pjf__table td.pjf__cell textarea, .pjf__table td.pjf__cell select { width: 100%; min-width: 7em; box-sizing: border-box; font: inherit; }
+.pjf__table td.is-long textarea, .pjf__table td.is-lines textarea { min-width: 14em; }
+.pjf__table td.is-number input, .pjf__table td.is-money input, .pjf__table td.is-pct input { min-width: 5.5em; text-align: right; }
+.pjf__table td.is-bool { text-align: center; }
+.pjf__cell.is-miss input, .pjf__cell.is-miss textarea, .pjf__cell.is-miss select, .pjf__field [aria-invalid='true'] { outline: 1px dashed rgba(224, 176, 96, 0.9); outline-offset: 1px; }
+.pjf__in { display: flex; align-items: center; gap: 4px; }
+.pjf__auto { font-size: 10px; padding: 0 4px; border-radius: 4px; background: rgba(var(--accent-rgb), 0.15); white-space: nowrap; }
+.pjf__ro { font-variant-numeric: tabular-nums; opacity: 0.9; white-space: nowrap; }
+.pjf__acts { white-space: nowrap; }
+.pjf__panel { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-start; margin: 8px 0; padding: 10px 12px; border: 1px solid rgba(var(--accent-rgb), 0.3); border-radius: 8px; }
+.pjf__panel fieldset { border: 0; margin: 0; padding: 0; min-width: 220px; max-width: 420px; }
+.pjf__panel legend { font-weight: 600; margin-bottom: 4px; }
+.pjf__check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.pjf__own { list-style: none; margin: 4px 0; padding: 0; }
+.pjf__own li { display: flex; align-items: center; gap: 6px; }
+.pjf__warn { font-size: 12px; color: rgb(224, 140, 60); }
+@media (forced-colors: active) { .pjf__cell.is-miss input, .pjf__cell.is-miss textarea, .pjf__cell.is-miss select { outline: 2px dashed CanvasText; } }

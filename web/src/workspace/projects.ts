@@ -17,7 +17,8 @@ export const projectsOf = (ws: Workspace): Project[] => ws.projects ?? [];
 export const projectById = (ws: Workspace, id: string | undefined): Project | undefined => (id ? projectsOf(ws).find((p) => p.id === id) : undefined);
 export const notesOfProject = (ws: Workspace, id: string): Note[] => notesOf(ws).filter((n) => n.project === id);
 /** F-225 P8 (V107, R1): Vorgang = Notiz, die kein Risiko und kein Änderungsantrag ist (Steuerungsobjekte nach ICB4). */
-export const isTask = (n: Pick<Note, 'type'>): boolean => n.type !== 'risk' && n.type !== 'change';
+/** F-226 (V109): nur Notizen ohne Art sind Vorgänge – Risiko, Änderung, Anforderung, Stakeholder, Beschaffung und Protokoll sind Register-Einträge. */
+export const isTask = (n: Pick<Note, 'type'>): boolean => !n.type;
 /** R1: Vorgänge eines Projekts (ohne Risiken und Änderungsanträge) – für Liste, Steckbrief, PSP, Gantt. */
 export const tasksOfProject = (ws: Workspace, id: string): Note[] => notesOfProject(ws, id).filter(isTask);
 

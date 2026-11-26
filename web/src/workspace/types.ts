@@ -281,6 +281,8 @@ export interface Workspace {
   wheels?: Record<string, WheelPrefs>;
   /** F-222 (V103, Dateiformat 11, N1/N11): Entscheidungen per Nutzwertanalyse, frei oder am Projekt; fehlt = keine. */
   decisions?: Decision[];
+  /** F-226 (G4): eigene Formular-Vorlagen (die Vorlage „GPM Level D“ ist eingebaut). */
+  formTemplates?: FormTemplate[];
 }
 
 /** F-220 (R2): Einstellung eines Umschalt-Rads; fehlt ein Feld = Werk. */
@@ -509,6 +511,29 @@ export interface NoteRisk {
   from?: string;
   /** R6: Vorgang für die Maßnahme (Notiz-Id) */
   task?: string;
+  /** F-226 (G6): Chance statt Risiko (fehlt = Risiko). */
+  chance?: boolean;
+  /** F-226 (G5): Eintrittswahrscheinlichkeit in Prozent (0–100) – gesetzt rechnet sich `p` daraus. */
+  ew?: number;
+  /** F-226 (G5): Tragweite in Euro – gesetzt (mit Budget) rechnet sich `i` daraus. */
+  impact?: number;
+  /** F-226 (L4): Maßnahmen präventiv bzw. korrektiv mit Kosten und Beschluss. */
+  measures?: RiskMeasure[];
+}
+/** F-226 (L4): Maßnahme gegen ein Risiko bzw. für eine Chance. */
+export interface RiskMeasure {
+  id: string;
+  /** präventiv (vorher) oder korrektiv (wenn es eintritt) */
+  kind: 'prev' | 'corr';
+  text: string;
+  /** Kosten der Maßnahme in Euro */
+  cost?: number;
+  /** beschlossen */
+  decided?: boolean;
+  /** EW in % nach der Maßnahme */
+  ewAfter?: number;
+  /** Tragweite in € nach der Maßnahme */
+  impactAfter?: number;
 }
 /** F-225 P8 (R4): Zustand eines Änderungsantrags. */
 export type ChangeState = 'asked' | 'review' | 'approved' | 'rejected' | 'parked';
@@ -662,6 +687,14 @@ export interface Note {
   cost?: PlanActual;
   /** V65: Meilenstein (Dauer 0). */
   milestone?: boolean;
+  /** F-226 (G8): Phase (Id aus Project.phases). */
+  phase?: string;
+  /** F-226 (G7): Einsatz mehrerer Ressourcen mit Plan-Stunden; Kosten aus dem Stundensatz, Hand-Eingabe geht vor. */
+  use?: NoteUse[];
+  /** F-226 (Kap. 7/8.3, ICB4 4.5.3): Ergebnisse bzw. Lieferobjekte eines Meilensteins oder Arbeitspakets. */
+  results?: string[];
+  /** F-226 (ICB4 4.5.9): Angaben zur Beschaffung (nur bei `type: 'procurement'`). */
+  procure?: NoteProcure;
   /**
    * F-206 Schritt 10 (V100, K1): Dauer in Arbeitstagen (Mo–Fr, K7), ganze Tage ab 0. Fehlt = Abstand
    * „nicht beginnen vor“ bis „fällig am“, sonst 1 Tag; Meilenstein = 0 (`durationOf` in schedule.ts).
@@ -820,6 +853,18 @@ export interface Project {
   roles?: ProjectRole[];
   /** F-225 (P4/P5): Formular für Projektmeldungen – Felder aus und Pflichtfelder. */
   feedbackForm?: FeedbackFormRaw;
+  /** F-226 (V109, L9/G11): Steckbrief-Felder nach GPM und ICB4 4.5.1/4.3.1 (neben dem Text in `brief`). */
+  charter?: ProjectCharter;
+  /** F-226 (L1): Ziele, Nicht-Ziele (ICB4 4.5.2). */
+  goals?: ProjectGoal[];
+  /** F-226 (L1): Zielkonflikte. */
+  conflicts?: GoalConflict[];
+  /** F-226 (L2/G9): Stakeholder (ICB4 4.5.12, 4.3.4). */
+  stakeholders?: Stakeholder[];
+  /** F-226 (L7/G8): Phasen (ICB4 4.5.4). */
+  phases?: ProjectPhase[];
+  /** F-226 (G1/G4): Formulare – Vorlage, eigene Felder und ihre Werte. */
+  forms?: ProjectForms;
   created: number;
   changed: number;
 }
@@ -882,6 +927,11 @@ export interface Person {
   away?: { from: string; to: string; why?: string }[];
   /** Später: Konto-Id (F-81). */
   account?: string;
+  /** F-226 (L6): Stundensatz in Euro. */
+  rate?: number;
+  /** F-226 (L2/L13): Firma bzw. Funktion, Qualifikation. */
+  org?: string;
+  qual?: string;
 }
 
 /** F-206 (V65): Note-Einstellungen eines Desks (Board, Main Stage). */
@@ -983,4 +1033,184 @@ export interface Decision {
   locked?: true;
   /** N7: Spur */
   marks?: DecisionMark[];
+}
+
+// ---------------------------------------------------------------- F-226 (V109): Projektformulare nach GPM
+
+/** F-226 (G7): Einsatz einer Ressource an einem Vorgang. */
+export interface NoteUse {
+  /** Person-Id (Person, Team, Rolle oder Qualifikationsgruppe) */
+  person: string;
+  /** Plan-Aufwand in Personenstunden */
+  hours?: number;
+  /** Kosten in Euro von Hand – geht vor Stunden × Satz */
+  cost?: number;
+}
+
+/** F-226 (ICB4 4.5.9): Zustand einer Beschaffung. */
+export type ProcureState = 'open' | 'asked' | 'offered' | 'ordered' | 'delivered';
+/** F-226 (ICB4 4.5.9): Beschaffung – Titel der Notiz = Gegenstand. */
+export interface NoteProcure {
+  /** selbst machen oder zukaufen */
+  make?: 'make' | 'buy';
+  supplier?: string;
+  /** Angebot bzw. Preis in Euro */
+  offer?: number;
+  contract?: string;
+  state?: ProcureState;
+}
+
+/** F-226 (L9, ICB4 4.5.1 / 4.3.1): Steckbrief-Felder. */
+export interface ProjectCharter {
+  /** Projektnummer, z. B. Z20-0173 */
+  no?: string;
+  /** Projektart, z. B. Organisationsprojekt */
+  kind?: string;
+  client?: string;
+  clientKind?: 'in' | 'ex';
+  clientAddress?: string;
+  /** Nutzen (4.3.1) und Messgröße */
+  benefit?: string;
+  benefitMeasure?: string;
+  /** Business Case, Strategiebezug (4.3.1) */
+  businessCase?: string;
+  /** Eigenaufwand in Ph, Fremdaufwand in Euro */
+  ownEffort?: number;
+  extEffort?: number;
+  /** Kostenarten in Euro */
+  costPm?: number;
+  costStaff?: number;
+  costMaterial?: number;
+  /** Risikorücklage in Euro */
+  reserve?: number;
+  reporting?: string;
+  special?: string;
+  /** Freigabe (JJJJ-MM-TT) durch Projektleitung bzw. Auftraggeber */
+  releasePl?: string;
+  releaseAg?: string;
+  /** ICB4 4.5.1: Erfolgskriterien, Vorgehensmodell, Tailoring, Komplexität 1–5 */
+  success?: string;
+  model?: 'classic' | 'agile' | 'hybrid';
+  tailoring?: string;
+  complexity?: number;
+}
+
+export type GoalKind = 'perf' | 'social' | 'non';
+export type GoalLevel = 'must' | 'should' | 'can';
+/** F-226 (L1): Ziel nach ICB4 4.5.2 – auch Nicht-Ziel (`kind: 'non'`). */
+export interface ProjectGoal {
+  id: string;
+  /** z. B. L1.1, S2 */
+  code?: string;
+  text: string;
+  /** Operationalisierung (messbar) */
+  measure?: string;
+  level?: GoalLevel;
+  /** Person-Id oder Name */
+  owner?: string;
+  consequence?: string;
+  kind?: GoalKind;
+  /** Oberziel (Hierarchie) */
+  parent?: string;
+}
+/** F-226 (L1): Zielkonflikt zwischen zwei Zielen. */
+export interface GoalConflict {
+  id: string;
+  a: string;
+  b: string;
+  text?: string;
+  measure?: string;
+  /** Vorrang hat Ziel a oder b */
+  first?: 'a' | 'b';
+}
+
+export type StakeStrategy = 'participative' | 'informative' | 'discursive' | 'repressive';
+/** F-226 (L2, G9): Stakeholder – verweist auf eine Person oder steht für sich (z. B. „Anwohner“). */
+export interface Stakeholder {
+  id: string;
+  /** z. B. SH-IN 01, SH-EX 04 */
+  code?: string;
+  name: string;
+  person?: string;
+  side?: 'in' | 'ex';
+  /** Umfeld sachlich oder sozial */
+  area?: 'fact' | 'social';
+  interests?: string;
+  fears?: string;
+  strategy?: StakeStrategy;
+  measures?: string;
+  /** Einstellung −2 (dagegen) bis +2 (dafür) */
+  attitude?: number;
+  /** Konfliktpotenzial, Macht/Einfluss: 1 gering – 3 hoch */
+  conflict?: number;
+  power?: number;
+}
+/** F-226 (L7, G8): Phase. */
+export interface ProjectPhase {
+  id: string;
+  name: string;
+  /** Schwerpunkt */
+  focus?: string;
+  goal?: string;
+  start?: string;
+  end?: string;
+  /** Anteil am Aufwand in Prozent */
+  share?: number;
+  /** freigegeben am (JJJJ-MM-TT) */
+  release?: string;
+}
+
+/** F-226 (G4): Typ eines Formularfelds – wie eigene Felder im Feedback (V106) plus Person. */
+export type FormFieldType = FeedbackFieldType | 'person';
+/** F-226 (G4): eigenes Feld bzw. eigene Spalte eines Formulars. */
+export interface FormFieldDef {
+  id: string;
+  name: string;
+  type: FormFieldType;
+  options?: string[];
+  required?: boolean;
+}
+/** F-226: Woher ein Formular seine Zeilen nimmt. */
+export type FormSource = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'risks' | 'phases' | 'milestones' | 'tasks' | 'uses' | 'persons' | 'procure' | 'roles';
+/** F-226: Spalte bzw. Feld eines Formulars – eingebautes Feld (`key`) oder eigenes (`custom:<id>`). */
+export interface FormColumn {
+  key: string;
+  label?: string;
+  required?: boolean;
+}
+/** F-226: ein Formular der Vorlage. */
+export interface FormDef {
+  id: string;
+  /** Kapitel nach Leitfaden, z. B. „2.2“ */
+  chapter: string;
+  name: string;
+  source: FormSource;
+  /** Tabelle (Zeilen) oder Feldliste (ein Objekt) */
+  layout: 'table' | 'fields';
+  columns: FormColumn[];
+  /** Zeilen-Filter, z. B. Ziel-Art `non` */
+  filter?: string;
+  /** Stufe 1–3 (F-226 G11) */
+  stage?: number;
+  /** ICB4-Element, z. B. „4.5.2“ */
+  icb?: string;
+  /** eigene Felder, die zur Vorlage gehören (aus „Als Vorlage speichern“) */
+  fields?: FormFieldDef[];
+}
+/** F-226 (G3/G4): Vorlage – Reihe von Formularen. */
+export interface FormTemplate {
+  id: string;
+  name: string;
+  forms: FormDef[];
+}
+/** F-226 (G4): Formulare eines Projekts – Vorlage, Änderungen daran und Werte eigener Felder. */
+export interface ProjectForms {
+  /** Vorlage (Id aus Workspace.formTemplates oder `gpm-d`) */
+  template?: string;
+  /** eigene Felder je Formular */
+  extra?: Record<string, FormFieldDef[]>;
+  /** ausgeblendete Spalten je Formular */
+  hidden?: Record<string, string[]>;
+  /** Werte eigener Felder: Zeilen-Id › Feld-Id › Wert */
+  values?: Record<string, Record<string, string | number | boolean>>;
 }

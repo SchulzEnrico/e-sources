@@ -51,6 +51,7 @@ const prepareTexts = (n: PrepareNames): Pr.PrepareTexts => ({
   changeOptions: n.changeOptions,
 });
 import * as Rk from './risks';
+import * as Fk from './formKit';
 import * as Sp from './sampleProject';
 import * as FL from './focusLoad';
 import * as St from './stage';
@@ -241,6 +242,8 @@ export type Action =
   /* F-225 P8 (V107): Risiken und Änderungsanträge (ICB4) */
   | { type: 'steerAdd'; project: string; kind: Rk.SteerType; id: string; title: string; text?: string; at: number; by?: string }
   | { type: 'riskEdit'; id: string; patch: Rk.RiskPatch }
+  /** F-226 (V109): Formular-Baukasten – Zellen, Zeilen, eigene Felder, Vorlagen */
+  | { type: 'form'; op: Fk.FormOp }
   | { type: 'changeEdit'; id: string; patch: Rk.ChangePatch }
   | { type: 'changeDecide'; id: string; state: import('./types').ChangeState; text?: string; who?: string; at: number }
   | { type: 'steerTask'; id: string; task: string; at: number; by?: string }
@@ -523,6 +526,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return Rk.addSteer(ws, a.project, a.kind, { title: a.title, text: a.text }, { id: a.id, now: a.at, by: a.by })?.ws ?? ws;
     case 'riskEdit':
       return Rk.editRisk(ws, a.id, a.patch);
+    case 'form':
+      return Fk.applyForm(ws, a.op);
     case 'changeEdit':
       return Rk.editChange(ws, a.id, a.patch);
     case 'changeDecide':

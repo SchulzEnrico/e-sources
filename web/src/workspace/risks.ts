@@ -9,6 +9,7 @@ import { createNote, noteById, notesOf } from './notes';
 import { isTask, projectById, rolesOf } from './projects';
 import { feedbackById, restoreFeedbackItem, setBecame } from './feedback';
 import { decisionsOf } from './decisions';
+import { parseMeasures, parseRiskGpm } from './gpm';
 
 export { isTask } from './projects';
 export const isSteering = (n: Pick<Note, 'type'>): boolean => !isTask(n);
@@ -156,6 +157,12 @@ function sanitizeRisk(r: Partial<Omit<NoteRisk, 'no'>>): Partial<NoteRisk> {
   if (r.strategy && RISK_STRATEGIES.includes(r.strategy)) out.strategy = r.strategy;
   if (r.state && RISK_STATES.includes(r.state)) out.state = r.state;
   for (const k of ['owner', 'from', 'task'] as const) if (typeof r[k] === 'string' && r[k]) out[k] = r[k];
+  // F-226 (V109, G5/G6/L4): Chance, EW %, Tragweite €, Maßnahmen
+  if (r.chance === true) out.chance = true;
+  if (typeof r.ew === 'number' && r.ew >= 0 && r.ew <= 100) out.ew = Math.round(r.ew * 10) / 10;
+  if (typeof r.impact === 'number' && r.impact >= 0) out.impact = Math.round(r.impact * 100) / 100;
+  const ms = parseMeasures(r.measures);
+  if (ms) out.measures = ms;
   return out;
 }
 function sanitizeChange(c: Partial<Omit<NoteChange, 'no'>>): Partial<NoteChange> {
@@ -295,7 +302,7 @@ export function parseRisk(v: unknown): NoteRisk | undefined {
   if (!v || typeof v !== 'object') return undefined;
   const o = v as Record<string, unknown>;
   if (typeof o.no !== 'number' || !Number.isInteger(o.no) || o.no < 1) return undefined;
-  return { no: o.no, ...sanitizeRisk({ cause: str(o.cause), event: str(o.event), effect: str(o.effect), measure: str(o.measure), p: o.p as RiskLevel, i: o.i as RiskLevel, strategy: o.strategy as RiskStrategy, state: o.state as RiskState, owner: str(o.owner, 120), from: str(o.from, 120), task: str(o.task, 120) }) };
+  return { no: o.no, ...sanitizeRisk({ cause: str(o.cause), event: str(o.event), effect: str(o.effect), measure: str(o.measure), p: o.p as RiskLevel, i: o.i as RiskLevel, strategy: o.strategy as RiskStrategy, state: o.state as RiskState, owner: str(o.owner, 120), from: str(o.from, 120), task: str(o.task, 120), ...parseRiskGpm(o) }) };
 }
 /** Liest `Note.change`. */
 export function parseChange(v: unknown): NoteChange | undefined {

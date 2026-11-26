@@ -3,6 +3,8 @@ import { parseFit, parseZoom } from './zoom';
 import { parseBoardTemplates } from './boardTemplates';
 import { parseFeedback, parseFeedbackPrefs, parseWheels } from './feedback';
 import { parseDecisions } from './decisions';
+import { cleanGpmRefs } from './gpm';
+import { parseFormTemplates } from './formKit';
 import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, DeskNotes, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
 import { cleanProjectRefs, cleanRefs, parseFocusViews, parsePadDesks, parsePads, parsePersons, parseProjects, personsFromDelegated } from './noteObjects';
 import { parseDeskLooks, parseLook } from './look';
@@ -348,7 +350,10 @@ function parseWorkspaceRaw(data: unknown): Workspace | null {
   const projects = cleanProjectRefs(parseProjects(data.projects, new Set(scenarios.map((c) => c.id))), new Set(parsedNotes.map((n) => n.id)));
   const moved = personsFromDelegated(fixDelegated(parsedNotes, new Set(noteViews.map((v) => v.id))), parsePersons(data.persons));
   const persons = moved.persons;
-  const notes = cleanRefs(moved.notes, new Set(projects.map((p) => p.id)), new Set(persons.map((p) => p.id)));
+  const projectMap = new Map(projects.map((p) => [p.id, p]));
+  const personIds = new Set(persons.map((p) => p.id));
+  // F-226 (V109): Phase nur im eigenen Projekt, Einsätze nur bekannte Personen
+  const notes = cleanRefs(moved.notes, new Set(projects.map((p) => p.id)), personIds).map((n) => cleanGpmRefs(n, projectMap, personIds));
   const pads = parsePads(data.pads, new Set(noteViews.map((v) => v.id)), winIds);
   const padDesks = parsePadDesks(data.padDesks, new Set(pads.map((p) => p.id)), winIds);
   const deskNotes = parseDeskNotes(data.deskNotes, winIds, new Set(noteViews.map((v) => v.id)));
@@ -361,8 +366,11 @@ function parseWorkspaceRaw(data: unknown): Workspace | null {
   const wheels = parseWheels(data.wheels);
   // F-222 (N11): Entscheidungen, Projekt-Bezug nur auf vorhandene Projekte
   const decisions = parseDecisions(data.decisions, new Set(projects.map((p) => p.id)));
+  // F-226 (V109, G4): eigene Formular-Vorlagen
+  const formTemplates = parseFormTemplates(data.formTemplates);
   return {
     ...(decisions.length ? { decisions } : {}),
+    ...(formTemplates.length ? { formTemplates } : {}),
     ...(feedback.length ? { feedback } : {}),
     ...(feedbackPrefs ? { feedbackPrefs } : {}),
     ...(wheels ? { wheels } : {}),

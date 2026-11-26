@@ -26,12 +26,14 @@ const shift = (d: string) => `${Number(d.slice(0, 4)) + 6}${d.slice(4)}`;
 
 type Res = 'PL' | 'PA' | 'LM' | 'GL' | 'LB';
 /** Ressourcengruppen (Tab. 11): Verfügbarkeit × 40 h; PL = „ich“. */
-const PEOPLE: { res: Exclude<Res, 'PL'>; name: string; capacity: number }[] = [
-  { res: 'PA', name: 'Fr. Mikitta – Projektassistenz, QMB (CG)', capacity: 10 },
-  { res: 'LM', name: 'Lackiermeister/in (CG, n. N.)', capacity: 36 },
-  { res: 'GL', name: 'Hr. Kabel – Gebietsleitung (CG)', capacity: 6 },
-  { res: 'LB', name: 'Fr. Stanczak – Leitung Buchhaltung (CG)', capacity: 6 },
+/** V109 (F-226, L6): Stundensätze aus dem Report (Kap. 11); PL 51 € steht nur am Einsatz, „ich“ bleibt unberührt. */
+const PEOPLE: { res: Exclude<Res, 'PL'>; name: string; capacity: number; rate: number }[] = [
+  { res: 'PA', name: 'Fr. Mikitta – Projektassistenz, QMB (CG)', capacity: 10, rate: 30 },
+  { res: 'LM', name: 'Lackiermeister/in (CG, n. N.)', capacity: 36, rate: 33 },
+  { res: 'GL', name: 'Hr. Kabel – Gebietsleitung (CG)', capacity: 6, rate: 41 },
+  { res: 'LB', name: 'Fr. Stanczak – Leitung Buchhaltung (CG)', capacity: 6, rate: 39 },
 ];
+const PL_RATE = 51;
 /** V108: Auftraggeber (SH-IN 01) – Person ohne Kapazität im Projekt. */
 const CLIENT = `${PERSON_PREFIX}meier`;
 /** V108 (Tab. 11): Lackiermeister/in erst ab M3 (Einstellung) verfügbar. */
@@ -59,6 +61,10 @@ interface Row {
   cost?: number;
   who?: Res;
   text?: string;
+  /** V109 (F-226): Ergebnisse des Meilensteins (Tab. 10) als Liste. */
+  results?: string[];
+  /** V109 (F-226, G8): Phase (Id in PHASES). */
+  phase?: string;
 }
 
 const ROWS: Row[] = [
@@ -96,15 +102,15 @@ const ROWS: Row[] = [
     actual: { effort: 198, cost: 6920 },
     text: 'Phase: Umbau & Inbetriebnahme. Verantwortlich: Lackiermeister/in (n. N.).\n\n**Aktivitäten:** Der Lackiermeister erarbeitet zusammen mit dem Anwendungstechniker der Glasklar GmbH (SH-EX 05, Hr. Talib) die einzelnen Prozessschritte und stellt sie zu sinnvollen Prozessketten zusammen. Qualitätsmanagement und Buchhaltung leiten unterstützend an und helfen bei Dokumentation und Systemeinführung.\n\n**Ergebnis:** übergabefertige Prozessbeschreibungen und Ablaufdiagramme.\n\n**Personal (295 Ph, 10.320 €):** Projektleitung 10 Ph × 51 € · Projektassistenz 25 Ph × 30 € · Leitung Buchhaltung 80 Ph × 39 € · Lackiermeister 180 Ph × 33 €.\n\n**Sachmittel:** keine – übernimmt die Glasklar GmbH als Teil des Lackausrüster-Vertrags.\n\n**Chancen/Risiken:** Bei gut optimierten Prozessen steigen die Wirtschaftlichkeit der Lackieranlagen und der Lackmittel, die Reklamationsquote sinkt.\n\n**Fortschrittsmessung:** aufwandsproportional. Freigabe AP: PL 21.01., AP-Verantwortlicher 23.03.\n\n**Statusbericht zum 17.05. (KW 18/19):** Ist-Start 16.04., Aufwand Ist 198 Ph (Rest 97 Ph), Kosten Ist 6.920 € (Rest 3.400 €). Grundeinstellungen der Lackieranlage (Luftmassendurchsatz, Heizleistung) sind vorgenommen, Testlackierungen weitgehend durchgeführt, Feinabstimmung des Lackmaterials läuft. Prozessschritte inkl. abrechnungsrelevanter Textvorlagen sind definiert und werden zu Prozessketten zusammengesetzt; die Textvorlagen sind im ERP-System und in der Funktionsprüfung. Steuerungsmaßnahmen: keine.',
   },
-  { nr: 32, code: 'M0', name: 'Projektstart', days: 0, start: '2020-12-01', end: '2020-12-01', text: '**Ergebnisse:** Das Projekt ist durch den Auftraggeber (Hr. Meier) beauftragt; Kick-off-Meeting mit Einweisungen des Projektleiters.' },
-  { nr: 33, code: 'M1', name: 'Schlüsselübergabe erfolgt', days: 0, start: '2020-12-23', end: '2020-12-23', pred: '3', text: '**Ergebnisse:** Schlüsselübergabe erfolgt; Schadensprotokoll erstellt; Abgleich mit der Machbarkeit des Konzepts erfolgt; Statusmeeting; Phase Detailplanung freigegeben.\n\nSoll: M0 + 3 Wochen.' },
-  { nr: 34, code: 'M-S/B&U', name: 'Start Beauftragung & Umbau', days: 0, start: '2021-01-04', end: '2021-01-04', pred: '10EA+1', text: '**Ergebnisse:** Team geformt, Rollen verteilt; Ziele definiert; alle baulichen Anforderungen bekannt; erste Dienstleister definiert; Phasen Beauftragung sowie Umbau & Inbetriebnahme freigegeben.\n\nSoll: M1 + 1,5 Wochen.' },
-  { nr: 35, code: 'M2', name: 'Detailplanung abgeschlossen', days: 0, start: '2021-01-29', end: '2021-01-29', pred: '12; 17', text: '**Ergebnisse:** Büros fertig; alle technischen und bauseitigen Anforderungen bekannt; Maßnahmen und Termine geplant; Statusmeeting; alle Pläne freigegeben.\n\nSoll: M-S/B&U + 4 Wochen. Nach Änderung CG-Ä-1 gilt M2 auch als erreicht, wenn die Büroräume noch nicht final eingerichtet sind.' },
-  { nr: 36, code: 'M3', name: 'Werkstatt fertig und Beauftragung abgeschlossen', days: 0, start: '2021-02-26', end: '2021-02-26', pred: '19', accept: [['Werkstattausstattung nach Werkvertrag – Leistung PL, Abnahme AG', true]], text: '**Ergebnisse:** Lackiermeister eingestellt; alle Wartungen abgeschlossen; komplette technische Ausstattung einsatzbereit; Statusmeeting; alle Dienstleister und Prüfgesellschaften beauftragt, Verträge unterschrieben.\n\nSoll: M2 + 4 Wochen.' },
-  { nr: 37, code: 'M-LA1', name: 'Lackieranlage 1 ist in Betrieb', days: 0, start: '2021-04-16', end: '2021-04-16', pred: '13', accept: [['Lackieranlage 1 nach Werkvertrag (Verfahrensvorgaben im Handbuch für Anwendungsverfahren der FIT GmbH) – Leistung LM, Abnahme Werkvertrag', true], ['Elektrische Anlagen: Unbedenklichkeitsbescheinigung (UBB) durch den Elektriker, Prüfdokument Werkvertrag – Leistung PL', true]], text: '**Ergebnisse:** elektrische Anlagen fertig; Lackierkabine 1 installiert; Statusmeeting; UBB an den Vermieter (SH-EX 02, Fr. Stenzel) übermittelt.\n\nSoll: M3 + 7 Wochen.' },
-  { nr: 38, code: 'M-LA2', name: 'Lackieranlage 2 ist in Betrieb', days: 0, start: '2021-05-28', end: '2021-05-28', pred: '26; 30', accept: [['Lackieranlage 2 nach Werkvertrag – Leistung LM, Abnahme Werkvertrag', false]], text: '**Ergebnisse:** alle Mitarbeiter eingestellt; Lackierkabine 2 installiert; Statusmeeting; Start der Abschlussphase.\n\nSoll: M-LA1 + 6 Wochen.' },
-  { nr: 39, code: 'M4', name: 'Umbau & Inbetriebnahme abgeschlossen', days: 0, start: '2021-06-18', end: '2021-06-18', pred: '38; 7; 31', accept: [['Aufbauorganisation und Prozesse nach QM-Handbuch der FIT GmbH; Leitbild: bestmögliche Ökonomie und Verfahrensqualität – Leistung LM, Abnahme PL', false]], text: '**Ergebnisse:** alle Prozesse definiert; alle Arbeitsplätze eingerichtet; alle Mitarbeiter geschult; Betriebsstätte voll funktionsfähig.\n\nSoll: M-LA2 + 3 Wochen.' },
-  { nr: 40, code: 'M5', name: 'Projektende', days: 0, start: '2021-06-30', end: '2021-06-30', pred: '39; 8', accept: [['Projektmanagement nach IPMA ICB4 und PM-Handbuch der FIT GmbH (CI-Vorgaben zur Projektidentifikation) – Leistung PL & PA, Abnahme AG', false]], text: '**Ergebnisse:** Abschlussbericht erstellt und vorgetragen; Ziele des magischen Dreiecks erfüllt; alle wichtigen Stakeholder zufrieden.\n\nSoll: M4 + 1,5 Wochen.' },
+  { nr: 32, code: 'M0', name: 'Projektstart', days: 0, start: '2020-12-01', end: '2020-12-01', results: ['Projekt durch den Auftraggeber (Hr. Meier) beauftragt', 'Kick-off-Meeting mit Einweisungen des Projektleiters'] },
+  { nr: 33, code: 'M1', name: 'Schlüsselübergabe erfolgt', days: 0, start: '2020-12-23', end: '2020-12-23', pred: '3', text: 'Soll: M0 + 3 Wochen.', results: ['Schlüsselübergabe erfolgt', 'Schadensprotokoll erstellt', 'Abgleich mit der Machbarkeit des Konzepts erfolgt', 'Statusmeeting', 'Phase Detailplanung freigegeben'] },
+  { nr: 34, code: 'M-S/B&U', name: 'Start Beauftragung & Umbau', days: 0, start: '2021-01-04', end: '2021-01-04', pred: '10EA+1', text: 'Soll: M1 + 1,5 Wochen.', results: ['Team geformt, Rollen verteilt', 'Ziele definiert', 'alle baulichen Anforderungen bekannt', 'erste Dienstleister definiert', 'Phasen Beauftragung sowie Umbau & Inbetriebnahme freigegeben'] },
+  { nr: 35, code: 'M2', name: 'Detailplanung abgeschlossen', days: 0, start: '2021-01-29', end: '2021-01-29', pred: '12; 17', text: 'Soll: M-S/B&U + 4 Wochen. Nach Änderung CG-Ä-1 gilt M2 auch als erreicht, wenn die Büroräume noch nicht final eingerichtet sind.', results: ['Büros fertig', 'alle technischen und bauseitigen Anforderungen bekannt', 'Maßnahmen und Termine geplant', 'Statusmeeting', 'alle Pläne freigegeben'] },
+  { nr: 36, code: 'M3', name: 'Werkstatt fertig und Beauftragung abgeschlossen', days: 0, start: '2021-02-26', end: '2021-02-26', pred: '19', accept: [['Werkstattausstattung nach Werkvertrag – Leistung PL, Abnahme AG', true]], text: 'Soll: M2 + 4 Wochen.', results: ['Lackiermeister eingestellt', 'alle Wartungen abgeschlossen', 'komplette technische Ausstattung einsatzbereit', 'Statusmeeting', 'alle Dienstleister und Prüfgesellschaften beauftragt, Verträge unterschrieben'] },
+  { nr: 37, code: 'M-LA1', name: 'Lackieranlage 1 ist in Betrieb', days: 0, start: '2021-04-16', end: '2021-04-16', pred: '13', accept: [['Lackieranlage 1 nach Werkvertrag (Verfahrensvorgaben im Handbuch für Anwendungsverfahren der FIT GmbH) – Leistung LM, Abnahme Werkvertrag', true], ['Elektrische Anlagen: Unbedenklichkeitsbescheinigung (UBB) durch den Elektriker, Prüfdokument Werkvertrag – Leistung PL', true]], text: 'Soll: M3 + 7 Wochen.', results: ['elektrische Anlagen fertig', 'Lackierkabine 1 installiert', 'Statusmeeting', 'UBB an den Vermieter (SH-EX 02, Fr. Stenzel) übermittelt'] },
+  { nr: 38, code: 'M-LA2', name: 'Lackieranlage 2 ist in Betrieb', days: 0, start: '2021-05-28', end: '2021-05-28', pred: '26; 30', accept: [['Lackieranlage 2 nach Werkvertrag – Leistung LM, Abnahme Werkvertrag', false]], text: 'Soll: M-LA1 + 6 Wochen.', results: ['alle Mitarbeiter eingestellt', 'Lackierkabine 2 installiert', 'Statusmeeting', 'Start der Abschlussphase'] },
+  { nr: 39, code: 'M4', name: 'Umbau & Inbetriebnahme abgeschlossen', days: 0, start: '2021-06-18', end: '2021-06-18', pred: '38; 7; 31', accept: [['Aufbauorganisation und Prozesse nach QM-Handbuch der FIT GmbH; Leitbild: bestmögliche Ökonomie und Verfahrensqualität – Leistung LM, Abnahme PL', false]], text: 'Soll: M-LA2 + 3 Wochen.', results: ['alle Prozesse definiert', 'alle Arbeitsplätze eingerichtet', 'alle Mitarbeiter geschult', 'Betriebsstätte voll funktionsfähig'] },
+  { nr: 40, code: 'M5', name: 'Projektende', days: 0, start: '2021-06-30', end: '2021-06-30', pred: '39; 8', accept: [['Projektmanagement nach IPMA ICB4 und PM-Handbuch der FIT GmbH (CI-Vorgaben zur Projektidentifikation) – Leistung PL & PA, Abnahme AG', false]], text: 'Soll: M4 + 1,5 Wochen.', results: ['Abschlussbericht erstellt und vorgetragen', 'Ziele des magischen Dreiecks erfüllt', 'alle wichtigen Stakeholder zufrieden'] },
 ];
 
 const noteId = (nr: number) => `${NOTE_PREFIX}${nr}`;
@@ -120,6 +126,57 @@ export function parsePreds(s: string | undefined): NoteLink[] {
   });
 }
 
+const ORG_TEXT = [
+  'Matrix-Projektorganisation: Ressourcen flexibel einsetzen, weniger Kommunikationsaufwand. Projektleitung aus der Stammorganisation der FIT GmbH; betroffene Abteilungsleiter und Managementbeauftragte arbeiten in ihren Verantwortungsbereichen mit; Subunternehmer und Dienstleister per Vertrag, koordiniert durch den PL. Lenkungsausschuss: keiner.',
+  '',
+  'Rollen (Tab. 7, AKV folgt in F-226 Stufe 2): GF/AG – Projektauftrag, Nutzen und Ziele, Budget, Beurteilung der Ergebnisse; entscheidet über Beauftragung und Abbruch, kann den PL austauschen; Verantwortung für den Return on Investment. GL – Einstellung der Mitarbeiter, Anschaffung von Lackieranlagen und Geräten; Prokura, disziplinarische Weisung über die Lackierfachleute; Verantwortung für Sozial- und Kostenziele. PL – Auftrag und Planung abstimmen, Stakeholdermanagement, Team- und Dienstleisterkoordination, Steuerung und Überwachung; fachliche Weisung, unterschreibt alle Projektdokumente; Verantwortung für Leistungs- und Terminziele.',
+].join('\n');
+
+/** V109 (F-226, L1): Ziele aus Tab. 1, Nicht-Ziele aus Kap. 2.2. */
+const GOALS: NonNullable<Project['goals']> = [
+  { id: 'cg-l1', code: 'L1', text: 'Neue Betriebsstätte errichtet', kind: 'perf', level: 'must', owner: ME_ID },
+  { id: 'cg-l11', code: 'L1.1', text: 'Alte Werkstatt umgebaut', measure: 'Lager entkernt, Wand zur Werkstatt entfernt, Dach und Heizung repariert, elektrische Anlage erfüllt alle Anforderungen', kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-l1' },
+  { id: 'cg-l12', code: 'L1.2', text: 'Büroräume eingerichtet', measure: 'Mobiliar und EDV, Schlüsseltresor geliefert und aufgebaut, Kommunikation sichergestellt', kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-l1' },
+  { id: 'cg-l13', code: 'L1.3', text: 'Werkstatt betriebsbereit eingerichtet', measure: 'Wartungen und Reparaturen durchgeführt, Neuanschaffungen getätigt, Prüfungen, Abnahmen und Freigaben erfolgt', kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-l1' },
+  { id: 'cg-l14', code: 'L1.4', text: 'Lackieranlage 1 voll einsatzbereit', measure: `aufgebaut und an die Energieversorgung angeschlossen bis ${shift('2021-04-16').split('-').reverse().join('.')}`, kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-l1' },
+  { id: 'cg-l15', code: 'L1.5', text: 'Lackieranlage 2 voll einsatzbereit', measure: `bis ${shift('2021-06-18').split('-').reverse().join('.')} (von MUSS auf SOLL geändert)`, kind: 'perf', level: 'should', owner: ME_ID, parent: 'cg-l1' },
+  { id: 'cg-l2', code: 'L2', text: 'Neue Organisationsstrukturen errichtet', kind: 'perf', level: 'must', owner: ME_ID },
+  { id: 'cg-l21', code: 'L2.1', text: 'Aufbaustruktur festgelegt', measure: 'Rollen, Aufgaben, Verantwortungen und Befugnisse definiert', kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-l2' },
+  { id: 'cg-l22', code: 'L2.2', text: 'Prozesse festgelegt', measure: 'alle organisatorischen und technischen Abläufe definiert, alle Stelleninhaber bekannt', kind: 'perf', level: 'must', owner: `${PERSON_PREFIX}lm`, parent: 'cg-l2' },
+  { id: 'cg-s1', code: 'S1', text: '15 neue Arbeitsplätze geschaffen', kind: 'social', level: 'should', owner: `${PERSON_PREFIX}gl` },
+  { id: 'cg-s2', code: 'S2', text: 'Mitarbeiterzufriedenheit verbessert', measure: 'modernste Technik erleichtert Abläufe und verbessert die Ergebnisqualität', kind: 'social', level: 'can', owner: `${PERSON_PREFIX}gl` },
+  { id: 'cg-n1', code: 'N1', text: 'Aktive Marketingmaßnahmen und Akquise weiterer Kunden für diesen Standort', consequence: 'Laufkundschaft wird bedient, aber nicht priorisiert; Anfragen gehen an den Vertriebsinnendienst. Der Werkvertrag mit der HM hat höchste Priorität.', kind: 'non' },
+  { id: 'cg-n2', code: 'N2', text: 'Neue Prozesse auf andere Standorte übertragen (perspektivisch, nicht Inhalt des Projekts)', kind: 'non' },
+];
+
+/** V109 (F-226, L2): Stakeholderanalyse (Tab. 4) – Einstellung positiv/negativ = +1/−1, gering/hoch = 1/3. */
+const sh = (id: string, code: string, name: string, side: 'in' | 'ex', interests: string, strategy: 'participative' | 'informative' | 'discursive' | 'repressive', measures: string, att: 1 | -1, conflict: 1 | 3, power: 1 | 3, person?: string) => ({ id, code, name, side, interests, strategy, measures, attitude: att, conflict, power, ...(person ? { person } : {}) });
+const STAKEHOLDERS: NonNullable<Project['stakeholders']> = [
+  sh('cg-sh1', 'SH-IN 01', 'Hr. Meier (GF, Auftraggeber)', 'in', 'Will die HM von der Leistungsfähigkeit der FIT überzeugen, seine Marktposition in der Region stärken und mit dem Schaffen von Arbeitsplätzen das Image weiter verbessern.', 'participative', 'Permanente Abstimmung zu allen Schritten im Projekt.', 1, 1, 3, CLIENT),
+  sh('cg-sh2', 'SH-IN 02', 'Hr. Kabel (Gebietsleitung)', 'in', 'Will die Kosten für Anschaffungen, Reparaturen und Ressourcen so niedrig wie möglich halten, unterstützt aber die Vorgaben von SH-IN 01. Ist außerdem für die Suche und Einstellung der 15 MA zuständig.', 'participative', 'Kümmert sich um die Vertragsabschlüsse mit Lieferanten und Dienstleistern, weshalb eine permanente Abstimmung über die Finanzen erforderlich ist.', 1, 1, 3, `${PERSON_PREFIX}gl`),
+  sh('cg-sh3', 'SH-IN 03', 'Fr. Stanczak (Leitung Buchhaltung)', 'in', 'Muss sich um die technische Einsteuerung des Kunden in das vorhandene ERP-System der FIT kümmern und ihre Abteilung auf Besonderheiten schulen.', 'informative', 'Informationen zu allen Themen der Abrechnung bereitstellen und eng in die Prozessgestaltung einbinden.', 1, 1, 1, `${PERSON_PREFIX}lb`),
+  sh('cg-sh4', 'SH-IN 04', 'Fr. Mikitta (QMB, Projektbüro)', 'in', 'Legt hohen Wert auf die Einhaltung der QM-Vorgaben sowie auf die Dokumentation aller Vorgänge und Entwicklungen. Ist außerdem dem Projektbüro zugeordnet.', 'participative', 'Permanente Information und Dokumentation gemäß den Vorgaben im PM-Handbuch.', 1, 1, 3, `${PERSON_PREFIX}pa`),
+  sh('cg-sh6', 'SH-IN 06', 'Lackiermeister/in (n. N.)', 'in', 'Wird ein hohes Interesse am Gelingen des Projektes und der Gestaltung der Abläufe haben, da er die spätere Leitung und Verantwortung der Betriebsstätte übernehmen soll.', 'participative', 'Permanente Information zu allen Vorgängen im Bereich seiner Verantwortung; in die Projektsteuerung so weit wie möglich einbinden.', 1, 1, 3, `${PERSON_PREFIX}lm`),
+  sh('cg-sx1', 'SH-EX 01', 'Hr. Drewens (Hamburger Mobile GmbH, Kunde)', 'ex', 'Legt Wert auf Termintreue, klare Strukturen und präzise definierte Prozesse. Hat mit der FIT eine Vertragsstrafenregelung im Werkvertrag vereinbart.', 'informative', 'Soll im Zyklus der Projekt-Statusberichte durch SH-IN 02 über den aktuellen Stand informiert werden.', 1, 1, 1),
+  sh('cg-sx2', 'SH-EX 02', 'Fr. Stenzel (ImmoWorld GmbH, Vermieterin)', 'ex', 'Hat eine Klausel in den Mietvertrag eingearbeitet, die eine Unbedenklichkeitsbescheinigung (UBB) der elektrischen Anlage fordert. Ohne UBB darf die Werkstatt nicht in Betrieb genommen werden.', 'discursive', 'An den Informationen zum Stand der UBB teilhaben lassen.', 1, 3, 3),
+  sh('cg-sx3', 'SH-EX 03', 'Hr. Thomsen (Fuchs Lackieranlagen GmbH)', 'ex', 'Ist für die pünktliche Lieferung und den Aufbau der Lackieranlagen verantwortlich, weshalb er an allen Informationen Interesse haben wird, die für einen reibungslosen Ablauf erforderlich sind.', 'informative', 'Muss mit allen Informationen, Anforderungen und Terminen versorgt werden. Änderungen in der Terminplanung sind dort sofort anzuzeigen, um den Aufbau der Lackieranlagen sicherstellen zu können.', 1, 1, 1),
+  sh('cg-sx4', 'SH-EX 04', 'Hr. Klar (Bezirksschornsteinfeger)', 'ex', 'Wird die Inbetriebnahme der Lackieranlagen nur freigeben, wenn alle Grenzwerte den gesetzlichen Vorgaben entsprechen.', 'discursive', 'Wird direkt zu Beginn mit allen nötigen Informationen versorgt, um die gesetzlichen Vorgaben genau mit ihm abstimmen zu können und diese beim Bau zu berücksichtigen.', -1, 3, 3),
+  sh('cg-sx5', 'SH-EX 05', 'Hr. Talib (Glasklar GmbH, Anwendungstechnik)', 'ex', 'Ist an der Prozessgestaltung beteiligt. Wird zeitlich von der Inbetriebnahme der ersten Lackieranlage und der Funktionsfähigkeit der Werkstatt abhängig sein, um sich dann maßgeblich am Projekterfolg beteiligen zu können.', 'participative', 'Wird zu allen Anforderungen und Terminen in seinem Verantwortungsbereich informiert und durch den Werkstattleiter koordiniert.', 1, 1, 3),
+  sh('cg-sx6', 'SH-EX 06', 'Anwohner', 'ex', 'Befürchten Belästigungen durch Lärm und die Emissionen der Lackieranlagen.', 'repressive', 'Sollen vorerst nur im gesetzlich notwendigen Rahmen informiert werden.', -1, 3, 1),
+];
+
+/** V109 (F-226, L7): Phasen (Tab. 9), Beginn/Ende aus den Meilensteinen. */
+const PHASES: NonNullable<Project['phases']> = [
+  { id: 'cg-ph1', name: 'Konzept & Analyse', focus: 'Kick-off, technische Ausstattung, Zieldefinition, Team', start: shift('2020-12-01'), end: shift('2020-12-23'), share: 10 },
+  { id: 'cg-ph2', name: 'Detailplanung', focus: 'alle Pläne genehmigt', start: shift('2020-12-23'), end: shift('2021-01-29'), share: 25 },
+  { id: 'cg-ph3', name: 'Beauftragung', focus: 'interne und externe Beauftragungen', start: shift('2021-01-04'), end: shift('2021-02-26'), share: 10 },
+  { id: 'cg-ph4', name: 'Umbau & Inbetriebnahme', focus: 'Umbau, Installation, Organisation und Prozesse', start: shift('2021-01-04'), end: shift('2021-06-18'), share: 45 },
+  { id: 'cg-ph5', name: 'Abschluss', focus: 'Auswertung, Erfahrungssicherung, Abschlussfeier, Projektauflösung', start: shift('2021-05-28'), end: shift('2021-06-30'), share: 10 },
+];
+/** Phase je Zeile (Nr. in MS Project); Projektmanagement 1.1.1–1.1.5 läuft über alle Phasen. */
+const PHASE_OF: Record<number, string> = { 10: 'cg-ph1', 32: 'cg-ph1', 33: 'cg-ph1', 34: 'cg-ph2', 35: 'cg-ph2', 28: 'cg-ph3', 36: 'cg-ph3', 8: 'cg-ph5', 40: 'cg-ph5' };
+for (const nr of [11, 12, 13, 15, 16, 17, 19, 20, 22, 23, 24, 25, 26, 29, 30, 31, 37, 38, 39]) PHASE_OF[nr] = 'cg-ph4';
+
 export const hasSampleProject = (ws: Workspace): boolean => (ws.projects ?? []).some((p) => p.id === SAMPLE_PROJECT);
 
 /** Beispielprojekt anlegen (nichts, wenn es schon da ist). */
@@ -132,6 +189,7 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
       name: p.name,
       kind: 'role',
       capacity: p.capacity,
+      rate: p.rate,
       ...(p.res === 'LM' ? { away: [{ from: shift(LM_AWAY.from), to: shift(LM_AWAY.to), why: LM_AWAY.why }] } : {}),
     })),
     { id: CLIENT, name: 'Hr. Meier – Geschäftsführer FIT GmbH (CG)', kind: 'person' } as Person,
@@ -141,56 +199,39 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
     id: SAMPLE_PROJECT,
     name: 'ColorGentlemen',
     psp: { prefix: 'CG-1.', style: 'num' },
+    // V109 (F-226): Steckbrief-Texte nur noch für Fließtext; Felder, Ziele, Stakeholder und Phasen stehen in den Formularen
     brief: {
-      goal: [
-        'Oberziel: Errichtung und Inbetriebnahme einer neuen Betriebsstätte der FIT GmbH.',
-        'Hauptziel: Umbau und Inbetriebnahme einer angemieteten Kfz-Werkstatt im Hamburger Umland zur Lackiererei mit zwei Lackieranlagen; neue Prozesse erarbeiten und einführen; 15 Mitarbeiter einstellen.',
-        'Nutzen: Werkvertrag mit der Hamburger Mobile GmbH (4 Jahre + Option 2 Jahre, ca. 3.500 Fahrzeuginstandsetzungen p. a. aus Leasingrücknahmen) abwickeln, Marktstellung festigen, wirtschaftlicher arbeiten mit innovativer Technik, geringere Reklamationsquote, höhere Mitarbeitermotivation.',
-        '',
-        'Leistungsziele (Tab. 1):',
-        'L1 Neue Betriebsstätte errichtet',
-        '· L1.1 Alte Werkstatt umgebaut (MUSS, PL) – Lager entkernt, Wand zur Werkstatt entfernt, Dach und Heizung repariert, elektrische Anlage erfüllt alle Anforderungen.',
-        '· L1.2 Büroräume eingerichtet (MUSS, PL) – Mobiliar und EDV, Schlüsseltresor geliefert und aufgebaut, Kommunikation sichergestellt.',
-        '· L1.3 Werkstatt betriebsbereit eingerichtet (MUSS, PL) – Wartungen und Reparaturen durchgeführt, Neuanschaffungen getätigt, Prüfungen, Abnahmen und Freigaben erfolgt.',
-        '· L1.4 Lackieranlage 1 voll einsatzbereit bis 16.04. (MUSS, PL) – aufgebaut, an die Energieversorgung angeschlossen.',
-        '· L1.5 Lackieranlage 2 voll einsatzbereit bis 18.06. (von MUSS auf SOLL geändert, PL).',
-        'L2 Neue Organisationsstrukturen errichtet',
-        '· L2.1 Aufbaustruktur festgelegt (MUSS, PL) – Rollen, Aufgaben, Verantwortungen und Befugnisse definiert.',
-        '· L2.2 Prozesse festgelegt (MUSS, Lackiermeister/in) – alle organisatorischen und technischen Abläufe definiert, alle Stelleninhaber bekannt.',
-        'Soziale Ziele',
-        '· S1 15 neue Arbeitsplätze geschaffen (SOLL, GL).',
-        '· S2 Mitarbeiterzufriedenheit verbessert (KANN, GL) – modernste Technik erleichtert Abläufe und verbessert die Ergebnisqualität.',
-        '',
-        'Nicht-Ziele: aktive Marketingmaßnahmen, Akquise weiterer Kunden für diesen Standort. Laufkundschaft wird bedient, aber nicht priorisiert; Anfragen gehen an den Vertriebsinnendienst. Der Werkvertrag mit der HM hat höchste Priorität.',
-        '',
-        'Zielkonflikte (Tab. 2): L1.1 vor L1.2 – Ressourcen zuerst für den Umbau der Werkstatt, Büros zweitrangig. L1.4 vor L1.5 – Lackieranlage 1 hat Vorrang, weil ohne sie die Prozesse (L2.2) nicht erarbeitet werden können; Termin für Lackieranlage 2 von MUSS auf SOLL geändert (Zeitpuffer).',
-        '',
-        'Chance (Kap. 5.3): technisch fortschrittlichster Standort der FIT, stärkere Marktposition in der Region Hamburg, schnellerer Return on Investment. Perspektivisch (nicht Inhalt des Projekts): neue Prozesse auf andere Standorte übertragen.',
-      ].join('\n'),
-      approach: [
-        'Projektnummer CG-1 · Organisations- und Investitionsprojekt · klassisch in überlappenden Phasen über 7 Monate.',
-        '',
-        'Phasen (Tab. 9): Konzept & Analyse (1 Monat, 10 % Aufwand) – Kick-off, technische Ausstattung, Zieldefinition, Team · Detailplanung (1,25 Monate, 25 %) – alle Pläne genehmigt · Beauftragung (2 Monate, 10 %) – interne und externe Beauftragungen · Umbau & Inbetriebnahme (5,5 Monate, 45 %) – Umbau, Installation, Organisation und Prozesse · Abschluss (1 Monat, 10 %) – Auswertung, Erfahrungssicherung, Abschlussfeier, Projektauflösung.',
-        '',
-        'PSP funktionsorientiert gegliedert, weil Teilaufgaben und Ergebnisse technologisch aufeinander aufbauen; Teilaufgaben wurden mit den Dienstleistern um bauseitige Leistungen und gesetzliche Vorgaben ergänzt.',
-        '',
-        'Aufwand: 1.560 Ph Eigenaufwand, 0 € Fremdaufwand (Analogieschätzung, ergänzt durch Mehrfachbefragung von Team und Dienstleistern). Kosten: PM 40.290 €, Personal allg. 27.125 €, Sachkosten 304.949 €. Risikorücklage 20.000 € (5 % vom Budget). Stundensätze: PL 51 €, PA 30 €, LM 33 €, GL 41 €, LB 39 €.',
-        '',
-        'Berichterstattung: Statusbericht 14-täglich per Mail als A3-Situationsbericht. Alle Arbeitspakete zusätzlich als Arbeitskarten in Trello (QR-Code auf den AP-Formularen, Weblink je AP in der PM-Software). Kick-off mit Brainstorming/Brainwriting als MindMap: Big Points, drei Epic Points (Lackiermeister, Unbedenklichkeitsbescheinigung, Abnahme BSSF), Red Line.',
-        '',
-        'Besonderheiten: Zusätzlich zu den bekannten Anwendungsverfahren werden aktuelle und innovative Techniken in die Prozesskette integriert. Freigabe des Steckbriefs: PL 09.12., AG 14.12.',
-      ].join('\n'),
-      org: [
-        'Matrix-Projektorganisation: Ressourcen flexibel einsetzen, weniger Kommunikationsaufwand. Projektleitung aus der Stammorganisation der FIT GmbH; betroffene Abteilungsleiter und Managementbeauftragte arbeiten in ihren Verantwortungsbereichen mit; Subunternehmer und Dienstleister per Vertrag, koordiniert durch den PL.',
-        '',
-        'Auftraggeber: FIT GmbH, Perleberger Straße 1, 10559 Berlin, vertreten durch GF Hr. Meier. Lenkungsausschuss: keiner.',
-        'Projektleitung: Enrico Schulz. Projektbüro: Fr. Mikitta (PA, QMB). Projektmitarbeiter: Lackiermeister/in (n. N.). Fachteam aus der Matrix: Hr. Kabel (GL), Fr. Stanczak (LB).',
-        '',
-        'Rollen (Tab. 7): GF/AG – Projektauftrag, Nutzen und Ziele, Budget, Beurteilung der Ergebnisse; entscheidet über Beauftragung und Abbruch, kann den PL austauschen; Verantwortung für den Return on Investment. GL – Einstellung der Mitarbeiter, Anschaffung von Lackieranlagen und Geräten; Prokura, disziplinarische Weisung über die Lackierfachleute; Verantwortung für Sozial- und Kostenziele. PL – Auftrag und Planung abstimmen, Stakeholdermanagement, Team- und Dienstleisterkoordination, Steuerung und Überwachung; fachliche Weisung, unterschreibt alle Projektdokumente; Verantwortung für Leistungs- und Terminziele. PA – Statusmeetings vor- und nachbereiten, Datenpflege und Dokumentation im QM, Kapazitätsplanung, Materialbeschaffung. PMA (Lackiermeister/in) – delegierte Aufgaben, L2-Leistungsziele, Auswahl der 14 Mitarbeiter.',
-        '',
-        'Externe: Hr. Thomsen (Fuchs Lackieranlagen GmbH), Hr. Talib (Glasklar GmbH, Anwendungstechnik), Hr. Medel (Elektro.de), Hr. Licher (Die Klempner). Weitere Stakeholder: Hr. Drewens (Hamburger Mobile GmbH, Kunde), Fr. Stenzel (ImmoWorld GmbH, Vermieterin), Hr. Klar (Bezirksschornsteinfeger), Anwohner.',
-      ].join('\n'),
+      goal: 'Oberziel: Errichtung und Inbetriebnahme einer neuen Betriebsstätte der FIT GmbH.\nHauptziel: Umbau und Inbetriebnahme einer angemieteten Kfz-Werkstatt im Hamburger Umland zur Lackiererei mit zwei Lackieranlagen; neue Prozesse erarbeiten und einführen; 15 Mitarbeiter einstellen.',
+      approach: 'PSP funktionsorientiert gegliedert, weil Teilaufgaben und Ergebnisse technologisch aufeinander aufbauen; Teilaufgaben wurden mit den Dienstleistern um bauseitige Leistungen und gesetzliche Vorgaben ergänzt. Aufwand per Analogieschätzung, ergänzt durch Mehrfachbefragung von Team und Dienstleistern. Kick-off mit Brainstorming/Brainwriting als MindMap: Big Points, drei Epic Points (Lackiermeister, Unbedenklichkeitsbescheinigung, Abnahme BSSF), Red Line. Alle Arbeitspakete zusätzlich als Arbeitskarten in Trello.',
+      org: ORG_TEXT,
     },
+    charter: {
+      no: 'CG-1',
+      kind: 'Organisations- und Investitionsprojekt',
+      client: 'FIT GmbH, vertreten durch GF Hr. Meier',
+      clientKind: 'in',
+      clientAddress: 'Perleberger Straße 1, 10559 Berlin',
+      benefit: 'Werkvertrag mit der Hamburger Mobile GmbH (4 Jahre + Option 2 Jahre, ca. 3.500 Fahrzeuginstandsetzungen p. a. aus Leasingrücknahmen) abwickeln, Marktstellung festigen, wirtschaftlicher arbeiten mit innovativer Technik, geringere Reklamationsquote, höhere Mitarbeitermotivation.',
+      ownEffort: 1560,
+      extEffort: 0,
+      costPm: 40290,
+      costStaff: 27125,
+      costMaterial: 304949,
+      reserve: 20000,
+      reporting: 'Statusbericht 14-täglich per Mail als A3-Situationsbericht.',
+      special: 'Zusätzlich zu den bekannten Anwendungsverfahren werden aktuelle und innovative Techniken in die Prozesskette integriert.',
+      releasePl: shift('2020-12-09'),
+      releaseAg: shift('2020-12-14'),
+      model: 'classic',
+      tailoring: 'Klassisch in fünf überlappenden Phasen über 7 Monate (Tab. 9).',
+    },
+    goals: GOALS,
+    conflicts: [
+      { id: 'cg-k1', a: 'cg-l11', b: 'cg-l12', text: 'Ressourcen werden zuerst für den Umbau der Werkstatt gebraucht, die Büros sind zweitrangig.', first: 'a' },
+      { id: 'cg-k2', a: 'cg-l14', b: 'cg-l15', text: 'Ohne Lackieranlage 1 können die Prozesse (L2.2) nicht erarbeitet werden.', measure: 'Termin für Lackieranlage 2 von MUSS auf SOLL geändert (Zeitpuffer).', first: 'a' },
+    ],
+    stakeholders: STAKEHOLDERS,
+    phases: PHASES,
     start: shift('2020-12-01'),
     end: shift('2021-06-30'),
     budget: 400000,
@@ -224,6 +265,10 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
       ...(r.cost ? { cost: { plan: r.cost, ...(r.actual ? { actual: r.actual.cost } : {}) } } : {}),
       ...(r.accept ? { accept: r.accept.map(([text, ok]) => ({ text, ...(ok ? { ok: true as const } : {}) })) } : {}),
       ...(r.who ? { assignee: personId(r.who) } : {}),
+      ...(r.results ? { results: r.results } : {}),
+      ...(PHASE_OF[r.nr] ? { phase: PHASE_OF[r.nr] } : {}),
+      // V109 (F-226, G7): CG-1.6.4 mit vier Ressourcen (Abb. 11): 10 × 51 + 25 × 30 + 80 × 39 + 180 × 33 = 10.320 €
+      ...(r.nr === 31 ? { use: [{ person: ME_ID, hours: 10, cost: 10 * PL_RATE }, { person: personId('PA'), hours: 25 }, { person: personId('LB'), hours: 80 }, { person: personId('LM'), hours: 180 }] } : {}),
     };
     const after = parsePreds(r.pred);
     if (after.length) init.after = after;
@@ -231,11 +276,12 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
   }
   // V108: echte Risiken (Tab. 5/6) und Änderungen (Kap. 10.2, Kap. 14) aus dem Report. W und A auf 1–5 umgerechnet:
   // W aus der EW (≤ 10 % → 1, ≤ 30 % → 2, ≤ 50 % → 3), A aus der Tragweite im Verhältnis zum Budget (2,5 % → 2, 50 % → 5).
-  const rk = 'Aus dem Projektreport (Tab. 5/6). Risikorücklage 20.000 € (5 % vom Budget). Summe Risikowert vor Maßnahmen 28.000 €, nach Maßnahmen 2.000 €.';
+  const rk = 'Aus dem Projektreport (Tab. 5/6).';
   const steer: { id: string; init: Partial<Note> }[] = [
-    { id: 'cg-r1', init: { title: 'Meilenstein M3 gefährdet: Lackiermeister/in fehlt', text: `${rk}\n\nRisikoart: Meilenstein-Terminrisiko · EW 30 % · Tragweite 10.000 € · Risikowert 3.000 €.`, type: 'risk', risk: { no: 1, cause: 'Lackiermeister/in ist noch nicht eingestellt und/oder die Werkstattausstattung steht noch nicht bereit', event: 'Meilenstein M3 wird nicht eingehalten', effect: 'Die Werkstatt kann nicht eingerichtet werden, der Lackiermeister kann seine zentrale Rolle im Team (Werkstatt einrichten, Prozesse gestalten) nicht einnehmen. Verzögerungen und höhere Kosten, Tragweite ca. 10.000 €.', p: 2, i: 2, strategy: 'reduce', measure: 'Präventiv (vermindern, 2.000 €, beschlossen): Stellenausschreibung europaweit und zusätzlich über Social Media; Handelskammern nach frischen Absolventen fragen. Danach EW 10 %, Risikowert 1.000 €.\nKorrektiv (begrenzen, ca. 3.000 €): sozial – Lackiermeister aus der Zentrale in Berlin heranziehen; technisch – Prozesse in Hannover erarbeiten (gleiche Lackieranlagen).', owner: personId('GL'), state: 'doing' } } },
-    { id: 'cg-r2', init: { title: 'Lackieranlagen erfüllen die gesetzlichen Anforderungen nicht', text: `${rk}\n\nRisikoart: Leistungsrisiko technischer Art · EW 10 % · Tragweite 200.000 € · Risikowert 20.000 €.`, type: 'risk', risk: { no: 2, cause: 'Technische Anforderungen für dieses Gebiet in der Phase Konzept & Analyse unzureichend beschrieben', event: 'Der Bezirksschornsteinfeger gibt die Lackieranlagen nicht zum Betrieb frei', effect: 'Die Lackieranlagen dürfen nicht betrieben werden. Verzögerungen, höhere Kosten und Verfehlen des gesamten Projektnutzens, Tragweite ca. 200.000 €.', p: 1, i: 5, strategy: 'avoid', measure: 'Präventiv (vermeiden, 1.000 €, beschlossen): Hr. Klar (SH-EX 04) schon zum Start der Detailplanung einbinden, alle Anforderungen in die Planung aufnehmen, Verträge und Umbau darauf anpassen (ca. 200 € je Vorabtermin). Danach EW 0 %.\nKorrektiv (worst case, nicht beschlossen): 200.000 €.', owner: ME_ID, state: 'doing' } } },
-    { id: 'cg-r3', init: { title: 'Höhere Kosten durch versteckte Mängel', text: `${rk}\n\nRisikoart: kaufmännisches Risiko · EW 50 % · Tragweite 10.000 € · Risikowert 5.000 €.`, type: 'risk', risk: { no: 3, cause: 'Versteckte Mängel an der Bausubstanz (Werkstatt aus den 60er Jahren) und unbekannte Anforderungen', event: 'Mehrkosten beim Umbau', effect: 'Kostenziele werden nicht erreicht, das Gesamtbudget wird überschritten. Tragweite ca. 10.000 €.', p: 3, i: 2, strategy: 'reduce', measure: 'Präventiv (vermindern, 500 €, beschlossen): frühe gemeinsame Begehung der Immobilie mit allen benötigten Gewerken, vorher schriftliche Information zum Projekt und zum angestrebten Nutzen. Danach EW 10 %, Risikowert 1.000 €.\nKorrektiv (worst case, nicht beschlossen): 5.000 €.', owner: ME_ID, state: 'doing' } } },
+    { id: 'cg-r1', init: { title: 'Meilenstein M3 gefährdet: Lackiermeister/in fehlt', text: `${rk}\n\nRisikoart: Meilenstein-Terminrisiko.`, type: 'risk', risk: { no: 1, ew: 30, impact: 10000, measures: [{ id: 'm1', kind: 'prev', text: 'Stellenausschreibung europaweit und zusätzlich über Social Media; Handelskammern nach frischen Absolventen fragen', cost: 2000, decided: true, ewAfter: 10 }, { id: 'm2', kind: 'corr', text: 'Sozial: Lackiermeister aus der Zentrale in Berlin heranziehen; technisch: Prozesse in Hannover erarbeiten (gleiche Lackieranlagen)', cost: 3000 }], cause: 'Lackiermeister/in ist noch nicht eingestellt und/oder die Werkstattausstattung steht noch nicht bereit', event: 'Meilenstein M3 wird nicht eingehalten', effect: 'Die Werkstatt kann nicht eingerichtet werden, der Lackiermeister kann seine zentrale Rolle im Team (Werkstatt einrichten, Prozesse gestalten) nicht einnehmen. Verzögerungen und höhere Kosten, Tragweite ca. 10.000 €.', p: 2, i: 2, strategy: 'reduce', measure: 'Präventiv (vermindern, 2.000 €, beschlossen): Stellenausschreibung europaweit und zusätzlich über Social Media; Handelskammern nach frischen Absolventen fragen. Danach EW 10 %, Risikowert 1.000 €.\nKorrektiv (begrenzen, ca. 3.000 €): sozial – Lackiermeister aus der Zentrale in Berlin heranziehen; technisch – Prozesse in Hannover erarbeiten (gleiche Lackieranlagen).', owner: personId('GL'), state: 'doing' } } },
+    { id: 'cg-r2', init: { title: 'Lackieranlagen erfüllen die gesetzlichen Anforderungen nicht', text: `${rk}\n\nRisikoart: Leistungsrisiko technischer Art.`, type: 'risk', risk: { no: 2, ew: 10, impact: 200000, measures: [{ id: 'm1', kind: 'prev', text: 'Hr. Klar (SH-EX 04) schon zum Start der Detailplanung einbinden, alle Anforderungen in die Planung aufnehmen, Verträge und Umbau darauf anpassen (ca. 200 € je Vorabtermin)', cost: 1000, decided: true, ewAfter: 0 }, { id: 'm2', kind: 'corr', text: 'Worst Case: Lackieranlagen nachrüsten bzw. ersetzen', cost: 200000 }], cause: 'Technische Anforderungen für dieses Gebiet in der Phase Konzept & Analyse unzureichend beschrieben', event: 'Der Bezirksschornsteinfeger gibt die Lackieranlagen nicht zum Betrieb frei', effect: 'Die Lackieranlagen dürfen nicht betrieben werden. Verzögerungen, höhere Kosten und Verfehlen des gesamten Projektnutzens, Tragweite ca. 200.000 €.', p: 1, i: 5, strategy: 'avoid', measure: 'Präventiv (vermeiden, 1.000 €, beschlossen): Hr. Klar (SH-EX 04) schon zum Start der Detailplanung einbinden, alle Anforderungen in die Planung aufnehmen, Verträge und Umbau darauf anpassen (ca. 200 € je Vorabtermin). Danach EW 0 %.\nKorrektiv (worst case, nicht beschlossen): 200.000 €.', owner: ME_ID, state: 'doing' } } },
+    { id: 'cg-r3', init: { title: 'Höhere Kosten durch versteckte Mängel', text: `${rk}\n\nRisikoart: kaufmännisches Risiko.`, type: 'risk', risk: { no: 3, ew: 50, impact: 10000, measures: [{ id: 'm1', kind: 'prev', text: 'Frühe gemeinsame Begehung der Immobilie mit allen benötigten Gewerken, vorher schriftliche Information zum Projekt und zum angestrebten Nutzen', cost: 500, decided: true, ewAfter: 10 }, { id: 'm2', kind: 'corr', text: 'Worst Case: Mehrkosten aus der Risikorücklage', cost: 5000 }], cause: 'Versteckte Mängel an der Bausubstanz (Werkstatt aus den 60er Jahren) und unbekannte Anforderungen', event: 'Mehrkosten beim Umbau', effect: 'Kostenziele werden nicht erreicht, das Gesamtbudget wird überschritten. Tragweite ca. 10.000 €.', p: 3, i: 2, strategy: 'reduce', measure: 'Präventiv (vermindern, 500 €, beschlossen): frühe gemeinsame Begehung der Immobilie mit allen benötigten Gewerken, vorher schriftliche Information zum Projekt und zum angestrebten Nutzen. Danach EW 10 %, Risikowert 1.000 €.\nKorrektiv (worst case, nicht beschlossen): 5.000 €.', owner: ME_ID, state: 'doing' } } },
+    { id: 'cg-ch1', init: { title: 'Technisch fortschrittlichster Standort der FIT', text: 'Aus dem Projektreport (Kap. 5.3): stärkere Marktposition in der Region Hamburg, schnellerer Return on Investment.', type: 'risk', risk: { no: 4, chance: true, strategy: 'accept', owner: CLIENT, state: 'open' } } },
     { id: 'cg-c1', init: { title: 'Büroräume einrichten (CG-1.3.3) verschieben', text: 'Aus dem Projektreport (Kap. 10.2, Einsatzmittelganglinie der Projektleitung).', type: 'change', change: { no: 1, why: 'Die Einsatzmittelganglinie der Projektleitung überschreitet im zweiten Projektmonat den Vorrat – Engpass.', scope: 'CG-1.3.3 Büroräume einrichten wird minimal verschoben. M2 gilt auch als erreicht, wenn die Büroräume noch nicht final eingerichtet sind.', by: ME_ID, decider: 'client', state: 'approved', decided: { at: `${shift('2021-01-29')}T10:00:00.000Z`, text: 'Telefonisch auf dem kurzen Dienstweg mit dem Auftraggeber abgestimmt; dokumentiert im Statusbericht KW 4.', who: CLIENT } } } },
     { id: 'cg-c2', init: { title: 'Günstigere Lackieranlagen anschaffen', text: 'Aus dem Projektreport (Kap. 14, Gespräch am 27.01., Nachrichtenquadrat nach Schulz von Thun).\n\nVorgehen PL: Hr. Kabel bekommt alle technischen Anforderungen und Termine, die er für eine andere Lackieranlage braucht, mit Frist bis zum Ende der Detailplanung (M2). So kann er seinen Wunsch noch einbringen, Vorankommen und Projektziele bleiben gesichert.', type: 'change', change: { no: 2, why: 'Einhaltung der Kostenziele (Gebietsleitung), obwohl die Detailpläne für Termine und Sachmittel schon vom Auftraggeber unterschrieben sind.', perf: 'Gefahr, dass sich der Nutzen des Projekts nicht einstellt.', scope: 'Die Lackieranlagen sind ein zentrales Planungselement – etwa drei Viertel der Planung müssten neu erarbeitet werden.', by: personId('GL'), decider: 'client', state: 'review' } } },
   ];

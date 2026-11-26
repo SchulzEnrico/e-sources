@@ -108,6 +108,8 @@ export const ICONS = {
   lock: { d: ['M4 7.5h8v6H4z', 'M5.8 7.5V5.4a2.2 2.2 0 0 1 4.4 0v2.1'] },
   tick: { d: [ring(8, 8, 5.6)] },
   chevronDown: { d: ['M4 6l4 4 4-4'], w: 1.6 },
+  /** F-226 (V109): Zeile nach oben */
+  chevronUp: { d: ['M4 10l4-4 4 4'], w: 1.6 },
   chevronRight: { d: ['M6 4l4 4-4 4'], w: 1.6 },
   // F-194: Zoom – Lupe mit Plus
   zoom: { d: [ring(6.5, 6.5, 4.5), 'M10 10l4 4', 'M6.5 4.6v3.8', 'M4.6 6.5h3.8'] },

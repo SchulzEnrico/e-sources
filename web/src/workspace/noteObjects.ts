@@ -26,6 +26,8 @@ import type {
 import { type Node, isNode, leaves, removeLeaf } from './tree';
 import { parseFeedbackForm } from './feedback';
 import { parseChange, parseRisk } from './risks';
+import { parsePersonGpm, parseProcure, parseProjectGpm, parseResults, parseUses } from './gpm';
+import { parseProjectForms } from './formKit';
 
 /** Höchstens so viele Sheets je Pad (Antwort 20). */
 export const PAD_SHEETS_MAX = 9;
@@ -102,6 +104,16 @@ export function parseNoteExtras(v: Record<string, unknown>): Partial<Note> {
   const cost = parsePlanActual(v.cost);
   if (cost) out.cost = cost;
   if (v.milestone === true) out.milestone = true;
+  // F-226 (V109): Phase, Einsätze, Ergebnisse, Beschaffung (Phase prüft cleanGpmRefs)
+  if (typeof v.phase === 'string' && v.phase) out.phase = v.phase;
+  const use = parseUses(v.use);
+  if (use) out.use = use;
+  const results = parseResults(v.results);
+  if (results) out.results = results;
+  if (out.type === 'procurement') {
+    const pr = parseProcure(v.procure);
+    if (pr) out.procure = pr;
+  }
   // V100 (Dateiformat 10, K1/K2): Dauer in ganzen Arbeitstagen, Planungsart
   if (isNum(v.duration) && v.duration >= 0) out.duration = Math.min(DURATION_MAX, Math.round(v.duration));
   if (v.manual === true) out.manual = true;
@@ -198,6 +210,10 @@ export function parseProjects(v: unknown, scopeIds: ReadonlySet<string>): Projec
     if (baseline) p.baseline = baseline;
     const order = parseOrder(r.order);
     if (order) p.order = order;
+    // F-226 (V109): Steckbrief-Felder, Ziele, Konflikte, Stakeholder, Phasen
+    Object.assign(p, parseProjectGpm(r));
+    const forms = parseProjectForms(r.forms);
+    if (forms) p.forms = forms;
     out.push(p);
   }
   const byId = new Map(out.map((p) => [p.id, p]));
@@ -321,6 +337,7 @@ export function parsePersons(v: unknown): Person[] {
       if (away.length) p.away = away;
     }
     if (text(r.account)) p.account = r.account as string;
+    Object.assign(p, parsePersonGpm(r));
     out.push(p);
   }
   const ids = new Set(out.map((p) => p.id));

@@ -1,3 +1,5 @@
+import { useOverflow } from './Overflow';
+import { OVERFLOW_TEXT } from '../workspace/terms';
 import { DevBar } from './DevBar';
 import { askFeedback } from './FeedbackQuick';
 import { FEEDBACK_TEXT } from '../workspace/terms';
@@ -243,7 +245,14 @@ export function linkFromDrop(dt: Pick<DataTransfer, 'getData'>): string {
   return /^\S+\.\S+$/.test(text) || /^https?:\/\//.test(text) ? text : '';
 }
 
-export function Menu(props: { icon: ReactNode; label: string; children: (close: () => void) => ReactNode; className?: string }) {
+export function Menu(props: {
+  icon: ReactNode;
+  label: string;
+  children: (close: () => void) => ReactNode;
+  className?: string;
+  /** V111: eigenes Bedienteil statt des Knopfs (z. B. Auswahl-Rad „+ Sheet“) – bekommt „öffnen/schließen“ und den Zustand */
+  control?: (toggle: () => void, open: boolean) => ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const btn = useRef<HTMLButtonElement>(null);
@@ -251,12 +260,12 @@ export function Menu(props: { icon: ReactNode; label: string; children: (close: 
   const [place, setPlace] = useState<{ up: boolean; max: number; right: number; y: number; toolbar: boolean } | null>(null);
   const close = (focusButton = false) => {
     setOpen(false);
-    if (focusButton) btn.current?.focus();
+    if (focusButton) (btn.current ?? ref.current?.querySelector<HTMLElement>('[tabindex="0"], button'))?.focus();
   };
   useLayoutEffect(() => {
     if (!open) return setPlace(null);
     const fit = () => {
-      const b = btn.current?.getBoundingClientRect();
+      const b = (btn.current ?? ref.current)?.getBoundingClientRect();
       const ul = list.current;
       if (!b || !ul) return;
       const gap = 8;
@@ -330,7 +339,7 @@ export function Menu(props: { icon: ReactNode; label: string; children: (close: 
   };
   return (
     <div className="menu" ref={ref}>
-      <button
+      {props.control ? props.control(() => setOpen((v) => !v), open) : <button
         ref={btn}
         className={props.className}
         type="button"
@@ -347,7 +356,7 @@ export function Menu(props: { icon: ReactNode; label: string; children: (close: 
         aria-expanded={open}
       >
         {props.icon}
-      </button>
+      </button>}
       {open &&
         createPortal(
           <ul
@@ -408,8 +417,8 @@ export function MenuHead(props: { children: ReactNode }) {
  * F-28: Menü mit mehreren Seiten (z. B. „Verschieben nach …“). Beim Seitenwechsel springt der
  * Fokus auf den ersten Eintrag der neuen Seite (NF-03); schließt das Menü, beginnt es wieder vorn.
  */
-export function MenuPages(props: { children: (page: string, go: (page: string) => void) => ReactNode }) {
-  const [page, setPage] = useState('');
+export function MenuPages(props: { children: (page: string, go: (page: string) => void) => ReactNode; start?: string }) {
+  const [page, setPage] = useState(props.start ?? '');
   const mark = useRef<HTMLLIElement>(null);
   const first = useRef(true);
   useEffect(() => {
@@ -467,6 +476,11 @@ export function PanelFrame(p: Props) {
   // 'hover' = offen, solange die Maus über Lupe oder Feld ist; 'pin' = per Klick/Tastatur geöffnet, bleibt
   const [zoomOpen, setZoomOpen] = useState<null | 'hover' | 'pin'>(null);
   const zoomBtn = useRef<HTMLButtonElement>(null);
+  // F-228 (V111): Überlauf – Kopf und Tabs werden bei Platzmangel knapp (Schließen, Name/Verschieben bleiben), „»“ zeigt alles
+  const barRef = useRef<HTMLElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const barOvf = useOverflow(barRef, { label: OVERFLOW_TEXT.portalHead });
+  const tabsOvf = useOverflow(tabsRef, { label: p.stack ? OVERFLOW_TEXT.stack : OVERFLOW_TEXT.portalTabs, keepActive: true, drop: true });
   const zoomTimer = useRef(0);
   // F-194 Stufe 2: Breite des Seitenbereichs messen – mit „Breite halten“ folgt der Zoom ihr
   const body = useRef<HTMLDivElement>(null);
@@ -784,9 +798,10 @@ export function PanelFrame(p: Props) {
       }
     >
         {/* Kopfleiste wie im Browser (F-14): Schließen · Zurück · Vor · Neu laden · Home · Adresse · Größen · Name · Menü · Stapeln (F-140) */}
-        <header className="win__bar">
+        <header ref={barRef} className={`win__bar${barOvf.cls}`}>
           {/* F-140: Schließen ganz links */}
           <button
+            data-ovf-keep=""
             type="button"
             className={closeLocked ? 'win__close is-off' : 'win__close'}
             aria-disabled={closeLocked || undefined}
@@ -1005,6 +1020,7 @@ export function PanelFrame(p: Props) {
             </Menu>
           )}
           <div
+            data-ovf-keep=""
             className={p.onDragStart ? 'win__title win-drag' : 'win__title'}
             onPointerDown={(e) => {
               if (!editing && e.button === 0) p.onDragStart?.(e);
@@ -1237,6 +1253,7 @@ export function PanelFrame(p: Props) {
               );
             }}
           </Menu>
+          {barOvf.knob}
           {/* F-09, F-140: Stapeln ganz rechts */}
           <button
             type="button"
@@ -1321,7 +1338,8 @@ export function PanelFrame(p: Props) {
         )}
         {/* F-21, F-22: Tabs unter der Kopfleiste (die Kopfleiste bleibt der Griff zum Verschieben), Ampel an der unteren Kante (F-26) */}
         <div
-          className={['tabs', p.stack && 'tabs--stacked', tabsOver && 'tabs--drop'].filter(Boolean).join(' ')}
+          ref={tabsRef}
+          className={['tabs', p.stack && 'tabs--stacked', tabsOver && 'tabs--drop'].filter(Boolean).join(' ') + tabsOvf.cls}
           role="tablist"
           aria-label="Tabs"
           style={{ '--tabload': loadColor(tabCount) } as CSSProperties}
@@ -1444,8 +1462,10 @@ export function PanelFrame(p: Props) {
               </button>
             </div>
           ))}
+          {tabsOvf.knob}
           <button
             type="button"
+            data-ovf-keep=""
             className="tabs__add"
             onClick={addTab}
             disabled={tabCount >= TAB_MAX}

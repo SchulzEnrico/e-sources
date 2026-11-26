@@ -14,6 +14,7 @@ import * as Sh from '../workspace/sheets';
 import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
 import { noticeLater } from '../workspace/flash';
 import { switchOf } from '../workspace/ruleSet';
+import * as Gp from '../workspace/gpm';
 import { DIALOG_TEXT, NOTE_TEXT, PAUSE_TEXT, PERSON_TEXT, SHEET_TEXT } from '../workspace/terms';
 import * as Ps from '../workspace/persons';
 import { hoursText } from '../workspace/focusLoad';
@@ -176,7 +177,9 @@ export function Signs({ ws, n }: { ws: Workspace; n: Note }) {
   if (st === 'waiting') out.push(<span key="w" className="sign">{SHEET_TEXT.waiting}</span>);
   if (st === 'review') out.push(<span key="r" className="sign">{NOTE_TEXT.states.review}</span>);
   // V94 (P4/P8): Aufwand und Zuständig (Kennzeichen wie Trello-Mitglieder); „delegiert“ nur, wenn noch an diese Person
-  if (n.effort?.plan !== undefined) out.push(<span key="e" className="sign" title={PERSON_TEXT.effortTitle}>{hoursText(n.effort.plan)}</span>);
+  // V111 (F-226 G7): mit Einsätzen gerechnet, Hand-Eingabe geht vor
+  const ph = Gp.planHours(ws, n);
+  if (ph !== undefined) out.push(<span key="e" className="sign" title={n.effort?.plan === undefined ? PERSON_TEXT.fromUseTitle : PERSON_TEXT.effortTitle}>{hoursText(ph)}</span>);
   if (n.delegated && (!n.delegated.person || n.delegated.person === Ps.assigneeOf(n))) out.push(<span key="g" className="sign">{SHEET_TEXT.delegated(n.delegated.to)}</span>);
   const who = Ps.personById(ws, Ps.assigneeOf(n));
   if (who) out.push(<span key="a" className="sign sign--who" title={`${PERSON_TEXT.assignee}: ${who.name}`}><PersonBadge person={who} size={18} /><span className="sr-only">{`${PERSON_TEXT.assignee}: ${who.name}`}</span></span>);

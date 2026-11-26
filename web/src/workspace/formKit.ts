@@ -811,6 +811,28 @@ export function missingOf(ws: Workspace, pid: string, form: FormDef): { row: str
   return out;
 }
 
+/**
+ * V111 (F-226 Feinschliff): doppelte Codes in einem Formular (z. B. zwei Ziele „L1.1“, zwei Stakeholder „SH-IN-1“) –
+ * nur bei Code-Spalten zum Eintippen, ohne Groß-/Kleinschreibung und Leerzeichen. Ergebnis: Zeilen-Ids je Code.
+ */
+export function dupCodesOf(ws: Workspace, pid: string, form: FormDef): Map<string, string[]> {
+  const p = projectById(ws, pid);
+  const col = columnsOf(p, form).find((c) => c.key === 'code' && !c.readonly);
+  const out = new Map<string, string[]>();
+  if (!col) return out;
+  const seen = new Map<string, string[]>();
+  // über alle Zeilen der Quelle (Ziele und Nicht-Ziele teilen sich die Codes)
+  const all: FormDef = { ...form, filter: undefined };
+  for (const r of rowsOf(ws, pid, all)) {
+    const v = cellValue(ws, pid, all, r.id, 'code');
+    if (typeof v !== 'string' || !v.trim()) continue;
+    const k = v.replace(/\s+/g, '').toLocaleUpperCase('de');
+    seen.set(k, [...(seen.get(k) ?? []), r.id]);
+  }
+  for (const [k, ids] of seen) if (ids.length > 1) out.set(k, ids);
+  return out;
+}
+
 /** Vorlage für ein Projekt wählen; eigene Felder des Projekts bleiben. */
 export function setTemplate(ws: Workspace, pid: string, templateId: string, now = Date.now()): Workspace {
   if (!templatesOf(ws).some((t) => t.id === templateId)) return ws;

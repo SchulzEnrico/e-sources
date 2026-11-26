@@ -10,6 +10,7 @@ import * as Ps from '../workspace/persons';
 import { hoursText } from '../workspace/focusLoad';
 import { PROFILE_COLORS, initialsOf } from '../workspace/profile';
 import { PERSON_TEXT as T } from '../workspace/terms';
+import * as Gp from '../workspace/gpm';
 
 /** Kennzeichen einer Person (Initialen in Kennfarbe); Name für Bildschirmleser steht am Aufrufer. */
 export function PersonBadge({ person, size = 22 }: { person?: Person; size?: number }) {
@@ -185,6 +186,8 @@ export function PeopleRow({ ws, note, onAssign, onEffort, onCreate, after }: Row
   };
   const plan = note.effort?.plan;
   const actual = note.effort?.actual;
+  // V111 (F-226 G7): ohne Hand-Plan zeigt der Chip die Stunden aus den Einsätzen (gerechnet)
+  const used = plan === undefined ? Gp.planHours(ws, note) : undefined;
   const setPlan = (p: number | undefined) => onEffort(p === undefined && actual === undefined ? undefined : { ...(p !== undefined ? { plan: p } : {}), ...(actual !== undefined ? { actual } : {}) });
 
   return (
@@ -248,9 +251,10 @@ export function PeopleRow({ ws, note, onAssign, onEffort, onCreate, after }: Row
             </button>
           </span>
         ) : (
-          <button ref={eff} type="button" className={`srcs__chip people__eff${plan === undefined ? ' is-empty' : ''}`} title={T.effortTitle} aria-label={T.effortLabel(plan, actual)} onClick={() => setEffort(true)}>
+          <button ref={eff} type="button" className={`srcs__chip people__eff${plan === undefined && used === undefined ? ' is-empty' : ''}`} title={used !== undefined ? T.fromUseTitle : T.effortTitle} aria-label={`${T.effortLabel(plan ?? used, actual)}${used !== undefined ? ` (${T.fromUse})` : ''}`} onClick={() => setEffort(true)}>
             <span className="people__clock" aria-hidden="true">◷</span>
-            <span className="srcs__title">{plan !== undefined ? hoursText(plan) : T.effortAdd}</span>
+            <span className="srcs__title">{plan !== undefined ? hoursText(plan) : used !== undefined ? hoursText(used) : T.effortAdd}</span>
+            {used !== undefined && <span className="srcs__spot">{T.fromUse}</span>}
             {actual !== undefined && <span className="srcs__spot">{T.actualShort(actual)}</span>}
           </button>
         )}

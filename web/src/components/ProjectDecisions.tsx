@@ -7,7 +7,7 @@
  * V108 (Doc F-222 V108, E1/E3): dasselbe Bauteil auch ohne Projekt – Cockpit-Modus „Entscheidungen“ mit Rad
  * „Zeigen“ Alle · Frei · je Projekt; „Entscheiden für“ in Projekt-Entscheidungen nur mit Befugnis „Entscheiden“.
  */
-import { type CSSProperties, useState } from 'react';
+import React, { type CSSProperties, useEffect, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { Decision, Project, Workspace } from '../workspace/types';
 import * as Dc from '../workspace/decisions';
@@ -17,7 +17,9 @@ import { DECISION_TEXT as T } from '../workspace/terms';
 import { Icon } from './Icon';
 import { WorkPadButton, openWorkPad } from './WorkPadOpen';
 import * as Pr from '../workspace/prepare';
+import { requestTour, tourAutoStart } from '../workspace/tour';
 import { ModeWheel } from './ModeWheel';
+import { DecisionLinks } from './DecisionLinks';
 
 type Step = 'crit' | 'pair' | 'score' | 'result';
 const STEPS: Step[] = ['crit', 'pair', 'score', 'result'];
@@ -76,6 +78,12 @@ export function Decisions({ ws, p, dispatch, say, open, scope: scope0, inPad }: 
   const [name, setName] = useState('');
   const [msg, setMsg] = useState<{ text: string; undo?: () => void } | null>(null);
   const tell = (text: string, undo?: () => void) => (setMsg({ text, ...(undo ? { undo } : {}) }), say(text));
+  // V111: Tour „Entscheidungen“ startet einmal von selbst beim ersten Öffnen (wie „Formulare“)
+  useEffect(() => {
+    if (!tourAutoStart('decisions')) return;
+    const t = window.setTimeout(() => requestTour('decisions', true), 700);
+    return () => window.clearTimeout(t);
+  }, []);
 
   const create = () => {
     const t = name.trim();
@@ -124,6 +132,9 @@ export function Decisions({ ws, p, dispatch, say, open, scope: scope0, inPad }: 
           <Icon name="plus" size={13} className="icon icon--inline" /> {T.add}
         </button>
         <button type="button" className="dc__example" title={T.exampleHint} onClick={example}>{T.example}</button>
+        <button type="button" className="help__run dc__tour" title={T.tourHint} aria-label={T.tourHint} onClick={() => requestTour('decisions')}>
+          <Icon name="tour" size={13} className="icon icon--inline" /> {T.tour}
+        </button>
         {!inPad && <WorkPadButton tab="decisions" project={p?.id ?? (shownScope !== 'all' && shownScope !== 'free' ? shownScope : undefined)} decision={d?.id} />}
       </header>
       <p className="help__text dc__why">{T.why}</p>
@@ -212,9 +223,9 @@ function DecisionTool({ d, ws, dispatch, say, onRemove }: { d: Decision; ws: Wor
       )}
       <div className={`dc__body${step === 'result' ? ' is-result' : ''}`}>
         <div className="dc__main">
-          {step === 'crit' && <CritStep d={d} lock={lock} op={op} />}
+          {step === 'crit' && <CritStep d={d} lock={lock} op={op} say={say} />}
           {step === 'pair' && <PairStep d={d} lock={lock} op={op} />}
-          {step === 'score' && <ScoreStep d={d} lock={lock} op={op} by={by} weighed={weighed} musts={musts} />}
+          {step === 'score' && <ScoreStep d={d} ws={ws} lock={lock} op={op} by={by} weighed={weighed} musts={musts} say={say} />}
           {step === 'result' && <ResultStep d={d} lock={lock} op={op} by={by} say={say} may={!d.projectId || Ps.hasRight(Ps.meOf(ws), 'decide')} />}
         </div>
         {step !== 'result' && (
@@ -229,7 +240,63 @@ function DecisionTool({ d, ws, dispatch, say, onRemove }: { d: Decision; ws: Wor
 
 type OpFn = (o: Dc.DecisionOp, saved?: string) => void;
 
-function CritStep({ d, lock, op }: { d: Decision; lock: boolean; op: OpFn }) {
+/**
+ * V111 (N9 „Ziehen zum Umsortieren“): Zeilen von Kriterien und Lösungen mit dem Griff ⠿ ziehen; Tastatur bleibt ↑ ↓.
+ * Ablage zeigt eine Linie über der Zielzeile. Nur innerhalb derselben Tabelle (eigener Datentyp).
+ */
+const DRAG_DC = 'application/x-esource-dcrow';
+function useRowDrag(kind: 'crit' | 'opt', lock: boolean, move: (id: string, to: number) => void) {
+  const [over, setOver] = useState<number | null>(null);
+  const [from, setFrom] = useState<string | null>(null);
+  const handle = (id: string, name: string) =>
+    lock ? null : (
+      <span
+        className="dc__grip"
+        draggable
+        role="img"
+        aria-label={T.dragLabel(name)}
+        title={T.drag}
+        onDragStart={(e) => (e.dataTransfer.setData(DRAG_DC, `${kind}:${id}`), (e.dataTransfer.effectAllowed = 'move'), setFrom(id))}
+        onDragEnd={() => (setFrom(null), setOver(null))}
+      >
+        ⠿
+      </span>
+    );
+  const row = (i: number) =>
+    lock
+      ? {}
+      : {
+          onDragOver: (e: React.DragEvent) => {
+            if (!from || !e.dataTransfer.types.includes(DRAG_DC)) return;
+            e.preventDefault();
+            setOver(i);
+          },
+          onDragLeave: () => setOver((x) => (x === i ? null : x)),
+          onDrop: (e: React.DragEvent) => {
+            const [k, id] = e.dataTransfer.getData(DRAG_DC).split(':');
+            setOver(null);
+            setFrom(null);
+            if (k !== kind || !id) return;
+            e.preventDefault();
+            move(id, i);
+          },
+          'data-over': over === i || undefined,
+        };
+  return { handle, row };
+}
+
+/** V111 (N9): Punkte-Spalten auf Wunsch – je Gerät gemerkt. */
+const POINTS_KEY = 'esource.decision.points.v1';
+const readPoints = () => {
+  try {
+    return localStorage.getItem(POINTS_KEY) === 'on';
+  } catch {
+    return false;
+  }
+};
+
+function CritStep({ d, lock, op, say }: { d: Decision; lock: boolean; op: OpFn; say: (t: string) => void }) {
+  const drag = useRowDrag('crit', lock, (c, to) => (op({ op: 'critMove', c, to }), say(T.moved(d.criteria.find((x) => x.id === c)?.name ?? '', to + 1))));
   const sum = Dc.weightSum({ ...d, criteria: d.criteria.filter((c) => !c.must) });
   return (
     <>
@@ -245,8 +312,9 @@ function CritStep({ d, lock, op }: { d: Decision; lock: boolean; op: OpFn }) {
         </thead>
         <tbody>
           {d.criteria.map((c, i) => (
-            <tr key={c.id} style={hue(d.criteria.filter((x) => !x.must).indexOf(c))}>
+            <tr key={c.id} style={hue(d.criteria.filter((x) => !x.must).indexOf(c))} {...drag.row(i)}>
               <td>
+                {drag.handle(c.id, c.name)}
                 <span className="dc__swatch" aria-hidden="true" hidden={!!c.must} />
                 <input type="text" aria-label={T.colName} defaultValue={c.name} disabled={lock} maxLength={Dc.NAME_MAX} onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== c.name && op({ op: 'critName', c: c.id, name: e.target.value })} />
               </td>
@@ -326,15 +394,32 @@ function PairStep({ d, lock, op }: { d: Decision; lock: boolean; op: OpFn }) {
   );
 }
 
-function ScoreStep({ d, lock, op, by, weighed, musts }: { d: Decision; lock: boolean; op: OpFn; by?: string; weighed: Decision['criteria']; musts: Decision['criteria'] }) {
+function ScoreStep({ d, ws, lock, op, by, weighed, musts, say }: { d: Decision; ws: Workspace; lock: boolean; op: OpFn; by?: string; weighed: Decision['criteria']; musts: Decision['criteria']; say: (t: string) => void }) {
   const [cell, setCell] = useState<{ c: string; o: string } | null>(null);
+  const [points, setPoints] = useState(readPoints);
+  const showPoints = (on: boolean) => {
+    setPoints(on);
+    try {
+      localStorage.setItem(POINTS_KEY, on ? 'on' : 'off');
+    } catch {
+      /* nur für diese Sitzung */
+    }
+    say(`${T.pointsLabel}: ${on ? T.pointsOn : T.pointsOff}`);
+  };
+  const drag = useRowDrag('opt', lock, (o, to) => (op({ op: 'optMove', o, to }), say(T.moved(d.options.find((x) => x.id === o)?.name ?? '', to + 1))));
   const res = new Map(Dc.ranking(d).map((r) => [r.option.id, r]));
   const cur = cell && Dc.scoreOf(d, cell.c, cell.o);
   const cName = (id: string) => d.criteria.find((c) => c.id === id)?.name ?? '';
   const oName = (id: string) => d.options.find((o) => o.id === id)?.name ?? '';
   return (
     <>
-      <p className="fbq__hint">{T.scoreScale}</p>
+      <div className="dc__under">
+        <p className="fbq__hint">{T.scoreScale}</p>
+        <span className="dc__points">
+          <span className="fbq__label">{T.pointsLabel}</span>
+          <ModeWheel label={T.pointsLabel} value={points ? 'on' : 'off'} onChange={(v) => showPoints(v === 'on')} options={[{ id: 'off', name: T.pointsOff, hint: T.pointsOffHint }, { id: 'on', name: T.pointsOn, hint: T.pointsOnHint }]} />
+        </span>
+      </div>
       <div className="dc__scroll">
         <table className="pc__table dc__table dc__scores">
           <thead>
@@ -350,9 +435,13 @@ function ScoreStep({ d, lock, op, by, weighed, musts }: { d: Decision; lock: boo
             {d.options.map((o, i) => {
               const r = res.get(o.id);
               return (
-                <tr key={o.id} className={r?.out ? 'is-out' : ''}>
-                  <th scope="row">
-                    <input type="text" aria-label={T.colOption} defaultValue={o.name} disabled={lock} maxLength={Dc.NAME_MAX} onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== o.name && op({ op: 'optName', o: o.id, name: e.target.value })} />
+                <tr key={o.id} className={r?.out ? 'is-out' : ''} {...drag.row(i)}>
+                  <th scope="row" className="dc__optcell">
+                    <span className="dc__optname">
+                      {drag.handle(o.id, o.name)}
+                      <input type="text" aria-label={T.colOption} defaultValue={o.name} disabled={lock} maxLength={Dc.NAME_MAX} onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== o.name && op({ op: 'optName', o: o.id, name: e.target.value })} />
+                    </span>
+                    <DecisionLinks ws={ws} o={o} lock={lock} link={(link, on) => op({ op: 'optLink', o: o.id, link, on })} />
                   </th>
                   {musts.map((c) => (
                     <td key={c.id} className="dc__mustcol">
@@ -379,6 +468,7 @@ function ScoreStep({ d, lock, op, by, weighed, musts }: { d: Decision; lock: boo
                           onBlur={(e) => num(e.target.value) !== (s?.v ?? null) && op({ op: 'score', c: c.id, o: o.id, v: num(e.target.value), by })}
                           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                         />
+                        {points && s && <span className="dc__pts" aria-label={T.pointsCell(de((c.weight ?? 0) * s.v))}>{de((c.weight ?? 0) * s.v)}</span>}
                       </td>
                     );
                   })}

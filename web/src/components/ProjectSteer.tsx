@@ -582,7 +582,17 @@ function ChangeDetails(props: DetailProps) {
         <Field label={T.perf} hint={T.perfHint} value={c.perf ?? ''} onSave={(v) => edit({ perf: v || null })} />
         <Field label={T.scope} hint={T.scopeHint} value={c.scope ?? ''} onSave={(v) => edit({ scope: v || null })} />
       </fieldset>
-      <Field label={T.by} value={c.by ?? ''} onSave={(v) => edit({ by: v || null })} />
+      {/* V111 (F-226): „Beantragt von“ als Personen-Auswahl – alter Freitext bleibt als eigene Zeile wählbar */}
+      <label className="fbc__field">
+        <span className="fbq__label">{T.by}</span>
+        <select value={c.by ?? ''} onChange={(e) => edit({ by: e.target.value || null })}>
+          <option value="">{T.byNone}</option>
+          {c.by && !Ps.personById(ws, c.by) && <option value={c.by}>{T.byText(c.by)}</option>}
+          {Ps.personsOf(ws).map((x) => (
+            <option key={x.id} value={x.id}>{x.name}</option>
+          ))}
+        </select>
+      </label>
       <label className="fbc__field">
         <span className="fbq__label">{T.decider}</span>
         <select value={c.decider ?? ''} onChange={(e) => edit({ decider: e.target.value || null })}>

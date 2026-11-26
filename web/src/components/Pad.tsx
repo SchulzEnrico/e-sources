@@ -39,6 +39,11 @@ const FMT_OF: Record<SwipeDir, FmtTool> = { left: 'li', right: 'task', up: 'h2',
 const TPL_OF: Record<SwipeDir, NoteTpl | undefined> = { up: 'tpl-note', right: 'tpl-todo', left: 'tpl-list', down: 'tpl-remind' };
 import { recentIn, type RecentRef } from '../workspace/pads';
 import { Item, Menu, MenuPages } from './PanelFrame';
+import { ModeWheel } from './ModeWheel';
+import { useOverflow } from './Overflow';
+import { OVERFLOW_TEXT } from '../workspace/terms';
+import { openWorkPad } from './WorkPadOpen';
+import { DECISION_TEXT } from '../workspace/terms';
 import { SaveTemplateBar, TemplatePick } from './BoardTemplates';
 import { Icon } from './Icon';
 import { avoidStage, overlaps } from '../workspace/stage';
@@ -123,6 +128,10 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   const minH = Math.min(1, PAD_MIN.h / box.h);
   const sheet = No.viewById(ws, pad.active);
   const tabsRef = useRef<HTMLDivElement>(null);
+  // F-228 (V111): Überlauf – Kopf und Reiter werden bei Platzmangel knapp, „»“ zeigt die ganze Leiste schwebend
+  const headRef = useRef<HTMLElement>(null);
+  const headOvf = useOverflow(headRef, { label: OVERFLOW_TEXT.padHead });
+  const tabsOvf = useOverflow(tabsRef, { label: OVERFLOW_TEXT.padTabs, keepActive: true, drop: true, forceTight: headOvf.open && pad.sheets.length > 1 });
   const self = useRef<HTMLElement>(null);
   // F-215: Befehle der Fußleiste an den Notizblock (Zähler, damit derselbe Befehl erneut wirkt)
   const [cmd, setCmd] = useState<Cmd | null>(null);
@@ -604,6 +613,15 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     dispatch({ type: 'padAddSheet', id: pad.id, kind, sheet: id, ...(tpl ? { tpl } : {}) });
     window.setTimeout(() => tabsRef.current?.querySelector<HTMLElement>(`[data-sheet="${id}"]`)?.focus(), 0);
   };
+  // V111 (Enrico: „In Panels sollte man auch noch unter Sheets eine Entscheidung anlegen können“): freie
+  // Entscheidung anlegen und im Pad im Vollbild öffnen (E1-C) – Titel ändert man dort oben
+  const addDecision = () => {
+    const id = newId();
+    dispatch({ type: 'dcAdd', id, ids: Array.from({ length: 5 }, newId), title: PAD_TEXT.newDecisionTitle, at: new Date().toISOString(), names: { criterion: [1, 2, 3].map(DECISION_TEXT.criterion), option: [1, 2].map(DECISION_TEXT.option) } });
+    window.setTimeout(() => openWorkPad({ tab: 'decisions', decision: id }), 0);
+  };
+  const [sheetPick, setSheetPick] = useState('');
+  const [menuStart, setMenuStart] = useState('');
   // V87 (Enrico): × an jedem Reiter bzw. Entf auf dem Reiter schließt genau dieses Sheet
   const closeSheet = (id = sheet?.id) => {
     if (!id) return;
@@ -666,7 +684,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
       onKeyDown={onKey}
     >
       <header
-        className="pad__head"
+        ref={headRef}
+        className={`pad__head${headOvf.cls}`}
         title={dock ? DOCK_TEXT.width : tile ? PAD_TEXT.moveTile : PAD_TEXT.move}
         onPointerDown={(e) => {
           if (dock || (e.target as HTMLElement).closest('button, input, [role="tab"], .menu')) return;
@@ -681,8 +700,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           }
         }}
       >
-        <Icon name={dock ? 'dock' : 'pad'} size={14} className="icon pad__icon" />
-        <div className="pad__tabs" role="tablist" aria-label={PAD_TEXT.tabs} ref={tabsRef}>
+        <span data-ovf-keep="" className="pad__iconwrap"><Icon name={dock ? 'dock' : 'pad'} size={14} className="icon pad__icon" /></span>
+        <div className={`pad__tabs${tabsOvf.cls}`} role="tablist" aria-label={PAD_TEXT.tabs} ref={tabsRef} data-ovf-min="" data-ovf-keep="" style={{ '--ovf-min': '8.5em' } as CSSProperties}>
           {pad.sheets.map((id, i) => {
             const v = No.viewById(ws, id);
             if (!v) return null;
@@ -738,6 +757,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               </span>
             );
           })}
+          {tabsOvf.knob}
         </div>
         {dock ? (
           <OpacityInline value={display.dockOpacity} onChange={setDockOpacity} label={PAD_TEXT.opacityDock} hint={PAD_TEXT.opacityDockHint} />
@@ -747,10 +767,35 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
         <span id={titleId} className="sr-only">
           {sheet?.name}
         </span>
-        <Menu className="pad__menu" icon={<span className="pad__add" title={explain(TERMS.sheet)}>{PAD_TEXT.addSheet}</span>} label={`${PAD_TEXT.addSheetLabel} – ${explain(TERMS.sheet)}`}>
+        <Menu
+          className="pad__menu"
+          icon={<span className="pad__add" title={explain(TERMS.sheet)}>{PAD_TEXT.addSheet}</span>}
+          label={`${PAD_TEXT.addSheetLabel} – ${explain(TERMS.sheet)}`}
+          control={(toggle) => (
+            // V111 (Enrico): Auswahl-Rad – „+ Sheet“ zuerst (Klick öffnet das Menü wie bisher), dann die Arten
+            <ModeWheel
+              className="pad__sheetwheel"
+              label={PAD_TEXT.addSheetWheel}
+              value={sheetPick}
+              onChange={setSheetPick}
+              options={[
+                { id: '', name: PAD_TEXT.addSheet, hint: `${explain(TERMS.sheet)} – ${PAD_TEXT.addSheetMenuHint}` },
+                // kurze Namen, damit das Rad die Reiter nicht verdrängt (bis F-228 Überlauf); voller Name im Hinweis
+                ...KINDS.map((k) => ({ id: k, name: PAD_TEXT.addSheetShort[k], icon: KIND_ICON[k], hint: PAD_TEXT.addSheetKindHint(No.VIEW_BASE[k]) })),
+                { id: 'decision', name: PAD_TEXT.addDecisionShort, icon: 'sliders' as const, hint: PAD_TEXT.addDecisionHint },
+              ]}
+              onPress={(id) => {
+                if (!id) return (setMenuStart(''), toggle());
+                if (id === 'decision') return addDecision();
+                if (id === 'kanban') return (setMenuStart('kanban'), toggle());
+                addSheet(id as NoteViewKind);
+              }}
+            />
+          )}
+        >
           {(close) => (
             // V88 (BL2): Kanban fragt „Leer · Vorlage …“
-            <MenuPages>
+            <MenuPages start={menuStart}>
               {(page, go) =>
                 page === 'kanban' ? (
                   <TemplatePick ws={ws} onBack={() => go('')} onPick={(tpl) => (close(), addSheet('kanban', tpl))} />
@@ -769,7 +814,11 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
                     >
                       {k === 'kanban' ? `${No.VIEW_BASE[k]} …` : No.VIEW_BASE[k]}
                     </Item>
-                  ))
+                  )).concat(
+                    <Item key="decision" icon="sliders" hint={PAD_TEXT.addDecisionHint} onClick={() => (close(), addDecision())}>
+                      {PAD_TEXT.addDecision}
+                    </Item>,
+                  )
                 )
               }
             </MenuPages>
@@ -841,6 +890,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
             </MenuPages>
           )}
         </Menu>
+        {headOvf.knob}
         {full && (
           <button
             type="button"
@@ -854,11 +904,11 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
           </button>
         )}
         {dock ? (
-          <button type="button" className="pad__close" onClick={dock.onFold} title={DOCK_TEXT.foldTitle} aria-label={DOCK_TEXT.fold}>
+          <button type="button" data-ovf-keep="" className="pad__close" onClick={dock.onFold} title={DOCK_TEXT.foldTitle} aria-label={DOCK_TEXT.fold}>
             <Icon name="dockFold" size={14} />
           </button>
         ) : (
-          <button type="button" className="pad__close" onClick={closePad} title={`${PAD_TEXT.closePad} (Esc im Kopf) – ${PAD_TEXT.closePadHint}`} aria-label={PAD_TEXT.closePad}>
+          <button type="button" data-ovf-keep="" className="pad__close" onClick={closePad} title={`${PAD_TEXT.closePad} (Esc im Kopf) – ${PAD_TEXT.closePadHint}`} aria-label={PAD_TEXT.closePad}>
             <Icon name="close" size={14} />
           </button>
         )}

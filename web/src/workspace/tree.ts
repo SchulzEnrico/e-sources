@@ -414,6 +414,50 @@ export function resizeEdges(
 }
 
 /**
+ * V111 (Enrico: „alle gleichzeitig in der Größe anpassen“): wie `resizeEdges`, aber die ganze durchgehende Linie geht
+ * mit – jede Kante anderer Blätter, die vorher auf derselben Linie lag (gleiche x- bzw. y-Lage), folgt auf dieselbe
+ * neue Lage, soweit die Mindestgrößen es zulassen.
+ */
+export function resizeAligned(
+  n: Node,
+  id: string,
+  edges: { x?: 'left' | 'right'; dx?: number; y?: 'top' | 'bottom'; dy?: number },
+  min: Min,
+): Node {
+  const before = rects(n);
+  const me = before.get(id);
+  if (!me) return n;
+  let t = resizeEdges(n, id, edges, min);
+  const follow = (axis: 'x' | 'y') => {
+    const side = axis === 'x' ? edges.x : edges.y;
+    if (!side) return;
+    const near = side === 'left' || side === 'top';
+    const pos = (r: FRect) => (axis === 'x' ? (near ? r.x : r.x + r.w) : near ? r.y : r.y + r.h);
+    const line = pos(me);
+    const now = rects(t).get(id);
+    if (!now) return;
+    const target = pos(now);
+    if (Math.abs(target - line) < EPS) return;
+    // Kanten auf derselben Linie: rechte/untere Kanten (far) und linke/obere (near) der Nachbarn
+    for (const [other, r] of before) {
+      if (other === id) continue;
+      for (const s of (axis === 'x' ? ['right', 'left'] : ['bottom', 'top']) as Side[]) {
+        const p = axis === 'x' ? (s === 'left' ? r.x : r.x + r.w) : s === 'top' ? r.y : r.y + r.h;
+        if (Math.abs(p - line) > 1e-3 || !canResize(t, other, s)) continue;
+        const cur = rects(t).get(other);
+        if (!cur) continue;
+        const pNow = axis === 'x' ? (s === 'left' ? cur.x : cur.x + cur.w) : s === 'top' ? cur.y : cur.y + cur.h;
+        const d = target - pNow;
+        if (Math.abs(d) > EPS) t = resizeEdge(t, other, s, d, min);
+      }
+    }
+  };
+  follow('x');
+  follow('y');
+  return t;
+}
+
+/**
  * F-12: Blatt auf eine Wunschgröße bringen (Anteil von Breite/Höhe der Fläche), so weit
  * die Nachbarn es zulassen. Erst die rechte bzw. untere Kante, dann die linke bzw. obere.
  */

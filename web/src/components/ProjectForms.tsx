@@ -77,6 +77,9 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
   const missing = Fk.missingOf(ws, p.id, form);
   const miss = new Set(missing.flatMap((m) => m.keys.map((k) => `${m.row}|${k}`)));
   const openCount = missing.reduce((s, m) => s + m.keys.length, 0);
+  // V111: doppelte Codes am Ort zeigen (Zelle + Zähler oben)
+  const dups = Fk.dupCodesOf(ws, p.id, form);
+  const dupRows = new Set([...dups.values()].flat());
   const labelCol = cols.find((c) => !c.readonly && (c.kind === 'text' || c.kind === 'long')) ?? cols[0];
   const rowLabel = (rowId: string, i: number) => {
     const v = labelCol ? Fk.cellValue(ws, p.id, form, rowId, labelCol.key) : undefined;
@@ -156,6 +159,11 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
         <span className={`pjf__open${openCount ? ' is-open' : ''}`} title={T.openHint}>
           {openCount ? T.open(openCount) : T.allSet}
         </span>
+        {dups.size > 0 && (
+          <span className="pjf__open pjf__dup is-open" role="status" title={T.dupHint([...dups.keys()].join(', '))}>
+            {T.dup(dups.size)}
+          </span>
+        )}
         {!inPad && <WorkPadButton tab="forms" project={p.id} />}
         <button type="button" className="help__run pjf__tour" title={T.tourHint} aria-label={T.tourHint} onClick={() => requestTour('forms')}>
           <Icon name="tour" size={13} className="icon icon--inline" /> {T.tour}
@@ -231,7 +239,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
                   return (
                     <tr key={r.id} data-row={r.id} onKeyDown={(e) => rowKey(e, r.id)}>
                       {cols.map((c, j) => (
-                        <td key={c.key} className={`pjf__cell is-${c.kind}${miss.has(`${r.id}|${c.key}`) ? ' is-miss' : ''}`} style={j === cols.indexOf(labelCol!) && r.depth ? { paddingLeft: `${8 + r.depth * 14}px` } : undefined}>
+                        <td key={c.key} className={`pjf__cell is-${c.kind}${miss.has(`${r.id}|${c.key}`) ? ' is-miss' : ''}${c.key === 'code' && dupRows.has(r.id) ? ' is-dup' : ''}`} title={c.key === 'code' && dupRows.has(r.id) ? T.dupCell(String(Fk.cellValue(ws, p.id, form, r.id, 'code') ?? '')) : undefined} style={j === cols.indexOf(labelCol!) && r.depth ? { paddingLeft: `${8 + r.depth * 14}px` } : undefined}>
                           <Cell ws={ws} p={p} form={form} rowId={r.id} col={c} miss={miss.has(`${r.id}|${c.key}`)} label={`${c.label} – ${lbl}`} onSet={setValue} />
                         </td>
                       ))}

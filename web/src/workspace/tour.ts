@@ -30,7 +30,7 @@ export interface TourStep {
   keep?: boolean;
 }
 
-export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev' | 'sync' | 'notes' | 'stage' | 'feedback' | 'projects' | 'forms';
+export type TourId = 'start' | 'cockpit' | 'design' | 'import' | 'colors' | 'send' | 'sources' | 'dev' | 'sync' | 'notes' | 'stage' | 'feedback' | 'projects' | 'forms' | 'decisions';
 
 const t = (id: string) => helpById(id)?.text ?? '';
 
@@ -629,6 +629,64 @@ export const TOURS: Record<TourId, TourStep[]> = {
       text: 'Über den Knopf „Tour“ in den Formularen, die Hilfe (?) oder die Suche („Tour Formulare“) startest du diese Tour jederzeit wieder.',
     },
   ],
+  // V111 (F-222): Entscheidungen – Nutzwertanalyse Schritt für Schritt (Projekt-Ansicht, Cockpit oder Pad)
+  decisions: [
+    {
+      id: 'intro',
+      title: 'Entscheidungen',
+      text: 'Eine Nutzwertanalyse vergleicht mehrere Lösungen nach gewichteten Kriterien und macht die Wahl nachvollziehbar – nach IPMA ICB4 und wie die Vorlage aus der Weiterbildung, nur als Werkzeug statt Tabelle. Mit → weiter, mit Esc beenden.',
+    },
+    {
+      id: 'why',
+      title: 'Wozu?',
+      target: '.dc .dc__why',
+      text: 'Der Satz oben sagt, wann sich die Analyse lohnt: mehrere Lösungen und mehrere Gesichtspunkte. Bei nur einem Gesichtspunkt oder einer klaren Sache lass sie weg.',
+    },
+    {
+      id: 'list',
+      title: 'Liste und Anlegen',
+      target: '.dc .dc__top',
+      text: '„+ Entscheidung“ legt eine neue an (3 Kriterien, 2 Lösungen), „Beispiel ansehen“ eine fertig bewertete zum Ausprobieren. Im Cockpit wählt das Rad „Zeigen“ alle, freie oder die eines Projekts. Neu anlegen geht auch über „+ Sheet“ im Pad.',
+    },
+    {
+      id: 'steps',
+      title: 'Rad „Schritt“',
+      target: '.dc .dc__stepbar',
+      text: 'Die Analyse geht in vier Schritten: Kriterien · Paarvergleich · Bewertung · Ergebnis. Vorn steht immer nur der aktuelle Schritt – du musst die Reihenfolge nicht einhalten. „Noch offen“ darunter sagt, was bis „Bewertet“ fehlt.',
+    },
+    {
+      id: 'crit',
+      title: 'Kriterien und Gewichte',
+      target: '.dc .dc__main',
+      text: 'Erst die Kriterien, dann die Lösungen. Jedes Kriterium bekommt ein Gewicht in %, zusammen 100 % („Auf 100 % verteilen“ hilft). Muss-Kriterien sind ein Vorfilter: Wer sie nicht erfüllt, scheidet aus. Zeilen ziehst du am Griff ⠿ an eine andere Stelle, mit der Tastatur über ↑ ↓.',
+    },
+    {
+      id: 'pair',
+      title: 'Paarvergleich',
+      text: 'Unsicher bei den Gewichten? Im Schritt „Paarvergleich“ fragt E-Sources je Paar „Was ist wichtiger?“ und rechnet daraus die Gewichte. „Gewichte übernehmen“ trägt sie ein; von Hand nachstellen geht danach.',
+    },
+    {
+      id: 'score',
+      title: 'Bewertung, Punkte und Bezüge',
+      text: 'Im Schritt „Bewertung“ gibst du je Lösung und Kriterium 0–10 (0 gar nicht · 5 teilweise · 10 voll); unter der Tabelle steht die Begründung des gewählten Felds. Das Rad „Punkte“ zeigt auf Wunsch Gewicht × Bewertung je Zelle. „+ Bezug“ an einer Lösung verbindet Notiz, Source, Person oder Feedback – z. B. das Angebot.',
+    },
+    {
+      id: 'rank',
+      title: 'Rangliste',
+      target: '.dc .dc__side',
+      text: 'Die Rangliste rechnet live mit: Nutzwert je Lösung, gestapelte Balken je Kriterium, ausgeschiedene am Ende. So siehst du bei jeder Eingabe, was sie bewirkt.',
+    },
+    {
+      id: 'result',
+      title: 'Entscheiden',
+      text: 'Im Schritt „Ergebnis“ entscheidest du für eine Lösung. Weichst du vom Sieger ab, ist eine Begründung Pflicht. Danach ist die Analyse gesperrt (Spur bleibt), „Wieder öffnen“ hebt die Sperre auf. In Projekten braucht Entscheiden die Befugnis „Entscheiden“; Markdown und CSV gibt es zum Weitergeben.',
+    },
+    {
+      id: 'again',
+      title: 'Tour wieder starten',
+      text: 'Über den Knopf „Tour“ bei den Entscheidungen, die Hilfe (?) oder die Suche („Tour Entscheidungen“) startest du diese Tour jederzeit wieder.',
+    },
+  ],
   // V106 (F-225 Rest, F-217): Projekt-Modus – Liste, Ansichten, Steckbrief, Instanzen, Meldungen
   projects: [
     {
@@ -786,7 +844,7 @@ export function tourSteps(has: (selector: string) => boolean, steps: TourStep[] 
 }
 
 /** Speicherschlüssel je Tour; die Starttour behält ihren bisherigen Schlüssel. */
-export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1', sync: 'esource.tour.sync.v1', notes: 'esource.tour.notes.v1', stage: 'esource.tour.stage.v1', feedback: 'esource.tour.feedback.v1', projects: 'esource.tour.projects.v1', forms: 'esource.tour.forms.v1' };
+export const TOUR_KEY: Record<TourId, string> = { start: 'esource.tour.v1', cockpit: 'esource.tour.cockpit.v1', design: 'esource.tour.design.v1', import: 'esource.tour.import.v1', colors: 'esource.tour.colors.v1', send: 'esource.tour.send.v1', sources: 'esource.tour.sources.v1', dev: 'esource.tour.dev.v1', sync: 'esource.tour.sync.v1', notes: 'esource.tour.notes.v1', stage: 'esource.tour.stage.v1', feedback: 'esource.tour.feedback.v1', projects: 'esource.tour.projects.v1', forms: 'esource.tour.forms.v1', decisions: 'esource.tour.decisions.v1' };
 
 /** Wurde die Tour schon gezeigt (beendet oder übersprungen)? */
 export function tourSeen(id: TourId = 'start'): boolean {

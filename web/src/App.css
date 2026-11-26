@@ -7920,8 +7920,25 @@ h3.cases__name { font-size: 1.05em; }
 .kcard__done { flex: none; width: 0; height: 26px; padding: 0; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: transparent; border: 0; opacity: 0; transition: width 0.15s, opacity 0.15s; }
 .kcard__done .icon { display: inline-block; }
 .kcard:is(:hover, :focus-within) .kcard__done, .kcard.is-done .kcard__done, .kcard__done.is-locked { width: 26px; opacity: 1; }
+/* V111 (Enrico: „Das Verspringen des Textes nervt. Zeige das Kästchen einfach immer an“): Erledigt-Kreis immer sichtbar */
+.kcard__done { width: 26px; opacity: 1; }
+/* V111 (Enrico: „Mach es dunkel glasig – das Kästchen“): Erledigt-Kreis als dunkles Glas – fast schwarzer Grund,
+   Glanz oben, feine helle Lichtkante; Häkchen hell. Hover: Akzentring wie die anderen Knöpfe */
+.kcard .kcard__done {
+  color: #e9e9ee;
+  background: radial-gradient(120% 90% at 35% 20%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.04) 45%, rgba(0, 0, 0, 0) 60%), linear-gradient(180deg, #23232a, #0b0b0e);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -2px 3px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.kcard .kcard__done:hover:not(:disabled) { filter: none; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -2px 3px rgba(0, 0, 0, 0.7), 0 0 0 1.5px rgba(var(--accent-rgb), 0.95), 0 0 12px rgba(var(--accent-rgb), 0.5); }
+.kcard.is-done .kcard__done { color: rgb(var(--accent-rgb)); }
 .kcard__main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; text-align: left; padding: 5px 4px; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; border-radius: 6px; }
-.kcard__main:focus-visible, .kcard__done:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 1px; }
+.kcard__done:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 1px; }
+/* V111 (Enrico: „Den Rahmen, der den Hovereffekt anzeigt … ergibt eine Kante im Chip“): der Titel-Knopf der Karte
+   zeigt keinen eigenen Rahmen mehr – Hover und Tastatur-Fokus leuchten an der ganzen Karte (Kanban und Matrix). */
+:root .kcard__main, :root .kcard__main:is(:hover, :active, :focus-visible):not(:disabled) { box-shadow: none; filter: none; outline: none; background: transparent; }
+.kcard:has(> .kcard__top > .kcard__main:hover) { box-shadow: inset 3px 3px 6px rgba(var(--hi), 0.22), inset -4px -5px 9px rgba(var(--lo), 0.55), 4px 5px 10px rgba(0, 0, 0, 0.35), 0 0 0 1.5px rgba(var(--accent-rgb), 0.95), 0 0 16px rgba(var(--accent-rgb), 0.45); }
+.kcard:has(> .kcard__top > .kcard__main:focus-visible) { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 1px; }
 .kcard__title { font-size: 13.5px; overflow-wrap: anywhere; }
 .kcard__subs { list-style: none; margin: 0 0 2px 30px; padding: 0; display: flex; flex-direction: column; gap: 1px; font-size: 12px; }
 .kcard__subs li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -9417,3 +9434,110 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 .dc__prepd { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .pjs__suggest { margin: 4px 0; padding: 4px 8px; border-left: 3px solid rgba(var(--accent-rgb), 0.7); background: rgba(var(--accent-rgb), 0.07); border-radius: 4px; }
 .pjs__measure > label.fbc__field:first-of-type { grid-column: span 2; }
+
+/* ---------------------------------------------------------------- V111 F-222 Rest: Bezüge, Ziehen, Punkte */
+.dc__grip { cursor: grab; padding: 0 3px; opacity: 0.55; user-select: none; font-size: 13px; }
+.dc__grip:hover { opacity: 1; color: rgb(var(--accent-rgb)); }
+.dc__table tr[data-over] > * { box-shadow: inset 0 2px 0 rgb(var(--accent-rgb)); }
+.dc__optcell { text-align: left; vertical-align: top; min-width: 12em; }
+.dc__optname { display: flex; align-items: center; gap: 4px; }
+.dc__points { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.dc__pts { display: block; font-size: 11px; opacity: 0.75; font-weight: 400; }
+.dcl { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-weight: 400; }
+.dcl__chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.dcl__chips li { display: inline-flex; align-items: center; }
+.dcl__chip, .dcl__add { font-size: 11px; padding: 1px 8px; border-radius: 999px; max-width: 16em; display: inline-flex; align-items: center; gap: 4px; }
+.dcl__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dcl__chip.is-gone { opacity: 0.55; text-decoration: line-through; }
+.dcl__x { font-size: 10px; padding: 0 4px; margin-left: -2px; background: transparent; box-shadow: none; border: 0; opacity: 0.6; }
+.dcl__x:hover { opacity: 1; }
+/* in der Zelle statt schwebend – der Scrollbereich der Tabelle schnitt sie sonst ab */
+.dcl__pick { position: relative; flex-basis: 100%; box-sizing: border-box; margin-top: 2px; max-width: 20em; padding: 8px; border-radius: 10px; background: var(--panel, #222); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4); display: flex; flex-direction: column; gap: 6px; }
+.dcl__row { display: flex; align-items: center; gap: 6px; }
+.dcl__pick input { width: 100%; box-sizing: border-box; }
+.dcl__hits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 14em; overflow: auto; }
+.dcl__hit { width: 100%; text-align: left; font-size: 12px; padding: 3px 8px; border-radius: 6px; }
+.dcl .dc__msg { font-size: 11px; flex-basis: 100%; }
+/* V111 (F-226): doppelter Code – Zelle rot gestrichelt, Hinweis oben neben „noch offen“ */
+.pjf__cell.is-dup input { outline: 1px dashed rgba(230, 110, 100, 0.95); outline-offset: 1px; }
+@media (forced-colors: active) { .pjf__cell.is-dup input { outline: 2px dotted CanvasText; } }
+
+/* V111 (Enrico: „Im Note Mode werden die Anfasser zum Verschieben nicht dargestellt“): Anfasser wie im Desk-Modus
+   (NF-08) – runder Knopf mit Pfeil in der Mitte jeder gemeinsamen Kante (je Kante einmal: rechts bzw. unten) und an der
+   Ecke unten rechts; die Ecke zieht beide Kanten zugleich, also alle Pads, die an dieser Kreuzung liegen. Der Knopf
+   liegt innen am Rand, weil das Pad seinen Inhalt abschneidet. */
+.padlayer.is-notes .pad__grip.is-border:is(.pad__grip--e, .pad__grip--s, .pad__grip--se) { z-index: 9; }
+.padlayer.is-notes .pad__grip.is-border:is(.pad__grip--e, .pad__grip--s, .pad__grip--se)::after {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  font-size: 11px;
+  border-radius: 50%;
+  color: var(--strong);
+  background: linear-gradient(145deg, var(--btn-a), var(--btn-b));
+  border: 1px solid rgba(var(--accent-rgb), 0.55);
+  box-shadow: var(--raised-sm), 0 0 8px rgba(var(--accent-rgb), 0.3);
+  opacity: 0.95;
+  pointer-events: none;
+}
+.padlayer.is-notes .pad__grip.is-border.pad__grip--e::after { content: '↔'; right: 0; top: 50%; transform: translateY(-50%); }
+.padlayer.is-notes .pad__grip.is-border.pad__grip--s::after { content: '↕'; bottom: 0; left: 50%; transform: translateX(-50%); }
+.padlayer.is-notes .pad__grip.is-border.pad__grip--se { width: 18px; height: 18px; }
+.padlayer.is-notes .pad__grip.is-border.pad__grip--se::after { content: '⤡'; right: 0; bottom: 0; }
+.padlayer.is-notes .pad__grip.is-border:hover::after { opacity: 1; box-shadow: var(--raised-sm), 0 0 0 1.5px rgba(var(--accent-rgb), 0.95), 0 0 14px rgba(var(--accent-rgb), 0.6); }
+@media (forced-colors: active) { .padlayer.is-notes .pad__grip.is-border::after { border: 1px solid CanvasText; } }
+
+/* ---------------------------------------------------------------- V111 F-228 Überlauf (components/Overflow.tsx)
+   Knapp: nur Verschieben, Schließen, aktiver Reiter (data-ovf-keep) und „»“. Offen: dieselbe Leiste schwebt in voller
+   Breite über allem, gleiches Aussehen; zu breit für den Bildschirm → senkrecht (links oben, rechts unten). */
+.ovf__knob { display: none; }
+.is-ovf-tight > .ovf__knob { display: inline-flex; align-items: center; gap: 2px; flex: none; margin-left: auto; padding: 0 9px; min-height: 22px; border-radius: 999px; font-weight: 700; }
+.ovf__n { font-size: 10px; font-weight: 600; opacity: 0.8; }
+.is-ovf-tight:not(.is-ovf-open) > :not([data-ovf-keep]):not(.ovf__knob):not(.sr-only) { display: none !important; }
+.is-ovf-tight.is-ovf-open > .ovf__knob { margin-left: 0; }
+.is-ovf-open {
+  position: fixed !important;
+  left: var(--ovf-x, 8px) !important;
+  top: var(--ovf-y, 8px) !important;
+  right: auto !important;
+  bottom: auto !important;
+  margin: 0 !important;
+  width: max-content !important;
+  max-width: calc(100vw - 16px) !important;
+  flex-wrap: nowrap !important;
+  overflow: visible !important;
+  z-index: 1200 !important;
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(var(--accent-rgb), 0.35) !important;
+}
+.is-ovf-open.is-ovf-vertical { flex-direction: column !important; align-items: stretch !important; max-height: calc(100vh - var(--ovf-y, 8px) - 8px); overflow-y: auto !important; }
+.is-ovf-open.is-ovf-vertical > * { max-width: none !important; }
+.ovf-measure { container-type: normal !important; contain: none !important; position: absolute !important; visibility: hidden !important; width: max-content !important; max-width: none !important; flex-wrap: nowrap !important; overflow: visible !important; }
+.ovf-measure > [data-ovf-min] { flex: none !important; width: var(--ovf-min, 9em) !important; overflow: hidden !important; }
+.ovf-measure > .ovf__knob { display: none !important; }
+.ovf-ph { flex-shrink: 0; }
+@media (forced-colors: active) { .is-ovf-open { border: 1px solid CanvasText; } }
+.ovf-lift { container-type: normal !important; contain: none !important; }
+.ovf-top { z-index: 1190 !important; }
+/* Mitte der Kopfleiste trägt keinen eigenen Hintergrund – schwebend bekommt sie den der Kopfleiste */
+.tb-center.is-ovf-open {
+  padding: 7px 12px;
+  border-radius: 16px;
+}
+.tabs.is-ovf-open { padding: 2px 6px; }
+/* V111 (Enrico: „Das Menü darf keine Transparenz haben … Hovereffekt, der Menü und Pad umkreist … alle nicht aktiven
+   Pads abgedunkelt“): schwebend voll deckend (auch bei eingestellter Pad-Deckkraft), Leuchtrahmen um Leiste und ihr
+   Pad/Portal, alle anderen Pads und Portale treten zurück */
+.pad > .is-ovf-open, .pad.ovf-owner > * { opacity: 1 !important; }
+/* V111 (Enrico: „mach sie wieder original“): Aussehen der Leiste bleibt; darunter deckend die Farbe, die sonst hinter ihr liegt (--ovf-under, aus den Hintergründen darunter gemischt) */
+.is-ovf-open { background-color: var(--ovf-under, var(--panel)) !important; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(var(--accent-rgb), 0.95), 0 0 22px rgba(var(--accent-rgb), 0.45) !important; }
+:root:has(.is-ovf-open:hover) .ovf-owner { outline: 2px solid rgba(var(--accent-rgb), 0.95) !important; outline-offset: 0; box-shadow: 0 0 26px rgba(var(--accent-rgb), 0.45) !important; }
+/* V111 (Enrico: „Das Abdunkeln … nur beim Hovern in dem Menü, nicht als Standard“) */
+:root:has(.is-ovf-open:hover) :is(.pad, .win):not(.ovf-owner) { filter: brightness(0.42) saturate(0.6); }
+@media (forced-colors: active) { :root:has(.is-ovf-open:hover) .ovf-owner { outline: 2px solid Highlight !important; } }
+/* Reiter als Liste nach unten (Enrico: „Am besten nach unten“): untereinander, „+“ und „»“ unten */
+.is-ovf-open.is-ovf-drop { border-radius: 10px; padding: 4px; gap: 2px; min-width: 12em; }
+.is-ovf-open.is-ovf-drop > * { justify-content: flex-start; flex: none !important; height: auto !important; min-height: 26px; }
+.is-ovf-open.is-ovf-vertical { height: auto !important; }

@@ -145,7 +145,7 @@ export interface OverviewProps {
   startDecisions?: boolean;
   openDecision?: string | null;
   /** V90 (Enrico): im Cockpit „Notizen“ neue Pads und Sheets anlegen (wie im Menü Notizen & Aufgaben). */
-  onNotesNew?: (kind: 'pad' | 'todo' | 'kanban' | 'eisenhower') => void;
+  onNotesNew?: (kind: 'pad' | 'todo' | 'kanban' | 'eisenhower' | 'decision') => void;
   opacity?: { pads: number; dock: number; setPads: (v: number) => void; setDock: (v: number) => void };
 }
 
@@ -926,6 +926,7 @@ export function Overview(p: OverviewProps) {
                   ['todo', 'todo', NT_TEXT.newTodo, NT_TEXT.newTodoHint],
                   ['kanban', 'kanban', NT_TEXT.newKanban, NOTES_COCKPIT_TEXT.newKanbanHint],
                   ['eisenhower', 'matrix', NT_TEXT.matrix, NT_TEXT.matrixHint(false)],
+                  ['decision', 'sliders', PAD_TEXT.addDecision, PAD_TEXT.addDecisionHint],
                 ] as const
               ).map(([kind, icon, name, hint]) => (
                 <button

@@ -39,16 +39,22 @@ export function turn(pos: number, steps: number, count: number, wrap = false): n
   return wrap ? ((v % count) + count) % count : Math.max(0, Math.min(count - 1, v));
 }
 
-/** U3: ringsum nur bei vielen Modi (Darstellung, Akzentfarbe); bei 2–5 Modi Anschlag – außer ausdrücklich gewünscht. */
-export function wrapsFor(count: number, wrap?: boolean): boolean {
-  return wrap ?? count > 5;
+/**
+ * U3, V111 (Enrico: „nicht überspringen, nur zwischen dem Ersten und Letzten bewegen“): immer Anschlag – ringsum nur,
+ * wenn ein Rad es ausdrücklich verlangt (heute keins).
+ */
+export function wrapsFor(_count: number, wrap?: boolean): boolean {
+  return wrap ?? false;
 }
 
-/** Klick = nächster, Umschalt+Klick = voriger. Bei Anschlag springt der Klick am Ende zurück zum Anfang (sonst täte er nichts). */
+/**
+ * Klick = nächster, Umschalt+Klick = voriger. V111: am Anschlag springt der Klick nicht mehr zum anderen Ende, sondern
+ * kehrt um und geht einen Schritt zurück (Pendel) – bei zwei Modi bleibt der Klick ein Umschalter.
+ */
 export function clickTurn(pos: number, count: number, back: boolean): number {
   if (count <= 1) return 0;
   const v = pos + (back ? -1 : 1);
-  return ((v % count) + count) % count;
+  return v < 0 || v >= count ? pos + (back ? 1 : -1) : v;
 }
 
 /** Tasten → neue Position (oder null = nicht unsere Taste). Pfeil hoch/links = voriger, runter/rechts = nächster. */

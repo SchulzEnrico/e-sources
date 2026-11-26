@@ -266,6 +266,7 @@ export type DecisionOp =
   | { op: 'optMove'; o: string; to: number }
   | { op: 'optRemove'; o: string }
   | { op: 'fails'; o: string; c: string; fails: boolean }
+  | { op: 'optLink'; o: string; link: DecisionLink; on: boolean }
   | { op: 'score'; c: string; o: string; v: number | null; by?: string }
   | { op: 'why'; c: string; o: string; why: string }
   | { op: 'pair'; a: string; b: string; v: 0 | 1 | 2 }
@@ -378,6 +379,17 @@ function apply(d: Decision, o: DecisionOp, now: Date): Decision {
       if (!d.options.some((x) => x.id === o.o)) return d;
       const { chosen: _c, ...rest } = d; // eslint-disable-line @typescript-eslint/no-unused-vars
       return { ...(d.chosen === o.o ? rest : d), options: d.options.filter((x) => x.id !== o.o), scores: (d.scores ?? []).filter((s) => s.o !== o.o) };
+    }
+    case 'optLink': {
+      // V111 (E2/N5): Bezüge-Chips an Lösungen – Notiz, Source, Person, Feedback; doppelt geht nicht
+      if (!LINK_KINDS.includes(o.link.kind) || !o.link.id) return d;
+      return opt(o.o, (x) => {
+        const has = (x.links ?? []).some((l) => l.kind === o.link.kind && l.id === o.link.id);
+        if (o.on === has) return x;
+        const links = o.on ? [...(x.links ?? []), { kind: o.link.kind, id: o.link.id }] : (x.links ?? []).filter((l) => !(l.kind === o.link.kind && l.id === o.link.id));
+        const { links: _l, ...rest } = x; // eslint-disable-line @typescript-eslint/no-unused-vars
+        return links.length ? { ...x, links } : rest;
+      });
     }
     case 'fails':
       if (!d.criteria.some((c) => c.id === o.c && c.must)) return d;
@@ -606,3 +618,45 @@ export function decisionCsv(d: Decision): string {
 
 export const decisionFileName = (d: Decision, ext: 'md' | 'csv') =>
   `Entscheidung_${d.title.replace(/^Beispiel: /, 'Beispiel_').replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_|_$/g, '').slice(0, 60) || 'ohne_Titel'}.${ext}`;
+
+// ---------- Bezüge an Lösungen (V111, E2 „+ Bezug“) ----------
+
+/** Ein möglicher Bezug mit Anzeigename. */
+export interface LinkTarget extends DecisionLink {
+  name: string;
+}
+const fold = (t: string) => t.toLocaleLowerCase('de').normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+const noteName = (n: { title?: string; text?: string }) => (n.title?.trim() || (n.text ?? '').trim().split('\n')[0] || '').slice(0, 120) || 'Notiz ohne Titel';
+
+/** Name eines Bezugs; `undefined`, wenn das Ziel nicht mehr da ist (Chip zeigt dann „gelöscht“). */
+export function linkName(ws: Workspace, l: DecisionLink): string | undefined {
+  switch (l.kind) {
+    case 'note': {
+      const n = (ws.notes ?? []).find((x) => x.id === l.id);
+      return n ? noteName(n) : undefined;
+    }
+    case 'bookmark':
+      return ws.bookmarks.find((x) => x.id === l.id)?.title || undefined;
+    case 'person':
+      return (ws.persons ?? []).find((x) => x.id === l.id)?.name;
+    case 'feedback':
+      return (ws.feedback ?? []).find((x) => x.id === l.id)?.title;
+  }
+}
+
+/** Auswahl für „+ Bezug“: Treffer einer Art zur Suche (jedes Wort muss vorkommen), ohne schon verbundene; höchstens `max`. */
+export function linkTargets(ws: Workspace, kind: DecisionLink['kind'], query: string, taken: readonly DecisionLink[] = [], max = 8): LinkTarget[] {
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  const all: LinkTarget[] =
+    kind === 'note'
+      ? (ws.notes ?? []).map((n) => ({ kind, id: n.id, name: noteName(n) }))
+      : kind === 'bookmark'
+        ? ws.bookmarks.map((b) => ({ kind, id: b.id, name: b.title || b.url }))
+        : kind === 'person'
+          ? (ws.persons ?? []).map((x) => ({ kind, id: x.id, name: x.name }))
+          : (ws.feedback ?? []).map((f) => ({ kind, id: f.id, name: f.title }));
+  return all
+    .filter((t) => !taken.some((l) => l.kind === t.kind && l.id === t.id))
+    .filter((t) => words.every((w) => fold(t.name).includes(w)))
+    .slice(0, max);
+}

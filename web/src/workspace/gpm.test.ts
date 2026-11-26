@@ -349,3 +349,29 @@ describe('F-226 Stufe 1 Rest (V110): Phasenbalken, Auslastung aus Einsätzen', (
     expect(TOURS.forms.filter((x) => x.target).every((x) => x.target!.startsWith('.pjf'))).toBe(true);
   });
 });
+
+describe('F-226 Feinschliff (V111): Person löschen, doppelte Codes', () => {
+  it('removePerson nimmt Einsätze mit, Rückgängig bringt sie zurück', async () => {
+    const P = await import('./persons');
+    const ws = Sp.addSampleProject(W.defaultWorkspace(), 5);
+    const n = NLo.notesOf(ws).find((x) => x.use?.length === 4)!;
+    const lm = n.use!.find((u) => u.hours === 180)!.person;
+    const r = P.removePerson(ws, lm)!;
+    expect(NLo.noteById(r.ws, n.id)!.use!.some((u) => u.person === lm)).toBe(false);
+    expect(Gp.planHours(r.ws, NLo.noteById(r.ws, n.id)!)).toBe(115);
+    const back = P.undoRemovePerson(r.ws, r.undo);
+    expect(NLo.noteById(back, n.id)!.use).toEqual(n.use);
+  });
+  it('dupCodesOf: zwei Ziele mit demselben Code (ohne Leerzeichen/Großschreibung)', () => {
+    const ws = Sp.addSampleProject(W.defaultWorkspace(), 5);
+    const pid = Sp.SAMPLE_PROJECT;
+    const p = Pj.projectById(ws, pid)!;
+    const form = Fk.templateOf(ws, p).forms.find((f) => f.id === 'nongoals')!;
+    expect(Fk.dupCodesOf(ws, pid, form).size).toBe(0);
+    const [g1, g2] = p.goals!;
+    const w2 = Gp.editItem(ws, pid, 'goals', g2.id, { code: ` ${g1.code!.toLowerCase()} ` });
+    const d = Fk.dupCodesOf(w2, pid, form);
+    expect(d.size).toBe(1);
+    expect([...d.values()][0].sort()).toEqual([g1.id, g2.id].sort());
+  });
+});

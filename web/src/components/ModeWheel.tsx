@@ -41,6 +41,11 @@ export function ModeWheel(props: {
   /** gesperrt (z. B. keine Pads): bleibt fokussierbar und sagt im Tooltip, warum */
   disabled?: boolean;
   disabledHint?: string;
+  /**
+   * V111 (Enrico: „+ Sheet“ als Auswahlrad – „bei Klick dann wie gewohnt“): Auswahl-Rad statt Umschalter.
+   * Drehen (Scrollen, Wischen, Pfeile) wählt, Klick bzw. Enter/Leertaste löst die gewählte Stellung aus.
+   */
+  onPress?: (id: string) => void;
 }) {
   const { options, value, onChange } = props;
   const count = options.length;
@@ -64,6 +69,7 @@ export function ModeWheel(props: {
   const own = useRef(false); // Scrollen kam vom Anwender – nicht von außen zurückstellen
   const drag = useRef<{ y: number; top: number; moved: boolean } | null>(null);
   const dragged = useRef(false);
+  const swing = useRef(1); // V111: Klick-Richtung (1 vor, -1 zurück)
 
   const opt = (i: number) => band[((i % band.length) + band.length) % band.length];
   const optIndex = (i: number) => options.indexOf(opt(i)); // -1 = Zwischenwert
@@ -151,12 +157,19 @@ export function ModeWheel(props: {
 
   const click = (e: MouseEvent<HTMLDivElement>) => {
     if (dragged.current) return void (dragged.current = false);
-    const back = e.shiftKey;
+    if (props.onPress) return props.onPress(opt(at).id);
+    step(e.shiftKey);
+  };
+  /** Klick bzw. Enter/Leertaste. V111: Pendel – am Anschlag kehrt die Richtung um, bis das andere Ende erreicht ist. */
+  const step = (shift: boolean) => {
+    let back = shift !== (swing.current < 0);
+    if (!wrap && cur >= 0 && (back ? cur === 0 : cur === count - 1)) (swing.current = -swing.current, (back = !back));
     if (wrap) return roll(at + (back ? -1 : 1));
     rollTo(cur < 0 ? turnFrom(-1, back ? -1 : 1, count, false, after) : clickTurn(cur, count, back), back ? -1 : 1);
   };
   const key = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === 'Enter' || e.key === ' ') return void (e.preventDefault(), props.onPress ? props.onPress(opt(at).id) : step(e.shiftKey));
     const back = e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'Home';
     const n = cur < 0 && e.key !== 'Home' && e.key !== 'End' ? (keyTurn(e.key, 0, 2, false) === null ? null : turnFrom(-1, back ? -1 : 1, count, false, after)) : keyTurn(e.key, Math.max(0, cur), count, wrap);
     if (n === null) return;

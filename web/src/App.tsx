@@ -58,10 +58,12 @@ import { Tour } from './components/Tour';
 import { ProjectCockpit, shownProjectId } from './components/ProjectCockpit';
 import { STEER_EVENT } from './components/ProjectSteer';
 import { DECISION_EVENT } from './components/ProjectDecisions';
+import { DECISION_TEXT, LAYOUT_UNDO_TEXT, OVERFLOW_TEXT } from './workspace/terms';
+import { useOverflow } from './components/Overflow';
 import { WORKPAD_EVENT, WorkPad, type WorkPadOpen } from './components/WorkPad';
 import { SlotMachine } from './components/SlotMachine';
 import { type Cleanup, type InviteWhy, type RedundantSlot, INVITE_KEY, INVITE_LATER, INVITE_PAUSE, dupCount, inviteWhy } from './workspace/jackpot';
-import { TOUR_EVENT, type TourId, setToursAuto, tourAutoStart, tourRequestedAuto, toursAuto } from './workspace/tour';
+import { TOUR_EVENT, type TourId, requestTour, setToursAuto, tourAutoStart, tourRequestedAuto, toursAuto } from './workspace/tour';
 import { Design } from './components/Design';
 import { type HelpEntry, browserExportLine } from './workspace/help';
 import type { ScreenSetup } from './workspace/screen';
@@ -275,6 +277,8 @@ function WindowName(props: { name: string; fx?: { color?: string; text: string }
 interface DeskProps {
   ws: Workspace;
   dispatch: (a: Action) => void;
+  /** V111: letzte Anordnung zurück (Strg/⌘+Z); false = nichts mehr da */
+  undoLayout: () => boolean;
   /** Desk, den dieses Browserfenster zeigt ('' = Main Desk). */
   win: string;
   /** true, wenn dieses Fenster schon einen anderen Desk gezeigt hat (dann keine Begrüßung). */
@@ -780,6 +784,13 @@ function DeskApp(props: DeskProps) {
         const auto = tourRequestedAuto();
         setOverview(false);
         window.setTimeout(() => setTour((x) => (auto && x ? x : 'forms')), 0);
+        return;
+      }
+      // V111 (F-222): Tour „Entscheidungen“ – wo sie gerade offen sind (Projekt, Cockpit oder Pad), sonst im Pad
+      if (id === 'decisions') {
+        const auto = tourRequestedAuto();
+        if (!document.querySelector('.dc .dc__stepbar')) setWorkPad((w) => w ?? { tab: 'decisions' });
+        window.setTimeout(() => setTour((x) => (auto && x ? x : 'decisions')), 400);
         return;
       }
       // F-217 (V98): auch „Notizen & Aufgaben“ und „Main Stage“
@@ -1426,6 +1437,35 @@ function DeskApp(props: DeskProps) {
   const [noteDraft, setNoteDraft] = useState<T.Node | null>(null);
   const noteTree = noteDraft ?? noteSync.tree;
   const noteRects = T.rects(noteTree);
+  // V111 (Enrico: „der View Button geht dort auch nicht“): View im Notizen-Modus – Dashboard (alle Pads im Baum),
+  // 2 × 2, 2 oder Solo, jeweils ab dem obersten (zuletzt benutzten) Pad in Lesereihenfolge; der Baum bleibt unverändert
+  const [notesView, setNotesView] = useState<ViewKind>('area');
+  // V111 (Enrico: „im 2 × 2 Modus sind auch keine Anfasser da“): View-Stellungen sind ein eigener kleiner Baum mit
+  // Kanten und Anfassern; Ziehen ändert nur diese Ansicht (bis zum Wechsel), die Anordnung im Dashboard bleibt
+  const [viewOver, setViewOver] = useState<{ key: string; tree: T.Node } | null>(null);
+  const [viewDraft, setViewDraft] = useState<T.Node | null>(null);
+  const noteViewTree: { key: string; tree: T.Node } | null = (() => {
+    if (!notesMode || notesView === 'area' || !noteSync.tree) return null;
+    const order = T.readingOrder(noteSync.tree).filter((id) => allPads.some((x) => x.id === id));
+    if (!order.length) return null;
+    const top = allPads.at(-1)?.id;
+    const start = Math.max(0, top ? order.indexOf(top) : 0);
+    const ids = [...order.slice(start), ...order.slice(0, start)].slice(0, notesView);
+    const key = `${notesView}:${ids.join(',')}`;
+    if (viewDraft && viewOver?.key === key) return { key, tree: viewDraft };
+    if (viewOver?.key === key) return viewOver;
+    const leaf = (id: string): T.Node => ({ id });
+    const pair = (a: T.Node, b: T.Node | undefined, dir: T.Dir): T.Node => (b ? { dir, children: [a, b], sizes: [0.5, 0.5] } : a);
+    // 2 × 2: zwei Spalten mit je zwei Pads – Reihenfolge oben links, oben rechts, unten links, unten rechts
+    const tree =
+      ids.length === 1
+        ? leaf(ids[0])
+        : notesView === 4 && ids.length > 2
+          ? pair(pair(leaf(ids[0]), ids[2] ? leaf(ids[2]) : undefined, 'col'), pair(leaf(ids[1]), ids[3] ? leaf(ids[3]) : undefined, 'col'), 'row')
+          : pair(leaf(ids[0]), leaf(ids[1]), 'row');
+    return { key, tree };
+  })();
+  const noteViewRects: Map<string, T.FRect> | null = noteViewTree ? T.rects(noteViewTree.tree) : null;
   const noteName = (id: string) => {
     const p = allPads.find((x) => x.id === id);
     return (p && viewById(ws, p.active)?.name) || TERMS.pad.split(' =')[0];
@@ -1438,8 +1478,9 @@ function DeskApp(props: DeskProps) {
   const focusPadHead = (id: string) => window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .pad__tab.is-on`)?.focus(), 60);
   /** Ränder mit einer Grenze zum Nachbarn (am Desk-Rand gibt es nichts zu ziehen). */
   const noteGrips = (id: string): PadEdge[] => {
-    if (!noteTree) return [];
-    const can = (side: T.Side) => T.canResize(noteTree, id, side);
+    const live = noteViewTree?.tree ?? noteTree;
+    if (!live) return [];
+    const can = (side: T.Side) => T.canResize(live, id, side);
     const out: PadEdge[] = [];
     if (can('top')) out.push('n');
     if (can('bottom')) out.push('s');
@@ -1449,7 +1490,8 @@ function DeskApp(props: DeskProps) {
     return out;
   };
   const startNoteResize = (e: ReactPointerEvent, id: string, edge: PadEdge) => {
-    const base = noteTree;
+    const inView = noteViewTree;
+    const base = inView?.tree ?? noteTree;
     if (!base) return;
     e.preventDefault();
     e.stopPropagation();
@@ -1457,12 +1499,19 @@ function DeskApp(props: DeskProps) {
     const y = edge === 's' || edge === 'se' ? 'bottom' : edge === 'n' ? 'top' : undefined;
     const x0 = e.clientX;
     const y0 = e.clientY;
-    const at = (ev: PointerEvent) => T.resizeEdges(base, id, { x, dx: (ev.clientX - x0) / iw, y, dy: (ev.clientY - y0) / ih }, noteMin);
+    // V111 (Enrico: „Man kann noch immer nicht alle gleichzeitig in der Größe anpassen“): die ganze durchgehende Linie
+    // geht mit – alle Kanten auf derselben Höhe bzw. Breite, auch über Spalten und Zeilen hinweg
+    const at = (ev: PointerEvent) => T.resizeAligned(base, id, { x, dx: (ev.clientX - x0) / iw, y, dy: (ev.clientY - y0) / ih }, noteMin);
     track(
-      (ev) => setNoteDraft(at(ev)),
+      (ev) => (inView ? setViewDraft(at(ev)) : setNoteDraft(at(ev))),
       (ev) => {
-        saveNotes(at(ev));
-        setNoteDraft(null);
+        if (inView) {
+          setViewOver({ key: inView.key, tree: at(ev) });
+          setViewDraft(null);
+        } else {
+          saveNotes(at(ev));
+          setNoteDraft(null);
+        }
       },
       x && y ? 'nwse-resize' : x ? 'ew-resize' : 'ns-resize',
     );
@@ -1626,9 +1675,9 @@ function DeskApp(props: DeskProps) {
   const padLayer =
     !notesOff && (notesMode ? allPads.length > 0 : !padsHidden && deskPads.length > 0) ? (
       <div className={`padlayer${notesMode ? ' is-notes' : ''}`}>
-        {(fullOn ? (notesMode ? allPads : deskPads).filter((x) => x.id === fullOn) : notesMode ? noteOrder : padOrder).map((p, i) => {
+        {(fullOn ? (notesMode ? allPads : deskPads).filter((x) => x.id === fullOn) : notesMode ? (noteViewRects ? noteOrder.filter((x) => noteViewRects.has(x.id)) : noteOrder) : padOrder).map((p, i) => {
           const z = notesMode ? i : deskPads.indexOf(p);
-          const place = fullOn ? FULL : notesMode ? (noteRects.get(p.id) ?? FULL) : (placeOf(ws, win, p.id) ?? padHome(p));
+          const place = fullOn ? FULL : notesMode ? (noteViewRects?.get(p.id) ?? noteRects.get(p.id) ?? FULL) : (placeOf(ws, win, p.id) ?? padHome(p));
           const tiled = notesMode && !fullOn;
           return (
             <PadView
@@ -2486,6 +2535,32 @@ function DeskApp(props: DeskProps) {
     }
   };
 
+  // V111 (Enrico: „Tastenkürzel zurück, wenn man ein Pad oder Panel versehentlich verschoben hat“): Strg/⌘+Z außerhalb
+  // von Eingabefeldern macht die letzte Anordnung rückgängig (Portale, Pads, Notizen-Modus); Felder behalten ihr eigenes
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.code !== 'KeyZ' || e.repeat) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]')) return;
+      e.preventDefault();
+      const ok = props.undoLayout();
+      notify(ok ? LAYOUT_UNDO_TEXT.done : LAYOUT_UNDO_TEXT.none, 2500);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [notify]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // F-228 (V111): Überlauf der Kopfleiste – die Mitte wird knapp (Suche bleibt), „»“ zeigt sie schwebend ganz
+  const tbCenterRef = useRef<HTMLDivElement>(null);
+  const tbOvf = useOverflow(tbCenterRef, { label: OVERFLOW_TEXT.toolbar, keep: '.search' });
+
+  /** V111 (Enrico): „Entscheidung“ neben den Sheets – freie Entscheidung anlegen, im Pad im Vollbild öffnen (E1-C). */
+  const newDecisionHere = () => {
+    const id = newId();
+    dispatch({ type: 'dcAdd', id, ids: Array.from({ length: 5 }, newId), title: PAD_TEXT.newDecisionTitle, at: new Date().toISOString(), names: { criterion: [1, 2, 3].map(DECISION_TEXT.criterion), option: [1, 2].map(DECISION_TEXT.option) } });
+    setWorkPad({ tab: 'decisions', decision: id });
+  };
+
   /** F-141: Panel aus der Suche nach vorn holen und aktiv machen. */
   const showPanel = (id: string, tabId?: string) => {
     // F-27: Liegt das Panel in einem anderen Fenster, holt jenes es nach vorn.
@@ -3198,11 +3273,12 @@ function DeskApp(props: DeskProps) {
   };
 
   /** F-127: View weiterschalten – Dashboard → 2 × 2 → 2 → Solo → Dashboard (Knopf und Hilfe). */
-  const viewNow: ViewKind = mode.kind === 'max' ? 1 : mode.kind === 'split' ? mode.count : 'area';
+  const viewNow: ViewKind = notesMode ? notesView : mode.kind === 'max' ? 1 : mode.kind === 'split' ? mode.count : 'area';
   const cycleView = () => setView(VIEW_NEXT[viewNow]);
   /** V83 (F-216): View direkt wählen (Umschalt-Rad) */
   const setView = (next: ViewKind) => {
     if (next === viewNow) return;
+    if (notesMode) return setNotesView(next);
     if (next === 'area') return setMode({ kind: 'area' });
     if (next === 1) {
       const id = (active && ws.panels.some((x) => x.id === active) ? active : null) ?? shownView.slots[0]?.front.id;
@@ -3286,6 +3362,8 @@ function DeskApp(props: DeskProps) {
         return startFeedbackTour();
       case 'tourProjects':
         return openProjectsTour();
+      case 'tourDecisions':
+        return requestTour('decisions');
       case 'tourForms':
         setOverview(false);
         if (!document.querySelector('.pjf__chapter')) setWorkPad({ tab: 'forms' });
@@ -3341,6 +3419,8 @@ function DeskApp(props: DeskProps) {
         return newNoteHere('kanban');
       case 'newEisenhower':
         return newNoteHere('eisenhower');
+      case 'newDecision':
+        return newDecisionHere();
       case 'dock':
         // V81 (D8): aus der Suche – Dock ein- bzw. wegschalten; ohne Pads im Dock das oberste Pad hineinlegen
         if (notesMode) return notify(DOCK_TEXT.notesMode);
@@ -3685,7 +3765,7 @@ function DeskApp(props: DeskProps) {
           </button>
         </div>
         {/* F-146: Logo links, Bedienelemente mittig, Gesamtfokus ganz rechts */}
-        <div className="tb-center" style={{ '--fx-slot': fx.panel.color } as CSSProperties}>
+        <div ref={tbCenterRef} className={`tb-center${tbOvf.cls}`} style={{ '--fx-slot': fx.panel.color } as CSSProperties}>
         {/* F-27: Zusatzfenster zeigen ihren Namen und können alles zurückgeben */}
         {win && (
           <>
@@ -3854,6 +3934,9 @@ function DeskApp(props: DeskProps) {
               </Item>
               <Item icon="matrix" hint={NT_TEXT.matrixHint(!!theMatrix(ws))} onClick={() => (close(), newNoteHere('eisenhower'))}>
                 {NT_TEXT.matrix}
+              </Item>
+              <Item icon="sliders" hint={PAD_TEXT.addDecisionHint} onClick={() => (close(), newDecisionHere())}>
+                {PAD_TEXT.addDecision}
               </Item>
               <Item icon="slot" hint={notesMode ? PLAN_TEXT.menuNotesHint : PLAN_TEXT.menuPadHint} onClick={() => go('place')}>
                 {PAD_TEXT.menuPlace}
@@ -4303,6 +4386,7 @@ function DeskApp(props: DeskProps) {
         <input ref={slotImportRef} type="file" accept="application/json,.json" hidden aria-hidden="true" tabIndex={-1} onChange={(e) => void importSlotFile(e.currentTarget)} />
         <input ref={bookmarkFileRef} type="file" accept="text/html,.html,.htm" hidden aria-label="Lesezeichen-Datei wählen" onChange={(e) => void chooseBookmarkFile(e.currentTarget)} />
         {swapFrom && <span className="hint">Ziel-Portal anklicken · Esc bricht ab</span>}
+        {tbOvf.knob}
         </div>
         {/* F-29 Gesamtfokus; Klick klappt das Fokus-Radar (F-28, bisher Master-Panel) aus */}
         {/* F-177: Fokusanzeige und Knopf „Design“ teilen sich die rechte Spalte der Kopfleiste */}
@@ -4627,7 +4711,7 @@ function DeskApp(props: DeskProps) {
           startDecisions={overviewDecision !== null}
           openDecision={overviewDecision || null}
           startFocus={overviewFocus}
-          onNotesNew={notesOff ? undefined : (kind) => (kind === 'pad' ? newPad(false) : newNoteHere(kind, undefined, false))}
+          onNotesNew={notesOff ? undefined : (kind) => (kind === 'pad' ? newPad(false) : kind === 'decision' ? newDecisionHere() : newNoteHere(kind, undefined, false))}
           onShowPad={notesOff ? undefined : showPad}
           onPadToDesk={notesOff ? undefined : padToDesk}
           opacity={{ pads: display.padOpacity, dock: display.dockOpacity, setPads: setPadOpacity, setDock: setDockOpacity }}
@@ -4786,7 +4870,7 @@ const DESK_MODE_OPTIONS = [
 ];
 
 export default function App(props: { sent?: string }) {
-  const [ws, dispatch] = useWorkspace();
+  const [ws, dispatch, undoLayout] = useWorkspace();
   useGistSync(ws, dispatch);
   // F-215 (V79, T8): Töne ohne Notiz endgültig entfernen – einmal nach dem Start, wenn der Abgleich durch ist
   const wsNow = useRef(ws);
@@ -4819,7 +4903,7 @@ export default function App(props: { sent?: string }) {
   }, []);
   const onPark = useCallback(() => setParked(true), []);
   if (parked) return <Parked name={windowName(ws, desk.win)} onBack={() => setParked(false)} />;
-  return <DeskApp key={desk.win} ws={ws} dispatch={dispatch} win={desk.win} switched={desk.switched} said={desk.said} focus={desk.focus} onSwitch={onSwitch} onPark={onPark} sent={desk.switched ? undefined : props.sent} />;
+  return <DeskApp key={desk.win} ws={ws} dispatch={dispatch} undoLayout={undoLayout} win={desk.win} switched={desk.switched} said={desk.said} focus={desk.focus} onSwitch={onSwitch} onPark={onPark} sent={desk.switched ? undefined : props.sent} />;
 }
 
 /** F-160: Dieses Fenster hat seinen Desk an ein anderes Fenster abgegeben (Fenster ließ sich nicht selbst schließen). */

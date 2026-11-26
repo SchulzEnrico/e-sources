@@ -114,14 +114,17 @@ export function editPerson(ws: Workspace, id: string, patch: Partial<Omit<Person
   );
 }
 
-export type PersonUndo = { person: Person; index: number; notes: { id: string; assignee?: string; delegated?: Note['delegated'] }[]; refs: Person[] };
+export type PersonUndo = { person: Person; index: number; notes: { id: string; assignee?: string; delegated?: Note['delegated']; use?: Note['use'] }[]; refs: Person[] };
 
-/** P19: Person löschen – ihre Aufgaben werden „ohne Zuständig“; Mitgliedschaften und Vertretungen fallen weg. „ich“ nicht. */
+/**
+ * P19: Person löschen – ihre Aufgaben werden „ohne Zuständig“; Mitgliedschaften und Vertretungen fallen weg. „ich“ nicht.
+ * V111 (F-226 G7): ihre Einsätze (`Note.use`) fallen gleich mit weg und kommen mit Rückgängig zurück (vorher erst beim Laden bereinigt).
+ */
 export function removePerson(ws: Workspace, id: string): { ws: Workspace; undo: PersonUndo } | null {
   const list = personsOf(ws);
   const index = list.findIndex((p) => p.id === id);
   if (index < 0 || list[index].me) return null;
-  const touched = notesOf(ws).filter((n) => n.assignee === id || n.delegated?.person === id);
+  const touched = notesOf(ws).filter((n) => n.assignee === id || n.delegated?.person === id || !!n.use?.some((u) => u.person === id));
   const refs = list.filter((p) => p.members?.includes(id) || p.stand?.some((s) => s.by === id));
   const persons = list
     .filter((p) => p.id !== id)
@@ -142,11 +145,16 @@ export function removePerson(ws: Workspace, id: string): { ws: Workspace; undo: 
       const { person: _p, ...rest } = out.delegated; // eslint-disable-line @typescript-eslint/no-unused-vars
       out.delegated = rest;
     }
+    if (out.use?.some((u) => u.person === id)) {
+      const use = out.use.filter((u) => u.person !== id);
+      if (use.length) out.use = use;
+      else delete out.use;
+    }
     return out;
   });
   return {
     ws: { ...withPersons(ws, persons), notes },
-    undo: { person: list[index], index, notes: touched.map((n) => ({ id: n.id, assignee: n.assignee, delegated: n.delegated })), refs },
+    undo: { person: list[index], index, notes: touched.map((n) => ({ id: n.id, assignee: n.assignee, delegated: n.delegated, ...(n.use ? { use: n.use } : {}) })), refs },
   };
 }
 
@@ -160,6 +168,7 @@ export function undoRemovePerson(ws: Workspace, u: PersonUndo): Workspace {
     const out: Note = { ...n };
     if (b.assignee) out.assignee = b.assignee;
     if (b.delegated) out.delegated = b.delegated;
+    if (b.use) out.use = b.use;
     return out;
   });
   return { ...withPersons(ws, list), notes };

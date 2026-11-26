@@ -1288,6 +1288,15 @@ export const PAD_TEXT = {
   tabs: 'Sheets in diesem Pad',
   addSheet: '+ Sheet',
   addSheetLabel: 'Sheet hinzufügen',
+  // V111 (Enrico): „+ Sheet“ als Auswahl-Rad – erste Stellung öffnet das Menü wie bisher
+  addSheetWheel: 'Sheet hinzufügen – drehen wählt die Art, Klick oder Enter legt an',
+  addSheetMenuHint: 'Klick öffnet die Auswahl wie bisher',
+  addSheetKindHint: (k: string) => `Klick legt ${k} an`,
+  addDecision: 'Entscheidung',
+  addDecisionShort: 'Entscheidung',
+  addSheetShort: { block: 'Notiz', todo: 'To-do', kanban: 'Kanban', eisenhower: 'Matrix' } as Record<'block' | 'todo' | 'kanban' | 'eisenhower', string>,
+  addDecisionHint: 'Neue Nutzwertanalyse – öffnet im Pad im Vollbild (Cockpit „Entscheidungen“, frei ohne Projekt)',
+  newDecisionTitle: 'Neue Entscheidung',
   full: (max: number) => `Höchstens ${max} Sheets je Pad – leg ein neues Pad an.`,
   options: 'Pad-Optionen',
   rename: 'Sheet umbenennen …',
@@ -1911,6 +1920,9 @@ export const PERSON_TEXT = {
   effortTitle: 'Aufwand in Stunden – geplant und tatsächlich (zählt im Projektfokus)',
   effortLabel: (plan?: number, actual?: number) =>
     plan === undefined && actual === undefined ? 'Aufwand eintragen' : `Aufwand: geplant ${plan ?? '–'} Stunden${actual !== undefined ? `, tatsächlich ${actual} Stunden` : ''}. Ändern`,
+  // V111 (F-226 G7): Aufwand aus den Einsätzen (Formular „Einsatz je AP“), solange kein Plan von Hand eingetragen ist
+  fromUse: 'aus Einsätzen',
+  fromUseTitle: 'Plan-Aufwand aus den Einsätzen im Formular „Einsatz je AP“ gerechnet – eine Eingabe hier geht vor',
   plan: 'Plan',
   actual: 'Ist',
   actualShort: (h: number) => `Ist ${String(h).replace('.', ',')} h`,
@@ -2565,6 +2577,35 @@ export const DECISION_TEXT = {
   noneFree: 'Noch keine freie Entscheidung (ohne Projekt).',
   searchWhere: (p: string | undefined) => (p ? `Projekt ${p} · öffnet im Cockpit „Entscheidungen“` : 'Frei · öffnet im Cockpit „Entscheidungen“'),
   searchLabel: (t: string, state: string, where: string) => `Entscheidung ${t}, ${state}. ${where}`,
+  // V111 (E2): Bezüge-Chips an Lösungen
+  linksLabel: (o: string) => `Bezüge von ${o}`,
+  linkAdd: '+ Bezug',
+  linkAddHint: 'Notiz, Source, Person oder Feedback mit dieser Lösung verbinden – z. B. das Angebot, die Notiz zur Besichtigung',
+  linkKind: 'Art',
+  linkKinds: { note: 'Notiz', bookmark: 'Source', person: 'Person', feedback: 'Feedback' } as Record<'note' | 'bookmark' | 'person' | 'feedback', string>,
+  linkKindHints: { note: 'Notizen und Aufgaben', bookmark: 'Lesezeichen aus der Library', person: 'Personen, Teams und Rollen', feedback: 'Feedback und Projektmeldungen' } as Record<'note' | 'bookmark' | 'person' | 'feedback', string>,
+  linkFind: 'Suchen',
+  linkFindPh: 'Name eintippen …',
+  linkNone: 'Nichts gefunden.',
+  linkPickLabel: (o: string) => `Bezug für ${o} wählen`,
+  linkAdded: (n: string, o: string) => `„${n}“ mit ${o} verbunden.`,
+  linkRemoved: (n: string) => `Bezug „${n}“ gelöst.`,
+  linkRemove: (n: string) => `Bezug „${n}“ lösen`,
+  linkGone: 'gelöscht',
+  linkOpen: (n: string) => `${n} öffnen (Enter) · Entf löst den Bezug`,
+  linkKeys: 'Pfeile wandern, Enter öffnet, Entf löst',
+  // V111 (N9): Ziehen zum Umsortieren, Punkte-Spalten auf Wunsch
+  drag: 'Ziehen zum Umsortieren (Tastatur: ↑ ↓)',
+  dragLabel: (n: string) => `${n} ziehen`,
+  moved: (n: string, i: number) => `${n} steht jetzt an Stelle ${i}.`,
+  pointsLabel: 'Punkte',
+  pointsOff: 'Aus',
+  pointsOn: 'Zeigen',
+  pointsOffHint: 'Nur die Bewertung 0–10 je Zelle',
+  pointsOnHint: 'Zusätzlich die Punkte je Zelle: Gewicht % × Bewertung – so siehst du, was am meisten zählt',
+  pointsCell: (p: string) => `${p} Punkte`,
+  tour: 'Tour',
+  tourHint: 'Zeigt Schritt für Schritt, wie eine Nutzwertanalyse geht',
   prepare: 'Entscheidung vorbereiten …',
   prepareHint: 'Legt eine Nutzwertanalyse an – Titel, Frage und Projekt kommen von hier, beide Seiten tragen danach einen Bezug',
   prepared: (t: string) => `Entscheidung „${t}“ vorbereitet.`,
@@ -2877,6 +2918,8 @@ export const STEER_TEXT = {
   scope: 'Umfang',
   scopeHint: 'Was kommt dazu, was fällt weg?',
   by: 'Beantragt von',
+  byNone: '– niemand gewählt –',
+  byText: (t: string) => `„${t}“ (Text)`,
   decider: 'Entscheidet',
   decide: 'Entscheidung',
   decideText: 'Begründung der Entscheidung',
@@ -2913,6 +2956,9 @@ export const FORMS_TEXT = {
   open: (n: number) => (n === 1 ? '1 Pflichtfeld offen' : `${n} Pflichtfelder offen`),
   openHint: 'Pflichtfelder nach GPM bzw. eigene Pflichtfelder, die noch leer sind',
   allSet: 'Alle Pflichtfelder gefüllt',
+  dup: (n: number) => `${n} ${n === 1 ? 'Code doppelt' : 'Codes doppelt'}`,
+  dupHint: (codes: string) => `Derselbe Code steht mehrfach: ${codes}. Codes sollen eindeutig sein (z. B. L1.1, L1.2) – sonst passen Bezüge und Bericht nicht.`,
+  dupCell: (code: string) => `Code „${code}“ gibt es mehrfach`,
   required: 'Pflichtfeld',
   auto: 'gerechnet',
   autoHint: {
@@ -2980,4 +3026,22 @@ export const WORKPAD_TEXT = {
   close: 'Pad schließen (Esc im Kopf)',
   opened: (what: string) => `${what} im Pad geöffnet.`,
   closed: 'Pad geschlossen.',
+};
+
+/** V111: Strg/⌘+Z für Anordnungen (Portale, Pads, Notizen-Modus). */
+export const LAYOUT_UNDO_TEXT = {
+  done: 'Anordnung rückgängig gemacht (Strg/⌘+Z).',
+  none: 'Keine Anordnung mehr zum Rückgängigmachen.',
+};
+
+/** F-228 (V111): Überlauf – schmale Leisten zeigen „»“; die ganze Leiste schwebt darüber. */
+export const OVERFLOW_TEXT = {
+  label: (bar: string, n: number) => `${bar}: ${n ? `${n} weitere` : 'weitere'} Elemente – öffnet die ganze Leiste (Hover, Klick, Enter oder Pfeil runter; Esc schließt)`,
+  title: (bar: string, n: number) => `Weitere in ${bar}${n ? ` (${n})` : ''} – die ganze Leiste schwebt darüber`,
+  padHead: 'Pad-Kopf',
+  padTabs: 'Sheets des Pads',
+  portalHead: 'Portal-Kopf',
+  portalTabs: 'Tabs des Portals',
+  stack: 'Stack',
+  toolbar: 'Kopfleiste',
 };

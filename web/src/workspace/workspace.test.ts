@@ -5129,13 +5129,14 @@ describe('Umschalt-Rad (F-216)', () => {
     expect(MW.turn(0, -2, 16, true)).toBe(14);
     expect(MW.wrapsFor(2)).toBe(false);
     expect(MW.wrapsFor(5)).toBe(false);
-    expect(MW.wrapsFor(16)).toBe(true);
+    expect(MW.wrapsFor(16)).toBe(false); // V111: immer Anschlag
     expect(MW.wrapsFor(2, true)).toBe(true);
   });
   it('Klick = nächster, Umschalt+Klick = voriger, am Ende wieder vorn', () => {
     expect(MW.clickTurn(0, 2, false)).toBe(1);
-    expect(MW.clickTurn(1, 2, false)).toBe(0);
-    expect(MW.clickTurn(0, 4, true)).toBe(3);
+    expect(MW.clickTurn(1, 2, false)).toBe(0); // V111: Pendel statt Sprung
+    expect(MW.clickTurn(0, 4, true)).toBe(1);
+    expect(MW.clickTurn(3, 4, false)).toBe(2);
     expect(MW.clickTurn(0, 1, false)).toBe(0);
   });
   it('Tasten: Pfeile, Pos1/Ende, Enter/Leertaste, sonst null', () => {
@@ -6958,5 +6959,78 @@ describe('F-222 V108 – freie Entscheidungen, vorbereiten, Suche', () => {
     const u = Prep.undoBecomeDecision(r.ws, r.undo);
     expect(Dc.decisionsOf(u).some((x) => x.id === 'd1')).toBe(false);
     expect(Fb.feedbackById(u, 'fb1')!.became).toBeUndefined();
+  });
+});
+
+describe('F-222 V111 – Bezüge an Lösungen', () => {
+  const at = new Date('2026-12-01T10:00:00Z');
+  const names = { criterion: (n: number) => `Kriterium ${n}`, option: (n: number) => `Lösung ${n}` };
+  const base = () => {
+    const ws0 = {
+      ...W.defaultWorkspace(),
+      persons: [{ id: 'pe1', name: 'Petra Lack', kind: 'person' }],
+      notes: [{ id: 'n1', title: 'Angebot Farbwerk', text: '' }, { id: 'n2', title: '', text: 'Besichtigung\nam Montag' }],
+    } as unknown as Workspace;
+    return Dc.addDecision(ws0, { title: 'Maler' }, { id: 'd', ids: ['c1', 'c2', 'c3', 'o1', 'o2'], now: at, names })!.ws;
+  };
+  const o1 = (ws: Workspace) => Dc.decisionsOf(ws)[0].options[0];
+  const ed = (ws: Workspace, o: Dc.DecisionOp) => Dc.editDecision(ws, 'd', o, at);
+
+  it('verbinden, nicht doppelt, lösen; Name und „gelöscht“', () => {
+    let ws = ed(base(), { op: 'optLink', o: 'o1', link: { kind: 'note', id: 'n1' }, on: true });
+    ws = ed(ws, { op: 'optLink', o: 'o1', link: { kind: 'note', id: 'n1' }, on: true });
+    ws = ed(ws, { op: 'optLink', o: 'o1', link: { kind: 'person', id: 'pe1' }, on: true });
+    expect(o1(ws).links).toEqual([{ kind: 'note', id: 'n1' }, { kind: 'person', id: 'pe1' }]);
+    expect(Dc.linkName(ws, { kind: 'note', id: 'n1' })).toBe('Angebot Farbwerk');
+    expect(Dc.linkName(ws, { kind: 'person', id: 'pe1' })).toBe('Petra Lack');
+    expect(Dc.linkName(ws, { kind: 'feedback', id: 'weg' })).toBeUndefined();
+    ws = ed(ws, { op: 'optLink', o: 'o1', link: { kind: 'note', id: 'n1' }, on: false });
+    ws = ed(ws, { op: 'optLink', o: 'o1', link: { kind: 'person', id: 'pe1' }, on: false });
+    expect(o1(ws).links).toBeUndefined();
+  });
+  it('Auswahl: Suche je Art ohne schon verbundene, Notiz ohne Titel nach erster Zeile; bleibt nach Speichern', () => {
+    const ws = base();
+    expect(Dc.linkTargets(ws, 'note', '').map((t) => t.name)).toEqual(['Angebot Farbwerk', 'Besichtigung']);
+    expect(Dc.linkTargets(ws, 'note', 'farb').map((t) => t.id)).toEqual(['n1']);
+    expect(Dc.linkTargets(ws, 'note', '', [{ kind: 'note', id: 'n1' }]).map((t) => t.id)).toEqual(['n2']);
+    expect(Dc.linkTargets(ws, 'person', 'lack')).toHaveLength(1);
+    const linked = ed(ws, { op: 'optLink', o: 'o1', link: { kind: 'bookmark', id: 'b9' }, on: true });
+    expect(Dc.parseDecisions(JSON.parse(JSON.stringify(Dc.decisionsOf(linked))))[0].options[0].links).toEqual([{ kind: 'bookmark', id: 'b9' }]);
+  });
+});
+
+describe('V111 Anordnung rückgängig (Strg/⌘+Z)', () => {
+  it('merkt Stände, überspringt gleiche, stellt nur die Anordnung wieder her', async () => {
+    const LU = await import('./layoutUndo');
+    const Pd = await import('./pads');
+    const ws0 = W.defaultWorkspace();
+    const ws1 = Pd.setPlace(ws0, '', 'pad1', { x: 0.1, y: 0.1, w: 0.3, h: 0.3 });
+    let list = LU.pushSnap([], LU.layoutSnap(ws0));
+    list = LU.pushSnap(list, LU.layoutSnap(ws0)); // gleich → einmal
+    expect(list).toHaveLength(1);
+    const ws2 = { ...Pd.setPlace(ws1, '', 'pad1', { x: 0.5, y: 0.5, w: 0.3, h: 0.3 }), notes: [{ id: 'n', title: 'bleibt', text: '' }] } as unknown as Workspace;
+    list = LU.pushSnap(list, LU.layoutSnap(ws1));
+    const r = LU.popSnap(ws2, list)!;
+    const back = LU.restoreLayout(ws2, r.snap);
+    expect(back.padDesks?.['']?.places.pad1).toMatchObject({ x: 0.1, y: 0.1 });
+    expect(back.notes).toEqual(ws2.notes);
+    // vom wiederhergestellten Stand aus: nächster Schritt ist der Ausgangsstand ohne Pad-Platz
+    const r2 = LU.popSnap(back, r.rest)!;
+    expect(LU.restoreLayout(back, r2.snap).padDesks).toBeUndefined();
+    expect(LU.popSnap(LU.restoreLayout(back, r2.snap), r2.rest)).toBeNull();
+  });
+});
+
+describe('V111 Linie ziehen (resizeAligned)', () => {
+  const quad = (): T.Node => ({ dir: 'row', sizes: [0.5, 0.5], children: [{ dir: 'col', sizes: [0.5, 0.5], children: [{ id: 'a' }, { id: 'c' }] }, { dir: 'col', sizes: [0.5, 0.5], children: [{ id: 'b' }, { id: 'd' }] }] });
+  const min = { w: 0.05, h: 0.05 } as never;
+  it('2 × 2: waagrechte Linie zieht beide Spalten, Ecke zieht alle vier', () => {
+    const t = T.resizeAligned(quad(), 'a', { y: 'bottom', dy: 0.1 }, min);
+    const r = T.rects(t);
+    expect(Math.round(r.get('a')!.h * 100)).toBe(60);
+    expect(Math.round(r.get('b')!.h * 100)).toBe(60);
+    const t2 = T.resizeAligned(quad(), 'a', { x: 'right', dx: -0.1, y: 'bottom', dy: -0.2 }, min);
+    const r2 = T.rects(t2);
+    expect([r2.get('a')!.w, r2.get('b')!.h, r2.get('c')!.h, r2.get('d')!.y].map((v) => Math.round(v * 100))).toEqual([40, 30, 70, 30]);
   });
 });

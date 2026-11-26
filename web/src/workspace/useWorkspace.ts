@@ -4,6 +4,7 @@ import { setPause, setPauseShown, setSourcesKeep, toggleKeep, toggleKeepTab } fr
 import { setEngine } from './websearch';
 import { openInNewSlot } from './send';
 import { useEffect, useReducer, useRef } from 'react';
+import * as LU from './layoutUndo';
 import type { Lines, Orientation, ScreenClassId, ScreenSetup } from './screen';
 import { WORKSPACE_KEY, loadWorkspace, parseWorkspace, saveWorkspace } from './storage';
 import { PROBE } from './probe';
@@ -167,6 +168,7 @@ export type Action =
   | { type: 'replace'; ws: Workspace }
   /** F-27: Stand aus einem anderen Fenster übernehmen (wird hier nicht erneut gespeichert). */
   | { type: 'remote'; ws: Workspace }
+  | { type: 'layoutUndo'; snap: LU.LayoutSnap }
   /** F-27: Panels in ein Fenster verschieben ('' = Hauptfenster; unbekannte Id = neues Fenster). */
   | { type: 'toWindow'; ids: string[]; win: string }
   /** F-165: leeren Desk mit einem neuen Panel anlegen. */
@@ -646,6 +648,8 @@ function step(ws: Workspace, a: Action): Workspace {
       const v = No.createView(ws, 'block', No.defaultViewName(ws, 'block'), { id: a.sheet });
       return Pd.createPad(v.ws, a.desk, [a.sheet], { id: a.id, place: a.place }).ws;
     }
+    case 'layoutUndo':
+      return LU.restoreLayout(ws, a.snap);
     case 'padPlace':
       return Pd.setPlace(ws, a.desk, a.id, a.place);
     case 'noteTree':
@@ -928,8 +932,24 @@ function step(ws: Workspace, a: Action): Workspace {
  * neue Stand wird übernommen, ohne ihn zurückzuschreiben. Es gilt die letzte Änderung.
  */
 export function useWorkspace() {
-  const [ws, dispatch] = useReducer(reducer, undefined, loadWorkspace);
+  const [ws, raw] = useReducer(reducer, undefined, loadWorkspace);
   const remote = useRef<Workspace | null>(null);
+  // V111: Rückgängig für Anordnungen (Strg/⌘+Z) – vor jeder Anordnungs-Aktion den Stand merken
+  const wsRef = useRef(ws);
+  wsRef.current = ws;
+  const undoList = useRef<LU.LayoutSnap[]>([]);
+  const dispatch = useRef((a: Action) => {
+    if (LU.LAYOUT_ACTIONS.has(a.type)) undoList.current = LU.pushSnap(undoList.current, LU.layoutSnap(wsRef.current));
+    raw(a);
+  }).current;
+  /** Letzte Anordnung zurück; false = nichts mehr rückgängig zu machen. */
+  const undoLayout = useRef((): boolean => {
+    const r = LU.popSnap(wsRef.current, undoList.current);
+    if (!r) return false;
+    undoList.current = r.rest;
+    raw({ type: 'layoutUndo', snap: r.snap });
+    return true;
+  }).current;
   useEffect(() => {
     if (ws === remote.current) return;
     saveWorkspace(ws);
@@ -941,7 +961,7 @@ export function useWorkspace() {
         const next = parseWorkspace(JSON.parse(e.newValue));
         if (!next) return;
         remote.current = next;
-        dispatch({ type: 'remote', ws: next });
+        raw({ type: 'remote', ws: next });
       } catch {
         // unlesbarer Stand: eigenen behalten
       }
@@ -949,5 +969,5 @@ export function useWorkspace() {
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
-  return [ws, dispatch] as const;
+  return [ws, dispatch, undoLayout] as const;
 }

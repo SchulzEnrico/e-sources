@@ -18,6 +18,13 @@ import { loadSheetPref, saveSheetPref } from '../workspace/sheetPrefs';
 import { KANBAN_MORE_TEXT as KM_T, KANBAN_TEXT as K, NOTE_TEXT, SHEET_TEXT } from '../workspace/terms';
 import * as KM from '../workspace/kanbanMore';
 import { ArchivePanel, CopyBar } from './KanbanMore';
+import { FilterButton, FilterPanel, TagChips, TagPanel } from './KanbanTags';
+import * as CF from '../workspace/cardFilter';
+import * as Tg from '../workspace/tags';
+import { KVIEW_TEXT, TAG_TEXT } from '../workspace/terms';
+import { KanbanCalendar, KanbanTable } from './KanbanViews';
+import { ModeWheel } from './ModeWheel';
+import type { KView } from '../workspace/sheetPrefs';
 import { newId } from '../workspace/workspace';
 import { CardWindow, MoveToBar, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useFoldTick, useNotice, usePersonKeys } from './SheetViews';
 import { Item, Menu, MenuPages } from './PanelFrame';
@@ -72,10 +79,24 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const [archOpen, setArchOpen] = useState(false);
   const [addTop, setAddTop] = useState(0);
   const archBtn = useRef<HTMLButtonElement>(null);
+  // V122 (F-231 K4): Kartenfilter (je Sheet und Gerät gemerkt) und Tag-Verwaltung
+  const [cf, setCfRaw] = useState<CF.CardFilter>(() => loadSheetPref(sheetId).filter ?? CF.FILTER_EMPTY);
+  const setCf = (f: CF.CardFilter) => (setCfRaw(f), saveSheetPref(sheetId, { filter: CF.filterCount(f) || f.mode === 'all' ? f : undefined }));
+  const [filterOpen, setFilterOpen] = useState(false);
+  // V122 (F-231 K13, T6): Rad „Ansicht“ – Board | Tabelle | Kalender (je Sheet und Gerät gemerkt)
+  const [kview, setKviewRaw] = useState<KView>(() => loadSheetPref(sheetId).kview ?? 'board');
+  const setKview = (x: KView) => (setKviewRaw(x), saveSheetPref(sheetId, { kview: x }));
+  const [tagsOpen, setTagsOpen] = useState(false);
+  const filterBtn = useRef<HTMLButtonElement>(null);
+  const tagsBtn = useRef<HTMLButtonElement>(null);
+  /** Karte sichtbar nach Suche, „Nur meine“ und Kartenfilter (gilt in jeder Ansicht gleich). */
+  const passes = (n: Note) => Sh.matchesFilter(No.shownNote(n), filter) && pk.pass(n) && CF.passes(ws, n, cf);
   useEffect(() => {
     const open = (e: Event) => (e as CustomEvent<string>).detail === sheetId && setArchOpen(true);
+    const tags = (e: Event) => (e as CustomEvent<string>).detail === sheetId && setTagsOpen(true);
     window.addEventListener('esource:kanbanarchive', open);
-    return () => window.removeEventListener('esource:kanbanarchive', open);
+    window.addEventListener('esource:kanbantags', tags);
+    return () => (window.removeEventListener('esource:kanbanarchive', open), window.removeEventListener('esource:kanbantags', tags));
   }, [sheetId]);
 
   const title = (n: Note) => No.titleOf(No.shownNote(n)) || NOTE_TEXT.untitled;
@@ -157,7 +178,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       say(K.dropped(title(n), target.name, pos, of));
       focusCard(id);
     };
-    if (origin !== col && Sh.overWip(target)) return wipGate(target, run);
+    if (origin !== col && Sh.overWip(target, 1, ws)) return wipGate(target, run);
     run();
   };
   const drop = () => {
@@ -214,7 +235,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       setAsk(null);
       window.setTimeout(() => boardRef.current?.querySelector<HTMLElement>(`[data-addin="${col.id}"]`)?.focus(), 0);
     };
-    if (Sh.overWip(col)) return wipGate(col, run);
+    if (Sh.overWip(col, 1, ws)) return wipGate(col, run);
     run();
   };
   const removeCol = (c: NoteColumn) => {
@@ -244,7 +265,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       if (next) {
         setLift(next);
         const to = colById(next.col)!;
-        say(K.at(to.name, next.index + 1, restOf(next.col).length + 1) + (Sh.overWip(to, next.col === l.from.col ? 0 : 1) ? `, ${K.over}` : ''));
+        say(K.at(to.name, next.index + 1, restOf(next.col).length + 1) + (Sh.overWip(to, next.col === l.from.col ? 0 : 1, ws) ? `, ${K.over}` : ''));
         focusCard(n.id);
       }
       return;
@@ -419,6 +440,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
               onPointerDown={(e) => startPointer(e, n, c)}
               onContextMenu={(e) => liftRef.current && e.preventDefault()}
             >
+              <TagChips ws={ws} v={v} n={n} />
               <span className="kcard__title">{t}</span>
               {n.template && (
                 <span className="sign kcard__tpl" title={KM_T.tplHint}>
@@ -671,11 +693,11 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     const notes = idsOf(c)
       .map((id) => No.noteById(ws, id))
       .filter((n): n is Note => !!n && (n.state !== 'archived' || n.id === lift?.id))
-      .filter((n) => n.id === lift?.id || (Sh.matchesFilter(No.shownNote(n), filter) && pk.pass(n)));
+      .filter((n) => n.id === lift?.id || passes(n));
     const hideDone = show === 'open' && !openDone.has(c.id);
     const visible = notes.filter((n) => !(hideDone && finished(n) && n.id !== lift?.id && foldsDone(ws, n)));
     const doneHere = notes.filter((n) => finished(n) && n.id !== lift?.id && foldsDone(ws, n)).length;
-    const over = Sh.overWip(c, 0);
+    const over = Sh.overWip(c, 0, ws);
     const live = c.ids.filter((id) => No.noteById(ws, id)?.state !== 'archived').length;
     const addBox = () => (
           <div className="todo__new kcol__new">
@@ -784,7 +806,33 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const ghostNote = lift && ghost ? No.noteById(ws, lift.id) : undefined;
   return (
     <div className={`sheet sheet--kanban${lift?.mode === 'drag' ? ' is-dragging' : ''}`}>
-      <SheetHead id={sheetId} filter={filter} onFilter={setFilter} show={show} onShow={setShow} onDown={() => focusCard()} filterRef={filterRef} who={pk.who} onWho={pk.setWho} />
+      <SheetHead id={sheetId} filter={filter} onFilter={setFilter} show={show} onShow={setShow} onDown={() => focusCard()} filterRef={filterRef} who={pk.who} onWho={pk.setWho}>
+        <ModeWheel
+          id={`${sheetId}-kview`}
+          className="sheet__wheel"
+          label={KVIEW_TEXT.wheel}
+          options={[
+            { id: 'board', name: KVIEW_TEXT.board, icon: 'kanban', hint: KVIEW_TEXT.boardHint },
+            { id: 'table', name: KVIEW_TEXT.table, icon: 'table', hint: KVIEW_TEXT.tableHint },
+            { id: 'calendar', name: KVIEW_TEXT.calendar, icon: 'calendarView', hint: KVIEW_TEXT.calendarHint },
+          ]}
+          value={kview}
+          onChange={(x) => setKview(x as KView)}
+        />
+        <FilterButton f={cf} open={filterOpen} btnRef={filterBtn} onToggle={() => setFilterOpen(!filterOpen)} />
+      </SheetHead>
+      {filterOpen && (
+        <FilterPanel
+          ws={ws}
+          sheetId={sheetId}
+          f={cf}
+          onChange={setCf}
+          shown={cols.flatMap((c) => c.ids).map((id) => No.noteById(ws, id)).filter((n): n is Note => !!n && n.state !== 'archived' && passes(n)).length}
+          say={say}
+          onClose={() => (setFilterOpen(false), window.setTimeout(() => filterBtn.current?.focus(), 0))}
+        />
+      )}
+      {tagsOpen && <TagPanel ws={ws} dispatch={dispatch} sheetId={sheetId} say={say} onClose={() => (setTagsOpen(false), window.setTimeout(() => tagsBtn.current?.focus(), 0))} />}
       <span id={`${sheetId}-cardkeys`} className="sr-only">{K.cardKeys}</span>
       <span className="sr-only" role="status">{K.info(cols.length, No.idsIn(v).length)}</span>
       {moving && (
@@ -807,7 +855,33 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       )}
       {archOpen && <ArchivePanel ws={ws} dispatch={dispatch} sheetId={sheetId} say={say} onClose={() => (setArchOpen(false), window.setTimeout(() => archBtn.current?.focus(), 0))} />}
       <NoticeLine shown={shown} />
-      <div className="kanban__board" ref={boardRef} aria-label={K.board(v.name)} role="group">
+      {/* V122 (K13): WIP-Nachfrage auch in Tabelle und Kalender – am Ort über der Ansicht */}
+      {kview !== 'board' && ask?.kind === 'wip' && (
+        <p className="sheet__msg kcol__ask" role="alertdialog" aria-label={ask.text}>
+          {ask.text}
+          <button type="button" className="note__undo" autoFocus onClick={() => (setAsk(null), ask.run())}>
+            {K.wipYes}
+          </button>
+          <button type="button" className="note__undo" onClick={() => setAsk(null)}>
+            {K.cancel}
+          </button>
+        </p>
+      )}
+      {kview !== 'board' &&
+        (() => {
+          const vp = {
+            ws,
+            dispatch,
+            v,
+            keep: (n: Note) => passes(n) && (kview !== 'table' || show === 'all' || !finished(n) || !foldsDone(ws, n)),
+            onOpen: setCard,
+            onMove: (id: string, col: string) => commit(id, col, undefined, Sh.colOf(v, id)?.id),
+            say,
+            notice,
+          };
+          return kview === 'table' ? <KanbanTable {...vp} /> : <KanbanCalendar {...vp} sheetId={sheetId} />;
+        })()}
+      <div className="kanban__board" ref={boardRef} aria-label={K.board(v.name)} role="group" hidden={kview !== 'board'}>
         {cols.map(column)}
         <div className="kcol kcol--new">
           {newCol !== null ? (
@@ -846,6 +920,10 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
           <button type="button" ref={archBtn} className="kcol__add kcol__arch" aria-expanded={archOpen} title={KM_T.archiveBtnHint} onClick={() => setArchOpen(!archOpen)}>
             <Icon name="archive" size={13} /> {KM_T.archiveBtn(KM.archiveCount(ws, sheetId))}
           </button>
+          {/* V122 (K4): Tags des Boards verwalten */}
+          <button type="button" ref={tagsBtn} className="kcol__add kcol__arch" aria-expanded={tagsOpen} title={TAG_TEXT.manageHint} onClick={() => setTagsOpen(!tagsOpen)}>
+            <Icon name="tag" size={13} /> {TAG_TEXT.manage(Tg.boardTags(ws, sheetId).filter((t) => t.count).length)}
+          </button>
         </div>
       </div>
       {ghostNote && ghost && (
@@ -879,7 +957,9 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
             const cur = No.noteById(ws, id);
             if (cur && No.isEmptyDraft(ws, cur)) dispatch({ type: 'noteDiscard', id });
             setCard(null);
-            focusCard(id);
+            // V122 (K13): in Tabelle und Kalender zurück auf Zeile bzw. Karte
+            if (kview !== 'board') window.setTimeout(() => document.querySelector<HTMLElement>(`[data-row="${id}"], [data-chip="${id}"]`)?.focus(), 0);
+            else focusCard(id);
           }}
         />
       )}

@@ -288,6 +288,11 @@ export interface Workspace {
   formTemplates?: FormTemplate[];
   /** F-206 Schritt 10 (V116, K7): Arbeitskalender für alle Projekte – Feiertage nach Bundesland, eigene freie Tage; fehlt = Mo–Fr. */
   calendar?: WorkCalendar;
+  /**
+   * V122 (F-231 K4, T4): gemeinsame Tag-Farben für alle Notizen – Tag-Name → Farbe (Id aus TAG_COLORS, auch Trello-Stufe
+   * wie „green_dark“). Ein Eintrag ohne Notiz ist ein angelegter, noch unbenutzter Tag. Fehlt = alle Tags ohne Farbe.
+   */
+  tagColors?: Record<string, string>;
 }
 
 /** K7 (V116): Arbeitskalender. `region` = Bundesland (`DE` = nur bundesweite Feiertage). */
@@ -616,7 +621,9 @@ export type NoteEventKind =
   | 'delegated'
   | 'forwarded'
   | 'attached'
-  | 'restored';
+  | 'restored'
+  /** V122 (F-231 K7, T5): Kommentar – Text in `text`, eigene Id in `id` */
+  | 'comment';
 
 export interface NoteEvent {
   /** Zeitpunkt (ms seit 1970). */
@@ -626,6 +633,11 @@ export interface NoteEvent {
   by?: string;
   /** Kurzer Zusatz, z. B. neuer Zustand oder Name der Ansicht. */
   detail?: string;
+  /** V122 (F-231 K7): nur bei `comment` – Id, Text (mit @Person), zuletzt bearbeitet, Id der Trello-Aktion (Rundlauf). */
+  id?: string;
+  text?: string;
+  edited?: number;
+  ref?: string;
 }
 
 /** F-206: Anhang – Datei (liegt nur auf dem Gerät), andere Notiz oder Source.
@@ -799,6 +811,8 @@ export interface NoteView {
   cols?: NoteColumn[];
   /** V121 (F-231 K3): archivierte Spalten mit ihren Karten (neueste zuerst, höchstens ARCHIVED_COL_MAX) – Board zeigt sie nicht, Archiv stellt sie wieder her. */
   archivedCols?: NoteColumn[];
+  /** V122 (F-231 K4, T4): in diesem Board ausgeblendete Tags (klein geschrieben) – die gemeinsame Liste bleibt, nur die Karten zeigen sie hier nicht. */
+  hiddenTags?: string[];
   /** Regel „Abnahme nötig“: erledigt → „in Prüfung“, bis bestätigt. */
   review?: boolean;
   /** V65 (Sheet): Besitzer. */

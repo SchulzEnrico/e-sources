@@ -15,12 +15,13 @@
 import type { ForeignBag, Note, NoteColumn, NoteLink, NoteState, Person, Project, Workspace } from './types';
 import { ganttOf } from './gantt';
 import { itemMeta, itemText } from './checklists';
-import { ARCHIVED_COL_MAX, COLUMN_MAX, createNote, createView, notesOf, titleOf, TITLE_MAX, viewsOf } from './notes';
+import { ARCHIVED_COL_MAX, COLUMN_MAX, trimTrail, createNote, createView, notesOf, titleOf, TITLE_MAX, viewsOf } from './notes';
 import { addPerson, personById } from './persons';
 import { addProject, projectById, projectsOf } from './projects';
 import { colStateOf } from './sheets';
 import { calendarFor, withCalendar } from './calendar';
 import { FOREIGN_TEXT_MAX } from './foreign';
+import { colorOf, isTagColor, setTagColor } from './tags';
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -369,7 +370,8 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
     if (fullName.length > TITLE_MAX) rest._name = fullName;
     if (cls.length) rest.cl = cls;
     const cm = comments.get(cid);
-    if (cm?.length) rest.comments = cm;
+    // V122 (K7): roh unter `cmx` (ab V122 je Kommentar ein Spur-Eintrag mit `ref`); `comments` = ältere Importe ohne Spur
+    if (cm?.length) rest.cmx = cm;
     kept += (cm?.length ?? 0) + arr(c.attachments).length;
     const bag: ForeignBag | undefined = Object.keys(rest).length && sizeOf(rest) <= FOREIGN_TEXT_MAX ? { trello: rest } : undefined;
     if (!bag && Object.keys(rest).length) notes.push(`cardTooBig:${fullName.slice(0, 40)}`);
@@ -397,6 +399,18 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
     if (!due || !dueTime) delete fresh.dueTime;
     if (!notBefore) delete fresh.notBefore;
     if (!fresh.tags) delete fresh.tags;
+    // V122 (F-231 K7): Trello-Kommentare werden Kommentare der Notiz (Id der Aktion in `ref`, roh weiter in foreign)
+    if (cm?.length) {
+      const evs = cm
+        .map((a) => {
+          const text = isObj(a.data) ? str((a.data as Obj).text).trim() : '';
+          const t = Date.parse(str(a.date));
+          const by = (isObj(a.memberCreator) ? memberName(a.memberCreator as Obj) : '') || memberName(arr(b.members).find((m) => str(m.id) === str(a.idMemberCreator)) ?? {});
+          return text ? ({ at: Number.isNaN(t) ? now : t, what: 'comment', id: `tc-${str(a.id) || Math.random().toString(36).slice(2)}`, text: text.slice(0, 5000), ...(by ? { by } : {}), ...(str(a.id) ? { ref: str(a.id) } : {}) } as Note['trail'][number]) : null;
+        })
+        .filter((e): e is Note['trail'][number] => !!e);
+      fresh.trail = trimTrail([...fresh.trail, ...evs].sort((x, y) => x.at - y.at));
+    }
     ws = r.ws;
     if (co?.id) idMap.set(co.id, r.id);
     created.push({ id: r.id, src: base });
@@ -458,6 +472,12 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
         : p,
     ),
   };
+  // V122 (F-231 K4): Labelfarben → gemeinsame Tag-Farben (eine schon gesetzte eigene Farbe bleibt)
+  for (const l of arr(b.labels)) {
+    const tag = tagOfLabel(l);
+    const c = str(l.color);
+    if (tag && isTagColor(c) && !colorOf(ws, tag)) ws = setTagColor(ws, tag, c);
+  }
   return { ok: true, ws, project: pid, view: v.id, cards: cardCount, lists: lists.length, checklists: checklistCount, persons: personsAdded, merged: mergedNames, kept, notes };
 }
 
@@ -598,8 +618,13 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
   const labels = arr(F.labels).map((l) => ({ ...l }));
   const labelFor = (tag: string): string => {
     const hit = labels.find((l) => fold(tagOfLabel(l)) === fold(tag));
-    if (hit) return str(hit.id);
-    const nl: Obj = { id: make(), idBoard: boardId, name: tag, color: null };
+    // V122 (F-231 K4): eigene Tag-Farbe geht zurück an das Label (ein Label ohne Namen behält seinen leeren Namen)
+    const own = colorOf(ws, tag);
+    if (hit) {
+      if (own && own !== str(hit.color)) hit.color = own;
+      return str(hit.id);
+    }
+    const nl: Obj = { id: make(), idBoard: boardId, name: tag, color: own ?? null };
     labels.push(nl);
     return str(nl.id);
   };
@@ -636,6 +661,8 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
     const id = str(base.id) || make();
     const cls = arr(base.cl);
     const cm = arr(base.comments);
+    const cmx = arr(base.cmx);
+    delete base.cmx;
     const _due = str(base._due);
     const _start = str(base._start);
     const _name = str(base._name);
@@ -669,7 +696,23 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
       outCl.push({ ...(orig ?? {}), id: clId, name: c.name, idBoard: boardId, idCard: id, pos: typeof orig?.pos === 'number' ? orig.pos : 16384 * (ci + 1), checkItems: items });
       idChecklists.push(clId);
     });
+    // V122 (F-231 K7): Kommentare aus der Spur; roh mitgeführte Felder bleiben (gleiche Aktion über `ref`), gelöschte fallen weg.
+    // Notizen aus älteren Importen (Kommentare nur roh, ohne Spur-Eintrag) geben ihre rohen Kommentare unverändert zurück.
+    const evs = n.trail.filter((e) => e.what === 'comment');
     for (const c of cm) comments.push(c);
+    for (const e of evs) {
+      const raw = e.ref ? cmx.find((x) => str(x.id) === e.ref) : undefined;
+      const rd = isObj(raw?.data) ? (raw!.data as Obj) : {};
+      const person = e.by ? (ws.persons ?? []).find((x) => fold(x.name) === fold(e.by!)) : undefined;
+      const mid = person ? memberFor(person.id) : undefined;
+      comments.push({
+        ...(raw ?? { idMemberCreator: mid ?? null, ...(e.by ? { memberCreator: { fullName: e.by } } : {}) }),
+        id: e.ref || make(),
+        type: 'commentCard',
+        date: raw && Date.parse(str(raw.date)) === e.at ? raw.date : new Date(e.at).toISOString(),
+        data: { ...rd, text: e.text, card: { ...(isObj(rd.card) ? (rd.card as Obj) : {}), id, name: titleOf(n) }, board: { ...(isObj(rd.board) ? (rd.board as Obj) : {}), id: boardId } },
+      });
+    }
     const idList = listFor(n);
     const r = rows.get(n.id);
     const dueDay = n.due ?? (base.id ? undefined : r?.end);
@@ -772,7 +815,7 @@ export interface TrelloExtras {
  * `foreign.trello`). Autoren aus dem Kommentar selbst, sonst aus den Mitgliedern des Boards bzw. den Personen.
  * `null` = nichts aus Trello.
  */
-export function trelloExtras(ws: Workspace, n: Pick<Note, 'foreign' | 'project'>): TrelloExtras | null {
+export function trelloExtras(ws: Workspace, n: Pick<Note, 'foreign' | 'project'> & Partial<Pick<Note, 'trail'>>): TrelloExtras | null {
   const t = n.foreign?.trello as Obj | undefined;
   if (!t) return null;
   const members = [...arr((projectById(ws, n.project)?.foreign?.trello as Obj | undefined)?.members), ...(ws.persons ?? []).map((p) => (p.foreign?.trello as Obj | undefined) ?? {})];
@@ -780,7 +823,10 @@ export function trelloExtras(ws: Workspace, n: Pick<Note, 'foreign' | 'project'>
     const m = members.find((x) => str(x.id) === id);
     return m ? memberName(m) : '';
   };
+  // V122 (K7): Kommentare mit Spur-Eintrag stehen unter „Kommentare“ – hier nur ältere, nur roh mitgeführte
+  const inTrail = new Set((n.trail ?? []).filter((e) => e.what === 'comment' && e.ref).map((e) => e.ref));
   const comments = arr(t.comments)
+    .filter((a) => !inTrail.has(str(a.id)))
     .map((a) => ({
       at: str(a.date),
       by: (isObj(a.memberCreator) ? memberName(a.memberCreator as Obj) : '') || nameOf(str(a.idMemberCreator)),

@@ -26,6 +26,8 @@ import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab } from './NoteTab';
 import { ModeWheel } from './ModeWheel';
 import { CardChecklists } from './CardChecklists';
+import { CardTags } from './KanbanTags';
+import { CardComments } from './CardComments';
 import { Icon } from './Icon';
 
 export type SheetCmd = { k: 'home' | 'new' | 'go' | 'search'; n: number; id?: string };
@@ -247,10 +249,14 @@ export function CardWindow(props: { ws: Workspace; dispatch: Dispatch<Action>; n
           </button>
         </header>
         {/* V121 (F-231 K2): mehrere benannte Checklisten wie bei Trello */}
+        {/* V122 (F-231 K4): Tags mit Farbe */}
+        <CardTags ws={ws} dispatch={dispatch} noteId={noteId} sheetId={props.sheetId} say={props.say} />
         <CardChecklists ws={ws} dispatch={dispatch} noteId={noteId} sheetId={props.sheetId} say={props.say} />
         <div className="cardwin__note">
           <NoteTab ws={ws} noteId={noteId} dispatch={dispatch} sheet={props.sheetId} draft={{ onClose: props.onClose, say: props.say, notice, shown }} />
         </div>
+        {/* V122 (F-231 K7): Kommentare und Aktivität wie bei Trello – unter der Notiz */}
+        <CardComments ws={ws} dispatch={dispatch} noteId={noteId} say={props.say} />
       </section>
     </div>
   );

@@ -56,11 +56,12 @@ export function setWip(ws: Workspace, viewId: string, colId: string, wip: number
 }
 
 /** Karten einer Spalte, die zählen (Unter-Notizen zählen mit – sie liegen bewusst einzeln dort). */
-export const cardsIn = (c: NoteColumn): number => c.ids.length;
+/** Karten einer Spalte; mit `ws` ohne archivierte (V122: wie der Zähler am Spaltenkopf). */
+export const cardsIn = (c: NoteColumn, ws?: Workspace): number => (ws ? c.ids.filter((id) => No.noteById(ws, id)?.state !== 'archived').length : c.ids.length);
 
 /** Würde eine weitere Karte das WIP-Limit überschreiten? (K3: fragen, nicht sperren) */
-export function overWip(c: NoteColumn, adding = 1): boolean {
-  return !!c.wip && cardsIn(c) + adding > c.wip;
+export function overWip(c: NoteColumn, adding = 1, ws?: Workspace): boolean {
+  return !!c.wip && cardsIn(c, ws) + adding > c.wip;
 }
 
 export function colOf(v: NoteView, noteId: string): NoteColumn | undefined {
@@ -442,9 +443,9 @@ export function boardSummary(ws: Workspace, v: NoteView): ColSummary[] {
     id: c.id,
     name: c.name,
     state: colStateOf(c),
-    count: c.ids.length,
+    count: cardsIn(c, ws),
     ...(c.wip ? { wip: c.wip } : {}),
-    over: overWip(c, 0),
+    over: overWip(c, 0, ws),
     review: c.ids.filter((id) => No.noteById(ws, id)?.state === 'review').length,
   }));
 }

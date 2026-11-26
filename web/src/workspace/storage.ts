@@ -1,6 +1,7 @@
 import { CATEGORY_ICONS } from './icons';
 import { parseFit, parseZoom } from './zoom';
 import { parseCalendar } from './calendar';
+import { parseTagColors } from './tags';
 import { parseDeskProjects } from './deskProject';
 import { parseBoardTemplates } from './boardTemplates';
 import { parseFeedback, parseFeedbackPrefs, parseWheels } from './feedback';
@@ -368,6 +369,8 @@ function parseWorkspaceRaw(data: unknown): Workspace | null {
   const wheels = parseWheels(data.wheels);
   // V116 (K7): Arbeitskalender
   const calendar = parseCalendar(data.calendar);
+  // V122 (F-231 K4): gemeinsame Tag-Farben
+  const tagColors = parseTagColors(data.tagColors);
   // V117 (Projekt-Desk): Bindungen nur an vorhandene Desks und Projekte
   const deskProjects = parseDeskProjects(data.deskProjects, winIds, new Set(projects.map((p) => p.id)));
   // F-222 (N11): Entscheidungen, Projekt-Bezug nur auf vorhandene Projekte
@@ -381,6 +384,7 @@ function parseWorkspaceRaw(data: unknown): Workspace | null {
     ...(feedbackPrefs ? { feedbackPrefs } : {}),
     ...(wheels ? { wheels } : {}),
     ...(calendar ? { calendar } : {}),
+    ...(tagColors ? { tagColors } : {}),
     ...(deskProjects ? { deskProjects } : {}),
     ...(boardTemplates.length ? { boardTemplates } : {}),
     ...(pads.length ? { pads } : {}),

@@ -17,7 +17,7 @@ import { PAD_MIN, type PadUndo, padUndoOf } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
 import { noticeLater } from '../workspace/flash';
 import { switchOf } from '../workspace/ruleSet';
-import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_MORE_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, STAGE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_MORE_TEXT, TAG_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, STAGE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
 import { archiveCount } from '../workspace/kanbanMore';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab, freshNotes } from './NoteTab';
@@ -47,6 +47,7 @@ import { openWorkPad } from './WorkPadOpen';
 import { DECISION_TEXT } from '../workspace/terms';
 import { SaveTemplateBar, TemplatePick } from './BoardTemplates';
 import { Icon } from './Icon';
+import { boardTags } from '../workspace/tags';
 import { avoidStage, overlaps } from '../workspace/stage';
 import type { FRect } from '../workspace/tree';
 import { TodoSheet } from './SheetViews';
@@ -857,6 +858,12 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               {sheet?.kind === 'kanban' && (
                 <Item icon="archive" hint={KANBAN_MORE_TEXT.archiveBtnHint} onClick={() => (close(), window.dispatchEvent(new CustomEvent('esource:kanbanarchive', { detail: sheet.id })))}>
                   {KANBAN_MORE_TEXT.archiveBtn(archiveCount(ws, sheet.id))} …
+                </Item>
+              )}
+              {/* V122 (F-231 K4): Tags des Boards – wie „Archiv …“ */}
+              {sheet?.kind === 'kanban' && (
+                <Item icon="tag" hint={TAG_TEXT.manageHint} onClick={() => (close(), window.dispatchEvent(new CustomEvent('esource:kanbantags', { detail: sheet.id })))}>
+                  {TAG_TEXT.manage(boardTags(ws, sheet.id).filter((t) => t.count).length)} …
                 </Item>
               )}
               {/* V88 (BL3): Spalten dieses Boards als Vorlage merken */}

@@ -159,6 +159,13 @@ export const ICONS = {
   copy: { d: ['M5.5 5.5h8v8h-8z', 'M3.5 10.5h-1v-8h8v1'] },
   // V121 (F-231 K1/K3): Archiv (Kasten mit Deckel)
   archive: { d: ['M2 3h12v3H2z', 'M3 6v7h10V6', 'M6.5 8.5h3'] },
+  // V122 (F-231 K4): Tag (Anhänger mit Loch) und Filter (Trichter)
+  tag: { d: ['M1.8 2.5v5l6.7 6.7 5.2-5.2L7 2.3H2z', 'M4.8 5h.01'] },
+  filter: { d: ['M1.8 2.5h12.4L9.5 8.2v4.8l-3 1.5V8.2z'] },
+  // V122 (F-231 K13): Tabelle und Kalender als Ansichten des Kanbans; K7: Kommentar
+  table: { d: ['M1.5 2.5h13v11h-13z', 'M1.5 6h13', 'M1.5 9.7h13', 'M6 2.5v11'] },
+  calendarView: { d: ['M2 3.5h12v10.5H2z', 'M2 6.5h12', 'M5 2v3', 'M11 2v3', 'M4.5 9h2', 'M9.5 9h2', 'M4.5 11.5h2'] },
+  comment: { d: ['M2 3h12v8H7l-3.5 3v-3H2z', 'M4.8 6h6.4', 'M4.8 8.3h4'] },
   send: { d: ['M14 2L2 7l5 2 2 5 5-12z', 'M7 9l7-7'] },
   sync: { d: ['M2.5 7A5.5 5.5 0 0 1 12.6 4.5', 'M13 1.8v3h-3', 'M13.5 9A5.5 5.5 0 0 1 3.4 11.5', 'M3 14.2v-3h3'] },
   external: { d: ['M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9', 'M9.5 2.5h4v4', 'M13.3 2.7 7.8 8.2'] },
@@ -219,7 +226,7 @@ export type IconName = keyof typeof ICONS;
 
 /** Symbol je Hilfe-Eintrag (HELP, F-156) – gleiche Ids. Fehlt ein Eintrag, meldet das der Test. */
 export const HELP_ICON: Record<string, IconName> = {
-  note: 'note', dock: 'dock', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', modeWheel: 'swap', wheelOrder: 'pin', notesTasks: 'notesTasks', f6Ring: 'swap', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', newDecision: 'sliders', undoLayout: 'swap', notesView: 'layouts', tourDecisions: 'tour', findNote: 'note', todoUse: 'todo', kanbanUse: 'kanban', projectKanban: 'kanban', kanbanArchive: 'archive', dueTime: 'recent', boardTemplates: 'kanban', sitePlan: 'slot', notesLayouts: 'layouts', matrixUse: 'matrix', cardWindow: 'todo', noteSource: 'clip', persons: 'catPeople', projects: 'project', psp: 'psp', gantt: 'project', baseline: 'project', networkPlan: 'psp', resourceUse: 'catPeople', workCalendar: 'recent', taskLimitProject: 'catPeople', projectDesk: 'project', projectExchange: 'download', feedback: 'feedback', feedbackElaborate: 'feedback', feedbackCockpit: 'feedback', decisions: 'project', projectFeedback: 'feedback', risksChanges: 'project', projectFocus: 'focus', mainStage: 'spotlight', libraryWheel: 'library',
+  note: 'note', dock: 'dock', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', modeWheel: 'swap', wheelOrder: 'pin', notesTasks: 'notesTasks', f6Ring: 'swap', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', newDecision: 'sliders', undoLayout: 'swap', notesView: 'layouts', tourDecisions: 'tour', findNote: 'note', todoUse: 'todo', kanbanUse: 'kanban', projectKanban: 'kanban', kanbanArchive: 'archive', kanbanTags: 'tag', kanbanViews: 'table', cardComments: 'comment', dueTime: 'recent', boardTemplates: 'kanban', sitePlan: 'slot', notesLayouts: 'layouts', matrixUse: 'matrix', cardWindow: 'todo', noteSource: 'clip', persons: 'catPeople', projects: 'project', psp: 'psp', gantt: 'project', baseline: 'project', networkPlan: 'psp', resourceUse: 'catPeople', workCalendar: 'recent', taskLimitProject: 'catPeople', projectDesk: 'project', projectExchange: 'download', feedback: 'feedback', feedbackElaborate: 'feedback', feedbackCockpit: 'feedback', decisions: 'project', projectFeedback: 'feedback', risksChanges: 'project', projectFocus: 'focus', mainStage: 'spotlight', libraryWheel: 'library',
   devMode: 'dev',
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',

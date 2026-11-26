@@ -5,6 +5,8 @@ import * as T from './trello';
 import { notesOf, titleOf, viewsOf } from './notes';
 import { projectById } from './projects';
 import { parseForeign } from './foreign';
+import { colorOf, createTag, setTagColor } from './tags';
+import { addComment, commentsOf, deleteComment, editComment } from './comments';
 
 /** kleines Board wie aus Trello › „Als JSON exportieren“ (gekürzt, mit unbekannten Feldern) */
 const board = () => ({
@@ -106,7 +108,7 @@ describe('F-230 Trello (V119)', () => {
     expect(c1.text).toBe('Fläche **48 m²**\n\n### ☑ Unterlagen\n- [x] Angebot — bis 20.01.2027\n- [ ] Vertrag');
     expect(r.ws.persons!.some((x) => x.id === c1.assignee && x.name === 'Anna Berg')).toBe(true);
     expect((c1.foreign?.trello as Record<string, unknown>).customFieldItems).toBeTruthy();
-    expect(((c1.foreign?.trello as Record<string, unknown>).comments as unknown[]).length).toBe(1);
+    expect(((c1.foreign?.trello as Record<string, unknown>).cmx as unknown[]).length).toBe(1);
     expect(ns.find((n) => n.title === 'Verworfen')!.state).toBe('archived');
     expect(ns.find((n) => n.title === 'Logo fertig')!.state).toBe('done');
     expect(v.cols![0].ids).toEqual([ns[0].id, ns[1].id]);
@@ -206,7 +208,12 @@ describe('F-230 Trello (V119)', () => {
     const r = imp();
     const ns = cardNotes(r.ws, r.project);
     const x = T.trelloExtras(r.ws, ns[0])!;
-    expect(x.comments).toEqual([{ at: '2027-01-05T09:00:00.000Z', by: 'Anna Berg', text: 'Bitte bis Freitag' }]);
+    // V122 (K7): Kommentare stehen jetzt als Kommentar in der Spur – „zum Lesen“ nur noch ältere, roh mitgeführte
+    expect(x.comments).toEqual([]);
+    expect(commentsOf(ns[0]).map((c) => ({ at: c.at, by: c.by, text: c.text, ref: c.ref }))).toEqual([{ at: Date.parse('2027-01-05T09:00:00.000Z'), by: 'Anna Berg', text: 'Bitte bis Freitag', ref: 'x1' }]);
+    const tr = ns[0].foreign!.trello as Record<string, unknown>;
+    const legacy = { ...ns[0], trail: [], foreign: { ...ns[0].foreign, trello: { ...tr, comments: tr.cmx, cmx: undefined } } };
+    expect(T.trelloExtras(r.ws, legacy)!.comments).toEqual([{ at: '2027-01-05T09:00:00.000Z', by: 'Anna Berg', text: 'Bitte bis Freitag' }]);
     expect(x.attachments).toEqual([{ name: 'Plan.pdf', url: 'https://example.org/plan.pdf', upload: false }]);
     expect(T.trelloExtras(r.ws, ns[1])).toBeNull();
   });
@@ -227,5 +234,48 @@ describe('V121 F-231 K3/K1: archivierte Listen und Karten', () => {
     expect(l9.closed).toBe(true);
     expect(out.cards.find((c: { id: string }) => c.id === 'c5').idList).toBe('L9');
     expect(out.cards.find((c: { id: string }) => c.id === 'c4').closed).toBe(true);
+  });
+});
+
+describe('V122 F-231 K4: Labelfarben ohne Verlust', () => {
+  it('Labelfarbe wird Tag-Farbe, eigene Farbe geht beim Export zurück, neuer Tag bekommt seine Farbe', () => {
+    const r = T.importTrello(W.defaultWorkspace(), JSON.stringify(board()), { now: 1_800_000_000_000 });
+    if (!r.ok) throw new Error('Import');
+    expect(colorOf(r.ws, 'Einkauf')).toBe('green');
+    expect(colorOf(r.ws, 'rot')).toBe('red'); // Label ohne Namen heißt nach seiner Farbe
+    let ws = setTagColor(r.ws, 'Einkauf', 'blue_dark');
+    ws = createTag(ws, 'Neu', 'pink').ws;
+    const card = notesOf(ws).find((n) => titleOf(n) === 'Prospekte')!;
+    ws = { ...ws, notes: notesOf(ws).map((n) => (n.id === card.id ? { ...n, tags: ['Neu'] } : n)) };
+    const out = JSON.parse(T.exportTrello(ws, r.project, { now: 1_800_000_000_000 }));
+    const lab = (name: string) => out.labels.find((l: { name: string }) => l.name === name);
+    expect(lab('Einkauf').color).toBe('blue_dark');
+    expect(out.labels.find((l: { id: string }) => l.id === 'l2')).toMatchObject({ name: '', color: 'red' });
+    expect(lab('Neu').color).toBe('pink');
+  });
+});
+
+describe('V122 F-231 K7: Kommentare ohne Verlust', () => {
+  it('bearbeiten, neu, löschen – gehen so zurück; rohe Felder der Aktion bleiben', () => {
+    const r = T.importTrello(W.defaultWorkspace(), JSON.stringify(board()), { now: 1_800_000_000_000 });
+    if (!r.ok) throw new Error('Import');
+    const card = notesOf(r.ws).find((n) => titleOf(n) === 'Stand buchen')!;
+    const cid = commentsOf(card)[0].id!;
+    let ws = editComment(r.ws, card.id, cid, 'Bitte bis Montag');
+    ws = addComment(ws, card.id, 'Neu von mir @Anna Berg', { by: 'Anna Berg', now: Date.parse('2027-01-06T10:00:00.000Z') })!.ws;
+    let out = JSON.parse(T.exportTrello(ws, r.project, { now: 1_800_000_000_000 }));
+    const cms = out.actions.filter((a: { type: string }) => a.type === 'commentCard');
+    expect(cms.map((a: { data: { text: string } }) => a.data.text)).toEqual(['Bitte bis Montag', 'Neu von mir @Anna Berg']);
+    expect(cms[0]).toMatchObject({ id: 'x1', idMemberCreator: 'm1', date: '2027-01-05T09:00:00.000Z' });
+    expect(cms[1].idMemberCreator).toBe('m1');
+    expect(cms[1].data.card.id).toBe('c1');
+    // wieder einlesen: zwei Kommentare
+    const back = T.importTrello(W.defaultWorkspace(), JSON.stringify(out), { now: 1_800_000_000_000 });
+    if (!back.ok) throw new Error('Re-Import');
+    expect(commentsOf(notesOf(back.ws).find((n) => titleOf(n) === 'Stand buchen')).map((c) => c.text)).toEqual(['Bitte bis Montag', 'Neu von mir @Anna Berg']);
+    // gelöscht = nicht mehr in der Datei
+    ws = deleteComment(ws, card.id, cid);
+    out = JSON.parse(T.exportTrello(ws, r.project, { now: 1_800_000_000_000 }));
+    expect(out.actions.filter((a: { type: string }) => a.type === 'commentCard').map((a: { data: { text: string } }) => a.data.text)).toEqual(['Neu von mir @Anna Berg']);
   });
 });

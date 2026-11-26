@@ -9795,3 +9795,82 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 /* V120 (F-230 Schritt 5, F-231): Kanban im Projekt-Modus – gleiche Höhe wie Gantt und Ressourcen */
 .pkb__board { display: flex; flex-direction: column; height: 62vh; min-height: 320px; border: 1px solid var(--line); border-radius: 10px; padding: 6px; overflow: hidden; }
 .pkb__board > * { flex: 1; min-height: 0; }
+
+/* V122 (F-231 K4): Tags mit Farbe (wie Trello-Labels) – immer mit Namen */
+.kcard__tags { display: flex; flex-wrap: wrap; gap: 3px; margin: 0 0 4px; }
+.ktag { display: inline-flex; align-items: center; gap: 3px; max-width: 100%; min-height: 16px; padding: 0 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; line-height: 16px; }
+.ktag--plain { background: rgba(var(--tint), 0.14); color: inherit; }
+.ktag__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ktag__x { display: inline-flex; padding: 0 1px; border: 0; background: none; color: inherit; cursor: pointer; opacity: 0.8; }
+.ktag__x:hover, .ktag__x:focus-visible { opacity: 1; }
+.cardwin__tags { padding: 0 14px 6px; }
+.ktag__row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ktag__add { flex: 1 1 8em; min-width: 8em; padding: 2px 6px; font: inherit; font-size: 12px; }
+.ktags__list li { gap: 8px; }
+.ktag__colorbtn { padding: 0; border: 0; background: none; cursor: pointer; }
+.ktag__rename { padding: 2px 6px; font: inherit; }
+.ktag__shown { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; }
+.ktag__colors { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; padding: 2px 0 4px; }
+.ktag__swatch { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 18px; border: 1px solid rgba(var(--tint), 0.25); border-radius: 4px; color: #fff; cursor: pointer; }
+.ktag__swatch[aria-pressed='true'] { outline: 2px solid rgba(var(--accent-rgb), 0.9); outline-offset: 1px; }
+.ktag__swatch--none { background: transparent; color: inherit; }
+.sheet__filterbtn.is-on { background: rgba(var(--accent-rgb), 0.22); font-weight: 600; }
+.kfil__groups { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.kfil__group { display: flex; flex-direction: column; gap: 2px; min-width: 10em; margin: 0; padding: 0; border: 0; }
+.kfil__group legend { margin-bottom: 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.75; }
+.kfil__opt { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+@media (forced-colors: active) { .ktag { border: 1px solid CanvasText; } .ktag__swatch { forced-color-adjust: none; } }
+.kfil, .ktags { max-height: 60vh; }
+
+/* V122 (F-231 K13): Tabelle und Kalender als Ansichten des Kanbans */
+.ktab { overflow: auto; margin: 4px 8px 8px; }
+.ktab table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ktab th, .ktab td { padding: 4px 6px; text-align: left; vertical-align: middle; border-bottom: 1px solid rgba(var(--tint), 0.12); }
+.ktab thead th { position: sticky; top: 0; background: var(--panel-bg, rgba(20, 20, 24, 0.95)); z-index: 1; font-weight: 600; white-space: nowrap; }
+.ktab__sort { display: inline-flex; align-items: center; gap: 3px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.ktab__open { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.ktab__open:hover, .ktab__open:focus-visible { text-decoration: underline; }
+.ktab tr.is-done .ktab__open { text-decoration: line-through; opacity: 0.7; }
+.ktab select, .ktab input[type='date'] { font: inherit; font-size: 12px; padding: 1px 4px; }
+.ktab__due.sign--due-over input { outline: 2px solid #d3514a; }
+.ktab__due.sign--due-soon input { outline: 2px solid #d9b443; }
+.ktab__empty { margin: 8px 12px; }
+.kcal { display: flex; flex-direction: column; gap: 6px; margin: 4px 8px 8px; overflow: auto; }
+.kcal__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.kcal__head { margin: 0 0 0 6px; font-size: 14px; }
+.kcal__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.kcal__dow { padding: 2px 4px; font-size: 11px; font-weight: 600; opacity: 0.75; }
+.kcal__day { min-height: 74px; padding: 2px 3px; border-radius: 6px; background: rgba(var(--tint), 0.05); border: 1px solid transparent; }
+.kcal__grid--week .kcal__day { min-height: 220px; }
+.kcal__day.is-other { opacity: 0.5; }
+.kcal__day.is-today { border-color: rgba(var(--accent-rgb), 0.8); }
+.kcal__day.is-over, .kcal__none.is-over { background: rgba(var(--accent-rgb), 0.2); border-color: rgba(var(--accent-rgb), 0.9); }
+.kcal__num { display: block; font-size: 11px; font-weight: 600; opacity: 0.8; }
+.kcal__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.kcal__list--row { flex-direction: row; flex-wrap: wrap; }
+.kcal__chip { display: flex; flex-direction: column; width: 100%; padding: 2px 4px; border-radius: 4px; border: 1px solid rgba(var(--tint), 0.18); background: rgba(var(--tint), 0.08); color: inherit; font: inherit; font-size: 11.5px; text-align: left; cursor: grab; }
+.kcal__list--row .kcal__chip { width: auto; max-width: 16em; }
+.kcal__chip .kcard__tags { margin: 0 0 1px; }
+.kcal__chip.is-done .kcal__title { text-decoration: line-through; opacity: 0.7; }
+.kcal__chip.sign--due-over { border-color: #d3514a; }
+.kcal__chip.sign--due-soon { border-color: #d9b443; }
+.kcal__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kcal__time { font-weight: 600; }
+.kcal__more { padding: 0 4px; border: 0; background: none; color: inherit; font: inherit; font-size: 11px; text-decoration: underline; cursor: pointer; }
+.kcal__none { padding: 4px 6px; border-radius: 6px; border: 1px dashed rgba(var(--tint), 0.25); }
+.kanban__board[hidden] { display: none; }
+
+/* V122 (F-231 K7): Kommentare und Aktivität im Kartenfenster */
+.kcm { padding: 6px 14px 12px; border-top: 1px solid rgba(var(--tint), 0.12); }
+.kcm__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.kcm__edit textarea { width: 100%; box-sizing: border-box; min-height: 2.6em; padding: 4px 6px; font: inherit; font-size: 12.5px; resize: vertical; }
+.kcm__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 3px; }
+.kcm__mention { font: inherit; font-size: 12px; padding: 1px 4px; }
+.kcm__list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.kcm__item { display: flex; flex-direction: column; gap: 2px; padding: 4px 6px; border-radius: 6px; background: rgba(var(--tint), 0.06); }
+.kcm__meta { font-size: 11px; opacity: 0.8; }
+.kcm__text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; }
+.kcm__at { color: rgb(var(--accent-rgb)); }
+.kcm__ment { font-size: 11px; }
+.kcm__acts { display: flex; gap: 6px; }
+.kcm__ev { font-size: 11.5px; opacity: 0.85; padding: 0 6px; }

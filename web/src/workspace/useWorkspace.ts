@@ -38,6 +38,8 @@ import * as Wo from './wheelOrder';
 import * as Dp from './deskProject';
 import * as Cal from './calendar';
 import * as BT from './boardTemplates';
+import * as Tg from './tags';
+import * as Cm from './comments';
 import * as KM from './kanbanMore';
 import * as Sh from './sheets';
 import * as Ps from './persons';
@@ -352,6 +354,18 @@ export type Action =
   | { type: 'cardCopy'; note: string; view: string; id: string; to?: string; col?: string; index?: number; keep?: KM.CopyKeep; title?: string; asTemplate?: boolean; by?: string }
   | { type: 'cardArchive'; note: string; by?: string }
   | { type: 'cardRestore'; view: string; note: string; by?: string }
+  /* V122 (F-231 K4): Tags mit Farbe – gemeinsame Liste, je Board ausblendbar */
+  | { type: 'tagColor'; tag: string; color?: string }
+  | { type: 'tagCreate'; tag: string; color?: string }
+  | { type: 'tagRename'; from: string; to: string }
+  | { type: 'tagRemoveIn'; view: string; tag: string }
+  | { type: 'tagHide'; view: string; tag: string; hide: boolean }
+  | { type: 'noteTags'; id: string; tags: string[]; by?: string }
+  /* V122 (F-231 K7): Kommentare = Spur-Einträge mit Text */
+  | { type: 'commentAdd'; id: string; text: string; cid: string; by?: string }
+  | { type: 'commentEdit'; id: string; cid: string; text: string }
+  | { type: 'commentDelete'; id: string; cid: string }
+  | { type: 'commentPut'; id: string; ev: import('./types').NoteEvent }
   | { type: 'cardTemplate'; note: string; on: boolean }
   | { type: 'cardFromTpl'; tpl: string; view: string; col: string; id: string; top?: boolean; by?: string }
   | { type: 'quadSet'; view: string; note: string; q: Sh.Quad; by?: string }
@@ -698,6 +712,28 @@ function step(ws: Workspace, a: Action): Workspace {
       return KM.restoreCard(ws, a.view, a.note, { by: a.by });
     case 'cardTemplate':
       return KM.setTemplate(ws, a.note, a.on);
+    case 'commentAdd':
+      return Cm.addComment(ws, a.id, a.text, { by: a.by, cid: a.cid })?.ws ?? ws;
+    case 'commentEdit':
+      return Cm.editComment(ws, a.id, a.cid, a.text);
+    case 'commentDelete':
+      return Cm.deleteComment(ws, a.id, a.cid);
+    case 'commentPut':
+      return Cm.putComment(ws, a.id, a.ev);
+    case 'tagColor':
+      return Tg.setTagColor(ws, a.tag, a.color);
+    case 'tagCreate':
+      return Tg.createTag(ws, a.tag, a.color).ws;
+    case 'tagRename':
+      return Tg.renameTag(ws, a.from, a.to).ws;
+    case 'tagRemoveIn':
+      return Tg.removeTagIn(ws, a.view, a.tag).ws;
+    case 'tagHide':
+      return Tg.setHidden(ws, a.view, a.tag, a.hide);
+    case 'noteTags': {
+      const tags = Tg.normalizeTags(ws, a.tags);
+      return No.updateNote(ws, a.id, { tags: tags.length ? tags : undefined }, { by: a.by });
+    }
     case 'cardFromTpl':
       return KM.cardFromTemplate(ws, a.tpl, a.view, a.col, { by: a.by, id: a.id, top: a.top })?.ws ?? ws;
     case 'quadSet':

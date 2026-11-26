@@ -107,8 +107,23 @@ export function addEvent(trail: readonly NoteEvent[], what: NoteEventKind, act: 
     return [...trail.slice(0, -1), { ...last, at }];
   }
   const ev: NoteEvent = { at, what, ...(act.by ? { by: act.by } : {}), ...(detail ? { detail } : {}) };
-  const out = [...trail, ev];
-  return out.length > TRAIL_MAX ? out.slice(out.length - TRAIL_MAX) : out;
+  return trimTrail([...trail, ev]);
+}
+
+/** V122 (F-231 K7): höchstens so viele Kommentare je Notiz (zählen nicht gegen TRAIL_MAX). */
+export const COMMENTS_MAX = 500;
+
+/** Spur kürzen: übrige Ereignisse auf TRAIL_MAX, Kommentare auf COMMENTS_MAX – älteste fallen zuerst weg. */
+export function trimTrail(trail: readonly NoteEvent[]): NoteEvent[] {
+  const ev = trail.filter((e) => e.what !== 'comment').length;
+  const cm = trail.length - ev;
+  if (ev <= TRAIL_MAX && cm <= COMMENTS_MAX) return [...trail];
+  let dropEv = Math.max(0, ev - TRAIL_MAX);
+  let dropCm = Math.max(0, cm - COMMENTS_MAX);
+  return trail.filter((e) => {
+    if (e.what === 'comment') return dropCm > 0 ? (dropCm--, false) : true;
+    return dropEv > 0 ? (dropEv--, false) : true;
+  });
 }
 
 function patchNote(ws: Workspace, id: string, fn: (n: Note) => Note): Workspace {
@@ -744,7 +759,7 @@ export function restoreView(ws: Workspace, undo: ViewUndo): Workspace {
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isDay = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
-const EVENT_KINDS = new Set<NoteEventKind>(['created', 'edited', 'state', 'parent', 'link', 'unlink', 'placed', 'moved', 'removed', 'delegated', 'forwarded', 'attached', 'restored']);
+const EVENT_KINDS = new Set<NoteEventKind>(['created', 'edited', 'state', 'parent', 'link', 'unlink', 'placed', 'moved', 'removed', 'delegated', 'forwarded', 'attached', 'restored', 'comment']);
 const ORIGIN_VIA = new Set<NoteOrigin['via']>(['hand', 'quick', 'voice', 'slot', 'import']);
 
 /** Vorgänger lesen; bis v7 hieß die Art `kind` ('done' = EA + wartet, 'date' = EA). */
@@ -765,10 +780,19 @@ function parseNote(v: unknown, catIds: Set<string>): Note | null {
     text: typeof v.text === 'string' ? v.text : '',
     state: NOTE_STATES.includes(v.state as NoteState) ? (v.state as NoteState) : 'open',
     trail: Array.isArray(v.trail)
-      ? v.trail
+      ? trimTrail(
+          v.trail
           .filter((e): e is Record<string, unknown> => isObj(e) && isNum(e.at) && EVENT_KINDS.has(e.what as NoteEventKind))
-          .map((e) => ({ at: e.at as number, what: e.what as NoteEventKind, ...(typeof e.by === 'string' ? { by: e.by } : {}), ...(typeof e.detail === 'string' ? { detail: e.detail } : {}) }))
-          .slice(-TRAIL_MAX)
+          .filter((e) => e.what !== 'comment' || (typeof e.id === 'string' && typeof e.text === 'string'))
+          .map((e) => ({
+            at: e.at as number,
+            what: e.what as NoteEventKind,
+            ...(typeof e.by === 'string' ? { by: e.by } : {}),
+            ...(typeof e.detail === 'string' ? { detail: e.detail } : {}),
+            // V122 (K7): Kommentar
+            ...(e.what === 'comment' ? { id: e.id as string, text: (e.text as string).slice(0, 5000), ...(isNum(e.edited) ? { edited: e.edited as number } : {}), ...(typeof e.ref === 'string' ? { ref: e.ref } : {}) } : {}),
+          })),
+        )
       : [],
     created: isNum(v.created) ? v.created : now,
     changed: isNum(v.changed) ? v.changed : isNum(v.created) ? v.created : now,
@@ -909,6 +933,11 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
     } else view.ids = clean(raw.ids, used);
     if (typeof raw.category === 'string' && catIds.has(raw.category)) view.category = raw.category;
     if (raw.review === true) view.review = true;
+    // V122 (F-231 K4): im Board ausgeblendete Tags
+    if (Array.isArray(raw.hiddenTags)) {
+      const hidden = [...new Set((raw.hiddenTags as unknown[]).filter((t): t is string => typeof t === 'string' && !!t.trim()).map((t) => t.trim().toLocaleLowerCase('de')))].sort();
+      if (hidden.length) view.hiddenTags = hidden;
+    }
     out.push({ ...view, ...parseSheetExtras(raw) });
   }
   // Delegiert an ein Board, das es nicht mehr gibt → nur der Name bleibt (Aufrufer setzt das an den Notizen)

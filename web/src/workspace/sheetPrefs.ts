@@ -2,6 +2,8 @@
  * V88 (F-206 Schritt 7, kleiner Punkt): Rad-Wahl „Zeigen“ (Offen · Alle) und „Ordnung“ (Eigene · Fällig ·
  * Wichtig) je Sheet und Gerät merken – nur lokal (wie die Anzeige-Einstellungen), nicht abgeglichen.
  */
+import { type CardFilter, parseCardFilter } from './cardFilter';
+
 export const SHEET_PREFS_KEY = 'esource.sheetPrefs.v1';
 /** Höchstens so viele Sheets merken (älteste fallen weg). */
 export const SHEET_PREFS_MAX = 200;
@@ -9,7 +11,15 @@ export const SHEET_PREFS_MAX = 200;
 export interface SheetPref {
   show?: 'open' | 'all';
   order?: 'own' | 'due' | 'important';
+  /** V122 (F-231 K4): Kartenfilter des Kanbans (Tag, Fälligkeit, Zustand, Person, UND/ODER). */
+  filter?: CardFilter;
+  /** V122 (F-231 K13): Ansicht des Kanbans. */
+  kview?: KView;
 }
+
+/** V122 (F-231 K13, T6): Ansichten desselben Kanban-Sheets über das Rad „Ansicht“. */
+export type KView = 'board' | 'table' | 'calendar';
+export const KVIEWS: readonly KView[] = ['board', 'table', 'calendar'];
 
 /** Gespeicherten Stand prüfen: nur bekannte Werte. */
 export function parseSheetPrefs(raw: unknown): Record<string, SheetPref> {
@@ -21,6 +31,9 @@ export function parseSheetPrefs(raw: unknown): Record<string, SheetPref> {
     const pref: SheetPref = {};
     if (p.show === 'open' || p.show === 'all') pref.show = p.show;
     if (p.order === 'own' || p.order === 'due' || p.order === 'important') pref.order = p.order;
+    const f = parseCardFilter(p.filter);
+    if (f) pref.filter = f;
+    if (typeof p.kview === 'string' && (KVIEWS as readonly string[]).includes(p.kview)) pref.kview = p.kview as KView;
     if (Object.keys(pref).length) out[id] = pref;
   }
   return out;

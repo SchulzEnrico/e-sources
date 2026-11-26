@@ -136,7 +136,7 @@ describe('F-226 Baukasten (V109): Vorlage GPM Level D, Zellen, Zeilen, eigene Fe
   };
   const form = (id: string) => Fk.GPM_D.forms.find((f) => f.id === id)!;
   it('Vorlage: Kapitel in Leitfaden-Reihenfolge, jede Spalte im Feldkatalog, Stufe 1 und 2', () => {
-    expect(Fk.GPM_D.forms.map((f) => f.chapter)).toEqual(['2.1', '2.2', '2.2', '2.3', '3.1', '4', '4', '4', '5', '6.2', '6.3', '7', '7', '8', '8.3', '10', '10', '11', '11', '12']);
+    expect(Fk.GPM_D.forms.map((f) => f.chapter)).toEqual(['2.1', '2.2', '2.2', '2.3', '3.1', '4', '4', '4', '5', '6.2', '6.3', '7', '7', '8', '8.3', '10', '10', '11', '11', '11', '12']);
     const chapters = Fk.GPM_D.forms.map((f) => parseFloat(f.chapter));
     expect([...chapters].sort((a, b) => a - b)).toEqual(chapters);
     for (const f of Fk.GPM_D.forms) {
@@ -501,5 +501,32 @@ describe('F-226 Stufe 2 (V113): Abnahmekriterien, AKV, DKI, Arbeitspaket, Status
       at = i;
     }
     expect(html).toContain('counter(page)');
+  });
+});
+
+describe('F-226 Stufe 2 Rest (V114): Earned Value', () => {
+  const pid = Sp.SAMPLE_PROJECT;
+  const sample = (): Workspace => Sp.addSampleProject(W.defaultWorkspace(), 5);
+  it('vor dem Start: PV 0, EV 0; nach dem Ende: PV = BAC', async () => {
+    const C = await import('./gpmCalc');
+    const ws = sample();
+    const a = C.earnedValue(ws, pid, '2026-11-01');
+    expect(a.rows.length).toBeGreaterThan(0);
+    expect(a.total.pv).toBe(0);
+    const b = C.earnedValue(ws, pid, '2028-01-01');
+    expect(b.total.pv).toBe(b.total.bac);
+    expect(b.total.bac).toBeGreaterThan(0);
+    for (const r of b.rows) expect(r.sv).toBe(Math.round((r.ev - r.pv) * 100) / 100);
+  });
+  it('Formular im Baukasten, ohne „+ Zeile“, im Report mit Summenzeile', async () => {
+    const R = await import('./gpmReport');
+    const f = Fk.GPM_D.forms.find((x) => x.id === 'ev')!;
+    expect(f.source).toBe('ev');
+    expect(Fk.canAddRow(f)).toBe(false);
+    const ws = sample();
+    expect(Fk.rowsOf(ws, pid, f).length).toBeGreaterThan(0);
+    const html = R.reportHtml(ws, pid, { version: 'V114', day: '2027-03-15' });
+    expect(html).toContain('id="f-ev"');
+    expect(html).toContain('Projekt (Stichtag');
   });
 });

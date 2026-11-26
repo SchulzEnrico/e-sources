@@ -136,6 +136,57 @@ export function projectStatus(ws: Workspace, pid: string, day: string, g: Gantt 
     restHours: round(rest, 2),
   };
 }
+// ---------------------------------------------------------------- Earned Value (ICB4 4.5.7)
+
+export interface EvRow {
+  id: string;
+  /** Plan-Kosten gesamt (BAC), Planwert (PV), Fertigstellungswert (EV), Ist-Kosten (AC) in € */
+  bac: number;
+  pv: number;
+  ev: number;
+  ac: number;
+  /** Abweichungen in € (SV = EV − PV, CV = EV − AC) und Kennzahlen (SPI = EV ÷ PV, CPI = EV ÷ AC) */
+  sv: number;
+  cv: number;
+  spi?: number;
+  cpi?: number;
+  /** Prognose Kosten bei Abschluss (EAC = BAC ÷ CPI), sonst BAC */
+  eac: number;
+}
+export interface EarnedValue {
+  day: string;
+  rows: EvRow[];
+  total: EvRow;
+}
+const evRow = (id: string, bac: number, pv: number, ev: number, ac: number): EvRow => {
+  const spi = pv > 0 ? round(ev / pv, 2) : undefined;
+  const cpi = ac > 0 ? round(ev / ac, 2) : undefined;
+  return { id, bac: round(bac, 2), pv: round(pv, 2), ev: round(ev, 2), ac: round(ac, 2), sv: round(ev - pv, 2), cv: round(ev - ac, 2), ...(spi !== undefined ? { spi } : {}), ...(cpi !== undefined ? { cpi } : {}), eac: round(cpi ? bac / cpi : bac, 2) };
+};
+/** Earned Value je Arbeitspaket zum Stichtag `day`: PV = Plan-Kosten × verstrichener Anteil der Arbeitstage im Gantt, EV = Plan-Kosten × Fertigstellungsgrad. */
+export function earnedValue(ws: Workspace, pid: string, day: string, g: Gantt = ganttOf(ws, pid, day)): EarnedValue {
+  const rows: EvRow[] = [];
+  let tb = 0, tp = 0, te = 0, ta = 0;
+  for (const n of leafTasks(ws, pid, g).filter((x) => !x.milestone)) {
+    const bac = planCost(ws, n) ?? 0;
+    const r = g.byId.get(n.id);
+    let share = 0;
+    if (r?.planned && r.start && r.end) {
+      if (day >= r.end) share = 1;
+      else if (day >= r.start) {
+        const all = workdays(r.start, r.end);
+        share = all ? workdays(r.start, day) / all : 0;
+      }
+    }
+    const pv = bac * share;
+    const ev = (bac * progressOf(ws, n)) / 100;
+    const ac = actCost(n) ?? 0;
+    tb += bac; tp += pv; te += ev; ta += ac;
+    rows.push(evRow(n.id, bac, pv, ev, ac));
+  }
+  return { day, rows, total: evRow('', tb, tp, te, ta) };
+}
+
 function workdays(a: string, b: string): number {
   let n = 0;
   for (let d = a; d <= b && n < 5000; d = addDays(d, 1)) if (isWorkday(d)) n++;

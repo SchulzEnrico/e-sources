@@ -7,7 +7,7 @@
  */
 import type { FormDef, Project, Workspace } from './types';
 import * as Fk from './formKit';
-import { costCurve, portfolioOf, projectStatus, type CostCurve, type PortfolioDot } from './gpmCalc';
+import { costCurve, earnedValue, portfolioOf, projectStatus, type CostCurve, type PortfolioDot } from './gpmCalc';
 import { personById } from './persons';
 import { projectById } from './projects';
 
@@ -234,6 +234,11 @@ function formSection(ws: Workspace, p: Project, f: FormDef): string {
     else {
       out.push(`<table><thead><tr>${cols.map((c) => `<th scope="col">${esc(c.label)}</th>`).join('')}</tr></thead><tbody>`);
       for (const r of rows) out.push(`<tr>${cols.map((c) => `<td>${esc(val(r.id, c))}</td>`).join('')}</tr>`);
+      if (f.source === 'ev') {
+        const t = earnedValue(ws, p.id, Fk.evDay()).total;
+        const sum: Record<string, string> = { title: `Projekt (Stichtag ${Fk.evDay().split('-').reverse().join('.')})`, bac: eur(t.bac), pv: eur(t.pv), ev: eur(t.ev), ac: eur(t.ac), sv: eur(t.sv), cv: eur(t.cv), spi: t.spi?.toLocaleString('de-DE') ?? '–', cpi: t.cpi?.toLocaleString('de-DE') ?? '–', eac: eur(t.eac) };
+        out.push(`<tr class="sum">${cols.map((x) => `<td>${esc(sum[x.key] ?? '')}</td>`).join('')}</tr>`);
+      }
       if (f.source === 'costs') {
         const c = costCurve(ws, p.id);
         const sum: Record<string, string> = { month: 'Summe', cost: eur(c.total), hours: `${c.hours.toLocaleString('de-DE')}` };

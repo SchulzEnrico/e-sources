@@ -1252,7 +1252,7 @@ export interface FormFieldDef {
   required?: boolean;
 }
 /** F-226: Woher ein Formular seine Zeilen nimmt. */
-export type FormSource = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'risks' | 'phases' | 'milestones' | 'tasks' | 'uses' | 'persons' | 'procure' | 'roles' | 'accept' | 'comms' | 'reports' | 'wp' | 'costs';
+export type FormSource = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'risks' | 'phases' | 'milestones' | 'tasks' | 'uses' | 'persons' | 'procure' | 'roles' | 'accept' | 'comms' | 'reports' | 'wp' | 'costs' | 'ev';
 /** F-226: Spalte bzw. Feld eines Formulars – eingebautes Feld (`key`) oder eigenes (`custom:<id>`). */
 export interface FormColumn {
   key: string;

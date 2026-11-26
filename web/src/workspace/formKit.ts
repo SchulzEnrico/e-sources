@@ -18,7 +18,7 @@ import type {
   Workspace,
 } from './types';
 import { addItem, editCharter, editItem, goalsOf, moveItem, nextCode, parseWp, planCost, planHours, removeItem, riskLevels, riskValue, riskValueAfter, setPhase, setUse, undoRemoveItem, useCost, type GpmList, type GpmUndo, COMM_STRATEGIES, GOAL_KINDS, GOAL_LEVELS, MODELS, PROCURE_STATES, PROGRESS_METHODS, REPORT_LIGHTS, STAKE_STRATEGIES } from './gpm';
-import { costCurve, newReport, progressOf } from './gpmCalc';
+import { costCurve, earnedValue, newReport, progressOf } from './gpmCalc';
 import { ganttOf } from './gantt';
 import { type Act, createNote, deleteNote, notesOf, type NoteUndo, restoreNotes, titleOf, updateNote } from './notes';
 import { editProject, editRoles, projectById, rolesOf } from './projects';
@@ -248,6 +248,19 @@ export const FIELDS: Record<FormSource, readonly FieldSpec[]> = {
     { key: 'releasePl', label: 'Freigabe Projektleitung', kind: 'date' },
     { key: 'releaseOwner', label: 'Freigabe AP-Verantwortlich', kind: 'date' },
   ],
+  ev: [
+    { key: 'code', label: 'Code', kind: 'text', readonly: true },
+    { key: 'title', label: 'Arbeitspaket', kind: 'text', readonly: true },
+    { key: 'bac', label: 'Plan-Kosten BAC (€)', kind: 'money', readonly: true, help: 'Budget at Completion: Plan-Kosten des Arbeitspakets' },
+    { key: 'pv', label: 'Planwert PV (€)', kind: 'money', readonly: true, help: 'Planned Value: so viel sollte bis heute laut Gantt geleistet sein' },
+    { key: 'ev', label: 'Fertigstellungswert EV (€)', kind: 'money', readonly: true, help: 'Earned Value: Plan-Kosten × Fertigstellungsgrad' },
+    { key: 'ac', label: 'Ist-Kosten AC (€)', kind: 'money', readonly: true, help: 'Actual Cost: Ist-Kosten von Hand' },
+    { key: 'sv', label: 'Terminabweichung SV (€)', kind: 'money', readonly: true, help: 'EV − PV; negativ = hinter dem Plan' },
+    { key: 'cv', label: 'Kostenabweichung CV (€)', kind: 'money', readonly: true, help: 'EV − AC; negativ = teurer als geplant' },
+    { key: 'spi', label: 'SPI', kind: 'number', readonly: true, help: 'Termin-Kennzahl EV ÷ PV; unter 1 = verspätet' },
+    { key: 'cpi', label: 'CPI', kind: 'number', readonly: true, help: 'Kosten-Kennzahl EV ÷ AC; unter 1 = teurer' },
+    { key: 'eac', label: 'Prognose EAC (€)', kind: 'money', readonly: true, help: 'Estimate at Completion: BAC ÷ CPI' },
+  ],
   costs: [
     { key: 'month', label: 'Monat', kind: 'text', readonly: true },
     { key: 'cost', label: 'Plan-Kosten (€)', kind: 'money', readonly: true },
@@ -256,6 +269,8 @@ export const FIELDS: Record<FormSource, readonly FieldSpec[]> = {
     { key: 'hoursSum', label: 'Summe (Ph)', kind: 'number', readonly: true },
   ],
 };
+/** Stichtag für Earned Value: heute. */
+export const evDay = (): string => new Date().toISOString().slice(0, 10);
 export const fieldSpec = (src: FormSource, key: string): FieldSpec | undefined => FIELDS[src].find((f) => f.key === key);
 
 // ---------------------------------------------------------------- Vorlage „GPM Level D“
@@ -285,6 +300,7 @@ export const GPM_D: FormTemplate = {
     { id: 'persons', chapter: '10', name: 'Ressourcen', source: 'persons', layout: 'table', columns: cols('persons'), stage: 1, icb: '4.5.8' },
     { id: 'uses', chapter: '10', name: 'Einsatz je Arbeitspaket', source: 'uses', layout: 'table', columns: cols('uses'), stage: 1, icb: '4.5.8 · 4.5.7' },
     { id: 'costs', chapter: '11', name: 'Kostenganglinie', source: 'costs', layout: 'chart', columns: cols('costs'), stage: 2, icb: '4.5.7' },
+    { id: 'ev', chapter: '11', name: 'Earned Value (Fertigstellungswert)', source: 'ev', layout: 'table', columns: cols('ev'), stage: 2, icb: '4.5.7' },
     { id: 'procure', chapter: '11', name: 'Beschaffung', source: 'procure', layout: 'table', columns: cols('procure'), stage: 1, icb: '4.5.9' },
     { id: 'reports', chapter: '12', name: 'Statusbericht', source: 'reports', layout: 'record', columns: cols('reports'), stage: 2, icb: '4.5.10' },
   ],
@@ -431,6 +447,8 @@ export function rowsOf(ws: Workspace, pid: string, form: FormDef): FormRow[] {
       return taskRows(ws, pid).filter((n) => !n.milestone).map((n) => ({ id: n.id, note: n.id, depth: n.depth }));
     case 'costs':
       return costCurve(ws, pid).months.map((m) => ({ id: m.month }));
+    case 'ev':
+      return earnedValue(ws, pid, evDay()).rows.map((r) => ({ id: r.id, note: r.id }));
   }
 }
 const splitCheck = (rowId: string) => {
@@ -542,6 +560,12 @@ export function cellValue(ws: Workspace, pid: string, form: FormDef, rowId: stri
       }
       if (key === 'progress') return n.wp?.progress ?? progressOf(ws, n);
       return (n.wp as Record<string, CellValue> | undefined)?.[key];
+    }
+    case 'ev': {
+      if (key === 'code') return taskRows(ws, pid).find((t) => t.id === rowId)?.code;
+      if (key === 'title') { const n = noteOf(ws, rowId); return n ? titleOf(n) : undefined; }
+      const r = earnedValue(ws, pid, evDay()).rows.find((x) => x.id === rowId);
+      return r ? (r as unknown as Record<string, CellValue>)[key] : undefined;
     }
     case 'costs': {
       const m = costCurve(ws, pid).months.find((x) => x.month === rowId);
@@ -687,7 +711,7 @@ export function setCell(ws: Workspace, pid: string, form: FormDef, rowId: string
 
 const LIST: Partial<Record<FormSource, GpmList>> = { goals: 'goals', conflicts: 'conflicts', stakeholders: 'stakeholders', phases: 'phases', comms: 'comms', reports: 'reports' };
 /** Kann das Formular Zeilen anlegen? (Ressourcen entstehen über Einsätze; Einsätze brauchen Vorgang und Person.) */
-export const canAddRow = (form: FormDef): boolean => (form.layout === 'table' || form.layout === 'record') && form.source !== 'persons' && form.source !== 'costs';
+export const canAddRow = (form: FormDef): boolean => (form.layout === 'table' || form.layout === 'record') && form.source !== 'persons' && form.source !== 'costs' && form.source !== 'ev';
 /** Kann man Zeilen von Hand verschieben? (nur Listen am Projekt) */
 export const canMoveRow = (form: FormDef): boolean => !!LIST[form.source] && form.source !== 'reports' && form.layout === 'table';
 

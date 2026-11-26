@@ -207,6 +207,7 @@ export function parseProjects(v: unknown, scopeIds: ReadonlySet<string>): Projec
     if (PROJECT_STATES.includes(r.state as NonNullable<Project['state']>)) p.state = r.state as Project['state'];
     if (isNum(r.points) && r.points > 0) p.points = r.points;
     if (isNum(r.taskLimit) && r.taskLimit >= 1) p.taskLimit = Math.min(99, Math.floor(r.taskLimit));
+    if (typeof r.accent === 'string' && /^#[0-9a-f]{6}$/i.test(r.accent)) p.accent = r.accent.toLowerCase();
     const sources = parseSourceLinks(r.sources);
     if (sources) p.sources = sources;
     const baseline = parseBaseline(r.baseline);

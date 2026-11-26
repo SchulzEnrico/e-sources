@@ -8,6 +8,8 @@
  * Bild↓/Bild↑ springt 5 weiter · Pos1/Ende erster/letzter Treffer (mit Alt) · Enter öffnet ·
  * Esc leert, ein zweites Esc verlässt das Feld · Tab verlässt das Feld und schließt die Liste.
  */
+import { ScopeNote } from './DeskProject';
+import { scopeProject } from '../workspace/deskProject';
 import { SiteIcon, useDisplay } from './SiteIcon';
 import { Fragment, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { type PanelHit, type SearchHit, SEARCH_MAX, bookmarkOf, searchAll, searchPanels } from '../workspace/bookmarks';
@@ -87,7 +89,8 @@ export function Search(props: Props) {
     });
   }, [ws, query]);
   const panelHits = useMemo(() => searchPanels(ws, query), [ws, query]);
-  const noteHits = useMemo(() => (props.onOpenNote ? searchNotes(ws, query) : []), [ws, query, props.onOpenNote]);
+  const scope = scopeProject(); // V117 (PD5): neue Begrenzung = neu suchen
+  const noteHits = useMemo(() => (props.onOpenNote ? searchNotes(ws, query) : []), [ws, query, props.onOpenNote, scope]); // eslint-disable-line react-hooks/exhaustive-deps
   const decisionHits = useMemo(() => (props.onOpenDecision ? searchDecisions(ws, query) : []), [ws, query, props.onOpenDecision]);
   const caseHits = useMemo(() => (props.onPickCase ? searchCases(ws, query) : []), [ws, query, props.onPickCase]);
   const helpHits = useMemo(() => searchHelp(query, 4), [query]);
@@ -569,6 +572,8 @@ export function Search(props: Props) {
                 {SEARCH_TEXT.chips[c]} <span className="search__chip-n">{counts[c]}</span>
               </button>
             ))}
+            {/* V117 (Projekt-Desk, PD5): auf einem gebundenen Desk Notizen nur des gezeigten Projekts */}
+            <ScopeNote ws={ws} className="search__scope" />
           </li>
           {found === 0 && (
             <li className="search__empty" role="presentation">

@@ -15,7 +15,8 @@ import { fmtDay } from './ProjectPsp';
 import { PersonBadge } from './PersonChips';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
-const h = (x: number) => (x ? hoursText(x) : '');
+/** V117: Wochenzellen auf eine Nachkommastelle (genau steht im Tooltip). */
+const h = (x: number) => (x ? hoursText(Math.round(x * 10) / 10) : '');
 
 export function ProjectResources({ ws, p }: { ws: Workspace; p: Project }) {
   const u = Rs.resourceUse(ws, p.id);

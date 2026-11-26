@@ -891,8 +891,8 @@ export function Overview(p: OverviewProps) {
         onBlur={(e) => {
           // Fokus wandert woanders hin (z. B. Tab ans Ende) → einklappen; nicht beim Knopf selbst (der schaltet um).
           const to = e.relatedTarget as Node | null;
-          // V51: Knopf im Hinweis unten (z. B. „Rückgängig“) schließt das Cockpit nicht
-          if (!p.keepOpen && to && !box.current?.contains(to) && to !== p.toggleRef.current && !(to as Element).closest?.('.toast')) p.onDismiss();
+          // V51: Knopf im Hinweis unten (z. B. „Rückgängig“) schließt das Cockpit nicht; V117: Menü am Rad (⋮, liegt im Portal) auch nicht
+          if (!p.keepOpen && to && !box.current?.contains(to) && to !== p.toggleRef.current && !(to as Element).closest?.('.toast, .menu__list')) p.onDismiss();
         }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {

@@ -63,7 +63,9 @@ export function setProfile(ws: Workspace, change: Partial<Profile>): Workspace {
 
 /** Initialen: „Enrico Schulz“ → „ES“, „Enrico“ → „E“, leer → „“. */
 export function initialsOf(name: string): string {
-  const parts = cleanName(name).split(' ').filter(Boolean);
+  // V117: Rolle nach „ – “, Klammern und Anreden (Fr., Hr., Dr., Frau, Herr) zählen nicht – „Fr. Stanczak – Leitung (CG)“ → „S“.
+  const core = cleanName(name).split(/\s[–—-]\s/)[0].replace(/\([^)]*\)?/g, ' ');
+  const parts = core.split(' ').filter((w) => /^\p{L}/u.test(w) && !/^(fr|hr|dr|prof|frau|herr)\.?$/i.test(w) && !/\.$/.test(w));
   if (!parts.length) return '';
   const first = [...parts[0]][0] ?? '';
   const last = parts.length > 1 ? ([...parts[parts.length - 1]][0] ?? '') : '';

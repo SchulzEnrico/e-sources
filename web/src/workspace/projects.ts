@@ -4,6 +4,7 @@
  * Vorgehen, Organisation). Datenmodell `Project` besteht seit v8 (types.ts); Vorgang = Notiz mit `project`.
  * Reine Funktionen, Tests in workspace.test.ts („F-206 Schritt 10 Projekte“).
  */
+import type { DeskBinding } from './deskProject';
 import type { Note, Project, ProjectRole, Workspace } from './types';
 import { dayOf, isFinished, notesOf } from './notes';
 import { cleanName } from './profile';
@@ -99,6 +100,7 @@ export function editProject(ws: Workspace, id: string, patch: Partial<Omit<Proje
     else if (k === 'priority') set(k, typeof v === 'number' ? Math.min(5, Math.max(1, Math.round(v))) : undefined);
     else if (k === 'budget' || k === 'points') set(k, typeof v === 'number' && v >= 0 ? v : undefined);
     else if (k === 'taskLimit') set(k, typeof v === 'number' && v >= 1 ? Math.min(99, Math.floor(v)) : undefined);
+    else if (k === 'accent') set(k, typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : undefined);
     else if (k === 'parent') {
       if (typeof v === 'string' && v && (v === id || !projectById(ws, v) || parentLoops(ws, id, v))) continue;
       set(k, (v as string) || undefined);
@@ -121,6 +123,8 @@ export interface ProjectUndo {
   notes: string[];
   /** Unterprojekte, die ihr übergeordnetes Projekt verloren haben. */
   children: string[];
+  /** V117 (PD6): Desks, die an das Projekt gebunden waren – „Rückgängig“ bindet sie wieder. */
+  desks?: Record<string, DeskBinding>;
 }
 
 /** Projekt löschen: Vorgänge bleiben als Notizen (ohne Projekt), Unterprojekte rücken eine Ebene hoch. */
@@ -145,7 +149,15 @@ export function removeProject(ws: Workspace, id: string): { ws: Workspace; undo:
     const { project: _p, ...rest } = n; // eslint-disable-line @typescript-eslint/no-unused-vars
     return rest;
   });
-  return { ws: { ...withProjects(ws, projects), notes }, undo: { project, index, notes: touched, children } };
+  // V117 (PD6): gebundene Desks bleiben und werden gelöst
+  const bound = Object.entries(ws.deskProjects ?? {}).filter(([, b]) => b.project === id);
+  const rest = Object.entries(ws.deskProjects ?? {}).filter(([, b]) => b.project !== id);
+  const base: Workspace = { ...withProjects(ws, projects), notes };
+  if (bound.length) {
+    if (rest.length) base.deskProjects = Object.fromEntries(rest);
+    else delete base.deskProjects;
+  }
+  return { ws: base, undo: { project, index, notes: touched, children, ...(bound.length ? { desks: Object.fromEntries(bound) } : {}) } };
 }
 
 export function undoRemoveProject(ws: Workspace, u: ProjectUndo): Workspace {
@@ -155,7 +167,12 @@ export function undoRemoveProject(ws: Workspace, u: ProjectUndo): Workspace {
   list.splice(Math.min(u.index, list.length), 0, u.project);
   const back = new Set(u.notes);
   const notes = notesOf(ws).map((n) => (back.has(n.id) ? { ...n, project: u.project.id } : n));
-  return { ...withProjects(ws, list), notes };
+  const out: Workspace = { ...withProjects(ws, list), notes };
+  // V117 (PD6): Desks wieder binden, sofern es sie noch gibt und sie nicht neu gebunden wurden
+  const desks = new Set(['', ...ws.windows.map((w) => w.id)]);
+  const back2 = Object.entries(u.desks ?? {}).filter(([w]) => desks.has(w) && !ws.deskProjects?.[w]);
+  if (back2.length) out.deskProjects = { ...ws.deskProjects, ...Object.fromEntries(back2) };
+  return out;
 }
 
 /** Notiz einem Projekt zuordnen (leer = lösen). */

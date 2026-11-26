@@ -6,6 +6,7 @@
  * (Workspace.noteViews); eine Notiz kann in mehreren Ansichten zugleich liegen, ohne Kopie.
  * Alles hier sind reine Funktionen: Workspace rein, neuer Workspace raus.
  */
+import { inScope, newNoteProject } from './deskProject';
 import type {
   Note,
   NoteAttachment,
@@ -141,6 +142,11 @@ export function createNote(ws: Workspace, init: NoteInit = {}, act: Act & { id?:
     created: at,
     changed: at,
   };
+  // V117 (PD4): auf einem gebundenen Desk bekommt eine neue Notiz das gezeigte Projekt
+  if (!('project' in init)) {
+    const pj = newNoteProject();
+    if (pj && ws.projects?.some((p) => p.id === pj)) n.project = pj;
+  }
   if (!n.origin) n.origin = { via: act.via ?? 'hand', at: new Date(at).toISOString(), ...(act.by ? { by: act.by } : {}) };
   if (n.parent && !noteById(ws, n.parent)) delete n.parent;
   return { ws: withNotes(ws, [...notesOf(ws), n]), id };
@@ -1021,7 +1027,8 @@ export function searchNotes(ws: Workspace, query: string, max = NOTE_SEARCH_MAX,
   if (!words.length) return [];
   const cat = (id?: string) => (id ? (ws.categories.find((c) => c.id === id)?.name ?? '') : '');
   const notes = notesOf(ws)
-    .filter((n) => !isEmptyNote(ws, n))
+    // V117 (PD5): auf einem gebundenen Desk ab Werk nur das gezeigte Projekt
+    .filter((n) => !isEmptyNote(ws, n) && inScope(n))
     .map((n) => {
       const title = titleOf(n);
       const body = plainText(n.text);

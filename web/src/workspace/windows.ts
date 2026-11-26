@@ -32,6 +32,10 @@ export function windowList(ws: Workspace): Named[] {
 
 export function windowName(ws: Workspace, win: string): string {
   if (!win) return MAIN_NAME;
+  // V117 (Projekt-Desk, PD3): ein gebundener Desk trägt überall den Namen seines Projekts
+  const pid = ws.deskProjects?.[win]?.project;
+  const pj = pid ? ws.projects?.find((p) => p.id === pid) : undefined;
+  if (pj) return pj.name;
   return ws.windows.find((w) => w.id === win)?.name ?? 'Leerer Desk';
 }
 
@@ -72,7 +76,10 @@ export function syncWindows(ws: Workspace): Workspace {
   // F-51: Layouts eines weggefallenen Desks fallen mit weg
   const kept = Object.entries(ws.deskLayouts ?? {}).filter(([k]) => ids.has(k));
   const deskLayouts = kept.length ? Object.fromEntries(kept) : undefined;
-  return { ...ws, windows, winSetup, deskLooks, deskLayouts };
+  // V117 (Projekt-Desk): Bindung eines weggefallenen Desks fällt mit weg
+  const bound = Object.entries(ws.deskProjects ?? {}).filter(([k]) => ids.has(k));
+  const deskProjects = bound.length ? Object.fromEntries(bound) : undefined;
+  return { ...ws, windows, winSetup, deskLooks, deskLayouts, deskProjects };
 }
 
 /**

@@ -74,6 +74,10 @@ export function ModeWheel(props: {
   const drag = useRef<{ y: number; top: number; moved: boolean } | null>(null);
   const dragged = useRef(false);
   const swing = useRef(1); // V111: Klick-Richtung (1 vor, -1 zurück)
+  // V117: letzte Bedienung (Rad, Maus, Finger, Taste) – Scrollen ohne Bedienung kommt vom Browser (z. B. ein
+  // verstecktes Rad in der Überlauf-Leiste wird sichtbar und steht auf 0) und darf den Wert nicht umstellen
+  const touched = useRef(0);
+  const touch = () => (touched.current = Date.now());
 
   const opt = (i: number) => band[((i % band.length) + band.length) % band.length];
   const optIndex = (i: number) => options.indexOf(opt(i)); // -1 = Zwischenwert
@@ -113,6 +117,12 @@ export function ModeWheel(props: {
     const b = box.current;
     if (!b) return;
     curve();
+    if (!own.current && Date.now() - touched.current > 2500) {
+      // nicht vom Anwender: zurück auf den Wert stellen, nichts übernehmen (V117, Desk sprang beim Laden auf „Desk“)
+      if (Math.abs(b.scrollTop - target * ROW) > 1) b.scrollTop = target * ROW;
+      if (at !== target) setAt(target);
+      return;
+    }
     const i = Math.max(0, Math.min(list.length - 1, Math.round(b.scrollTop / ROW)));
     if (i !== at) setAt(i);
     if (props.disabled) return;
@@ -146,6 +156,7 @@ export function ModeWheel(props: {
   const roll = (i: number) => {
     const b = box.current;
     if (!b || props.disabled || count < 2) return;
+    touch();
     b.scrollTo({ top: i * ROW, behavior: calm() ? 'auto' : 'smooth' });
   };
   /** Ziel als Modus-Nummer → Raste im Band, möglichst kurzer Weg (ringsum über die Nachbarkopie). */
@@ -205,6 +216,7 @@ export function ModeWheel(props: {
       e.currentTarget.setPointerCapture?.(e.pointerId);
       b.style.scrollSnapType = 'none';
     }
+    touch();
     b.scrollTop = d.top + dy;
   };
   const up = () => {
@@ -238,8 +250,12 @@ export function ModeWheel(props: {
       aria-roledescription={WHEEL_TEXT.role}
       aria-disabled={props.disabled || undefined}
       title={title}
-      onKeyDown={key}
+      onKeyDown={(e) => (touch(), key(e))}
       onClick={click}
+      onWheel={touch}
+      onTouchStart={touch}
+      onTouchMove={touch}
+      onPointerDownCapture={touch}
       onPointerDown={down}
       onPointerMove={move}
       onPointerUp={up}

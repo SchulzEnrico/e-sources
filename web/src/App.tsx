@@ -58,7 +58,7 @@ import { Tour } from './components/Tour';
 import { ProjectCockpit, shownProjectId } from './components/ProjectCockpit';
 import { STEER_EVENT } from './components/ProjectSteer';
 import { DECISION_EVENT } from './components/ProjectDecisions';
-import { DECISION_TEXT, LAYOUT_UNDO_TEXT, OVERFLOW_TEXT } from './workspace/terms';
+import { DECISION_TEXT, DESK_PROJECT_TEXT, LAYOUT_UNDO_TEXT, OVERFLOW_TEXT } from './workspace/terms';
 import { useOverflow } from './components/Overflow';
 import { WORKPAD_EVENT, WorkPad, type WorkPadOpen } from './components/WorkPad';
 import { SlotMachine } from './components/SlotMachine';
@@ -123,6 +123,9 @@ import { sweepClips } from './workspace/audioStore';
 import { sweepPics } from './workspace/imageStore';
 import { audioRefs, imageRefs } from './workspace/notes';
 import { theMatrix } from './workspace/sheets';
+import * as Dp from './workspace/deskProject';
+import { DeskProjectMenu } from './components/DeskProject';
+import { projectById } from './workspace/projects';
 
 /** Knopf im Hinweis unten (F-162, F-163). */
 interface FlashAction {
@@ -300,7 +303,29 @@ interface DeskProps {
 function DeskApp(props: DeskProps) {
   const { ws, dispatch, win } = props;
   const mine = useMemo(() => panelsIn(ws.panels, win), [ws.panels, win]);
+  // V117 (Projekt-Desk, PD3): ein gebundener Desk trägt den Namen seines Projekts
+  const boundPj = projectById(ws, Dp.boundProject(ws, win));
   const winLabel = windowName(ws, win);
+  // V117 (PD9): zuletzt gezeigtes Projekt je Desk (je Gerät); PD5: „Alles zeigen“ je Desk (je Gerät)
+  const [shownMap, setShownMap] = useState(Dp.loadShown);
+  const [showAll, setShowAll] = useState(() => Dp.loadShowAll(win));
+  useEffect(() => setShowAll(Dp.loadShowAll(win)), [win]);
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ win: string; all: boolean }>).detail;
+      if (d?.win === win) setShowAll(d.all);
+    };
+    window.addEventListener(Dp.SCOPE_EVENT, on);
+    return () => window.removeEventListener(Dp.SCOPE_EVENT, on);
+  }, [win]);
+  const deskShown = Dp.shownOn(ws, win, shownMap);
+  const showProject = (id: string | undefined) => {
+    Dp.saveShown(win, id);
+    setShownMap(Dp.loadShown());
+  };
+  // PD4/PD5 für alle Bausteine dieses Fensters (wie der Arbeitskalender: bei jedem Zeichnen)
+  const binding = Dp.bindingOf(ws, win);
+  Dp.setDeskScope({ win, project: binding ? deskShown : undefined, assign: binding?.assign !== false, all: showAll });
   useEffect(() => {
     document.title = win ? `${winLabel} – E-Sources` : 'E-Sources';
   }, [win, winLabel]);
@@ -3333,6 +3358,20 @@ function DeskApp(props: DeskProps) {
     if (!openAppWindow(dest)) return props.onSwitch(dest, `„${name}“ angelegt und hier gezeigt – der Browser hat das neue Fenster blockiert. ${DESK_KEYS}`);
     notify(`„${name}“ angelegt und in neuem Browserfenster geöffnet.`);
   };
+  /** V117 (PD2): „Eigener Desk“ – neuer Desk nur für ein Projekt, in eigenem Fenster, gleich im Projekt-Modus. */
+  const addOwnDesk = (pid: string) => {
+    const pj = projectById(ws, pid);
+    if (!pj) return;
+    const dest = newId();
+    const name = nextWindowName(ws.windows);
+    const modes = withMode(deskModes, dest, 'projects');
+    setDeskModes(modes);
+    saveModes(modes);
+    Dp.saveShown(dest, pid);
+    dispatch({ type: 'deskOwn', win: dest, project: pid, std: standardContent(ws, display.standard, setup) });
+    if (!openAppWindow(dest)) return props.onSwitch(dest, DESK_PROJECT_TEXT.ownHere(pj.name, name));
+    notify(DESK_PROJECT_TEXT.ownMade(pj.name, name));
+  };
   /** F-156: Funktion aus Suche oder Hilfe ausführen. */
   const runHelp = (e: HelpEntry) => {
     // aus dem Hilfe-Dialog: erst schließen, dann ausführen
@@ -3729,12 +3768,30 @@ function DeskApp(props: DeskProps) {
         <div className="brand">
           <img className="brand-logo" src={shownTheme === 'dark' ? logoUrl : logoLightUrl} alt="E-Sources" width={366} height={186} />
           {win ? (
-            <WindowName name={winLabel} fx={deskFx(win)} onRename={(name) => dispatch({ type: 'renameWindow', win, name })} />
+            <WindowName
+              name={winLabel}
+              fx={deskFx(win)}
+              // V117 (PD3): gebunden = der Name ist der des Projekts – umbenennen benennt das Projekt um
+              onRename={(name) => (boundPj ? dispatch({ type: 'projectEdit', id: boundPj.id, patch: { name } }) : dispatch({ type: 'renameWindow', win, name }))}
+            />
           ) : (
-            <span className="tb-win tb-win--main fx-desk" title={`${MAIN_NAME} · ${TERMS.desk} · ${deskFx('').text}`} style={{ '--fx': deskFx('').color } as CSSProperties}>
+            <span className="tb-win tb-win--main fx-desk" title={`${MAIN_NAME}${boundPj ? ` · ${DESK_PROJECT_TEXT.boundHead(boundPj.name)}` : ''} · ${TERMS.desk} · ${deskFx('').text}`} style={{ '--fx': deskFx('').color } as CSSProperties}>
               {MAIN_NAME}
+              {boundPj && <span className="tb-win__pj"> · {boundPj.name}</span>}
             </span>
           )}
+          {/* V117 (PD2): ⋮ am Desk – an ein Projekt binden, lösen, „Alles zeigen“ */}
+          <DeskProjectMenu
+            ws={ws}
+            win={win}
+            deskName={win ? windowName(ws, win) : MAIN_NAME}
+            dispatch={dispatch}
+            say={sayLive}
+            onOpen={() => {
+              showProject(Dp.boundProject(ws, win));
+              if (!projectsMode && !notesOff) setDeskMode('projects');
+            }}
+          />
           {/* F-160: Desk wechseln – zeigt einen anderen Desk in diesem Browserfenster; dazu Sammeln und Verteilen */}
           {ws.windows.length > 0 && (
             <span className="tb-desk-switch">
@@ -3758,7 +3815,7 @@ function DeskApp(props: DeskProps) {
                           {here ? '● ' : ''}
                           {/* F-161: Akzentfarbe des Desks; der Name bleibt das Merkmal (NF-03) */}
                           <span className="desk-swatch" aria-hidden="true" style={{ '--swatch': lookOf(ws, d.id).accent } as CSSProperties} />
-                          {d.name} · {n === 1 ? '1 Portal' : `${n} Portale`}
+                          {windowName(ws, d.id)} · {n === 1 ? '1 Portal' : `${n} Portale`}
                           {hasOwnLook(ws, d.id) ? DESK_LOOK_TEXT.ownShort : ''}
                           {` · ${deskFx(d.id).word}`}
                           {here ? ' · hier' : elsewhere ? ' · eigenes Fenster' : ' · gesammelt'}
@@ -4823,7 +4880,7 @@ function DeskApp(props: DeskProps) {
           {content}
           {projectsMode && (
             <div className="projlayer">
-              <ProjectCockpit ws={ws} dispatch={dispatch} say={sayLive} />
+              <ProjectCockpit ws={ws} dispatch={dispatch} say={sayLive} desk={{ win, shown: deskShown, onShow: showProject, onOwn: addOwnDesk }} />
             </div>
           )}
           {padLayer}

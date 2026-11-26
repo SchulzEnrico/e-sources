@@ -1,6 +1,6 @@
 # E-Sources – Benutzerhandbuch
 
-Stand: **V116** (26.11.2026) · Lastenheft F-227
+Stand: **V117** (26.11.2026) · Lastenheft F-227
 
 E-Sources ist eine Arbeitsfläche aus Fenstern (Desks, Slots, Panels) für Quellen, Notizen, Aufgaben und Projekte. Dieses Handbuch beschreibt, was man damit tun kann und wie. Es wird mit jeder Version fortgeschrieben.
 
@@ -74,7 +74,7 @@ Jede Änderung meldet sich direkt am Rad mit „Rückgängig“. Die Nutzung zä
 
 ## 7. Projekte
 
-*Stand V116.* Im Projekt-Modus steht links die Projektliste, rechts das gewählte Projekt. Das Rad „Ansicht“ wechselt zwischen Steckbrief · Formulare · PSP · Gantt · Netzplan · Ressourcen · Risiken · Änderungen · Entscheidungen · Meldungen (Werk-Reihenfolge; das Rad ordnet sich nach deiner Nutzung und lässt sich über ⋮ anheften und belegen – siehe 4).
+*Stand V117.* Im Projekt-Modus steht links die Projektliste, rechts das gewählte Projekt. Das Rad „Ansicht“ wechselt zwischen Steckbrief · Formulare · PSP · Gantt · Netzplan · Ressourcen · Risiken · Änderungen · Entscheidungen · Meldungen (Werk-Reihenfolge; das Rad ordnet sich nach deiner Nutzung und lässt sich über ⋮ anheften und belegen – siehe 4).
 
 - **Steckbrief:** Ziel, Vorgehen, Organisation, Termine, Budget, Priorität, Zustand und die Instanzen des Projekts (z. B. Projektleitung, Auftraggeber).
 - **Formulare:** die Projektformulare nach GPM-Leitfaden – siehe 7.1.
@@ -126,6 +126,19 @@ Jede Änderung meldet sich direkt am Rad mit „Rückgängig“. Die Nutzung zä
 - **Portfolios (4):** Das **Umfeld-Portfolio** ordnet die Stakeholder nach sachlich/sozial (Spalten) und intern/extern (Zeilen). Das **Stakeholder-Portfolio** zeigt Einstellung zum Projekt (waagerecht, −2 bis +2) gegen Macht/Einfluss (senkrecht, 1–3); je größer der Kreis, desto höher das Konfliktpotenzial. Fehlt eine Angabe, nennt die Grafik, wie viele Stakeholder noch fehlen; ergänzen lässt es sich direkt in der Tabelle darunter.
 - **Bericht (PDF):** Der Knopf „Bericht“ öffnet den Projektbericht in einem neuen Fenster: Deckblatt mit Kennzahlen und Inhalt, dann alle Formulare in Kapitelfolge, mit Kopfzeile (Projektnummer · Name, Vorlage) und Fußzeile (Version, Stand, „Seite x von y“). Breite Tabellen stehen auf Seiten im Querformat. Dort „Drucken bzw. als PDF sichern“ wählen. Sperrt der Browser neue Fenster, öffnet sich gleich der Druckdialog. Im Bericht stehen bei 8.3 nur die Arbeitspakete, die beschrieben sind.
 
+### 7.2 Projekt-Desk
+
+*Stand V117.* Ein Desk lässt sich an ein Projekt binden – dann gehört er zu diesem Projekt (wie eine eigene Projektdatei in MS Project bzw. iTaskX oder ein Board in Trello).
+
+- **Anlegen:** Im Steckbrief **„Eigener Desk“** legt einen neuen Desk nur für dieses Projekt an, öffnet ihn in einem eigenen Browserfenster und gleich im Projekt-Modus. Blockiert der Browser das Fenster, erscheint der neue Desk im selben Fenster. Daneben steht, wie viele Desks zum Projekt gehören (mehrere sind erlaubt; ein Desk gehört höchstens zu einem Projekt).
+- **Binden und lösen:** **⋮ neben dem Desk-Namen** (oben links) › **„An Projekt binden …“** wählt das Projekt; gebunden steht dort **„An anderes Projekt binden …“**, **„Im Projekt-Modus zeigen“** und **„Bindung an … lösen“** (der Desk bleibt, wie er ist). Jede Änderung meldet sich direkt am ⋮ mit „Rückgängig“.
+- **Name und Farbe:** Ein gebundener Desk trägt den Namen seines Projekts (Umbenennen benennt das Projekt um; der Main Desk zeigt „Main Desk · Projekt“). Im Steckbrief unter „Allgemein“ wählt das Rad **„Farbe (Desk)“** die Farbe des Projekts – gebundene Desks nehmen sie als Akzentfarbe.
+- **Projekt-Umschalter:** Im Projekt-Modus eines gebundenen Desks steht oben das Rad **„Projekt“**. Es wechselt das gezeigte Projekt, ohne den Desk umzubinden; die Projektliste zeigt dann nur dieses Projekt mit seinen Unterprojekten. Zeigt der Desk ein anderes als das gebundene, stehen daneben **„Zurück zu …“** und **„An dieses Projekt binden“**.
+- **Öffnen:** Der Desk öffnet immer das zuletzt gezeigte Projekt (je Gerät), beim ersten Mal das gebundene.
+- **Neue Notizen:** Neue Notizen, Aufgaben und Vorgänge in Pads des Desks bekommen das gezeigte Projekt (sichtbar am Projekt-Chip der Notiz). Abschalten: ⋮ › „Neue Notizen dem gezeigten Projekt zuordnen“.
+- **Nur dieses Projekt:** Suche (Notizen), Library-Notizen im Cockpit und Fokus zeigen ab Werk nur das gezeigte Projekt; dort steht **„Nur „…“ · Alles zeigen“**. „Alles zeigen“ (auch unter ⋮) gilt je Desk und Gerät.
+- **Projekt gelöscht:** Der Desk bleibt und ist danach ungebunden – das sagt die Meldung am Ort; „Rückgängig“ bindet ihn wieder.
+
 ## 8. Entscheidungen (Nutzwertanalyse)
 
 *Stand V111.* Die Nutzwertanalyse hilft, wenn mehrere Lösungen in Frage kommen und mehrere Gesichtspunkte zählen.
@@ -168,6 +181,7 @@ Die Rangliste steht in jedem Schritt rechts und rechnet sofort mit. „Beispiel 
 | Version | Datum | Abschnitt | Änderung |
 | --- | --- | --- | --- |
 | V108 | 26.11.2026 | – | Handbuch angelegt (Gerüst) |
+| V117 | 26.11.2026 | 4, 7, 7.2 | Neu: Projekt-Desk (7.2) – „Eigener Desk“ im Steckbrief, ⋮ neben dem Desk-Namen (binden, lösen, neue Notizen zuordnen, Alles zeigen), Projekt-Umschalter im Kopf mit „Zurück zu …“ und „An dieses Projekt binden“, Name und Farbe vom Projekt („Farbe (Desk)“ im Steckbrief), Suche/Library-Notizen/Fokus nur für das gezeigte Projekt; ⋮ am Cockpit-Rad schließt das Cockpit nicht mehr; Ressourcen-Zellen mit einer Nachkommastelle; Initialen ohne Anrede und Rolle (z. B. „S“ statt „F(“); Tour „Projekte“ mit Basisplan, Netzplan, Ressourcen, Arbeitskalender und Projekt-Desk; Umschalt-Räder stellen sich beim Laden nicht mehr von selbst um (der Desk sprang auf „Desk“) |
 | V116 | 26.11.2026 | 4, 7 | Neue Ansicht Ressourcen (Stunden je Ressource und Woche gegen die Kapazität, Vorgänge aufklappbar); Arbeitskalender mit Feiertagen nach Bundesland und eigenen freien Tagen; Task-Limit je Person im Projekt; Umschalt-Räder (Cockpit, Projekt-„Ansicht“, Library) ordnen sich nach Nutzung der letzten 30 Tage; ⋮ bzw. Rechtsklick: anheften, lösen, nach vorn/hinten (Alt/⌥ + Pfeil), Rad belegen, automatisch ordnen, auf Werk zurück – Meldung am Rad mit Rückgängig |
 | V115 | 26.11.2026 | 7, 7.1 | Basisplan im Gantt (speichern, ersetzen, löschen mit Rückgängig; grauer Soll-Balken, Spalten „Basis Ende“ und „Abw. Ende“); neue Ansicht Netzplan; Formulare Stufe 2 komplett: Meilenstein-Trendanalyse (7), Auflagen (2.4), Dokumentation (6.4), Prüfung am Lieferobjekt (9), Veränderung (13), Projektabschluss und Lessons Learned (14) – jetzt 28 Formulare; Statusbericht hält die Termine der Meilensteine fest; Earned Value mit Summenzeile in der Tabelle, Euro mit zwei Nachkommastellen, SPI/CPI „1,00“, gerechnete Zeilen ohne Papierkorb; Tour „Formulare“ mit allen Kapiteln, gerechneten Formularen und „Bericht“ |
 | V114 | 26.11.2026 | 7.1 | Formular „Earned Value (Fertigstellungswert)“ in Kapitel 11: BAC, PV, EV, AC, SV, CV, SPI, CPI, EAC je Arbeitspaket zum heutigen Tag, im Bericht mit Summenzeile |

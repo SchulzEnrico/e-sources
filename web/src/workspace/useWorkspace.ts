@@ -35,6 +35,7 @@ import * as RS from './ruleSet';
 import type { BoardTemplate, ColState, FocusView, NoteState, NoteView, NoteViewKind, PadPlace, Person, Project, ProjectBaseline, SourceLink, SourceSpot } from './types';
 import * as Bl from './baseline';
 import * as Wo from './wheelOrder';
+import * as Dp from './deskProject';
 import * as Cal from './calendar';
 import * as BT from './boardTemplates';
 import * as Sh from './sheets';
@@ -238,6 +239,10 @@ export type Action =
   | { type: 'baselineSet'; project: string; b?: ProjectBaseline }
   /* F-220 (V116): Umschalt-Rad anheften, belegen, automatisch ordnen; prefs fehlt = Werk */
   | { type: 'wheelPrefs'; wheel: string; prefs?: import('./types').WheelPrefs }
+  // V117 (Projekt-Desk, PD1–PD7)
+  | { type: 'deskBind'; win: string; project?: string }
+  | { type: 'deskAssign'; win: string; on: boolean }
+  | { type: 'deskOwn'; win: string; project: string; std?: ReturnType<typeof DL.standardContent> }
   /* V116 (K7): Arbeitskalender */
   | { type: 'calRegion'; region?: Cal.Region }
   | { type: 'calFree'; day: string; name?: string; remove?: boolean }
@@ -507,6 +512,15 @@ function step(ws: Workspace, a: Action): Workspace {
       return Bl.saveBaseline(ws, a.project, a.at)?.ws ?? ws;
     case 'baselineSet':
       return Bl.setBaseline(ws, a.project, a.b);
+    case 'deskBind':
+      return a.project ? Dp.bindDesk(ws, a.win, a.project) : Dp.unbindDesk(ws, a.win);
+    case 'deskAssign':
+      return Dp.setAssign(ws, a.win, a.on);
+    case 'deskOwn': {
+      // PD2 „Eigener Desk“: neuer Desk mit dem Standard-Layout, gleich an das Projekt gebunden
+      const made = a.std ? DL.addDeskWith(ws, a.win, a.std) : Win.addDesk(ws, a.win, W.newPanel(`Portal ${ws.nextNumber}`));
+      return Dp.bindDesk(made, a.win, a.project);
+    }
     case 'wheelPrefs':
       return Wo.setWheel(ws, a.wheel, a.prefs);
     case 'calRegion':

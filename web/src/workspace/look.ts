@@ -157,7 +157,11 @@ export function shownAccent(accent: string, shown: Shown): string {
 
 /** F-161: Farben eines Desks ('' = Main Desk). Ein Desk ohne eigene Farben folgt dem Main Desk. */
 export function lookOf(ws: Workspace, win: string): Look {
-  return (win && ws.deskLooks?.[win]) || ws.look;
+  const base = (win && ws.deskLooks?.[win]) || ws.look;
+  // V117 (Projekt-Desk, PD3): ein gebundener Desk nimmt die Farbe seines Projekts
+  const pid = ws.deskProjects?.[win]?.project;
+  const accent = pid ? ws.projects?.find((p) => p.id === pid)?.accent : undefined;
+  return accent ? { ...base, accent } : base;
 }
 
 /** F-161: Hat der Desk eigene Farben? Der Main Desk zählt nie als „eigen“ – er gibt sie vor. */

@@ -100,6 +100,8 @@ export interface LoadOpts {
   weeks: number;
   /** Entwürfe als „vorläufig“ zeigen (P: abschaltbar) */
   drafts?: boolean;
+  /** V117 (Projekt-Desk, PD5): nur Vorgänge dieses Projekts */
+  project?: string;
 }
 
 /** Wer zählt zu einer Person? Team = Mitglieder (eine Ebene tief) plus das Team selbst. */
@@ -131,6 +133,7 @@ export function loadOf(ws: Workspace, personId: string, o: LoadOpts): FocusLoad 
     if (draft && !o.drafts && raw.unsaved) continue;
     const n = draft && o.drafts ? shownNote(raw) : raw;
     if (isFinished(n.state)) continue;
+    if (o.project && n.project !== o.project) continue;
     // V110 (F-226 G7): mehrere Ressourcen je Vorgang – jede zählt mit ihren Einsatz-Stunden
     if (!involves(n, who)) continue;
     const plan = hoursFor(n, who);

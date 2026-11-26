@@ -2020,6 +2020,9 @@ describe('F-179 Profil', () => {
     expect(Pr.initialsOf('  enrico  ')).toBe('E');
     expect(Pr.initialsOf('Anna Maria von Berg')).toBe('AB');
     expect(Pr.initialsOf('')).toBe('');
+    expect(Pr.initialsOf('Fr. Stanczak – Leitung Buchhaltung (CG)')).toBe('S');
+    expect(Pr.initialsOf('Lackiermeister/in (CG, n. N.)')).toBe('L');
+    expect(Pr.initialsOf('Hr. Meier – Geschäftsführer FIT GmbH (CG)')).toBe('M');
     expect(Pr.greetingFor(7, 'Enrico')).toBe('Guten Morgen, Enrico');
     expect(Pr.greetingFor(13)).toBe('Guten Tag');
     expect(Pr.greetingFor(8)).toBe('Guten Morgen');
@@ -5996,8 +5999,10 @@ describe('F-217 Touren prüfen (V98)', () => {
     expect(t[0].target).toBe(undefined);
     expect(new Set(t.map((s) => s.id)).size).toBe(t.length);
     expect(Tour.TOUR_KEY.projects).toBe('esource.tour.projects.v1');
-    const psp = (sel: string) => !sel.includes('pj__brief') && !sel.includes('pj__roles');
-    expect(Tour.tourSteps(psp, t).map((s) => s.id)).toEqual(['intro', 'list', 'views', 'report', 'inbox', 'steer', 'add', 'again']);
+    const psp = (sel: string) => !sel.includes('pj__brief') && !sel.includes('pj__roles') && !sel.includes('pj__cal') && !sel.includes('pj__owndesk');
+    // V117: Gantt/Basisplan, Netzplan, Ressourcen am Rad; Kalender und Projekt-Desk nur im Steckbrief
+    expect(Tour.tourSteps(psp, t).map((s) => s.id)).toEqual(['intro', 'list', 'views', 'plan', 'net', 'res', 'report', 'inbox', 'steer', 'add', 'again']);
+    expect(Tour.tourSteps(() => true, t).map((s) => s.id)).toContain('desk');
     expect(Tour.tourSteps(() => true, t).map((s) => s.id)).toContain('roles');
     expect(H.searchHelp('Tour Projekte')[0].id).toBe('tourProjects');
     expect(H.searchHelp('Lenkungskreis').map((e) => e.id)).toContain('projectFeedback');

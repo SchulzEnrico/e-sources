@@ -3,6 +3,7 @@ import type { NotesLayouts } from './notesLayouts';
 import type { RuleSet } from './ruleSet';
 import type { FocusRule } from './focus';
 import type { Look } from './look';
+import type { DeskBinding } from './deskProject';
 import type { Profile } from './profile';
 import type { FRect, Node } from './tree';
 
@@ -228,6 +229,8 @@ export interface Workspace {
   look: Look;
   /** F-161: eigene Farben je Zusatz-Desk (Schlüssel = Id aus windows); fehlt = folgt dem Main Desk. */
   deskLooks?: Record<string, Look>;
+  /** F-206 Schritt 10 Projekt-Desk (V117, PD1–PD10): Desk → gebundenes Projekt (Schlüssel = Desk-Id, '' = Main Desk); optional im Dateiformat 11. */
+  deskProjects?: Record<string, DeskBinding>;
   /** F-128: laufende Nummer für den Standardnamen neuer Areas („NewArea 1“ …). */
   nextArea: number;
   /** F-27: Zusatzfenster („Fenster 2“ …); das Hauptfenster steht nicht in der Liste. */
@@ -860,6 +863,8 @@ export interface Project {
   points?: number;
   /** V116 (Schritt 10, J9): Task-Limit je Person in diesem Projekt (offene Aufgaben); fehlt = keins. */
   taskLimit?: number;
+  /** V117 (Projekt-Desk, PD3): Farbe des Projekts (#rrggbb) – gebundene Desks nehmen sie als Akzentfarbe. */
+  accent?: string;
   sources?: SourceLink[];
   /** F-206 Schritt 10 (V100, K4/K5): ein Basisplan (Soll) zum Vergleich mit dem Ist. */
   baseline?: ProjectBaseline;

@@ -32,6 +32,10 @@ import { ProjectForms } from './ProjectForms';
 import { ProjectCalendar } from './ProjectCalendar';
 import { PROJECT_FEEDBACK_TEXT, PSP_TEXT } from '../workspace/terms';
 import * as Ps from '../workspace/persons';
+import * as Dp from '../workspace/deskProject';
+import { DESK_PROJECT_TEXT as DPT } from '../workspace/terms';
+import { ACCENTS } from '../workspace/look';
+import { DeskProjectBar } from './DeskProject';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 /** 2026-12-21 → 21.12.2026 */
@@ -63,11 +67,28 @@ function loadView(): ProjectView {
 let lastShown: string | undefined;
 export const shownProjectId = (): string | undefined => lastShown;
 
-export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void }) {
-  const rowsAll = Pj.projectRows(ws);
+/** V117 (Projekt-Desk): Desk dieses Fensters – zuletzt gezeigtes Projekt (PD9), merken, „Eigener Desk“ (PD2). */
+export type ProjectDeskProps = { win: string; shown?: string; onShow: (id: string | undefined) => void; onOwn: (project: string) => void };
+
+export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void; desk?: ProjectDeskProps }) {
+  const allRows = Pj.projectRows(ws);
+  const allList = allRows.map((r) => r.project);
+  const [sel, setSelState] = useState<string | null>(desk?.shown ?? allList[0]?.id ?? null);
+  // PD9: Wechsel über den Umschalter im Kopf (oder einen Sprung) kommt von außen
+  useEffect(() => {
+    if (desk?.shown) setSelState(desk.shown);
+  }, [desk?.shown]);
+  const setSel = (id: string | null) => {
+    setSelState(id);
+    desk?.onShow(id ?? undefined);
+  };
+  const shown = allList.find((p) => p.id === sel) ?? allList[0];
+  // PD3: auf einem gebundenen Desk steht in der Liste nur das gezeigte Projekt mit seinen Unterprojekten
+  const boundId = desk ? Dp.boundProject(ws, desk.win) : undefined;
+  const under = (id: string): boolean => id === shown?.id || (!!projectParent(id) && under(projectParent(id)!));
+  const projectParent = (id: string) => allList.find((p) => p.id === id)?.parent;
+  const rowsAll = boundId && shown ? allRows.filter((r) => under(r.project.id)) : allRows;
   const list = rowsAll.map((r) => r.project);
-  const [sel, setSel] = useState<string | null>(list[0]?.id ?? null);
-  const shown = list.find((p) => p.id === sel) ?? list[0];
   lastShown = shown?.id;
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -125,14 +146,14 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
     return () => window.clearTimeout(t);
   }, [undo]);
   const tell = (t: string) => (setNote(t), say(t));
-  const full = list.length >= Pj.PROJECTS_MAX;
+  const full = allList.length >= Pj.PROJECTS_MAX;
   const similar = newName.trim() ? Pj.similarProjects(ws, newName) : [];
 
   const openAdd = (parent = '') => (setAdding(true), setNewParent(parent), setError(''));
   const create = () => {
     const name = newName.trim();
     if (!name) return;
-    const same = list.find((p) => p.name.toLocaleLowerCase('de') === name.toLocaleLowerCase('de'));
+    const same = allList.find((p) => p.name.toLocaleLowerCase('de') === name.toLocaleLowerCase('de'));
     if (same) {
       setAdding(false);
       setNewName('');
@@ -157,11 +178,12 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
     setAsking(false);
     if (!r) return;
     dispatch({ type: 'projectRemove', id: shown.id });
-    const text = T.removed(shown.name);
+    // V117 (PD6): gebundene Desks bleiben und werden gelöst – am Ort gesagt, „Rückgängig“ bindet wieder
+    const text = T.removed(shown.name) + DPT.removed(Dp.desksOf(ws, shown.id).length);
     say(`${text} ${T.undo}?`);
     setUndo({ text, u: r.undo });
-    const i = list.findIndex((p) => p.id === shown.id);
-    const next = list.filter((p) => p.id !== shown.id)[Math.max(0, i - 1)];
+    const i = allList.findIndex((p) => p.id === shown.id);
+    const next = allList.filter((p) => p.id !== shown.id)[Math.max(0, i - 1)];
     setSel(next?.id ?? null);
     later(() => document.getElementById('pj-undo')?.focus());
   };
@@ -211,7 +233,11 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
           </button>
         </span>
       </header>
-      <p className="help__text bt__intro">{TERMS.projects.replace(' = ', ': ')}</p>
+      {boundId && desk && shown ? (
+        <DeskProjectBar ws={ws} win={desk.win} shown={shown.id} onShow={(id) => setSel(id)} dispatch={dispatch} say={say} />
+      ) : (
+        <p className="help__text bt__intro">{TERMS.projects.replace(' = ', ': ')}</p>
+      )}
 
       {adding && (
         <form
@@ -230,12 +256,12 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
             {T.name}
             <input autoFocus value={newName} maxLength={60} aria-describedby="pj-similar" onChange={(e) => (setNewName(e.target.value), setError(''))} />
           </label>
-          {list.length > 0 && (
+          {allList.length > 0 && (
             <label className="layouts__label">
               {T.parent}
               <select value={newParent} onChange={(e) => setNewParent(e.target.value)}>
                 <option value="">{T.parentNone}</option>
-                {rowsAll.map((r) => (
+                {allRows.map((r) => (
                   <option key={r.project.id} value={r.project.id}>{`${'  '.repeat(r.depth)}${r.project.name}`}</option>
                 ))}
               </select>
@@ -350,7 +376,7 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
             <p id="pj-keys" className="lc__keys">{T.rowKeys}</p>
             {asking && (
               <div className="layouts__ask" role="group" aria-labelledby="pj-ask">
-                <span id="pj-ask">{T.askRemove(shown.name, Pj.notesOfProject(ws, shown.id).length, list.filter((p) => p.parent === shown.id).length)}</span>
+                <span id="pj-ask">{T.askRemove(shown.name, Pj.notesOfProject(ws, shown.id).length, allList.filter((p) => p.parent === shown.id).length)}</span>
                 <button type="button" className="help__run" autoFocus onClick={remove}>{T.remove}</button>
                 <button type="button" className="help__run" onClick={() => (setAsking(false), focusRow(shown.id))}>{DIALOG_TEXT.cancel}</button>
               </div>
@@ -377,7 +403,7 @@ export function ProjectCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch:
           ) : view === 'psp' ? (
             <ProjectPsp key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} onPickProject={(id) => (setSel(id), setViewState('brief'), focusRow(id))} />
           ) : (
-          <ProjectBrief key={shown.id} ws={ws} p={shown} row={rowsAll.find((r) => r.project.id === shown.id)!} dispatch={dispatch} say={say} boxRef={infoRef} onRename={() => startRename(shown)} onRemove={() => askRemove(shown)} />
+          <ProjectBrief key={shown.id} ws={ws} p={shown} row={rowsAll.find((r) => r.project.id === shown.id)!} dispatch={dispatch} say={say} boxRef={infoRef} onRename={() => startRename(shown)} onRemove={() => askRemove(shown)} onOwnDesk={desk ? () => desk.onOwn(shown.id) : undefined} />
           )}
         </div>
       )}
@@ -408,7 +434,7 @@ function UndoLine({ undo, dispatch, say, onBack }: { undo: { text: string; u: Pj
 type Patch = Partial<Omit<Project, 'id' | 'created' | 'changed'>>;
 
 /** Steckbrief der gewählten Zeile (MS Project: „Projektinfo“, ICB4: Projektsteckbrief). */
-function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove }: { ws: Workspace; p: Project; row: Pj.ProjectRow; dispatch: (a: Action) => void; say: (t: string) => void; boxRef: React.RefObject<HTMLElement>; onRename: () => void; onRemove: () => void }) {
+function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, onOwnDesk }: { ws: Workspace; p: Project; row: Pj.ProjectRow; dispatch: (a: Action) => void; say: (t: string) => void; boxRef: React.RefObject<HTMLElement>; onRename: () => void; onRemove: () => void; onOwnDesk?: () => void }) {
   const edit = (patch: Patch, text: string = T.saved) => {
     dispatch({ type: 'projectEdit', id: p.id, patch });
     say(text);
@@ -443,6 +469,13 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove }:
         <button type="button" className="help__run" title="Entf" onClick={onRemove}>
           <Icon name="remove" size={13} className="icon icon--inline" /> {T.remove}
         </button>
+        {/* V117 (PD2): Eigener Desk für dieses Projekt */}
+        {onOwnDesk && (
+          <button type="button" className="help__run pj__owndesk" title={DPT.ownHint(p.name)} onClick={onOwnDesk}>
+            <Icon name="desk" size={13} className="icon icon--inline" /> {DPT.own}
+          </button>
+        )}
+        {Dp.desksOf(ws, p.id).length > 0 && <span className="lc__muted pj__desks">{DPT.ownList(Dp.desksOf(ws, p.id).length)}</span>}
       </div>
       <p className={`pj__gaps${gaps.length ? '' : ' is-ok'}`} role="note">
         {gaps.length ? T.gaps(gaps.map((g) => T.gapName[g]).join(', ')) : T.complete}
@@ -504,6 +537,19 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove }:
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
           />
         </label>
+        {/* V117 (PD3): Farbe des Projekts – gebundene Desks nehmen sie als Akzentfarbe (Umschalt-Rad wie die Akzentfarbe) */}
+        <div className="layouts__label pj__wheel" title={DPT.colorHint}>
+          <span aria-hidden="true">{DPT.colorLabel}</span>
+          <ModeWheel
+            label={DPT.colorLabel}
+            value={p.accent ?? ''}
+            onChange={(c) => edit({ accent: c || undefined }, `${DPT.colorLabel}: ${ACCENTS.find((x) => x.hex === c)?.name ?? DPT.colorNone}`)}
+            options={[
+              { id: '', name: DPT.colorNone, hint: DPT.colorHint },
+              ...ACCENTS.filter((x) => !x.theme).map((x) => ({ id: x.hex, name: x.name, glyph: <span className="desk-swatch" aria-hidden="true" style={{ '--swatch': x.hex } as CSSProperties} />, hint: DPT.colorHint })),
+            ]}
+          />
+        </div>
       </fieldset>
 
       <fieldset className="pc__set">

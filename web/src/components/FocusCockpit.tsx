@@ -25,6 +25,8 @@ import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
 import { PersonBadge } from './PersonChips';
 import { openNote } from './SourceChips';
+import { scopeProject } from '../workspace/deskProject';
+import { ScopeNote } from './DeskProject';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 const dm = (day: string) => `${day.slice(8, 10)}.${day.slice(5, 7)}.`;
@@ -38,8 +40,10 @@ export function FocusCockpit({ ws, dispatch, onOpen, onPersons }: { ws: Workspac
   const [drafts, setDrafts] = useState(true);
   const [shift, setShift] = useState(0);
   const from = FL.addDays(FL.mondayOf(day), 7 * shift);
-  const load = FL.loadOf(ws, p.id, { from, weeks: FL.FOCUS_WEEKS, drafts });
-  const split = FL.teamSplit(ws, p.id, { from, weeks: FL.FOCUS_WEEKS, drafts });
+  // V117 (Projekt-Desk, PD5): auf einem gebundenen Desk ab Werk nur das gezeigte Projekt
+  const project = scopeProject();
+  const load = FL.loadOf(ws, p.id, { from, weeks: FL.FOCUS_WEEKS, drafts, project });
+  const split = FL.teamSplit(ws, p.id, { from, weeks: FL.FOCUS_WEEKS, drafts, project });
   const scale = FL.scaleOf(load.weeks);
   const [sel, setSel] = useState<number | 'none'>(0);
   const btns = useRef<(HTMLButtonElement | null)[]>([]);
@@ -114,6 +118,7 @@ export function FocusCockpit({ ws, dispatch, onOpen, onPersons }: { ws: Workspac
           <button type="button" className="help__run" onClick={onPersons}><Icon name="catPeople" size={13} className="icon icon--inline" /> {T.persons}</button>
         </span>
       </header>
+      <ScopeNote ws={ws} />
       <p className="fc__views" role="group" aria-label={T.views}>
         <span className="fc__views-label" aria-hidden="true">{T.views}:</span>
         {FOCUS_VIEWS.map((v) => (

@@ -1,3 +1,5 @@
+import { inScope } from '../workspace/deskProject';
+import { ScopeNote } from './DeskProject';
 import { SourceNotes } from './SourceChips';
 import { useState } from 'react';
 import { LibraryWheel, NoteLibrary, allNotes, useLibMode } from './LibraryNotes';
@@ -20,12 +22,14 @@ import type { Workspace } from '../workspace/types';
 /** V97 (L1–L4): Rad „Sources · Notizen“ oben – an derselben Stelle wie in der Library eines Portals. */
 export function SourceCockpit(p: { ws: Workspace; dispatch: (a: Action) => void }) {
   const [mode, setMode] = useLibMode('cockpit');
-  const notes = allNotes(p.ws);
+  // V117 (Projekt-Desk, PD5): auf einem gebundenen Desk ab Werk nur die Notizen des gezeigten Projekts
+  const notes = allNotes(p.ws).filter((n) => inScope(n));
   return (
     <>
       <div className="lib-top">
         <LibraryWheel value={mode} onChange={setMode} sources={p.ws.bookmarks.length} notes={notes.length} />
       </div>
+      {mode === 'notes' && <ScopeNote ws={p.ws} />}
       {mode === 'notes' ? <NoteLibrary ws={p.ws} notes={notes} empty={LIB_TEXT.emptyAll} /> : <SourceList {...p} />}
     </>
   );

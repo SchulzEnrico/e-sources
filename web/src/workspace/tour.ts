@@ -716,7 +716,38 @@ export const TOURS: Record<TourId, TourStep[]> = {
       id: 'views',
       title: 'Ansicht',
       target: `${PJ} .pj__viewwheel`,
-      text: 'Das Rad wählt, was rechts zum gewählten Projekt steht: Steckbrief, PSP (Projektstrukturplan), Gantt (Balkenplan), Risiken, Änderungen, Entscheidungen (Nutzwertanalyse) und Meldungen. Maus darüber und scrollen oder klicken; mit der Tastatur Pfeile.',
+      text: 'Das Rad wählt, was zum gewählten Projekt steht: Steckbrief, Formulare (Kapitel nach GPM), PSP (Projektstrukturplan), Gantt (Balkenplan), Netzplan, Ressourcen, Risiken, Änderungen, Entscheidungen (Nutzwertanalyse) und Meldungen. Maus darüber und scrollen oder klicken; mit der Tastatur Pfeile. Häufig Genutztes rückt nach vorn – ⋮ daneben heftet an oder blendet aus.',
+    },
+    // V117 (F-217): Basisplan, Netzplan, Ressourcen, Arbeitskalender, Projekt-Desk
+    {
+      id: 'plan',
+      title: 'Gantt und Basisplan',
+      target: `${PJ} .pj__viewwheel`,
+      text: 'Ansicht › „Gantt“ zeigt den Balkenplan mit Vorgängen, Meilensteinen und Abhängigkeiten. „Basisplan speichern“ friert den Plan als Soll ein; danach steht unter jedem Balken grau der Basisplan und die Abweichung in Tagen – wie in MS Project.',
+    },
+    {
+      id: 'net',
+      title: 'Netzplan',
+      target: `${PJ} .pj__viewwheel`,
+      text: 'Ansicht › „Netzplan“ zeigt jeden Vorgang als Kasten mit frühestem und spätestem Start und Ende, Dauer und Puffer (P). Rot ist der kritische Pfad: Verzögert sich dort etwas, verschiebt sich das Projektende. Pfeile wandern zwischen den Kästen, Enter öffnet die Notiz.',
+    },
+    {
+      id: 'res',
+      title: 'Ressourcen',
+      target: `${PJ} .pj__viewwheel`,
+      text: 'Ansicht › „Ressourcen“ zeigt je Person die geplanten Stunden je Woche gegen ihre Kapazität – rot heißt überlastet. ▸ klappt die Vorgänge auf, „Vorgänge zeigen“ alle auf einmal; ein Klick öffnet die Notiz.',
+    },
+    {
+      id: 'calendar',
+      title: 'Arbeitskalender',
+      target: `${PJ} .pj__cal`,
+      text: 'Im Steckbrief legst du die Feiertage nach Bundesland und eigene freie Tage fest. Sie gelten für alle Projekte: Gantt, Netzplan, Ressourcen und Fokus rechnen nur mit Arbeitstagen.',
+    },
+    {
+      id: 'desk',
+      title: 'Projekt-Desk',
+      target: `${PJ} .pj__owndesk`,
+      text: '„Eigener Desk“ legt einen Desk nur für dieses Projekt an – oder ⋮ neben dem Desk-Namen › „An Projekt binden …“. Dann trägt der Desk Name und Farbe des Projekts, oben wechselt ein Umschalter das gezeigte Projekt (ohne umzubinden), neue Notizen bekommen das Projekt, und Suche, Library-Notizen und Fokus zeigen nur dieses – „Alles zeigen“ hebt das auf.',
     },
     {
       id: 'brief',

@@ -9541,3 +9541,55 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 .is-ovf-open.is-ovf-drop { border-radius: 10px; padding: 4px; gap: 2px; min-width: 12em; }
 .is-ovf-open.is-ovf-drop > * { justify-content: flex-start; flex: none !important; height: auto !important; min-height: 26px; }
 .is-ovf-open.is-ovf-vertical { height: auto !important; }
+
+/* ---------------------------------------------------------------- V112 (Enrico: „Die Anfasser sind nicht gut
+   positioniert … laufen über Elemente der Pads, z. B. den Multifunktionsbutton“ · „darf unter dem Multifunktionsbutton
+   liegen, nur nicht überlagern“ · „wird vom Pad darunter überlagert“): Im Notizen-Modus liegen die Knöpfe ↕ ↔ ⤡ als
+   eigene Ebene über allen Pads (App.tsx, `.notegrip`), mittig in der Lücke zwischen den Pads – sie verdecken keinen
+   Inhalt und werden von keinem Pad verdeckt. Die unsichtbaren Greifstreifen an den Kanten bleiben im Pad. */
+.padlayer.is-notes .pad__grip.is-border::after { content: none !important; }
+.padlayer.is-notes .pad__grip.is-border.pad__grip--se { background: none; }
+.notegrip {
+  position: absolute;
+  z-index: 30;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  line-height: 16px;
+  text-align: center;
+  font-size: 11px;
+  border-radius: 50%;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  color: var(--strong);
+  background: linear-gradient(145deg, var(--btn-a), var(--btn-b));
+  border: 1px solid rgba(var(--accent-rgb), 0.55);
+  box-shadow: var(--raised-sm), 0 0 8px rgba(var(--accent-rgb), 0.3);
+  opacity: 0.95;
+}
+.notegrip::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; }
+.notegrip--s { cursor: ns-resize; }
+.notegrip--e { cursor: ew-resize; }
+.notegrip--se { cursor: nwse-resize; z-index: 31; }
+.notegrip:hover { opacity: 1; box-shadow: var(--raised-sm), 0 0 0 1.5px rgba(var(--accent-rgb), 0.95), 0 0 14px rgba(var(--accent-rgb), 0.6); }
+@media (forced-colors: active) { .notegrip { border: 1px solid CanvasText; forced-color-adjust: none; background: Canvas; color: CanvasText; } }
+
+/* V112 F-228 Stufe 2: Köpfe von Cockpit und Projekt-Ansichten – knapp einzeilig, lange Überschrift mit „…“ */
+.overview__head.is-ovf-tight, .dc__top.is-ovf-tight { flex-wrap: nowrap; }
+.dc__top.is-ovf-tight .dc__head, .overview__head.is-ovf-tight .overview__name { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.overview__head.is-ovf-tight .radar__filter { min-width: 6em; flex: 1 1 8em; }
+/* V112 F-228 Stufe 2: Stapel-Leiste in voller Länge schwebend (StackBar.tsx) – deckend, Einträge in Mindesthöhe */
+.stack.is-ovf-long .stack__inner { z-index: 1200; width: 150px; right: auto; bottom: auto; border-radius: 10px; background: var(--panel); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(var(--accent-rgb), 0.95), 0 0 22px rgba(var(--accent-rgb), 0.45); }
+.stack.is-ovf-long .stack__item { flex: 0 0 20px; }
+@media (forced-colors: active) { .stack.is-ovf-long .stack__inner { border: 1px solid CanvasText; } }
+/* V112 (Enrico: „Das Überlagern der beiden Schalter für Menü und Tabs ist weiterhin da“): Sheets-Reiter knapp – der
+   aktive Reiter kürzt seinen Namen mit „…“, der Knopf ▾ behält immer seinen Platz und wird nie abgeschnitten */
+.pad__tabs.is-ovf-tight:not(.is-ovf-open) { overflow: hidden; }
+.pad__tabs.is-ovf-tight:not(.is-ovf-open) > .pad__tabwrap { flex: 0 1 auto; min-width: 0; }
+.pad__tabs.is-ovf-tight:not(.is-ovf-open) > .pad__tabwrap > .pad__tab { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.pad__tabs.is-ovf-tight:not(.is-ovf-open) .pad__tabname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pad__tabs.is-ovf-tight > .ovf__knob { flex: none; }
+/* V112 (Enrico: „Achte auf den Anfasser“ · „Im Desk Mode ist das perfekt“): gleicher runder Knopf wie die Anfasser der
+   Portale (NF-08); ↕ sitzt 2 px tiefer in der Lücke, damit zum Fußknopf darüber immer Luft bleibt */
+.notegrip--s { margin-top: -6px; }

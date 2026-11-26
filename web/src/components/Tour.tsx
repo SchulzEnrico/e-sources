@@ -6,10 +6,13 @@
  */
 import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { TOURS, type TourId, type TourStep, setTourSeen, setToursAuto, tourSteps } from '../workspace/tour';
+import { ovfBarsOf, ovfConceal, ovfReveal } from './Overflow';
 
 const visible = (sel: string) => {
   const el = document.querySelector<HTMLElement>(sel);
   if (!el) return false;
+  // V112 F-228 Stufe 2: im Überlauf versteckt zählt als sichtbar – die Tour klappt die Leiste für den Schritt auf
+  if (ovfBarsOf(el).length) return true;
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.height > 0;
 };
@@ -69,6 +72,8 @@ export function Tour({ tour = 'start', auto = false, onClose, onAutoOff, onActio
     if (el && step.expand) el.classList.add('is-open');
     // F-217 (V98): Ziel sichtbar halten, auch wenn es sonst nur bei Hover erscheint (z. B. Scheinwerfer der Main Stage)
     el?.classList.add('is-tour-target');
+    // V112 F-228 Stufe 2: Ziel steckt im Überlauf → Leiste(n) für diesen Schritt aufklappen, danach wieder zu
+    const opened = ovfReveal(el);
     // F-172: Ziel in einem scrollbaren Bereich (z. B. Cockpit auf schmalem Bildschirm) ins Bild holen
     el?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     const measure = () => {
@@ -77,7 +82,7 @@ export function Tour({ tour = 'start', auto = false, onClose, onAutoOff, onActio
     };
     measure();
     // Aufklappen läuft mit Übergang: nach dessen Ende noch einmal messen
-    const again = step.expand ? window.setTimeout(measure, 320) : 0;
+    const again = step.expand || opened ? window.setTimeout(measure, opened ? 120 : 320) : 0;
     window.addEventListener('resize', measure);
     // V59: auch beim Scrollen nachmessen – in inneren Bereichen (Dialog mit Laufleiste) kommt scrollIntoView
     // bei sanftem Scrollen erst nach dem Messen an, und der Nutzer kann selbst scrollen (capture fängt jedes Element)
@@ -94,6 +99,7 @@ export function Tour({ tour = 'start', auto = false, onClose, onAutoOff, onActio
       window.removeEventListener('scroll', onScroll, true);
       if (el && step.expand) el.classList.remove('is-open');
       el?.classList.remove('is-tour-target');
+      if (opened) ovfConceal(el);
     };
   }, [step]);
 

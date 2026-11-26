@@ -2,7 +2,7 @@ import { useRef, useState, type PointerEvent, type TouchEvent, type WheelEvent }
 import type { PanelMeta } from '../workspace/types';
 import { type Fx, StackAddIcon } from './PanelFrame';
 import { Icon } from './Icon';
-import { PAUSE_TEXT, TERMS, DIALOG_TEXT } from '../workspace/terms';
+import { PAUSE_TEXT, TERMS, DIALOG_TEXT, OVERFLOW_TEXT } from '../workspace/terms';
 
 /** F-08: Stapel-Leiste rechts am Panel – Klick wählt, Mausrad und Pfeile blättern. */
 export interface StackProps {
@@ -45,11 +45,57 @@ export function StackBar({ members, frontId, onSelect, onStep, onRemove, onAdd, 
     onStep(d > 0 ? 1 : -1);
   };
   const index = Math.max(0, members.findIndex((m) => m.id === frontId));
+  // V112 F-228 Stufe 2 (Enrico: Überlauf „auch für Tabs und Stacks“): Passt die Liste aufgeklappt nicht in die Höhe des
+  // Portals, schwebt die Leiste in voller Länge darüber (fest positioniert, höchstens bis zum Bildschirmrand) – dieselben
+  // Elemente, nichts wird nachgebaut. Vorfahren mit container-type/eigener Ebene werden solange gehoben (wie Overflow.tsx).
+  const innerRef = useRef<HTMLDivElement>(null);
+  const lifted = useRef<HTMLElement[]>([]);
+  const [long, setLong] = useState(false);
+  const unfloat = () => {
+    const el = innerRef.current;
+    if (el) for (const k of ['top', 'left', 'height', 'position']) el.style.removeProperty(k);
+    for (const a of lifted.current) a.classList.remove('ovf-lift', 'ovf-top');
+    lifted.current = [];
+    setLong(false);
+  };
+  const float = () => {
+    const el = innerRef.current;
+    const list = el?.querySelector<HTMLElement>('.stack__list');
+    if (!el || !list || el.style.position === 'fixed') return;
+    // Bedarf: alle Einträge in Mindesthöhe (20 px + 3 px Abstand) plus Kopf und Knöpfe
+    const r = el.getBoundingClientRect();
+    const need = r.height - list.clientHeight + list.children.length * 23;
+    if (need <= r.height + 1) return;
+    const h = Math.min(need, window.innerHeight - 16);
+    const top = Math.max(8, Math.min(r.top, window.innerHeight - h - 8));
+    for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+      const c = getComputedStyle(a);
+      const ctx = c.zIndex !== 'auto' && c.position !== 'static';
+      if (c.containerType !== 'normal' || (c.contain && c.contain !== 'none') || ctx) (a.classList.add('ovf-lift'), ctx && a.classList.add('ovf-top'), lifted.current.push(a));
+    }
+    el.style.position = 'fixed';
+    el.style.top = `${top}px`;
+    el.style.left = `${r.right - 150}px`;
+    el.style.height = `${h}px`;
+    setLong(true);
+  };
   return (
     // Schmal (Zähler und Nummern); bei Hover oder Antippen klappt die Leiste mit Namen
     // nach links über den Inhalt aus, ohne ihn zu verschieben (NF-06).
-    <div className="stack" onWheel={onWheel} role="tablist" aria-orientation="vertical" aria-label="Stack" title={TERMS.stack}>
-      <div className="stack__inner">
+    <div
+      className={`stack${long ? ' is-ovf-long' : ''}`}
+      onWheel={onWheel}
+      role="tablist"
+      aria-orientation="vertical"
+      aria-label="Stack"
+      aria-description={long ? OVERFLOW_TEXT.stackLong : undefined}
+      title={TERMS.stack}
+      onPointerEnter={(e) => e.pointerType === 'mouse' && float()}
+      onPointerLeave={(e) => !e.currentTarget.matches(':focus-within') && !editing && unfloat()}
+      onFocus={float}
+      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && !e.currentTarget.matches(':hover') && unfloat()}
+    >
+      <div className="stack__inner" ref={innerRef}>
         <span className="stack__label" aria-hidden="true">
           Stack · {members.length} Portale
         </span>

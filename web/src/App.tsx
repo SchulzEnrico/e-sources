@@ -1439,7 +1439,11 @@ function DeskApp(props: DeskProps) {
   const noteRects = T.rects(noteTree);
   // V111 (Enrico: „der View Button geht dort auch nicht“): View im Notizen-Modus – Dashboard (alle Pads im Baum),
   // 2 × 2, 2 oder Solo, jeweils ab dem obersten (zuletzt benutzten) Pad in Lesereihenfolge; der Baum bleibt unverändert
-  const [notesView, setNotesView] = useState<ViewKind>('area');
+  const [notesView, setNotesView0] = useState<ViewKind>('area');
+  // V112 (Enrico: „Wenn ich im Note Mode auf ein Pad klicke … wechseln dann die Fenster ihre Position“): Die View
+  // beginnt bei dem Pad, das beim Umschalten oben war – ein Klick aktiviert danach nur noch und rotiert nichts
+  const [viewStart, setViewStart] = useState<string | undefined>(undefined);
+  const setNotesView = (v: ViewKind) => (setViewStart(allPads.at(-1)?.id), setNotesView0(v));
   // V111 (Enrico: „im 2 × 2 Modus sind auch keine Anfasser da“): View-Stellungen sind ein eigener kleiner Baum mit
   // Kanten und Anfassern; Ziehen ändert nur diese Ansicht (bis zum Wechsel), die Anordnung im Dashboard bleibt
   const [viewOver, setViewOver] = useState<{ key: string; tree: T.Node } | null>(null);
@@ -1448,7 +1452,7 @@ function DeskApp(props: DeskProps) {
     if (!notesMode || notesView === 'area' || !noteSync.tree) return null;
     const order = T.readingOrder(noteSync.tree).filter((id) => allPads.some((x) => x.id === id));
     if (!order.length) return null;
-    const top = allPads.at(-1)?.id;
+    const top = viewStart && order.includes(viewStart) ? viewStart : allPads.at(-1)?.id;
     const start = Math.max(0, top ? order.indexOf(top) : 0);
     const ids = [...order.slice(start), ...order.slice(0, start)].slice(0, notesView);
     const key = `${notesView}:${ids.join(',')}`;
@@ -1495,8 +1499,8 @@ function DeskApp(props: DeskProps) {
     if (!base) return;
     e.preventDefault();
     e.stopPropagation();
-    const x = edge === 'e' || edge === 'se' ? 'right' : edge === 'w' ? 'left' : undefined;
-    const y = edge === 's' || edge === 'se' ? 'bottom' : edge === 'n' ? 'top' : undefined;
+    const x = edge === 'e' || edge === 'se' ? 'right' : edge === 'w' || edge === 'nw' ? 'left' : undefined;
+    const y = edge === 's' || edge === 'se' ? 'bottom' : edge === 'n' || edge === 'nw' ? 'top' : undefined;
     const x0 = e.clientX;
     const y0 = e.clientY;
     // V111 (Enrico: „Man kann noch immer nicht alle gleichzeitig in der Größe anpassen“): die ganze durchgehende Linie
@@ -1730,6 +1734,37 @@ function DeskApp(props: DeskProps) {
             />
           );
         })}
+        {/* V112 (Enrico: Anfasser „laufen über Elemente der Pads“ · „wird vom Pad darunter überlagert“): die sichtbaren
+            Knöpfe ↕ ↔ ⤡ liegen einmal über allen Pads mittig in der Lücke – unabhängig davon, welches Pad zuletzt
+            gezeichnet wird; die Greifstreifen an den Kanten bleiben im Pad */}
+        {notesMode &&
+          !fullOn &&
+          (noteViewRects ? [...noteViewRects.entries()] : [...noteRects.entries()]).flatMap(([id, r]) => {
+            if (!allPads.some((x) => x.id === id)) return [];
+            const gr = noteGrips(id);
+            const R = r.x + r.w;
+            const B = r.y + r.h;
+            const cx = GAP + r.x * iw + (r.w * iw - GAP) / 2;
+            const cy = GAP + r.y * ih + (r.h * ih - GAP) / 2;
+            const ex = R * iw + GAP / 2;
+            const sy = B * ih + GAP / 2;
+            const at: [PadEdge, number, number, string][] = [];
+            if (gr.includes('s')) at.push(['s', cx, sy, '↕']);
+            if (gr.includes('e')) at.push(['e', ex, cy, '↔']);
+            if (gr.includes('se')) at.push(['se', ex, sy, '⤡']);
+            return at.map(([edge, x, y, sign]) => (
+              <div
+                key={`${id}-${edge}`}
+                className={`notegrip notegrip--${edge}`}
+                style={{ left: x, top: y }}
+                aria-hidden="true"
+                title={PAD_TEXT.border}
+                onPointerDown={(e) => e.button === 0 && startNoteResize(e, id, edge)}
+              >
+                {sign}
+              </div>
+            ));
+          })}
       </div>
     ) : null;
 

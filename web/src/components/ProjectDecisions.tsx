@@ -7,7 +7,7 @@
  * V108 (Doc F-222 V108, E1/E3): dasselbe Bauteil auch ohne Projekt – Cockpit-Modus „Entscheidungen“ mit Rad
  * „Zeigen“ Alle · Frei · je Projekt; „Entscheiden für“ in Projekt-Entscheidungen nur mit Befugnis „Entscheiden“.
  */
-import React, { type CSSProperties, useEffect, useState } from 'react';
+import React, { type CSSProperties, useEffect, useRef, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { Decision, Project, Workspace } from '../workspace/types';
 import * as Dc from '../workspace/decisions';
@@ -15,6 +15,8 @@ import * as Ps from '../workspace/persons';
 import { newId } from '../workspace/workspace';
 import { DECISION_TEXT as T } from '../workspace/terms';
 import { Icon } from './Icon';
+import { useOverflow } from './Overflow';
+import { OVERFLOW_TEXT } from '../workspace/terms';
 import { WorkPadButton, openWorkPad } from './WorkPadOpen';
 import * as Pr from '../workspace/prepare';
 import { requestTour, tourAutoStart } from '../workspace/tour';
@@ -61,6 +63,9 @@ type Scope = 'all' | 'free' | string;
 /** V108 (E1): Entscheidungen mit oder ohne Projekt; ohne `p` mit Rad „Zeigen“ (Cockpit-Modus „Entscheidungen“). */
 export function Decisions({ ws, p, dispatch, say, open, scope: scope0, inPad }: { ws: Workspace; p?: Project; dispatch: (a: Action) => void; say: (t: string) => void; open?: string | null; scope?: string; inPad?: boolean }) {
   const projects = ws.projects ?? [];
+  // V112 F-228 Stufe 2: Kopf mit Überlauf – Überschrift und Rad „Zeigen“ bleiben
+  const topRef = useRef<HTMLElement>(null);
+  const topOvf = useOverflow(topRef, { label: OVERFLOW_TEXT.viewHead, keep: '.dc__head, .dc__scope' });
   const [scope, setScope] = useState<Scope>(() => {
     const o = open ? Dc.decisionsOf(ws).find((x) => x.id === open) : undefined;
     return o ? (o.projectId ? o.projectId : 'free') : scope0 ?? 'all';
@@ -111,7 +116,7 @@ export function Decisions({ ws, p, dispatch, say, open, scope: scope0, inPad }: 
 
   return (
     <section className="dc" aria-labelledby={inPad ? 'dc-pad-head' : 'dc-head'}>
-      <header className="dc__top">
+      <header className={`dc__top${topOvf.cls}`} ref={topRef}>
         <h4 id={inPad ? 'dc-pad-head' : 'dc-head'} className="dc__head">{p ? T.head(p.name) : T.headAll}</h4>
         {!p && (
           <span className="dc__scope">
@@ -135,6 +140,7 @@ export function Decisions({ ws, p, dispatch, say, open, scope: scope0, inPad }: 
         <button type="button" className="help__run dc__tour" title={T.tourHint} aria-label={T.tourHint} onClick={() => requestTour('decisions')}>
           <Icon name="tour" size={13} className="icon icon--inline" /> {T.tour}
         </button>
+        {topOvf.knob}
         {!inPad && <WorkPadButton tab="decisions" project={p?.id ?? (shownScope !== 'all' && shownScope !== 'free' ? shownScope : undefined)} decision={d?.id} />}
       </header>
       <p className="help__text dc__why">{T.why}</p>

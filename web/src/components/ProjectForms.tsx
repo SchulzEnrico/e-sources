@@ -16,6 +16,8 @@ import { newId } from '../workspace/workspace';
 import { FORMS_TEXT as T, PSP_TEXT } from '../workspace/terms';
 import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
+import { useOverflow } from './Overflow';
+import { OVERFLOW_TEXT } from '../workspace/terms';
 import { WorkPadButton } from './WorkPadOpen';
 import { requestTour, tourAutoStart } from '../workspace/tour';
 
@@ -119,13 +121,16 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
   };
   const setValue = (rowId: string, key: string, value: Fk.CellValue) => run({ op: 'cell', pid: p.id, form, row: rowId, key, value, at: Date.now(), by });
 
+  // V112 F-228 Stufe 2: Kopf mit Überlauf – Überschrift und Kapitel-Rad bleiben, „noch offen“ ebenfalls (Rückmeldung)
+  const topRef = useRef<HTMLElement>(null);
+  const topOvf = useOverflow(topRef, { label: OVERFLOW_TEXT.viewHead, keep: '.dc__head, .pjf__chapter, .pjf__open' });
   const templates = Fk.templatesOf(ws);
   const tasks = Fk.rowsOf(ws, p.id, Fk.GPM_D.forms.find((f) => f.id === 'tasks')!);
   const persons = Ps.personList(ws);
 
   return (
     <section className="dc pjs pjf" aria-labelledby={`${base}-head`}>
-      <header className="dc__top">
+      <header className={`dc__top${topOvf.cls}`} ref={topRef}>
         <h4 id={`${base}-head`} className="dc__head">{T.head(p.name)}</h4>
         <span className="layouts__label pj__wheel pjf__chapter">
           <span aria-hidden="true">{T.chapter}</span>
@@ -165,6 +170,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
           </span>
         )}
         {!inPad && <WorkPadButton tab="forms" project={p.id} />}
+        {topOvf.knob}
         <button type="button" className="help__run pjf__tour" title={T.tourHint} aria-label={T.tourHint} onClick={() => requestTour('forms')}>
           <Icon name="tour" size={13} className="icon icon--inline" /> {T.tour}
         </button>

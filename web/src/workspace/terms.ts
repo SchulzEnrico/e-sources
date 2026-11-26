@@ -3044,4 +3044,9 @@ export const OVERFLOW_TEXT = {
   portalTabs: 'Tabs des Portals',
   stack: 'Stack',
   toolbar: 'Kopfleiste',
+  cockpitHead: 'Cockpit-Kopf',
+  viewHead: 'Kopf der Ansicht',
+  padFoot: 'Pad-Fuß',
+  stackBar: 'Stapel-Leiste',
+  stackLong: 'Die Leiste schwebt in voller Länge über dem Portal, weil nicht alle Portale hineinpassen',
 };

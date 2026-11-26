@@ -21,7 +21,7 @@ import type {
 } from './types';
 
 /** App-Stand für die Meldung (FB6) – bei jedem Chat mitzählen. */
-export const APP_VERSION = 'V111';
+export const APP_VERSION = 'V112';
 export const FEEDBACK_MAX = 2000;
 export const TITLE_MAX = 200;
 export const TEXT_MAX = 8000;

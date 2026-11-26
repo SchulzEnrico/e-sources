@@ -21,6 +21,8 @@ import { FeedbackCockpit } from './FeedbackCockpit';
 import { Decisions } from './ProjectDecisions';
 import { FocusCockpit } from './FocusCockpit';
 import { Icon } from './Icon';
+import { useOverflow } from './Overflow';
+import { OVERFLOW_TEXT } from '../workspace/terms';
 import * as St from '../workspace/stage';
 import { noticeLater } from '../workspace/flash';
 
@@ -285,6 +287,9 @@ export function Overview(p: OverviewProps) {
   const tileBtns = useRef(new Map<string, HTMLButtonElement>());
   const box = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLInputElement>(null);
+  // V112 F-228 Stufe 2: Cockpit-Kopf mit Überlauf – Name, Rad, Filter und Schließen bleiben, der Rest schwebt über „»“
+  const headRef = useRef<HTMLDivElement>(null);
+  const headOvf = useOverflow(headRef, { label: OVERFLOW_TEXT.cockpitHead, keep: '.overview__name, .overview__mode, .overview__x, .radar__filter' });
   /** F-151: Panel-Zeile (oder ganze Area per Kachel) wird gerade gezogen. */
   const [drag, setDrag] = useState<{ name: string; whole: boolean; x: number; y: number; over: string | null; target: MoveTarget | null; dock: Dock | null } | null>(null);
   /** F-153: Kante wird gerade gezogen (Griffe ausblenden, außer dem gezogenen). */
@@ -899,7 +904,7 @@ export function Overview(p: OverviewProps) {
           }
         }}
       >
-        <div className="overview__head">
+        <div className={`overview__head${headOvf.cls}`} ref={headRef}>
           <strong className="overview__name" title={TERMS.cockpit}>Cockpit</strong>
           {/* V83 (Enrico): Rad ganz links, direkt nach „Cockpit“ – verspringt nicht und zeigt, welche Ansicht offen ist */}
           {/* F-187/F-202: Umschalter Portale | Layouts | Sources (Pfeiltasten wechseln) */}
@@ -1010,6 +1015,7 @@ export function Overview(p: OverviewProps) {
               <span className="c-label">Tour</span>
             </button>
           )}
+          {headOvf.knob}
           <button type="button" className="overview__x" onClick={dismiss} title="Cockpit schließen (Esc)" aria-label="Cockpit schließen">
             <Icon name="close" size={14} />
           </button>

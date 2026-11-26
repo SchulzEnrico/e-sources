@@ -50,6 +50,24 @@ function underOf(el: HTMLElement): string {
   return `rgb(${out.map((x) => Math.round(x)).join(', ')})`;
 }
 
+/** V112 F-228 Stufe 2: Touren – Leisten im Überlauf, die `el` verdecken (innen nach außen). */
+export function ovfBarsOf(el: Element | null): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  for (let a = el?.parentElement ?? null; a; a = a.parentElement) if (a.classList.contains('is-ovf-tight')) out.push(a);
+  return out;
+}
+/** Klappt die Leisten auf, in denen `el` gerade im Überlauf steckt (äußere zuerst); gibt zurück, ob etwas aufging. */
+export function ovfReveal(el: Element | null): boolean {
+  // auch schon offene Leisten: der vorige Tour-Schritt schließt sie gleich davor wieder (beides landet im selben Zug)
+  const bars = ovfBarsOf(el);
+  for (const b of bars.reverse()) b.dispatchEvent(new CustomEvent('ovf:reveal'));
+  return bars.length > 0;
+}
+/** Schließt die Leisten wieder, die für `el` aufgeklappt wurden. */
+export function ovfConceal(el: Element | null): void {
+  for (const b of ovfBarsOf(el)) b.dispatchEvent(new CustomEvent('ovf:conceal'));
+}
+
 export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: string; keepActive?: boolean; keep?: string; off?: boolean; /** Reiter: offen als Liste nach unten (Enrico: „Am besten nach unten“) */ drop?: boolean; /** knapp erzwingen (z. B. Reiter in einer schwebenden Kopfleiste) */ forceTight?: boolean }): OverflowState {
   const [tight, setTight] = useState(false);
   const [open, setOpen] = useState(false);
@@ -61,6 +79,8 @@ export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: s
   const noHover = useRef(false);
   const ph = useRef<HTMLDivElement | null>(null);
   const need = useRef(0);
+  /** V112: tatsächlich gebrauchte Breite, wenn der Inhalt schon einmal übergelaufen ist (gilt bis zur nächsten Inhaltsänderung) */
+  const spillNeed = useRef(0);
   /** Lage und Maße in der Leiste, bevor sie schwebt */
   const before = useRef<{ r: DOMRect; flex: string; margin: string; knob?: number; under?: string } | null>(null);
 
@@ -82,13 +102,17 @@ export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: s
     if (!el || opts.off) return;
     markActive(el);
     const had = el.className;
+    // V112 (Enrico: „Es läuft immer noch etwas übereinander“ – angeschnittener Reiter im Pad-Kopf): ragt der Inhalt
+    // im jetzigen Zustand tatsächlich über den Rand, ist die Leiste knapp – egal, was die Messung unten sagt
+    const spill = !el.classList.contains('is-ovf-tight') && el.scrollWidth > el.clientWidth + 1;
+    if (spill) spillNeed.current = Math.max(spillNeed.current, el.scrollWidth + (el.getBoundingClientRect().width - el.clientWidth));
     el.classList.remove('is-ovf-tight', 'is-ovf-open', 'is-ovf-vertical');
     el.classList.add('ovf-measure');
     need.current = Math.ceil(el.getBoundingClientRect().width);
     el.className = had;
     const box = ph.current ?? el;
     const avail = Math.floor(box.getBoundingClientRect().width);
-    const t = !!opts.forceTight || need.current > avail + 1;
+    const t = !!opts.forceTight || spill || need.current > avail + 1 || spillNeed.current > avail + 1;
     setTight(t);
     if (!t) setOpen(false);
     const kids = (Array.from(el.children) as HTMLElement[]).filter((c) => !c.hasAttribute('data-ovf-keep') && !c.classList.contains('ovf__knob') && !c.classList.contains('sr-only') && !c.classList.contains('ovf-ph') && !c.hidden && c.getAttribute('aria-hidden') !== 'true' && c.tagName !== 'INPUT');
@@ -105,7 +129,7 @@ export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: s
     const ro = new ResizeObserver(later);
     ro.observe(el);
     if (el.parentElement) ro.observe(el.parentElement);
-    const mo = new MutationObserver(later);
+    const mo = new MutationObserver(() => ((spillNeed.current = 0), later()));
     mo.observe(el, { childList: true, subtree: true, characterData: true });
     window.addEventListener('resize', later);
     return () => (ro.disconnect(), mo.disconnect(), window.removeEventListener('resize', later), cancelAnimationFrame(raf));
@@ -178,7 +202,7 @@ export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: s
   useEffect(() => {
     const el = ref.current;
     if (!open || !el) return;
-    const busy = () => el.matches(':focus-within') || !!el.querySelector('[aria-expanded="true"]');
+    const busy = () => el.matches(':focus-within') || !!el.querySelector('[aria-expanded="true"], .is-tour-target');
     const leave = () => {
       window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => !busy() && setOpen(false), CLOSE_MS);
@@ -187,6 +211,7 @@ export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: s
     const away = (e: PointerEvent) => {
       const t = e.target as Element | null;
       if (t && (el.contains(t) || knobRef.current?.contains(t) || t.closest('.menu__list'))) return;
+      if (el.querySelector('.is-tour-target') && t?.closest('.tour')) return;
       setOpen(false);
     };
     // Esc schließt – auch wenn der Fokus gerade nicht in der Leiste liegt (nur Hover); offene Menüs und Felder zuerst
@@ -213,6 +238,17 @@ export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: s
       window.clearTimeout(timer.current);
     };
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // V112 F-228 Stufe 2: Touren klappen die Leiste auf, wenn ihr Ziel im Überlauf steckt (ovfReveal/ovfConceal)
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const reveal = () => openNow(false);
+    const conceal = () => setOpen(false);
+    el.addEventListener('ovf:reveal', reveal);
+    el.addEventListener('ovf:conceal', conceal);
+    return () => (el.removeEventListener('ovf:reveal', reveal), el.removeEventListener('ovf:conceal', conceal));
+  });
 
   const openNow = (focus: boolean) => {
     window.clearTimeout(timer.current);

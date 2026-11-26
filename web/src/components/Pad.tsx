@@ -67,7 +67,7 @@ const STEP_HOLD = 0.06;
 type BlockCmd = 'home' | 'new' | 'go' | 'search';
 type Cmd = { k: BlockCmd; n: number; id?: string };
 
-export type Edge = 'n' | 's' | 'e' | 'w' | 'se';
+export type Edge = 'n' | 's' | 'e' | 'w' | 'se' | 'nw';
 export type PadSide = 'left' | 'right' | 'top' | 'bottom';
 
 export interface PadProps {
@@ -701,7 +701,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
         }}
       >
         <span data-ovf-keep="" className="pad__iconwrap"><Icon name={dock ? 'dock' : 'pad'} size={14} className="icon pad__icon" /></span>
-        <div className={`pad__tabs${tabsOvf.cls}`} role="tablist" aria-label={PAD_TEXT.tabs} ref={tabsRef} data-ovf-min="" data-ovf-keep="" style={{ '--ovf-min': '8.5em' } as CSSProperties}>
+        <div className={`pad__tabs${tabsOvf.cls}`} role="tablist" aria-label={PAD_TEXT.tabs} ref={tabsRef} data-ovf-min="" data-ovf-keep="" style={{ '--ovf-min': '12em' } as CSSProperties}>
           {pad.sheets.map((id, i) => {
             const v = No.viewById(ws, id);
             if (!v) return null;

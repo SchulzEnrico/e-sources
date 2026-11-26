@@ -7,7 +7,7 @@
  * steht auch in der Tabelle. Logik in workspace/gantt.ts.
  */
 import { useEffect, useRef, useState } from 'react';
-import { offBetween } from '../workspace/calendar';
+import { calendarFor, offBetween, withCalendar } from '../workspace/calendar';
 import type { Action } from '../workspace/useWorkspace';
 import type { Project, ProjectBaseline, Workspace } from '../workspace/types';
 import * as Bl from '../workspace/baseline';
@@ -345,7 +345,7 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
               <div key={r.id} className={`gt__band${r.id === cur?.id ? ' is-sel' : ''}`} style={{ top: i * ROW }} onClick={() => setSel(r.id)} />
             ))}
             {/* V116 (K7): Feiertage und freie Tage des Arbeitskalenders wie Wochenenden hinterlegt */}
-            {prefs.scale !== 'month' && offBetween(from, to).map((o) => <div key={o.day} className="gt__off" style={{ left: x(o.day), width: w }} title={`${fmtDay(o.day)}: ${o.name}`} />)}
+            {prefs.scale !== 'month' && withCalendar(calendarFor(ws, p.id), () => offBetween(from, to)).map((o) => <div key={o.day} className="gt__off" style={{ left: x(o.day), width: w }} title={`${fmtDay(o.day)}: ${o.name}`} />)}
             {today >= from && today <= to && <div className="gt__today" style={{ left: x(today) + w / 2 }} title={G.today} />}
             <svg className="gt__arrows" width={width} height={rows.length * ROW}>
               <defs>

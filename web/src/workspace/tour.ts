@@ -741,13 +741,19 @@ export const TOURS: Record<TourId, TourStep[]> = {
       id: 'calendar',
       title: 'Arbeitskalender',
       target: `${PJ} .pj__cal`,
-      text: 'Im Steckbrief legst du die Feiertage nach Bundesland und eigene freie Tage fest. Sie gelten für alle Projekte: Gantt, Netzplan, Ressourcen und Fokus rechnen nur mit Arbeitstagen.',
+      text: 'Im Steckbrief legst du die Feiertage nach Bundesland und eigene freie Tage fest. Das Rad „Kalender“ wählt: gemeinsam für alle Projekte oder ein eigener nur für dieses Projekt (wie in MS Project). Gantt, Netzplan, Ressourcen und Fokus rechnen nur mit Arbeitstagen.',
     },
     {
       id: 'desk',
       title: 'Projekt-Desk',
       target: `${PJ} .pj__owndesk`,
       text: '„Eigener Desk“ legt einen Desk nur für dieses Projekt an – oder ⋮ neben dem Desk-Namen › „An Projekt binden …“. Dann trägt der Desk Name und Farbe des Projekts, oben wechselt ein Umschalter das gezeigte Projekt (ohne umzubinden), neue Notizen bekommen das Projekt, und Suche, Library-Notizen und Fokus zeigen nur dieses – „Alles zeigen“ hebt das auf.',
+    },
+    {
+      id: 'exchange',
+      title: 'Import und Export',
+      target: `${PJ} .pj__xchg`,
+      text: '„Exportieren …“ speichert das Projekt als XML für MS Project oder iTaskX, „Importieren …“ lädt so eine Datei als neues Projekt mit eigenem Desk. Was E-Sources nicht kennt, bleibt erhalten und geht beim nächsten Export zurück – nichts geht verloren.',
     },
     {
       id: 'brief',

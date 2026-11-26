@@ -30,6 +30,9 @@ import { ProjectFeedback } from './ProjectFeedback';
 import { ProjectSteer, STEER_EVENT, takeSteer } from './ProjectSteer';
 import { ProjectForms } from './ProjectForms';
 import { ProjectCalendar } from './ProjectCalendar';
+import { useExchange } from './ProjectExchange';
+import { EXCHANGE_TEXT as XT } from '../workspace/terms';
+import { foreignCount } from '../workspace/foreign';
 import { PROJECT_FEEDBACK_TEXT, PSP_TEXT } from '../workspace/terms';
 import * as Ps from '../workspace/persons';
 import * as Dp from '../workspace/deskProject';
@@ -68,7 +71,7 @@ let lastShown: string | undefined;
 export const shownProjectId = (): string | undefined => lastShown;
 
 /** V117 (Projekt-Desk): Desk dieses Fensters – zuletzt gezeigtes Projekt (PD9), merken, „Eigener Desk“ (PD2). */
-export type ProjectDeskProps = { win: string; shown?: string; onShow: (id: string | undefined) => void; onOwn: (project: string) => void };
+export type ProjectDeskProps = { win: string; shown?: string; onShow: (id: string | undefined) => void; onOwn: (project: string, justMade?: string) => void };
 
 export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void; desk?: ProjectDeskProps }) {
   const allRows = Pj.projectRows(ws);
@@ -403,7 +406,7 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
           ) : view === 'psp' ? (
             <ProjectPsp key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} onPickProject={(id) => (setSel(id), setViewState('brief'), focusRow(id))} />
           ) : (
-          <ProjectBrief key={shown.id} ws={ws} p={shown} row={rowsAll.find((r) => r.project.id === shown.id)!} dispatch={dispatch} say={say} boxRef={infoRef} onRename={() => startRename(shown)} onRemove={() => askRemove(shown)} onOwnDesk={desk ? () => desk.onOwn(shown.id) : undefined} />
+          <ProjectBrief key={shown.id} ws={ws} p={shown} row={rowsAll.find((r) => r.project.id === shown.id)!} dispatch={dispatch} say={say} boxRef={infoRef} onRename={() => startRename(shown)} onRemove={() => askRemove(shown)} onOwnDesk={desk ? () => desk.onOwn(shown.id) : undefined} onImported={(pid, name) => (setSel(pid), desk?.onOwn(pid, name))} />
           )}
         </div>
       )}
@@ -434,7 +437,19 @@ function UndoLine({ undo, dispatch, say, onBack }: { undo: { text: string; u: Pj
 type Patch = Partial<Omit<Project, 'id' | 'created' | 'changed'>>;
 
 /** Steckbrief der gewählten Zeile (MS Project: „Projektinfo“, ICB4: Projektsteckbrief). */
-function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, onOwnDesk }: { ws: Workspace; p: Project; row: Pj.ProjectRow; dispatch: (a: Action) => void; say: (t: string) => void; boxRef: React.RefObject<HTMLElement>; onRename: () => void; onRemove: () => void; onOwnDesk?: () => void }) {
+function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, onOwnDesk, onImported }: { ws: Workspace; p: Project; row: Pj.ProjectRow; dispatch: (a: Action) => void; say: (t: string) => void; boxRef: React.RefObject<HTMLElement>; onRename: () => void; onRemove: () => void; onOwnDesk?: () => void; onImported?: (pid: string, name: string) => void }) {
+  // V118 (F-230, F10): Export/Import am Ort, Meldung unter den Knöpfen mit Rückgängig
+  const [xMsg, setXMsg] = useState<{ text: string; undo?: () => void } | null>(null);
+  const xTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(xTimer.current), []);
+  const xTell = (text: string, undo?: () => void) => {
+    window.clearTimeout(xTimer.current);
+    setXMsg({ text, undo });
+    say(text);
+    xTimer.current = noticeLater(() => setXMsg(null), undo ? 3 : 2);
+  };
+  const xc = useExchange(ws, dispatch, xTell, onImported);
+  const kept = foreignCount(p.foreign) + Pj.tasksOfProject(ws, p.id).reduce((n, t) => n + foreignCount(t.foreign), 0);
   const edit = (patch: Patch, text: string = T.saved) => {
     dispatch({ type: 'projectEdit', id: p.id, patch });
     say(text);
@@ -476,7 +491,25 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, o
           </button>
         )}
         {Dp.desksOf(ws, p.id).length > 0 && <span className="lc__muted pj__desks">{DPT.ownList(Dp.desksOf(ws, p.id).length)}</span>}
+        <button type="button" className="help__run pj__xchg" title={XT.exportHint} onClick={() => xc.exportProject(p.id)}>
+          <Icon name="download" size={13} className="icon icon--inline" /> {XT.export}
+        </button>
+        <button type="button" className="help__run" title={XT.importHint} onClick={xc.pickImport}>
+          <Icon name="upload" size={13} className="icon icon--inline" /> {XT.import}
+        </button>
       </div>
+      {xc.node}
+      {xMsg && (
+        <p className="layouts__undo" role="status">
+          {xMsg.text}
+          {xMsg.undo && (
+            <button type="button" className="help__run" onClick={() => (xMsg.undo!(), setXMsg(null), say(DPT.undone))}>
+              {DPT.undo}
+            </button>
+          )}
+        </p>
+      )}
+      {kept > 0 && <p className="lc__muted pj__kept">{XT.kept(kept, p.foreign?.from?.kind === 'trello' ? 'Trello' : 'MS Project/iTaskX')}</p>}
       <p className={`pj__gaps${gaps.length ? '' : ' is-ok'}`} role="note">
         {gaps.length ? T.gaps(gaps.map((g) => T.gapName[g]).join(', ')) : T.complete}
       </p>
@@ -593,7 +626,7 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, o
         )}
       </fieldset>
 
-      <ProjectCalendar ws={ws} dispatch={dispatch} />
+      <ProjectCalendar ws={ws} pid={p.id} dispatch={dispatch} />
 
       <fieldset className="pc__set pj__brief" title={explain(TERMS.projectBrief)}>
         <legend>{T.brief}</legend>

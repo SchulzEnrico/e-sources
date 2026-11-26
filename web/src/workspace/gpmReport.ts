@@ -7,7 +7,7 @@
  */
 import type { FormDef, Project, Workspace } from './types';
 import * as Fk from './formKit';
-import { costCurve, earnedValue, mtaOf, portfolioOf, projectStatus, type CostCurve, type Mta, type PortfolioDot } from './gpmCalc';
+import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf, projectStatus, type CostCurve, type EvCurve, type Mta, type PortfolioDot } from './gpmCalc';
 import { personById } from './persons';
 import { projectById } from './projects';
 
@@ -119,6 +119,85 @@ export function mtaSvg(m: Mta, names: Map<string, string>, col: SvgColors, w = 6
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(`Meilenstein-Trendanalyse: ${rows.length} Meilensteine, ${n} Zeitpunkte`)}">${parts.join('')}</svg>`;
 }
 
+/** V118: Earned Value über die Zeit (ICB4 4.5.7) – Planwert PV als Linie über die Laufzeit, Fertigstellungswert EV
+ * und Ist-Kosten AC aus den Statusberichten bis zum Stichtag, gestrichelt die Prognose bis EAC am Ende; BAC und Budget
+ * als Bezugslinien. Eine Achse (€), Linien unterscheiden sich auch in Strich und Punktform (nicht nur in der Farbe). */
+export function evSvg(c: EvCurve, col: SvgColors, w = 640, h = 300): string {
+  if (c.bac <= 0 || (!c.pv.length && c.points.length < 2)) return '';
+  const all = [...c.pv.map((x) => x.day), ...c.points.map((x) => x.day)].sort();
+  const lo = Date.parse(all[0]);
+  const hi = Math.max(lo + 864e5, Date.parse(all[all.length - 1]));
+  const raw = Math.max(1, c.bac, c.eac, c.budget ?? 0, ...c.points.map((x) => Math.max(x.ev, x.ac))) * 1.06;
+  // runde Teilung: 1, 2, 2,5 oder 5 × 10^k, höchstens 5 Linien
+  const mag = 10 ** Math.floor(Math.log10(raw / 4));
+  const tick = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((t) => raw / t <= 5) ?? 10 * mag;
+  const top = Math.ceil(raw / tick) * tick;
+  const pad = { l: 70, r: 96, t: 16, b: 52 };
+  const iw = w - pad.l - pad.r;
+  const ih = h - pad.t - pad.b;
+  const x = (d: string) => pad.l + ((Date.parse(d) - lo) / (hi - lo)) * iw;
+  const y = (v: number) => pad.t + ih - (v / top) * ih;
+  const f = (n: number) => n.toFixed(1);
+  const dm = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(2, 4)}`;
+  const c3 = { pv: col.bar, ev: col.budget, ac: col.sum };
+  const parts: string[] = [];
+  parts.push(`<line x1="${pad.l}" y1="${pad.t + ih}" x2="${pad.l + iw}" y2="${pad.t + ih}" stroke="${col.line}"/>`);
+  for (let v = tick; v <= top + 0.5; v += tick) {
+    parts.push(`<line x1="${pad.l}" y1="${f(y(v))}" x2="${pad.l + iw}" y2="${f(y(v))}" stroke="${col.line}" stroke-dasharray="2 4"/>`);
+    parts.push(`<text x="${pad.l - 6}" y="${f(y(v) + 4)}" text-anchor="end" font-size="10" fill="${col.muted}">${esc(eur(v))}</text>`);
+  }
+  // Monatsmarken unten (höchstens 12 Beschriftungen)
+  const isMonthEnd = (d: string) => new Date(Date.parse(d) + 864e5).getUTCDate() === 1;
+  const months = c.pv.map((p) => p.day).filter(isMonthEnd);
+  const step = Math.max(1, Math.ceil(months.length / 12));
+  months.forEach((d, i) => {
+    if (i % step) return;
+    parts.push(`<text x="${f(x(d))}" y="${pad.t + ih + 14}" text-anchor="middle" font-size="10" fill="${col.muted}">${d.slice(5, 7)}/${d.slice(2, 4)}</text>`);
+  });
+  const ref = (v: number, label: string, color: string, dash: string, right = false) => {
+    parts.push(`<line x1="${pad.l}" y1="${f(y(v))}" x2="${pad.l + iw}" y2="${f(y(v))}" stroke="${color}" stroke-dasharray="${dash}"/><text x="${right ? pad.l + iw / 2 : pad.l + 4}" y="${f(y(v) - 4)}" font-size="10" fill="${col.ink}">${esc(`${label} ${eur(v)}`)}</text>`);
+  };
+  if (c.bac > 0) ref(c.bac, 'BAC (Plan-Kosten)', col.muted, '6 3');
+  // Budget nah an BAC: Beschriftung in die Mitte, damit sie sich nicht überdecken
+  if (c.budget && Math.abs(c.budget - c.bac) > 0.5) ref(c.budget, 'Budget', col.budget, '1 3', Math.abs(y(c.budget) - y(c.bac)) < 14);
+  // Stichtag
+  const today = c.points[c.points.length - 1];
+  parts.push(`<line x1="${f(x(today.day))}" y1="${pad.t}" x2="${f(x(today.day))}" y2="${pad.t + ih}" stroke="${col.muted}" stroke-dasharray="3 3"/><text x="${f(x(today.day))}" y="${pad.t + ih + 26}" text-anchor="middle" font-size="10" fill="${col.ink}">${esc(`Stichtag ${dm(today.day)}`)}</text>`);
+  // PV
+  if (c.pv.length > 1) {
+    parts.push(`<polyline points="${c.pv.map((p) => `${f(x(p.day))},${f(y(p.v))}`).join(' ')}" fill="none" stroke="${c3.pv}" stroke-width="3"/>`);
+    c.pv.forEach((p) => parts.push(`<circle cx="${f(x(p.day))}" cy="${f(y(p.v))}" r="6" fill="transparent"><title>${esc(`PV ${dm(p.day)}: ${eur(p.v)}`)}</title></circle>`));
+    const last = c.pv[c.pv.length - 1];
+    parts.push(`<text x="${f(x(last.day) + 8)}" y="${f(y(last.v) + 4)}" font-size="10" fill="${col.ink}">PV</text>`);
+  }
+  // EV und AC mit Prognose
+  const line = (key: 'ev' | 'ac', color: string, shape: 'circle' | 'square', label: string) => {
+    const pts = c.points;
+    if (pts.length > 1) parts.push(`<polyline points="${pts.map((p) => `${f(x(p.day))},${f(y(p[key]))}`).join(' ')}" fill="none" stroke="${color}" stroke-width="2"/>`);
+    for (const p of pts) {
+      const tip = `<title>${esc(`${label} ${dm(p.day)}: ${eur(p[key])}${p.from === 'report' ? ' (Statusbericht)' : ' (Stichtag)'}${key === 'ev' && p.est ? ', geschätzt aus Fortschritt Leistung' : ''}`)}</title>`;
+      const hollow = key === 'ev' && p.est;
+      const fill = hollow ? 'none' : color;
+      parts.push(shape === 'circle'
+        ? `<circle cx="${f(x(p.day))}" cy="${f(y(p[key]))}" r="4" fill="${fill}" stroke="${color}" stroke-width="2">${tip}</circle>`
+        : `<rect x="${f(x(p.day) - 4)}" y="${f(y(p[key]) - 4)}" width="8" height="8" fill="${fill}" stroke="${color}" stroke-width="2">${tip}</rect>`);
+    }
+    parts.push(`<text x="${f(x(today.day) + 8)}" y="${f(y(today[key]) + (key === 'ac' && Math.abs(y(today.ac) - y(today.ev)) < 12 ? (today.ac >= today.ev ? -6 : 14) : 4))}" font-size="10" fill="${col.ink}">${key.toUpperCase()}</text>`);
+  };
+  line('ev', c3.ev, 'circle', 'EV');
+  line('ac', c3.ac, 'square', 'AC');
+  if (c.end && today.day < c.end && (!c.start || today.day >= c.start) && today.ac > 0 && c.eac > 0) {
+    parts.push(`<line x1="${f(x(today.day))}" y1="${f(y(today.ac))}" x2="${f(x(c.end))}" y2="${f(y(c.eac))}" stroke="${c3.ac}" stroke-width="2" stroke-dasharray="5 4"/><rect x="${f(x(c.end) - 4)}" y="${f(y(c.eac) - 4)}" width="8" height="8" fill="none" stroke="${c3.ac}" stroke-width="2"><title>${esc(`EAC (Prognose bei Abschluss) ${dm(c.end)}: ${eur(c.eac)}`)}</title></rect><text x="${f(x(c.end) + 8)}" y="${f(y(c.eac) + (Math.abs(y(c.eac) - y(c.bac)) < 14 ? (c.eac >= c.bac ? -8 : 18) : 4))}" font-size="10" fill="${col.ink}">${esc(`EAC ${eur(c.eac)}`)}</text>`);
+  }
+  // Legende
+  const ly = h - 8;
+  parts.push(`<line x1="${pad.l}" y1="${ly - 4}" x2="${pad.l + 18}" y2="${ly - 4}" stroke="${c3.pv}" stroke-width="3"/><text x="${pad.l + 22}" y="${ly}" font-size="10" fill="${col.ink}">PV Planwert</text>`);
+  parts.push(`<circle cx="${pad.l + 106}" cy="${ly - 4}" r="4" fill="${c3.ev}"/><text x="${pad.l + 114}" y="${ly}" font-size="10" fill="${col.ink}">EV Fertigstellungswert</text>`);
+  parts.push(`<rect x="${pad.l + 236}" y="${ly - 8}" width="8" height="8" fill="${c3.ac}"/><text x="${pad.l + 248}" y="${ly}" font-size="10" fill="${col.ink}">AC Ist-Kosten · gestrichelt: Prognose EAC</text>`);
+  const t = c.points[c.points.length - 1];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(`Earned Value am ${dm(t.day)}: EV ${eur(t.ev)}, AC ${eur(t.ac)}, BAC ${eur(c.bac)}, EAC ${eur(c.eac)}`)}">${parts.join('')}</svg>`;
+}
+
 const lab = (d: PortfolioDot) => esc(d.code || d.name.slice(0, 14));
 
 /** Umfeld-Portfolio: sachlich/sozial (Spalten) × intern/extern (Zeilen), Codes in den Feldern. */
@@ -197,6 +276,7 @@ export function mtaNames(ws: Workspace, pid: string): Map<string, string> {
 export function formSvg(ws: Workspace, pid: string, form: FormDef, col: SvgColors): string {
   const p = projectById(ws, pid);
   if (form.source === 'mta') return mtaSvg(mtaOf(ws, pid, Fk.evDay()), mtaNames(ws, pid), col);
+  if (form.source === 'ev') return evSvg(evCurve(ws, pid, Fk.evDay()), col);
   if (form.layout === 'chart') return curveSvg(costCurve(ws, pid), col);
   if (form.layout === 'portfolio') return form.filter === 'sh' ? shSvg(portfolioOf(p), col) : envSvg(portfolioOf(p), col);
   return '';
@@ -271,7 +351,7 @@ function formSection(ws: Workspace, p: Project, f: FormDef): string {
       out.push(`<h3>${esc(title)}</h3><table class="kv"><tbody>${cols.filter((c) => c.key !== 'code' && c.key !== 'title').map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r.id, c))}</td></tr>`).join('')}</tbody></table>`);
     }
   } else {
-    if (f.layout === 'chart' || f.layout === 'portfolio') {
+    if (f.layout === 'chart' || f.layout === 'portfolio' || f.source === 'ev') {
       const svg = formSvg(ws, p.id, f, PRINT_COLORS);
       if (svg) out.push(`<figure>${svg}</figure>`);
     }

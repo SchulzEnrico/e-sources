@@ -39,7 +39,8 @@ describe('F-206 Schritt 10 Arbeitskalender (V116, K7)', () => {
     const ws = Sp.addSampleProject(base, 5);
     Cal.setCalendar({ region: 'HH' });
     try {
-      expect(Gt.ganttOf(ws, Sp.SAMPLE_PROJECT, '2026-11-25').end).toBe('2027-06-30');
+      // V118: der Gantt rechnet mit dem Kalender des Arbeitsstands bzw. Projekts
+      expect(Gt.ganttOf({ ...ws, calendar: { region: 'HH' } }, Sp.SAMPLE_PROJECT, '2026-11-25').end).toBe('2027-06-30');
     } finally {
       Cal.setCalendar(undefined);
     }
@@ -55,5 +56,33 @@ describe('F-206 Schritt 10 Arbeitskalender (V116, K7)', () => {
     ws = Cal.removeFree(Cal.setRegion(ws, undefined), '2027-05-07');
     expect(ws.calendar).toBeUndefined();
     expect(Cal.parseCalendar({ region: 'XX', free: [{ day: '2027-13-40' }, 5] })).toBeUndefined();
+  });
+});
+
+describe('V118 (F-230 F6): Kalender je Projekt', () => {
+  it('eigener Kalender gilt für Projekt und Unterprojekt, sonst der gemeinsame; withCalendar stellt zurück', async () => {
+    const Cal = await import('./calendar');
+    const W = await import('./workspace');
+    let ws = W.defaultWorkspace();
+    ws = { ...ws, calendar: { region: 'HH' }, projects: [{ id: 'a', name: 'A', created: 1, changed: 1 }, { id: 'b', name: 'B', parent: 'a', created: 1, changed: 1 }, { id: 'c', name: 'C', created: 1, changed: 1 }] };
+    expect(Cal.calendarFor(ws, 'a')).toEqual({ region: 'HH' });
+    ws = Cal.setOwnCalendar(ws, 'a', true);
+    expect(Cal.hasOwnCalendar(ws, 'a')).toBe(true);
+    ws = Cal.setRegion(ws, 'BY', 'a');
+    ws = Cal.addFree(ws, '2027-03-03', 'Klausur', 'a')!;
+    expect(Cal.calendarFor(ws, 'b')?.region).toBe('BY');
+    expect(Cal.calendarFor(ws, 'c')?.region).toBe('HH');
+    expect(ws.calendar).toEqual({ region: 'HH' });
+    Cal.setCalendar(ws.calendar);
+    // 06.01. ist in Bayern frei, in Hamburg nicht
+    expect(Cal.isOffDay('2027-01-06')).toBe(false);
+    expect(Cal.withCalendar(Cal.calendarFor(ws, 'a'), () => Cal.isOffDay('2027-01-06') && Cal.isOffDay('2027-03-03'))).toBe(true);
+    expect(Cal.isOffDay('2027-01-06')).toBe(false);
+    // keine Feiertage im eigenen Kalender bleibt ein eigener (leerer) Kalender
+    ws = Cal.setRegion(ws, undefined, 'a');
+    ws = Cal.removeFree(ws, '2027-03-03', 'a');
+    expect(Cal.hasOwnCalendar(ws, 'a')).toBe(true);
+    ws = Cal.setOwnCalendar(ws, 'a', false);
+    expect(Cal.calendarFor(ws, 'b')).toEqual({ region: 'HH' });
   });
 });

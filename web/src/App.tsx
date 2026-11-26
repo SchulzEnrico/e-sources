@@ -526,6 +526,8 @@ function DeskApp(props: DeskProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   const [flash, setFlash] = useState<string | null>(null);
+  // V118 (#perfekte Fokussierung): Hinweis am Ort – unter dem Bedienteil, das ihn ausgelöst hat (sonst unten mittig)
+  const [flashAt, setFlashAt] = useState<{ text: string; top: number; left: number } | null>(null);
   /** F-24: Hinweis, an dem der Knopf „Wiederherstellen“ steht (gleich `flash`). */
   const [undoFor, setUndoFor] = useState<string | null>(null);
   /** F-162: Knopf im Hinweis (z. B. „Farbe wählen …“ nach dem Anlegen), gilt nur für diesen Hinweis. */
@@ -764,8 +766,10 @@ function DeskApp(props: DeskProps) {
     window.clearTimeout(flashTimer.current.id);
     flashTimer.current = { id: window.setTimeout(() => setFlash((f) => (f === text ? null : f)), ms), text, ms };
   }, []);
-  const notify = useCallback((text: string, ms = Math.max(3000, text.length * 50), undo = false, action?: FlashAction | FlashAction[]) => {
+  const notify = useCallback((text: string, ms = Math.max(3000, text.length * 50), undo = false, action?: FlashAction | FlashAction[], at?: Element | null) => {
     setFlash(text);
+    const r = at?.isConnected ? at.getBoundingClientRect() : null;
+    setFlashAt(r && r.width + r.height > 0 ? { text, top: Math.min(r.bottom + 6, innerHeight - 80), left: Math.max(8, Math.min(r.left, innerWidth - 420)) } : null);
     setUndoFor(undo ? text : null);
     const actions = action ? (Array.isArray(action) ? action : [action]) : [];
     setFlashAction(actions.length ? { text, actions } : null);
@@ -1378,7 +1382,9 @@ function DeskApp(props: DeskProps) {
     setDeskModes(next);
     saveModes(next);
     const text = m === 'notes' ? DESK_MODE_TEXT.nowNotes : m === 'projects' ? DESK_MODE_TEXT.nowProjects : DESK_MODE_TEXT.nowDesk;
-    notify(text);
+    // am Rad „Desk | Notizen | Projekte“ (Kopfleiste bzw. Menü), sonst am bedienten Element
+    const wheel = [...document.querySelectorAll<HTMLElement>('.tb-mode')].find((el) => el.offsetParent !== null);
+    notify(text, undefined, false, undefined, wheel ?? (document.activeElement !== document.body ? document.activeElement : null));
     sayLive(text);
     if (m === 'notes') setPadsHidden(false);
   };
@@ -3359,8 +3365,9 @@ function DeskApp(props: DeskProps) {
     notify(`„${name}“ angelegt und in neuem Browserfenster geöffnet.`);
   };
   /** V117 (PD2): „Eigener Desk“ – neuer Desk nur für ein Projekt, in eigenem Fenster, gleich im Projekt-Modus. */
-  const addOwnDesk = (pid: string) => {
-    const pj = projectById(ws, pid);
+  const addOwnDesk = (pid: string, justMade?: string) => {
+    // V118 (F-230 F4): direkt nach einem Import steht das Projekt erst im nächsten Stand – Name kommt mit
+    const pj = projectById(ws, pid) ?? (justMade ? { name: justMade } : undefined);
     if (!pj) return;
     const dest = newId();
     const name = nextWindowName(ws.windows);
@@ -3787,6 +3794,7 @@ function DeskApp(props: DeskProps) {
             deskName={win ? windowName(ws, win) : MAIN_NAME}
             dispatch={dispatch}
             say={sayLive}
+            onOwn={addOwnDesk}
             onOpen={() => {
               showProject(Dp.boundProject(ws, win));
               if (!projectsMode && !notesOff) setDeskMode('projects');
@@ -4205,7 +4213,7 @@ function DeskApp(props: DeskProps) {
                 onClick={() => {
                   const on = !hasSampleProject(ws);
                   dispatch({ type: 'sampleProject', on });
-                  notify(on ? SAMPLE_TEXT.added : SAMPLE_TEXT.removed);
+                  notify(on ? SAMPLE_TEXT.added : SAMPLE_TEXT.removed, undefined, false, undefined, document.querySelector('button[aria-label="Einstellungen"]'));
                   close();
                 }}
               >
@@ -4834,7 +4842,8 @@ function DeskApp(props: DeskProps) {
       </span>
       {flash && !swapFrom && (
         <div
-          className="toast"
+          className={`toast${flashAt?.text === flash ? ' toast--at' : ''}`}
+          style={flashAt?.text === flash ? { top: flashAt.top, left: flashAt.left } : undefined}
           role="status"
           // F-196: Maus oder Fokus darauf hält den Hinweis an; Verlassen startet die Zeit neu
           onPointerEnter={() => window.clearTimeout(flashTimer.current.id)}

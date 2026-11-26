@@ -284,9 +284,17 @@ export function Menu(props: {
       });
     };
     fit();
+    // V118: Seiten im Menü (MenuPages) sind unterschiedlich breit – die Breite der ersten Seite bleibt als
+    // Mindestbreite stehen, und ändert sich die Größe doch, rechnet die Lage neu (die Liste sprang sonst seitlich).
+    const ul = list.current;
+    if (ul) ul.style.minWidth = `${ul.offsetWidth}px`;
+    const ro = typeof ResizeObserver !== 'undefined' && ul ? new ResizeObserver(() => fit()) : null;
+    if (ro && ul) ro.observe(ul);
     window.addEventListener('resize', fit);
     window.addEventListener('scroll', fit, true);
     return () => {
+      ro?.disconnect();
+      if (ul) ul.style.minWidth = '';
       window.removeEventListener('resize', fit);
       window.removeEventListener('scroll', fit, true);
     };

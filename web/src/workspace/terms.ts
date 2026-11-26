@@ -38,6 +38,7 @@ export const TERMS = {
   resourceUse: 'Ressourceneinsatz = geplante Stunden jeder Ressource je Woche gegen ihre Kapazität (wie „Ressource: Einsatz“ in MS Project bzw. iTaskX)',
   workCalendar: 'Arbeitskalender = welche Tage Arbeitstage sind: Mo–Fr ohne Feiertage des Bundeslands und ohne eigene freie Tage; gilt für alle Projekte',
   projectDesk: 'Projekt-Desk = ein Desk, der an ein Projekt gebunden ist: im Kopf des Projekt-Modus ein Umschalter für das gezeigte Projekt, neue Notizen bekommen das Projekt, Suche, Library-Notizen und Fokus zeigen ab Werk nur dieses Projekt; „Eigener Desk“ legt so einen Desk an, ⋮ neben dem Desk-Namen bindet und löst',
+  projectExchange: 'Import/Export ohne Verlust = Projekt als MSPDI-XML zu MS Project, iTaskX und anderen Planern und zurück; was E-Sources nicht kennt, wird mitgeführt und geht beim Export unverändert zurück',
   taskLimitProject: 'Task-Limit je Projekt = höchstens so viele offene Aufgaben je Person in einem Projekt; beim Zuweisen fragt E-Sources nach, sperrt aber nicht',
   summaryTask: 'Sammelvorgang = Vorgang mit Unter-Vorgängen; sein Aufwand ist die Summe darunter',
   projectDerived: 'gerechnet = nicht im Steckbrief eingetragen, sondern aus den Vorgängen genommen (frühestes „nicht beginnen vor“ bzw. spätestes „fällig am“)',
@@ -1446,6 +1447,32 @@ export const WHEEL_ORDER_TEXT = {
 };
 
 /** V117 (F-206 Schritt 10, PD1–PD10): Projekt-Desk */
+/** V118 (F-230): Export und Import ohne Verlust (MS Project, iTaskX – MSPDI-XML). */
+export const EXCHANGE_TEXT = {
+  export: 'Exportieren …',
+  exportHint: 'Projekt als XML-Datei für MS Project, iTaskX und andere Planer speichern (MSPDI) – mit Vorgängen, Terminen, Vorgängern, Ressourcen, Basisplan, Kalender und allem, was beim Import mitgeführt wurde',
+  import: 'Importieren …',
+  importHint: 'XML-Datei aus MS Project oder iTaskX als neues Projekt laden (MSPDI); was E-Sources nicht kennt, bleibt erhalten und geht beim Export zurück. .mpp vorher in MS Project als XML speichern',
+  exported: (f: string) => `„${f}“ gespeichert – in MS Project bzw. iTaskX öffnen (Datei › Öffnen, Typ XML).`,
+  imported: (name: string, tasks: number, links: number, persons: number, merged: number, kept: number) =>
+    `„${name}“ importiert: ${tasks} Vorgänge, ${links} Vorgänger, ${persons} neue Personen${merged ? `, ${merged} zusammengeführt` : ''}${kept ? ` · ${kept} weitere Angaben mitgeführt` : ''}.`,
+  calTooMany: (n: number) => `Der Kalender hat ${n} freie Tage – E-Sources rechnet mit den ersten 120, der Originalkalender bleibt für den Export erhalten.`,
+  mpp: '.mpp kann E-Sources nicht lesen – bitte in MS Project „Speichern unter …“ › „XML-Format (*.xml)“ wählen und die XML-Datei laden.',
+  cancelled: 'Import abgebrochen.',
+  askHead: 'Diese Personen gibt es schon',
+  askOne: (n: string) => `„${n}“ zusammenführen`,
+  askHint: 'Angehakt = die vorhandene Person übernimmt die Arbeit aus der Datei. Ohne Haken kommt sie als „Name (Import)“ dazu.',
+  askGo: 'Importieren',
+  askCancel: 'Abbrechen',
+  error: {
+    xml: 'Die Datei ist kein gültiges XML.',
+    notMspdi: 'Das ist keine MS-Project-XML-Datei (MSPDI).',
+    empty: 'In der Datei stehen keine Vorgänge.',
+    full: 'Es gibt schon zu viele Projekte.',
+  } as Record<string, string>,
+  kept: (n: number, app: string) => `${n} Angaben aus ${app} mitgeführt – unverändert, gehen beim Export zurück`,
+};
+
 export const DESK_PROJECT_TEXT = {
   menu: (desk: string) => `Desk „${desk}“: Projekt-Desk`,
   menuHint: 'Desk an ein Projekt binden, lösen, „Alles zeigen“',
@@ -2300,6 +2327,15 @@ export const PROJECTS_TEXT = {
   taskLimitHint: 'Höchstens so viele offene Aufgaben je Person in diesem Projekt – beim Zuweisen fragt E-Sources nach, sperrt aber nicht (gilt das kleinere aus Projekt und Person)',
   taskLimitNone: 'ohne',
   calHead: 'Arbeitskalender (für alle Projekte)',
+  calHeadOwn: 'Arbeitskalender (nur dieses Projekt)',
+  calWhich: 'Kalender',
+  calWhichHint: 'Gemeinsam: ein Kalender für alle Projekte. Eigener: dieses Projekt rechnet mit eigenen Feiertagen und freien Tagen (wie ein Projektkalender in MS Project); Unterprojekte übernehmen ihn',
+  calShared: 'gemeinsam',
+  calSharedHint: 'ein Kalender für alle Projekte',
+  calOwn: 'eigener',
+  calOwnHint: 'nur für dieses Projekt (und seine Unterprojekte)',
+  calOwnOn: 'Eigener Kalender für dieses Projekt – zunächst eine Kopie des gemeinsamen.',
+  calOwnOff: 'Dieses Projekt rechnet wieder mit dem gemeinsamen Kalender.',
   calHint: 'Feiertage und freie Tage zählen nicht als Arbeitstage – Gantt, Netzplan, Formulare und Projektfokus rechnen damit (wie der Standardkalender in MS Project bzw. iTaskX)',
   calRegion: 'Feiertage',
   calNone: 'keine (nur Mo–Fr)',
@@ -3204,6 +3240,8 @@ export const FORMS_TEXT = {
   acceptAt: 'An Meilenstein bzw. Arbeitspaket',
   acceptAdd: 'Kriterium anlegen',
   acceptNone: 'Erst Meilensteine bzw. Arbeitspakete im PSP anlegen.',
+  evSum: (reports: number, est: number) => `Planwert PV aus dem Gantt über die ganze Laufzeit; EV und AC ${reports === 0 ? 'bisher nur am Stichtag heute' : `aus ${reports === 1 ? 'einem Statusbericht' : `${reports} Statusberichten`} und dem Stichtag heute`}. Neue Punkte entstehen mit jedem Statusbericht (Kapitel 12) – er hält EV und Ist-Kosten fest.${est ? ` Hohle Punkte (${est}): älterer Bericht, EV geschätzt aus Plan-Kosten × Fortschritt Leistung.` : ''} Liegt EV unter PV, ist das Projekt im Verzug; liegt AC über EV, wird es teurer als geplant.`,
+  evNone: 'Noch keine Grafik: Es fehlen Arbeitspakete mit Plan-Kosten und Termin im Gantt.',
   mtaSum: (n: number, base: boolean) => `${n} ${n === 1 ? 'Zeitpunkt' : 'Zeitpunkte'}: ${base ? 'Basisplan, ' : ''}jeder Statusbericht und heute. Neue Punkte entstehen mit jedem Statusbericht (Kapitel 12) – er hält die Meilenstein-Termine fest.${base ? '' : ' Mit einem Basisplan kommt das Soll als erster Punkt dazu.'}`,
   mtaTable: 'Termine je Meilenstein',
   mtaNone: 'Noch keine Meilensteine mit Termin – Meilensteine im PSP anlegen und im Gantt planen.',

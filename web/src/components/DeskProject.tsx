@@ -7,6 +7,8 @@
  * - `ScopeNote`: „Nur „X“ · Alles zeigen“ in Suche, Library-Notizen und Fokus (PD5).
  * Logik in workspace/deskProject.ts.
  */
+import { useExchange } from './ProjectExchange';
+import { EXCHANGE_TEXT as XT } from '../workspace/terms';
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import type { Workspace } from '../workspace/types';
 import type { Action } from '../workspace/useWorkspace';
@@ -47,7 +49,7 @@ function MsgLine({ msg, onUndo }: { msg: Msg; onUndo: () => void }) {
   );
 }
 
-export function DeskProjectMenu(p: { ws: Workspace; win: string; deskName: string; dispatch: (a: Action) => void; onOpen: () => void; say: (t: string) => void }) {
+export function DeskProjectMenu(p: { ws: Workspace; win: string; deskName: string; dispatch: (a: Action) => void; onOpen: () => void; say: (t: string) => void; onOwn?: (project: string, justMade?: string) => void }) {
   const { ws, win, dispatch } = p;
   const b = Dp.bindingOf(ws, win);
   const bound = b ? projectById(ws, b.project) : undefined;
@@ -60,6 +62,8 @@ export function DeskProjectMenu(p: { ws: Workspace; win: string; deskName: strin
     clear();
     tell(T.undone);
   };
+  // V118 (F-230, F10): Export/Import am Desk – Meldung und Rückfrage hier am ⋮
+  const xc = useExchange(ws, dispatch, tell, (pid, name) => (p.onOwn ? p.onOwn(pid, name) : undefined));
   const bind = (pid: string) => {
     const before = ws.deskProjects?.[win]?.project;
     dispatch({ type: 'deskBind', win, project: pid });
@@ -97,6 +101,9 @@ export function DeskProjectMenu(p: { ws: Workspace; win: string; deskName: strin
                   <Item icon="project" hint={T.bindHint} disabled={!list.length} title={list.length ? undefined : T.none} onClick={() => go('pick')}>
                     {bound ? T.rebind : T.bindTo}
                   </Item>
+                  <Item icon="upload" hint={XT.importHint} onClick={() => (close(), xc.pickImport())}>
+                    {XT.import}
+                  </Item>
                   {bound && (
                     <>
                       <Item icon="project" onClick={() => (close(), p.onOpen())}>
@@ -116,6 +123,9 @@ export function DeskProjectMenu(p: { ws: Workspace; win: string; deskName: strin
                         {T.showAll}
                       </Item>
                       <li className="menu__sep" role="separator" />
+                      <Item icon="download" hint={XT.exportHint} onClick={() => (close(), xc.exportProject(bound.id))}>
+                        {XT.export}
+                      </Item>
                       <Item icon="close" hint={T.unbindHint} onClick={() => {
                         close();
                         dispatch({ type: 'deskBind', win });
@@ -132,6 +142,7 @@ export function DeskProjectMenu(p: { ws: Workspace; win: string; deskName: strin
         )}
       </Menu>
       <MsgLine msg={msg} onUndo={undo} />
+      {xc.node}
     </span>
   );
 }

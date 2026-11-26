@@ -10,6 +10,9 @@ import type { Workspace } from './types';
  */
 export const FILE_FORMAT = 'e-sources-arbeitsflaeche';
 /**
+ * Version 12: Import/Export ohne Verlust (F-230, V118) – eigener Kalender am Projekt `calendar` und mitgeführte
+ * Fremddaten `foreign` an Projekt, Vorgang und Person (aus MS Project/iTaskX bzw. Trello); eine ältere App würde
+ * sie beim nächsten Speichern verlieren.
  * Version 11: Feedback (F-221, V102, FB11) in `feedback` und `feedbackPrefs`, Ordnung der Umschalt-Räder
  * (F-220 R5) in `wheels` – angeheftet, ausgeblendet, „Automatisch ordnen“; Entscheidungen (F-222, V103,
  * N11) in `decisions` – noch vor der Testphase im selben Format.
@@ -25,7 +28,7 @@ export const FILE_FORMAT = 'e-sources-arbeitsflaeche';
  * Version 3 (Lesezeichen, V08), 2 (Panels mit Tabs, V07) und 1 werden beim Import umgewandelt.
  * Bei jeder Änderung am Datenmodell, die eine ältere App verlieren würde, hochzählen.
  */
-export const FILE_VERSION = 11;
+export const FILE_VERSION = 12;
 export const FILE_NAME = 'e-sources-arbeitsflaeche.json';
 
 export interface TransferFile {

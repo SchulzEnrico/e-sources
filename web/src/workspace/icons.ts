@@ -150,6 +150,8 @@ export const ICONS = {
   play: { d: ['M5 3.2 12.6 8 5 12.8z'], fill: true },
   stop: { d: ['M4.5 4.5h7v7h-7z'], fill: true },
   download: { d: ['M8 2v8', 'M5 7l3 3 3-3', 'M2.5 11v2.5h11V11'] },
+  /** V118 (F-230): Importieren */
+  upload: { d: ['M8 10V2', 'M5 5l3-3 3 3', 'M2.5 11v2.5h11V11'] },
   // V80 (F-215 B5): Bild im Text
   image: { d: ['M2 3h12v10H2z', 'M2 11l3.5-3.5 3 3 2-2L14 12', 'M10.5 5.8h.01'], w: 1.4 },
   share: { d: ['M8 1.8v8.4', 'M5.2 4.6 8 1.8l2.8 2.8', 'M5 7H3.5v7h9V7H11'] },
@@ -215,7 +217,7 @@ export type IconName = keyof typeof ICONS;
 
 /** Symbol je Hilfe-Eintrag (HELP, F-156) – gleiche Ids. Fehlt ein Eintrag, meldet das der Test. */
 export const HELP_ICON: Record<string, IconName> = {
-  note: 'note', dock: 'dock', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', modeWheel: 'swap', wheelOrder: 'pin', notesTasks: 'notesTasks', f6Ring: 'swap', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', newDecision: 'sliders', undoLayout: 'swap', notesView: 'layouts', tourDecisions: 'tour', findNote: 'note', todoUse: 'todo', kanbanUse: 'kanban', boardTemplates: 'kanban', sitePlan: 'slot', notesLayouts: 'layouts', matrixUse: 'matrix', cardWindow: 'todo', noteSource: 'clip', persons: 'catPeople', projects: 'project', psp: 'psp', gantt: 'project', baseline: 'project', networkPlan: 'psp', resourceUse: 'catPeople', workCalendar: 'recent', taskLimitProject: 'catPeople', projectDesk: 'project', feedback: 'feedback', feedbackElaborate: 'feedback', feedbackCockpit: 'feedback', decisions: 'project', projectFeedback: 'feedback', risksChanges: 'project', projectFocus: 'focus', mainStage: 'spotlight', libraryWheel: 'library',
+  note: 'note', dock: 'dock', newNote: 'note', noteWrite: 'task', noteDelete: 'trash', noteRemind: 'recent', deskMode: 'desk', modeWheel: 'swap', wheelOrder: 'pin', notesTasks: 'notesTasks', f6Ring: 'swap', padKnob: 'note', voiceNote: 'mic', padTask: 'task', padFind: 'search', notePic: 'image', noteShare: 'share', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix', noteState: 'note', newTodo: 'todo', newKanban: 'kanban', newEisenhower: 'matrix', newDecision: 'sliders', undoLayout: 'swap', notesView: 'layouts', tourDecisions: 'tour', findNote: 'note', todoUse: 'todo', kanbanUse: 'kanban', boardTemplates: 'kanban', sitePlan: 'slot', notesLayouts: 'layouts', matrixUse: 'matrix', cardWindow: 'todo', noteSource: 'clip', persons: 'catPeople', projects: 'project', psp: 'psp', gantt: 'project', baseline: 'project', networkPlan: 'psp', resourceUse: 'catPeople', workCalendar: 'recent', taskLimitProject: 'catPeople', projectDesk: 'project', projectExchange: 'download', feedback: 'feedback', feedbackElaborate: 'feedback', feedbackCockpit: 'feedback', decisions: 'project', projectFeedback: 'feedback', risksChanges: 'project', projectFocus: 'focus', mainStage: 'spotlight', libraryWheel: 'library',
   devMode: 'dev',
   desk: 'desk', slot: 'slot', stack: 'stack', portal: 'portal', source: 'source', library: 'library', launcher: 'launcher',
   dashboard: 'dashboard', focus: 'focus', collected: 'collect', origin: 'origin',

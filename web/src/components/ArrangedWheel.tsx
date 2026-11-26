@@ -95,7 +95,7 @@ export function ArrangedWheel(props: Props) {
           <button type="button" className="awheel__more" title={`${T.menu(props.label)} (${T.menuHint})`} aria-label={T.menu(props.label)} aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
             <Icon name="more" size={13} />
           </button>
-          {msg && (
+          {msg && !open && (
             <span className="awheel__msg" role="status">
               {msg.text}
               {msg.undo && (
@@ -113,7 +113,28 @@ export function ArrangedWheel(props: Props) {
     >
       {(close) => (
         <MenuPages>
-          {(page, go) =>
+          {(page, go) => (
+            <>
+            {pageOf(page, go, close)}
+            {/* V118: solange das Menü offen ist, steht die Meldung im Menü – am Rad läge sie unter der Liste */}
+            {msg && (
+              <li className="menu__note" role="status">
+                {msg.text}
+                {msg.undo && (
+                  <button type="button" className="help__run" onClick={undo}>
+                    {T.undo}
+                  </button>
+                )}
+              </li>
+            )}
+            </>
+          )}
+        </MenuPages>
+      )}
+    </Menu>
+  );
+  function pageOf(page: string, go: (p: string) => void, close: () => void) {
+    return (
             page === 'assign' ? (
               <>
                 <MenuHead>{T.assignHead}</MenuHead>
@@ -163,9 +184,6 @@ export function ArrangedWheel(props: Props) {
                 </Item>
               </>
             )
-          }
-        </MenuPages>
-      )}
-    </Menu>
-  );
+    );
+  }
 }

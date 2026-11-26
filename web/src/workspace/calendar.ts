@@ -75,16 +75,56 @@ let activeKey = '';
 const keyOf = (c?: WorkCalendar) => `${c?.region ?? ''}|${(c?.free ?? []).map((f) => f.day).join(',')}`;
 
 /** Kalender aktiv setzen (`undefined` = Werk: Mo–Fr ohne Feiertage). Gleicher Kalender = nichts zu tun. */
+// V118 (F-230 F6): mehrere Kalender (gemeinsam und je Projekt) – berechnete Tage je Kalender zwischenspeichern
+type Built = { names: Map<string, string>; offSorted: string[]; offSet: Set<string> };
+const built = new Map<string, Built>();
+const build = (c?: WorkCalendar): Built => {
+  const nm = new Map<string, string>();
+  if (c?.region) for (let y = YEARS[0]; y <= YEARS[1]; y++) for (const h of holidays(y, c.region)) nm.set(h.day, h.name);
+  for (const f of c?.free ?? []) if (!nm.has(f.day)) nm.set(f.day, f.name || 'frei');
+  const sorted = [...nm.keys()].filter((d) => weekday(d) !== 0 && weekday(d) !== 6).sort();
+  return { names: nm, offSorted: sorted, offSet: new Set(sorted) };
+};
+
 export function setCalendar(c?: WorkCalendar): void {
   const k = keyOf(c);
   if (k === activeKey) return;
   activeKey = k;
-  names = new Map();
-  if (c?.region) for (let y = YEARS[0]; y <= YEARS[1]; y++) for (const h of holidays(y, c.region)) names.set(h.day, h.name);
-  for (const f of c?.free ?? []) if (!names.has(f.day)) names.set(f.day, f.name || 'frei');
-  offSorted = [...names.keys()].filter((d) => weekday(d) !== 0 && weekday(d) !== 6).sort();
-  offSet = new Set(offSorted);
+  let b = built.get(k);
+  if (!b) {
+    if (built.size > 24) built.clear();
+    built.set(k, (b = build(c)));
+  }
+  names = b.names;
+  offSorted = b.offSorted;
+  offSet = b.offSet;
 }
+
+/** V118 (F-230 F6): `fn` mit Kalender `c` rechnen, danach gilt wieder der vorige (z. B. eigener Kalender eines Projekts). */
+export function withCalendar<T>(c: WorkCalendar | undefined, fn: () => T): T {
+  const before = { activeKey, names, offSorted, offSet };
+  setCalendar(c);
+  try {
+    return fn();
+  } finally {
+    ({ activeKey, names, offSorted, offSet } = before);
+  }
+}
+
+/** V118 (F-230 F6): Kalender eines Projekts – eigener, sonst der des übergeordneten Projekts, sonst der gemeinsame. */
+export function calendarFor(ws: Workspace, pid: string | undefined): WorkCalendar | undefined {
+  const seen = new Set<string>();
+  for (let id = pid; id && !seen.has(id); ) {
+    seen.add(id);
+    const p = ws.projects?.find((x) => x.id === id);
+    if (!p) break;
+    if (p.calendar) return p.calendar;
+    id = p.parent;
+  }
+  return ws.calendar;
+}
+/** Hat das Projekt selbst einen eigenen Kalender? */
+export const hasOwnCalendar = (ws: Workspace, pid: string): boolean => !!ws.projects?.find((x) => x.id === pid)?.calendar;
 
 /** Werktag (Mo–Fr), der nach dem Kalender frei ist? */
 export const isOffDay = (d: string): boolean => offSet.has(d);
@@ -121,29 +161,60 @@ function clean(c: WorkCalendar): WorkCalendar | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
-function withCal(ws: Workspace, c: WorkCalendar | undefined): Workspace {
+function withCal(ws: Workspace, c: WorkCalendar | undefined, pid?: string): Workspace {
+  if (pid) {
+    // eigener Kalender des Projekts: bleibt auch leer bestehen (= ohne Feiertage), bis „eigener Kalender“ aus ist
+    return { ...ws, projects: (ws.projects ?? []).map((p) => (p.id === pid ? { ...p, calendar: (c && clean(c)) ?? {} } : p)) };
+  }
   const v = c && clean(c);
   if (v) return { ...ws, calendar: v };
   const { calendar: _c, ...rest } = ws; // eslint-disable-line @typescript-eslint/no-unused-vars
   return rest;
 }
+/** Kalender, den die Bearbeitung ändert: eigener des Projekts `pid` (falls vorhanden), sonst der gemeinsame. */
+const editable = (ws: Workspace, pid?: string): { c: WorkCalendar | undefined; pid?: string } => {
+  const own = pid ? ws.projects?.find((p) => p.id === pid)?.calendar : undefined;
+  return own ? { c: own, pid } : { c: ws.calendar };
+};
 
-/** Feiertage nach Bundesland (`undefined` = keine). */
-export const setRegion = (ws: Workspace, region: Region | undefined): Workspace => withCal(ws, { ...ws.calendar, region });
+/** Feiertage nach Bundesland (`undefined` = keine); mit `pid` im eigenen Kalender des Projekts, falls es einen hat. */
+export const setRegion = (ws: Workspace, region: Region | undefined, pid?: string): Workspace => {
+  const e = editable(ws, pid);
+  return withCal(ws, { ...e.c, region }, e.pid);
+};
 
 /** Eigenen freien Tag hinzufügen (gleicher Tag = Name ersetzen); `null` = ungültig oder voll. */
-export function addFree(ws: Workspace, d: string, name = ''): Workspace | null {
+export function addFree(ws: Workspace, d: string, name = '', pid?: string): Workspace | null {
   if (!isDayText(d)) return null;
-  const free = (ws.calendar?.free ?? []).filter((f) => f.day !== d);
+  const e = editable(ws, pid);
+  const free = (e.c?.free ?? []).filter((f) => f.day !== d);
   if (free.length >= FREE_MAX) return null;
   const n = name.trim().slice(0, 40);
-  return withCal(ws, { ...ws.calendar, free: [...free, { day: d, ...(n ? { name: n } : {}) }].sort((a, b) => a.day.localeCompare(b.day)) });
+  return withCal(ws, { ...e.c, free: [...free, { day: d, ...(n ? { name: n } : {}) }].sort((a, b) => a.day.localeCompare(b.day)) }, e.pid);
 }
 
-export const removeFree = (ws: Workspace, d: string): Workspace => withCal(ws, { ...ws.calendar, free: (ws.calendar?.free ?? []).filter((f) => f.day !== d) });
+export const removeFree = (ws: Workspace, d: string, pid?: string): Workspace => {
+  const e = editable(ws, pid);
+  return withCal(ws, { ...e.c, free: (e.c?.free ?? []).filter((f) => f.day !== d) }, e.pid);
+};
 
-/** Kalender ganz setzen (Rückgängig). */
-export const restoreCalendar = (ws: Workspace, c: WorkCalendar | undefined): Workspace => withCal(ws, c);
+/** Kalender ganz setzen (Rückgängig); mit `pid` den eigenen des Projekts (`undefined` = kein eigener mehr). */
+export const restoreCalendar = (ws: Workspace, c: WorkCalendar | undefined, pid?: string): Workspace => {
+  if (!pid) return withCal(ws, c);
+  return { ...ws, projects: (ws.projects ?? []).map((p) => (p.id === pid ? (c ? { ...p, calendar: c } : withoutCalendar(p)) : p)) };
+};
+
+/** V118 (F-230 F6): eigenen Kalender für ein Projekt ein (Kopie des geltenden) bzw. aus (gilt wieder der gemeinsame). */
+export function setOwnCalendar(ws: Workspace, pid: string, on: boolean): Workspace {
+  const p = ws.projects?.find((x) => x.id === pid);
+  if (!p || on === !!p.calendar) return ws;
+  if (on) return withCal(ws, { ...calendarFor(ws, pid) }, pid);
+  return { ...ws, projects: (ws.projects ?? []).map((x) => (x.id === pid ? withoutCalendar(x) : x)) };
+}
+const withoutCalendar = <P extends { calendar?: WorkCalendar }>(p: P): P => {
+  const { calendar: _c, ...rest } = p; // eslint-disable-line @typescript-eslint/no-unused-vars
+  return rest as P;
+};
 
 export function parseCalendar(v: unknown): WorkCalendar | undefined {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;

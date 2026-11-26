@@ -709,6 +709,21 @@ button.is-off:hover,
   border-top: 1px solid var(--line);
   margin: 4px 2px;
 }
+/* V118: Meldung im offenen Menü (z. B. „Rad belegen …“) – am Ort statt unter der Liste */
+.menu__note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 2px 0;
+  padding: 6px 10px;
+  border-top: 1px solid var(--line);
+  color: var(--strong);
+  font-size: 0.86em;
+}
+.menu__note .help__run {
+  width: auto;
+}
 /* F-28: Gruppen im Menü (je Fenster) mit Überschrift */
 .menu__group {
   list-style: none;
@@ -1139,6 +1154,12 @@ button.is-off:hover,
 }
 .toast .toast__undo:hover,
 .toast .toast__undo:focus-visible { background: rgba(var(--tint), 0.12); }
+/* V118: Hinweis am Ort (unter dem auslösenden Bedienteil) statt unten mittig */
+.toast.toast--at {
+  bottom: auto;
+  transform: none;
+  max-width: min(420px, calc(100vw - 16px));
+}
 
 
 /* F-66 (Teil): Logo „ES“ + „ources“ im Stil des Portfolio-Logos */
@@ -9704,3 +9725,25 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 .tb-win__pj { font-weight: 400; opacity: 0.8; }
 .pj__desks { align-self: center; font-size: 12px; }
 li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-width: 260px; }
+
+/* V118 (F-230): Rückfrage beim Import (gleiche Personen) – am Ort; am ⋮ des Desks schwebend unter dem Knopf */
+.pjx__ask {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(var(--glass), 0.92);
+}
+.dpj { position: relative; }
+.dpj .pjx__ask {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  width: min(360px, 90vw);
+  box-shadow: 0 16px 34px rgba(var(--lo), 0.6);
+}
+.pjx__list { list-style: none; margin: 4px 0; padding: 0; }
+.pjx__list li { padding: 2px 0; }
+.pjx__btns { display: flex; gap: 8px; margin-top: 6px; }
+.pj__kept { margin: 4px 0 0; }

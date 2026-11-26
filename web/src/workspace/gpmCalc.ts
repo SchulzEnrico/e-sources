@@ -11,6 +11,7 @@ import { planCost, planHours, useTotals } from './gpm';
 import { notesOf } from './notes';
 import { projectById } from './projects';
 import { addDays, isWorkday, workdaysBetween } from './schedule';
+import { calendarFor, withCalendar } from './calendar';
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const round = (v: number, d = 0) => Math.round(v * 10 ** d) / 10 ** d;
@@ -82,7 +83,10 @@ export interface ProjectStatus {
 }
 
 /** Stand des Projekts zum Stichtag `day` (JJJJ-MM-TT). */
-export function projectStatus(ws: Workspace, pid: string, day: string, g: Gantt = ganttOf(ws, pid, day)): ProjectStatus {
+export function projectStatus(ws: Workspace, pid: string, day: string, g?: Gantt): ProjectStatus {
+  return withCalendar(calendarFor(ws, pid), () => projectStatusCalc(ws, pid, day, g ?? ganttOf(ws, pid, day)));
+}
+function projectStatusCalc(ws: Workspace, pid: string, day: string, g: Gantt): ProjectStatus {
   const p = projectById(ws, pid);
   const tasks = leafTasks(ws, pid, g).filter((n) => !n.milestone);
   let ph = 0;
@@ -164,7 +168,10 @@ const evRow = (id: string, bac: number, pv: number, ev: number, ac: number): EvR
   return { id, bac: round(bac, 2), pv: round(pv, 2), ev: round(ev, 2), ac: round(ac, 2), sv: round(ev - pv, 2), cv: round(ev - ac, 2), ...(spi !== undefined ? { spi } : {}), ...(cpi !== undefined ? { cpi } : {}), eac: round(cpi ? bac / cpi : bac, 2) };
 };
 /** Earned Value je Arbeitspaket zum Stichtag `day`: PV = Plan-Kosten × verstrichener Anteil der Arbeitstage im Gantt, EV = Plan-Kosten × Fertigstellungsgrad. */
-export function earnedValue(ws: Workspace, pid: string, day: string, g: Gantt = ganttOf(ws, pid, day)): EarnedValue {
+export function earnedValue(ws: Workspace, pid: string, day: string, g?: Gantt): EarnedValue {
+  return withCalendar(calendarFor(ws, pid), () => earnedValueCalc(ws, pid, day, g ?? ganttOf(ws, pid, day)));
+}
+function earnedValueCalc(ws: Workspace, pid: string, day: string, g: Gantt): EarnedValue {
   const rows: EvRow[] = [];
   let tb = 0, tp = 0, te = 0, ta = 0;
   for (const n of leafTasks(ws, pid, g).filter((x) => !x.milestone)) {
@@ -185,6 +192,59 @@ export function earnedValue(ws: Workspace, pid: string, day: string, g: Gantt = 
     rows.push(evRow(n.id, bac, pv, ev, ac));
   }
   return { day, rows, total: evRow('', tb, tp, te, ta) };
+}
+
+// ---------------------------------------------------------------- Earned Value über die Zeit (V118, ICB4 4.5.7)
+
+export interface EvPoint {
+  day: string;
+  ev: number;
+  ac: number;
+  /** EV geschätzt (älterer Bericht ohne eingefrorenen EV: Plan-Kosten × Fortschritt Leistung) */
+  est?: boolean;
+  /** 'report' = Statusbericht, 'today' = Stichtag */
+  from: 'report' | 'today';
+}
+export interface EvCurve {
+  day: string;
+  start?: string;
+  end?: string;
+  /** Planwert PV kumuliert über die Zeit (Monatsenden, dazu Start, Stichtag und Ende) */
+  pv: { day: string; v: number }[];
+  /** gemessene Punkte: Statusberichte bis zum Stichtag, zuletzt der Stichtag selbst */
+  points: EvPoint[];
+  bac: number;
+  eac: number;
+  budget?: number;
+}
+const monthEnd = (d: string) => {
+  const [y, m] = d.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+};
+/** PV als Linie über die ganze Laufzeit; EV und AC aus den Statusberichten (eingefroren) und am Stichtag `day`. */
+export function evCurve(ws: Workspace, pid: string, day: string, g?: Gantt): EvCurve {
+  return withCalendar(calendarFor(ws, pid), () => evCurveCalc(ws, pid, day, g ?? ganttOf(ws, pid, day)));
+}
+function evCurveCalc(ws: Workspace, pid: string, day: string, g: Gantt): EvCurve {
+  const p = projectById(ws, pid);
+  const now = earnedValue(ws, pid, day, g).total;
+  const start = g.start ?? p?.start;
+  const end = g.end ?? p?.end;
+  const pv: { day: string; v: number }[] = [];
+  if (start && end && end >= start) {
+    const days = new Set<string>([start, end]);
+    for (let d = monthEnd(start), i = 0; d < end && i < 240; d = monthEnd(addDays(d, 1)), i++) days.add(d);
+    if (day > start && day < end) days.add(day);
+    for (const d of [...days].sort()) pv.push({ day: d, v: d === start ? 0 : earnedValue(ws, pid, d, g).total.pv });
+  }
+  const points: EvPoint[] = [];
+  for (const r of [...(p?.reports ?? [])].filter((x) => x.date < day).sort((a, b) => (a.date < b.date ? -1 : 1))) {
+    const est = r.ev === undefined;
+    const ev = r.ev ?? ((r.planCost ?? 0) * (r.progWork ?? 0)) / 100;
+    points.push({ day: r.date, ev: round(ev, 2), ac: round(r.actCost ?? 0, 2), ...(est ? { est: true } : {}), from: 'report' });
+  }
+  points.push({ day, ev: now.ev, ac: now.ac, from: 'today' });
+  return { day, ...(start ? { start } : {}), ...(end ? { end } : {}), pv, points, bac: now.bac, eac: now.eac, ...(isNum(p?.budget) ? { budget: p!.budget } : {}) };
 }
 
 function workdays(a: string, b: string): number {
@@ -214,6 +274,7 @@ export function newReport(ws: Workspace, pid: string, id: string, day: string): 
     actHours: s.actHours,
     planCost: s.planCost,
     actCost: s.actCost,
+    ev: s.earned,
     ...(() => {
       const ms = milestoneEnds(ws, pid, day);
       return Object.keys(ms).length ? { ms } : {};
@@ -255,6 +316,9 @@ export interface Mta {
 const signedDays = (a: string, b: string) => (a === b ? 0 : a < b ? workdaysBetween(addDays(a, 1), b) : -workdaysBetween(addDays(b, 1), a));
 /** MTA: je Meilenstein die Prognose aus Basisplan, jedem Statusbericht und heute. */
 export function mtaOf(ws: Workspace, pid: string, day: string): Mta {
+  return withCalendar(calendarFor(ws, pid), () => mtaOfCalc(ws, pid, day));
+}
+function mtaOfCalc(ws: Workspace, pid: string, day: string): Mta {
   const p = projectById(ws, pid);
   const g = ganttOf(ws, pid, day);
   const now = milestoneEnds(ws, pid, day, g);
@@ -323,7 +387,10 @@ export interface CostCurve {
   budget?: number;
 }
 /** Plan-Kosten und -Aufwand je Monat: jedes Arbeitspaket gleichmäßig über seine Arbeitstage verteilt. */
-export function costCurve(ws: Workspace, pid: string, g: Gantt = ganttOf(ws, pid)): CostCurve {
+export function costCurve(ws: Workspace, pid: string, g?: Gantt): CostCurve {
+  return withCalendar(calendarFor(ws, pid), () => costCurveCalc(ws, pid, g ?? ganttOf(ws, pid)));
+}
+function costCurveCalc(ws: Workspace, pid: string, g: Gantt): CostCurve {
   const p = projectById(ws, pid);
   const cost = new Map<string, number>();
   const hours = new Map<string, number>();

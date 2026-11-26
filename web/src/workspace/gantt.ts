@@ -12,6 +12,7 @@
  * Ein Meilenstein liegt auf einer Grenze – vom Ende eines Vorgängers gesetzt zeigt er dessen letzten Tag
  * (MS Project: 17:00), sonst den Tag, an dem er beginnt (8:00).
  */
+import { calendarFor, withCalendar } from './calendar';
 import type { Note, NoteLink, NoteRel, Workspace } from './types';
 import { addLink, noteById, notesOf, removeLink, type Act } from './notes';
 import { projectById } from './projects';
@@ -108,7 +109,11 @@ const todayText = () => {
  * Gantt eines Projekts rechnen (Reihenfolge der Zeilen = PSP). `today` nur für Projekte ohne Start und ohne
  * „nicht beginnen vor“.
  */
+/** Gantt des Projekts; gerechnet mit seinem Arbeitskalender (eigener, sonst gemeinsamer – V118, F-230 F6). */
 export function ganttOf(ws: Workspace, projectId: string, today = todayText()): Gantt {
+  return withCalendar(calendarFor(ws, projectId), () => ganttCalc(ws, projectId, today));
+}
+function ganttCalc(ws: Workspace, projectId: string, today: string): Gantt {
   const p = projectById(ws, projectId);
   if (!p) return EMPTY;
   const flat = pspRows(pspTree(ws, projectId));

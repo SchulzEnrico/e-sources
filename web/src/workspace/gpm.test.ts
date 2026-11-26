@@ -519,6 +519,31 @@ describe('F-226 Stufe 2 Rest (V114): Earned Value', () => {
     expect(b.total.bac).toBeGreaterThan(0);
     for (const r of b.rows) expect(r.sv).toBe(Math.round((r.ev - r.pv) * 100) / 100);
   });
+  it('V118 Grafik über die Zeit: PV steigt von 0 bis BAC, Berichte frieren EV ein, alte Berichte geschätzt', async () => {
+    const C = await import('./gpmCalc');
+    const R = await import('./gpmReport');
+    const ws = sample();
+    const p = ws.projects!.find((x) => x.id === pid)!;
+    const day = '2027-03-15';
+    const c = C.evCurve(ws, pid, day);
+    expect(c.pv.length).toBeGreaterThan(2);
+    expect(c.pv[0].v).toBe(0);
+    expect(c.pv[c.pv.length - 1].v).toBe(c.bac);
+    for (let i = 1; i < c.pv.length; i++) expect(c.pv[i].v).toBeGreaterThanOrEqual(c.pv[i - 1].v);
+    expect(c.points.at(-1)!.from).toBe('today');
+    const rep = C.newReport(ws, pid, 'r1', '2027-02-01');
+    expect(rep.ev).toBe(C.projectStatus(ws, pid, '2027-02-01').earned);
+    const old = { id: 'r0', date: '2027-01-10', planCost: 1000, progWork: 40, actCost: 300 };
+    p.reports = [rep, old];
+    const d = C.evCurve(ws, pid, day);
+    expect(d.points.map((x) => x.day)).toEqual(['2027-01-10', '2027-02-01', day]);
+    expect(d.points[0]).toMatchObject({ ev: 400, ac: 300, est: true, from: 'report' });
+    expect(d.points[1].est).toBeUndefined();
+    const svg = R.evSvg(d, R.PRINT_COLORS);
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('PV Planwert');
+    expect(R.reportHtml(ws, pid, { version: 'V118', day })).toContain('Earned Value am');
+  });
   it('Formular im Baukasten, ohne „+ Zeile“, im Report mit Summenzeile', async () => {
     const R = await import('./gpmReport');
     const f = Fk.GPM_D.forms.find((x) => x.id === 'ev')!;

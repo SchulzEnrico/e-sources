@@ -676,7 +676,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (r.ok) expect(W.panelUrl(r.file.workspace.panels[0])).toBe('https://a.de');
-    expect(X.FILE_VERSION).toBe(11);
+    expect(X.FILE_VERSION).toBe(12);
   });
 
   it('Bereich und Szenario bleiben erhalten (F-116, vorbereitet)', () => {
@@ -5999,10 +5999,11 @@ describe('F-217 Touren prüfen (V98)', () => {
     expect(t[0].target).toBe(undefined);
     expect(new Set(t.map((s) => s.id)).size).toBe(t.length);
     expect(Tour.TOUR_KEY.projects).toBe('esource.tour.projects.v1');
-    const psp = (sel: string) => !sel.includes('pj__brief') && !sel.includes('pj__roles') && !sel.includes('pj__cal') && !sel.includes('pj__owndesk');
+    const psp = (sel: string) => !sel.includes('pj__brief') && !sel.includes('pj__roles') && !sel.includes('pj__cal') && !sel.includes('pj__owndesk') && !sel.includes('pj__xchg');
     // V117: Gantt/Basisplan, Netzplan, Ressourcen am Rad; Kalender und Projekt-Desk nur im Steckbrief
     expect(Tour.tourSteps(psp, t).map((s) => s.id)).toEqual(['intro', 'list', 'views', 'plan', 'net', 'res', 'report', 'inbox', 'steer', 'add', 'again']);
     expect(Tour.tourSteps(() => true, t).map((s) => s.id)).toContain('desk');
+    expect(Tour.tourSteps(() => true, t).map((s) => s.id)).toContain('exchange');
     expect(Tour.tourSteps(() => true, t).map((s) => s.id)).toContain('roles');
     expect(H.searchHelp('Tour Projekte')[0].id).toBe('tourProjects');
     expect(H.searchHelp('Lenkungskreis').map((e) => e.id)).toContain('projectFeedback');
@@ -6553,7 +6554,7 @@ describe('F-221 Feedback (V102, FB1–FB12)', () => {
     ws = Fb.setFeedbackState(ws, 'a', 'planned', { now });
     ws = { ...ws, feedbackPrefs: { askEase: false }, wheels: { cockpit: { pinned: ['kanban'], hidden: ['kanban', 'rules'], auto: false, order: ['kanban', 'todo'] } } };
     const file = X.toTransferFile(ws, 'Mac', now);
-    expect(file.version).toBe(11);
+    expect(file.version).toBe(12);
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -6632,7 +6633,7 @@ describe('F-222 Entscheidungen (V103, N1–N12, Dateiformat 11)', () => {
     const d = { ...base(), pairs: { 'k1|k2': 2 as const }, links: [{ kind: 'note' as const, id: 'n1' }], marks: [{ at: now.toISOString(), text: 'angelegt' }] };
     const ws = { ...W.defaultWorkspace(), decisions: [d] };
     const file = X.toTransferFile(ws, 'Mac', now);
-    expect(file.version).toBe(11);
+    expect(file.version).toBe(12);
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (!r.ok) return;

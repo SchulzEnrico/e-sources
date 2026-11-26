@@ -29,7 +29,7 @@ describe('Ressourcen-Ansicht (V116, Schritt 10)', () => {
     let ws = { ...W.defaultWorkspace(), notes: [] } as Workspace;
     const a = P.addPerson(ws, 'Anna')!;
     const r = Pj.addProject(a.ws, 'Bau', { start: '2026-12-21' })!;
-    ws = { ...r.ws, notes: [note('t1', { project: r.id, duration: 5, use: [{ person: a.id, hours: 40 }] })] } as Workspace;
+    ws = { ...r.ws, calendar: { region: 'HH' }, notes: [note('t1', { project: r.id, duration: 5, use: [{ person: a.id, hours: 40 }] })] } as Workspace;
     Cal.setCalendar({ region: 'HH' });
     try {
       const u = Rs.resourceUse(ws, r.id, '2026-11-26');

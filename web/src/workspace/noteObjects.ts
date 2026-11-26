@@ -28,6 +28,8 @@ import { parseFeedbackForm } from './feedback';
 import { parseChange, parseRisk } from './risks';
 import { parseCheckGpm, parsePersonGpm, parseProcure, parseProjectGpm, parseResults, parseRoleAkv, parseUses, parseWp } from './gpm';
 import { parseProjectForms } from './formKit';
+import { parseForeign } from './foreign';
+import { parseCalendar } from './calendar';
 
 /** Höchstens so viele Sheets je Pad (Antwort 20). */
 export const PAD_SHEETS_MAX = 9;
@@ -88,6 +90,8 @@ export const DURATION_MAX = 2000;
 export function parseNoteExtras(v: Record<string, unknown>): Partial<Note> {
   const out: Partial<Note> = {};
   if (NOTE_TYPES.includes(v.type as NoteType)) out.type = v.type as NoteType;
+  const foreign = parseForeign(v.foreign);
+  if (foreign) out.foreign = foreign;
   // F-225 P8 (V107): Angaben als Risiko bzw. Änderungsantrag – nur passend zur Art
   if (out.type === 'risk') {
     const r = parseRisk(v.risk);
@@ -218,6 +222,10 @@ export function parseProjects(v: unknown, scopeIds: ReadonlySet<string>): Projec
     Object.assign(p, parseProjectGpm(r));
     const forms = parseProjectForms(r.forms);
     if (forms) p.forms = forms;
+    // V118 (F-230): eigener Kalender (auch leer) und mitgeführte Fremddaten
+    if (r.calendar && typeof r.calendar === 'object') p.calendar = parseCalendar(r.calendar) ?? {};
+    const foreign = parseForeign(r.foreign);
+    if (foreign) p.foreign = foreign;
     out.push(p);
   }
   const byId = new Map(out.map((p) => [p.id, p]));
@@ -342,6 +350,8 @@ export function parsePersons(v: unknown): Person[] {
     }
     if (text(r.account)) p.account = r.account as string;
     Object.assign(p, parsePersonGpm(r));
+    const foreign = parseForeign(r.foreign);
+    if (foreign) p.foreign = foreign;
     out.push(p);
   }
   const ids = new Set(out.map((p) => p.id));

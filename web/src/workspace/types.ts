@@ -737,6 +737,8 @@ export interface Note {
   draft?: NoteDraft;
   /** F-213: Note wurde noch nie gespeichert (neu im Pad); „Verwerfen“ entfernt sie ganz. */
   unsaved?: boolean;
+  /** V118 (F-230 Option C): mitgeführte Fremddaten aus einem Import (unbekannte Task-Elemente, Zuordnungen). */
+  foreign?: ForeignBag;
   created: number;
   changed: number;
 }
@@ -901,8 +903,36 @@ export interface Project {
   changes?: ChangeItem[];
   rules?: RuleItem[];
   close?: ProjectClose;
+  /** V118 (F-230 F6): eigener Arbeitskalender des Projekts (auch leer = ohne Feiertage); fehlt = der gemeinsame. */
+  calendar?: WorkCalendar;
+  /** V118 (F-230 Option C): was eine importierte Datei trägt, E-Sources aber nicht kennt – geht beim Export unverändert zurück. */
+  foreign?: ForeignBag;
   created: number;
   changed: number;
+}
+
+/**
+ * V118 (F-230 Option C): mitgeführte Fremddaten. `mspdi` = unbekannte XML-Elemente (roh, mit Namen und dem Element davor,
+ * damit sie beim Export an ihrem Platz landen), `assign` = je Person die unbekannten Teile ihrer Zuordnung (nur am Vorgang),
+ * `trello` = unbekannte Felder aus dem Trello-JSON. `from` = woher (Datei, Zeitpunkt).
+ */
+export interface ForeignBag {
+  mspdi?: ForeignEl[];
+  assign?: Record<string, ForeignEl[]>;
+  trello?: Record<string, unknown>;
+  /** MSPDI: unbekannte Teile der Projektsammelzeile (Task UID 0) */
+  summary?: ForeignEl[];
+  /** MSPDI: Kalender beim Import, wie E-Sources ihn verstanden hat (JSON) – unverändert = Originalkalender zurückschreiben */
+  calSig?: string;
+  from?: { kind: 'mspdi' | 'trello'; name?: string; at: string; app?: string };
+}
+export interface ForeignEl {
+  /** Elementname, z. B. „ExtendedAttribute“ */
+  n: string;
+  /** das ganze Element als XML-Text */
+  x: string;
+  /** Name des Elements davor in der Datei (für die Reihenfolge beim Export) */
+  after?: string;
 }
 
 /** F-225 (V105, P3): Instanz im Projekt – Rolle mit Person oder Team. */
@@ -1042,6 +1072,8 @@ export interface StatusReport {
   actHours?: number;
   planCost?: number;
   actCost?: number;
+  /** V118: eingefroren – Fertigstellungswert EV (€) am Stichtag (Earned-Value-Grafik) */
+  ev?: number;
   /** erledigte bzw. geplante Aktivitäten, Steuerungsmaßnahmen, Bemerkung */
   done?: string;
   next?: string;
@@ -1103,6 +1135,8 @@ export interface Person {
   account?: string;
   /** F-226 (L6): Stundensatz in Euro. */
   rate?: number;
+  /** V118 (F-230 Option C): mitgeführte Fremddaten aus einem Import (unbekannte Resource-Elemente). */
+  foreign?: ForeignBag;
   /** F-226 (L2/L13): Firma bzw. Funktion, Qualifikation. */
   org?: string;
   qual?: string;

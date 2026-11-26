@@ -244,9 +244,12 @@ export type Action =
   | { type: 'deskAssign'; win: string; on: boolean }
   | { type: 'deskOwn'; win: string; project: string; std?: ReturnType<typeof DL.standardContent> }
   /* V116 (K7): Arbeitskalender */
-  | { type: 'calRegion'; region?: Cal.Region }
-  | { type: 'calFree'; day: string; name?: string; remove?: boolean }
-  | { type: 'calSet'; cal?: import('./types').WorkCalendar }
+  | { type: 'calRegion'; region?: Cal.Region; project?: string }
+  | { type: 'calFree'; day: string; name?: string; remove?: boolean; project?: string }
+  | { type: 'calSet'; cal?: import('./types').WorkCalendar; project?: string }
+  | { type: 'calOwn'; project: string; on: boolean }
+  /** V118 (F-230): Import fertig gerechnet (bzw. Rückgängig) – Stand übernehmen */
+  | { type: 'exchange'; ws: Workspace }
   | { type: 'sampleProject'; on: boolean }
   /* F-221 (V102): Feedback */
   | { type: 'fbAdd'; id: string; v: Fb.NewFeedback; at: string }
@@ -524,11 +527,15 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'wheelPrefs':
       return Wo.setWheel(ws, a.wheel, a.prefs);
     case 'calRegion':
-      return Cal.setRegion(ws, a.region);
+      return Cal.setRegion(ws, a.region, a.project);
     case 'calFree':
-      return a.remove ? Cal.removeFree(ws, a.day) : (Cal.addFree(ws, a.day, a.name) ?? ws);
+      return a.remove ? Cal.removeFree(ws, a.day, a.project) : (Cal.addFree(ws, a.day, a.name, a.project) ?? ws);
     case 'calSet':
-      return Cal.restoreCalendar(ws, a.cal);
+      return Cal.restoreCalendar(ws, a.cal, a.project);
+    case 'calOwn':
+      return Cal.setOwnCalendar(ws, a.project, a.on);
+    case 'exchange':
+      return a.ws;
     case 'taskPreds': {
       const r = Gt.setPreds(ws, a.project, a.id, a.links);
       return r.ok ? r.ws : ws;

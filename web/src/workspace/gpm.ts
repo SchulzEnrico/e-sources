@@ -156,6 +156,7 @@ export const parseReport = (r: Record<string, unknown>): StatusReport | undefine
     actHours: money(r.actHours),
     planCost: money(r.planCost),
     actCost: money(r.actCost),
+    ev: money(r.ev),
     done: txt(r.done),
     next: txt(r.next),
     measures: txt(r.measures),

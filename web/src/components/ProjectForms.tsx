@@ -21,7 +21,7 @@ import { OVERFLOW_TEXT } from '../workspace/terms';
 import { WorkPadButton } from './WorkPadOpen';
 import { requestTour, tourAutoStart } from '../workspace/tour';
 import * as Rp from '../workspace/gpmReport';
-import { costCurve, earnedValue, mtaOf, portfolioOf } from '../workspace/gpmCalc';
+import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf } from '../workspace/gpmCalc';
 import { APP_VERSION } from '../workspace/feedback';
 
 /** V113: Farben der Grafiken in der Oberfläche (folgen Darstellung und Akzentfarbe) */
@@ -168,6 +168,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
   };
   const curve = form.layout === 'chart' && form.source === 'costs' ? costCurve(ws, p.id) : null;
   const mta = form.source === 'mta' ? mtaOf(ws, p.id, Fk.evDay()) : null;
+  const evc = form.source === 'ev' ? evCurve(ws, p.id, Fk.evDay()) : null;
   const dots = form.layout === 'portfolio' ? portfolioOf(p) : [];
   const dotsOpen = form.layout === 'portfolio' ? dots.filter((d) => (form.filter === 'sh' ? d.attitude === undefined || d.power === undefined : !d.side || !d.area)).length : 0;
   const eur = (v: number) => `${v.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
@@ -282,6 +283,18 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
             </>
           ) : (
             <p className="lc__muted">{T.chartNone}</p>
+          )}
+        </figure>
+      )}
+      {evc && (
+        <figure className="pjf__figure">
+          {evc.bac > 0 && evc.pv.length > 1 ? (
+            <>
+              <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: Rp.evSvg(evc, { ...UI_COLORS, bar: 'var(--muted)' }, 720, 300) }} />
+              <figcaption className="help__text">{T.evSum(evc.points.length - 1, evc.points.filter((x) => x.est).length)}</figcaption>
+            </>
+          ) : (
+            <p className="lc__muted">{T.evNone}</p>
           )}
         </figure>
       )}

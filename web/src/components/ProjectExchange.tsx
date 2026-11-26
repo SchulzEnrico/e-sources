@@ -28,13 +28,16 @@ function download(name: string, text: string, type: string) {
 type Kind = 'mspdi' | 'trello';
 const fileName = (s: string, kind: Kind) => `${s.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Projekt'}${kind === 'trello' ? '.trello.json' : '.xml'}`;
 
+/** V120 (F-230 Schritt 3): Meldung eines Imports mit Rückgängig (stellt den Stand vor dem Import her – Projekt und Desk weg). */
+export type ImportMsg = { text: string; undo: () => void };
+
 type Ask = { kind: Kind; text: string; name: string; clashes: string[]; merge: Set<string> };
 
 /**
  * Export/Import mit Rückfrage am Ort. `tell(text, undo?)` zeigt die Meldung dort, wo bedient wurde;
  * `onImported` bekommt das neue Projekt (z. B. zeigen, eigener Desk).
  */
-export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: (text: string, undo?: () => void) => void, onImported?: (pid: string, name: string, sheet?: string) => void) {
+export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: (text: string, undo?: () => void) => void, onImported?: (pid: string, name: string, sheet?: string, msg?: ImportMsg) => void) {
   const input = useRef<HTMLInputElement>(null);
   const [ask, setAsk] = useState<Ask | null>(null);
   /** Formatwahl beim Export (Projekt-Id) */
@@ -63,8 +66,11 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
       dispatch({ type: 'exchange', ws: r.ws });
       const pj = projectById(r.ws, r.project)!;
       const over = r.notes.find((n) => n.startsWith('listsOver:'));
-      tell(T.importedTrello(pj.name, r.cards, r.lists, r.checklists, r.persons, r.merged.length, r.kept) + (over ? ` ${T.listsOver(Number(over.split(':')[1]))}` : ''), () => dispatch({ type: 'exchange', ws: before }));
-      onImported?.(r.project, pj.name, r.view);
+      const said = T.importedTrello(pj.name, r.cards, r.lists, r.checklists, r.persons, r.merged.length, r.kept) + (over ? ` ${T.listsOver(Number(over.split(':')[1]))}` : '');
+      const undo = () => dispatch({ type: 'exchange', ws: before });
+      tell(said, undo);
+      // V120 (F-230 Schritt 3): Meldung samt Rückgängig geht mit auf den neuen Desk
+      onImported?.(r.project, pj.name, r.view, { text: said, undo });
       return;
     }
     const r = Mx.importMspdi(ws, a.text, { merge, name: a.name });
@@ -72,8 +78,10 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
     dispatch({ type: 'exchange', ws: r.ws });
     const pj = projectById(r.ws, r.project)!;
     const tooMany = r.notes.find((n) => n.startsWith('calTooMany:'));
-    tell(T.imported(pj.name, r.tasks, r.links, r.persons, r.merged.length, r.kept) + (tooMany ? ` ${T.calTooMany(Number(tooMany.split(':')[1]))}` : ''), () => dispatch({ type: 'exchange', ws: before }));
-    onImported?.(r.project, pj.name);
+    const said = T.imported(pj.name, r.tasks, r.links, r.persons, r.merged.length, r.kept) + (tooMany ? ` ${T.calTooMany(Number(tooMany.split(':')[1]))}` : '');
+    const undo = () => dispatch({ type: 'exchange', ws: before });
+    tell(said, undo);
+    onImported?.(r.project, pj.name, undefined, { text: said, undo });
   };
   const onFile = async (f: File | undefined) => {
     if (!f) return;

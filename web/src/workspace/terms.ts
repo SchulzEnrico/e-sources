@@ -1453,6 +1453,7 @@ export const EXCHANGE_TEXT = {
   exportHint: 'Projekt als Datei speichern – für MS Project/iTaskX (XML) oder Trello (JSON); das Format wählst du gleich danach am Ort',
   exportMspdiHint: 'Projekt als XML-Datei für MS Project, iTaskX und andere Planer speichern (MSPDI) – mit Vorgängen, Terminen, Vorgängern, Ressourcen, Basisplan, Kalender und allem, was beim Import mitgeführt wurde',
   import: 'Importieren …',
+  importUndone: (p: string) => `Import zurückgenommen – Projekt „${p}“ und sein Desk sind wieder weg.`,
   importHint: 'XML-Datei aus MS Project oder iTaskX (MSPDI) bzw. JSON-Datei eines Trello-Boards als neues Projekt laden; was E-Sources nicht kennt, bleibt erhalten und geht beim Export zurück. .mpp vorher in MS Project als XML speichern',
   exported: (f: string) => `„${f}“ gespeichert – in MS Project bzw. iTaskX öffnen (Datei › Öffnen, Typ XML).`,
   imported: (name: string, tasks: number, links: number, persons: number, merged: number, kept: number) =>
@@ -2174,11 +2175,25 @@ export const SAMPLE_TEXT = {
   removed: 'Beispielprojekt „ColorGentlemen“ entfernt – samt Vorgängen und Rollen.',
 };
 
+/** V120 (F-230 Schritt 5, F-231): Kanban im Projekt-Modus. */
+export const PROJECT_KANBAN_TEXT = {
+  head: (p: string) => `Kanban: ${p}`,
+  empty: 'Dieses Projekt hat noch kein Kanban-Board. Angelegt landen die Vorgänge als Karten in der Spalte, die zu ihrem Zustand passt (offen, in Arbeit, erledigt); Sammelvorgänge und Archiviertes bleiben draußen.',
+  make: (n: number) => (n === 1 ? 'Kanban-Board anlegen (1 Vorgang als Karte)' : `Kanban-Board anlegen (${n} Vorgänge als Karten)`),
+  makeHint: 'Legt ein Kanban-Sheet mit dem Namen des Projekts an; es liegt auch in der Library und lässt sich in einem Pad öffnen. Neue Karten darauf gehören zum Projekt.',
+  elsewhere: (n: number) => (n === 1 ? '1 Vorgang liegt schon auf einem anderen Kanban und bleibt dort.' : `${n} Vorgänge liegen schon auf einem anderen Kanban und bleiben dort.`),
+  made: (p: string, n: number, other: number) => `Kanban-Board „${p}“ angelegt – ${n === 1 ? '1 Karte' : `${n} Karten`}${other ? `, ${other} auf anderem Kanban gelassen` : ''}.`,
+  undo: 'Rückgängig',
+  undone: 'Kanban-Board wieder entfernt.',
+  which: 'Welches Kanban-Board des Projekts',
+  whichHint: 'Das Projekt hat mehrere Kanban-Boards – hier wählen',
+};
+
 export const PSP_TEXT = {
   view: 'Ansicht',
   viewLabel: 'Ansicht des gewählten Projekts',
-  views: { brief: 'Steckbrief', forms: 'Formulare', psp: 'PSP', gantt: 'Gantt', net: 'Netzplan', res: 'Ressourcen', risks: 'Risiken', changes: 'Änderungen', decide: 'Entscheidungen', feedback: 'Meldungen' } as Record<'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
-  viewHint: { brief: 'Steckbrief nach IPMA ICB4: Ziel, Termine, Budget, Organisation', forms: 'Projektformulare nach GPM-Leitfaden (Level D): Eingabe und Ausgabe wie im Report, Kapitel für Kapitel, erweiterbar', psp: 'Projektstrukturplan: Teilprojekte, Vorgänge und Arbeitspakete als Baum mit Code', gantt: 'Balkenplan: Vorgänge auf der Zeitachse mit Vorgängern, Puffer und kritischem Pfad', net: 'Netzplan: Vorgänge als Kästen mit frühesten und spätesten Terminen, Puffer und Pfeilen zu den Nachfolgern', res: 'Ressourceneinsatz: geplante Stunden je Ressource und Woche gegen die Kapazität, mit den Vorgängen darunter', risks: 'Risikoliste nach IPMA ICB4: Ursache, Ereignis, Auswirkung, Bewertung, Strategie und Maßnahme', changes: 'Änderungsanträge (Change Requests): Auswirkung auf Termin, Kosten, Leistung und Umfang, Entscheidung durch die Instanz', decide: 'Nutzwertanalyse: Lösungen nach gewichteten Kriterien vergleichen und begründet entscheiden', feedback: 'Projektmeldungen: Probleme, Wünsche und Fragen an die Instanzen des Projekts' } as Record<'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
+  views: { brief: 'Steckbrief', forms: 'Formulare', psp: 'PSP', gantt: 'Gantt', net: 'Netzplan', kanban: 'Kanban', res: 'Ressourcen', risks: 'Risiken', changes: 'Änderungen', decide: 'Entscheidungen', feedback: 'Meldungen' } as Record<'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
+  viewHint: { brief: 'Steckbrief nach IPMA ICB4: Ziel, Termine, Budget, Organisation', forms: 'Projektformulare nach GPM-Leitfaden (Level D): Eingabe und Ausgabe wie im Report, Kapitel für Kapitel, erweiterbar', psp: 'Projektstrukturplan: Teilprojekte, Vorgänge und Arbeitspakete als Baum mit Code', gantt: 'Balkenplan: Vorgänge auf der Zeitachse mit Vorgängern, Puffer und kritischem Pfad', net: 'Netzplan: Vorgänge als Kästen mit frühesten und spätesten Terminen, Puffer und Pfeilen zu den Nachfolgern', kanban: 'Kanban-Board des Projekts wie Trello: Vorgänge als Karten in Spalten nach ihrem Zustand, ziehen, Checklisten, WIP-Limit', res: 'Ressourceneinsatz: geplante Stunden je Ressource und Woche gegen die Kapazität, mit den Vorgängen darunter', risks: 'Risikoliste nach IPMA ICB4: Ursache, Ereignis, Auswirkung, Bewertung, Strategie und Maßnahme', changes: 'Änderungsanträge (Change Requests): Auswirkung auf Termin, Kosten, Leistung und Umfang, Entscheidung durch die Instanz', decide: 'Nutzwertanalyse: Lösungen nach gewichteten Kriterien vergleichen und begründet entscheiden', feedback: 'Projektmeldungen: Probleme, Wünsche und Fragen an die Instanzen des Projekts' } as Record<'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
   head: (name: string) => `PSP: ${name}`,
   prefix: 'Präfix',
   prefixHint: 'Steht vor jedem Code, z. B. WEB → WEB-1.2',

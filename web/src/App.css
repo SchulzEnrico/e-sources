@@ -9761,3 +9761,7 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 .trx__item { display: grid; gap: 2px; }
 .trx__meta { font-size: 12px; opacity: 0.7; }
 .trx__text { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* V120 (F-230 Schritt 5, F-231): Kanban im Projekt-Modus – gleiche Höhe wie Gantt und Ressourcen */
+.pkb__board { display: flex; flex-direction: column; height: 62vh; min-height: 320px; border: 1px solid var(--line); border-radius: 10px; padding: 6px; overflow: hidden; }
+.pkb__board > * { flex: 1; min-height: 0; }

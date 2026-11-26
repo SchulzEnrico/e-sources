@@ -7,7 +7,7 @@
  * - `ScopeNote`: „Nur „X“ · Alles zeigen“ in Suche, Library-Notizen und Fokus (PD5).
  * Logik in workspace/deskProject.ts.
  */
-import { useExchange } from './ProjectExchange';
+import { useExchange, type ImportMsg } from './ProjectExchange';
 import { EXCHANGE_TEXT as XT } from '../workspace/terms';
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import type { Workspace } from '../workspace/types';
@@ -21,6 +21,19 @@ import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
 
 type Msg = { text: string; undo?: () => void } | null;
+
+/**
+ * V120 (F-230 Schritt 3): Ein Import legt einen eigenen Desk an und zeigt ihn – die Meldung mit „Rückgängig“ geht mit
+ * und erscheint am ⋮ des neuen Desks (dort, wo der Blick jetzt ist). Rückgängig nimmt Projekt und Desk zurück.
+ */
+let carried: { win: string; msg: ImportMsg } | null = null;
+export const carryMsg = (win: string, msg: ImportMsg) => void (carried = { win, msg });
+function takeCarried(win: string): ImportMsg | null {
+  if (!carried || carried.win !== win) return null;
+  const m = carried.msg;
+  carried = null;
+  return m;
+}
 
 /** Meldung am Ort (Regel Enrico V113: „#perfekte Fokussierung“), verschwindet von selbst. */
 function useMsg(): [Msg, (text: string, undo?: () => void) => void, () => void] {
@@ -49,7 +62,7 @@ function MsgLine({ msg, onUndo }: { msg: Msg; onUndo: () => void }) {
   );
 }
 
-export function DeskProjectMenu(p: { ws: Workspace; win: string; deskName: string; dispatch: (a: Action) => void; onOpen: () => void; say: (t: string) => void; onOwn?: (project: string, justMade?: string, sheet?: string) => void }) {
+export function DeskProjectMenu(p: { ws: Workspace; win: string; deskName: string; dispatch: (a: Action) => void; onOpen: () => void; say: (t: string) => void; onOwn?: (project: string, justMade?: string, sheet?: string, msg?: ImportMsg) => void }) {
   const { ws, win, dispatch } = p;
   const b = Dp.bindingOf(ws, win);
   const bound = b ? projectById(ws, b.project) : undefined;
@@ -63,7 +76,13 @@ export function DeskProjectMenu(p: { ws: Workspace; win: string; deskName: strin
     tell(T.undone);
   };
   // V118 (F-230, F10): Export/Import am Desk – Meldung und Rückfrage hier am ⋮
-  const xc = useExchange(ws, dispatch, tell, (pid, name, sheet) => (p.onOwn ? p.onOwn(pid, name, sheet) : undefined));
+  const xc = useExchange(ws, dispatch, tell, (pid, name, sheet, m) => (p.onOwn ? p.onOwn(pid, name, sheet, m) : undefined));
+  // V120: mitgebrachte Import-Meldung des vorigen Desks hier am ⋮ zeigen
+  useEffect(() => {
+    const m = takeCarried(win);
+    if (m) tell(m.text, m.undo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [win]);
   const bind = (pid: string) => {
     const before = ws.deskProjects?.[win]?.project;
     dispatch({ type: 'deskBind', win, project: pid });

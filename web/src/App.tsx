@@ -58,7 +58,7 @@ import { Tour } from './components/Tour';
 import { ProjectCockpit, shownProjectId } from './components/ProjectCockpit';
 import { STEER_EVENT } from './components/ProjectSteer';
 import { DECISION_EVENT } from './components/ProjectDecisions';
-import { DECISION_TEXT, DESK_PROJECT_TEXT, LAYOUT_UNDO_TEXT, OVERFLOW_TEXT } from './workspace/terms';
+import { DECISION_TEXT, DESK_PROJECT_TEXT, EXCHANGE_TEXT, LAYOUT_UNDO_TEXT, OVERFLOW_TEXT } from './workspace/terms';
 import { useOverflow } from './components/Overflow';
 import { WORKPAD_EVENT, WorkPad, type WorkPadOpen } from './components/WorkPad';
 import { SlotMachine } from './components/SlotMachine';
@@ -124,7 +124,8 @@ import { sweepPics } from './workspace/imageStore';
 import { audioRefs, imageRefs } from './workspace/notes';
 import { theMatrix } from './workspace/sheets';
 import * as Dp from './workspace/deskProject';
-import { DeskProjectMenu } from './components/DeskProject';
+import { DeskProjectMenu, carryMsg } from './components/DeskProject';
+import type { ImportMsg } from './components/ProjectExchange';
 import { projectById } from './workspace/projects';
 
 /** Knopf im Hinweis unten (F-162, F-163). */
@@ -3365,7 +3366,7 @@ function DeskApp(props: DeskProps) {
     notify(`„${name}“ angelegt und in neuem Browserfenster geöffnet.`);
   };
   /** V117 (PD2): „Eigener Desk“ – neuer Desk nur für ein Projekt, in eigenem Fenster, gleich im Projekt-Modus. */
-  const addOwnDesk = (pid: string, justMade?: string, sheet?: string) => {
+  const addOwnDesk = (pid: string, justMade?: string, sheet?: string, msg?: ImportMsg) => {
     // V118 (F-230 F4): direkt nach einem Import steht das Projekt erst im nächsten Stand – Name kommt mit
     const pj = projectById(ws, pid) ?? (justMade ? { name: justMade } : undefined);
     if (!pj) return;
@@ -3376,7 +3377,13 @@ function DeskApp(props: DeskProps) {
     saveModes(modes);
     Dp.saveShown(dest, pid);
     dispatch({ type: 'deskOwn', win: dest, project: pid, std: standardContent(ws, display.standard, setup), ...(sheet ? { sheet } : {}) });
-    if (!openAppWindow(dest)) return props.onSwitch(dest, DESK_PROJECT_TEXT.ownHere(pj.name, name));
+    if (!openAppWindow(dest)) {
+      // V120 (F-230 Schritt 3): Import-Meldung mit Rückgängig erscheint am ⋮ des neuen Desks; Rückgängig nimmt Projekt
+      // und Desk zurück und zeigt wieder den Desk, auf dem importiert wurde
+      const from = win;
+      if (msg) carryMsg(dest, { text: msg.text, undo: () => (msg.undo(), props.onSwitch(from, EXCHANGE_TEXT.importUndone(pj.name))) });
+      return props.onSwitch(dest, DESK_PROJECT_TEXT.ownHere(pj.name, name));
+    }
     notify(DESK_PROJECT_TEXT.ownMade(pj.name, name));
   };
   /** F-156: Funktion aus Suche oder Hilfe ausführen. */

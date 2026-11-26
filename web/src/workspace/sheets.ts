@@ -283,7 +283,9 @@ export function sortNotes(list: Note[], order: TodoOrder): Note[] {
 export function addTask(ws: Workspace, viewId: string, title: string, opts: No.Act & { col?: string; index?: number; id?: string } = {}): { ws: Workspace; id: string } | null {
   const v = No.viewById(ws, viewId);
   if (!v || !title.trim()) return null;
-  const c = No.createNote(ws, { title: '', text: headText(title) }, opts);
+  // V120: Karten auf dem Kanban eines Projekts gehören zum Projekt
+  const pj = v.owner?.kind === 'project' ? { project: v.owner.id } : {};
+  const c = No.createNote(ws, { title: '', text: headText(title), ...pj }, opts);
   if (v.kind === 'kanban') {
     const col = opts.col ?? v.cols?.[0]?.id;
     if (!col) return null;

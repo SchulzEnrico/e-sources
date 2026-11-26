@@ -15,11 +15,14 @@ export interface SheetPref {
   filter?: CardFilter;
   /** V122 (F-231 K13): Ansicht des Kanbans. */
   kview?: KView;
+  /** V123 (F-231 K13): Zeitleiste – Maßstab und Gruppen. */
+  tlScale?: 'day' | 'week' | 'month';
+  tlGroup?: 'col' | 'who' | 'tag';
 }
 
 /** V122 (F-231 K13, T6): Ansichten desselben Kanban-Sheets über das Rad „Ansicht“. */
-export type KView = 'board' | 'table' | 'calendar';
-export const KVIEWS: readonly KView[] = ['board', 'table', 'calendar'];
+export type KView = 'board' | 'table' | 'calendar' | 'timeline' | 'stats';
+export const KVIEWS: readonly KView[] = ['board', 'table', 'calendar', 'timeline', 'stats'];
 
 /** Gespeicherten Stand prüfen: nur bekannte Werte. */
 export function parseSheetPrefs(raw: unknown): Record<string, SheetPref> {
@@ -34,6 +37,8 @@ export function parseSheetPrefs(raw: unknown): Record<string, SheetPref> {
     const f = parseCardFilter(p.filter);
     if (f) pref.filter = f;
     if (typeof p.kview === 'string' && (KVIEWS as readonly string[]).includes(p.kview)) pref.kview = p.kview as KView;
+    if (p.tlScale === 'day' || p.tlScale === 'week' || p.tlScale === 'month') pref.tlScale = p.tlScale;
+    if (p.tlGroup === 'col' || p.tlGroup === 'who' || p.tlGroup === 'tag') pref.tlGroup = p.tlGroup;
     if (Object.keys(pref).length) out[id] = pref;
   }
   return out;

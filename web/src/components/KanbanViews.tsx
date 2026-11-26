@@ -48,6 +48,8 @@ function useSetDue(p: Common) {
   };
 }
 
+export type { Common as KViewProps };
+
 // ---------- Tabelle ----------
 
 type SortKey = Exclude<KV.TableSort, 'board'>;

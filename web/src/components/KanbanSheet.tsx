@@ -21,8 +21,10 @@ import { ArchivePanel, CopyBar } from './KanbanMore';
 import { FilterButton, FilterPanel, TagChips, TagPanel } from './KanbanTags';
 import * as CF from '../workspace/cardFilter';
 import * as Tg from '../workspace/tags';
-import { KVIEW_TEXT, TAG_TEXT } from '../workspace/terms';
+import { KVIEW_TEXT, STATS_TEXT, TAG_TEXT } from '../workspace/terms';
 import { KanbanCalendar, KanbanTable } from './KanbanViews';
+import { KanbanTimeline } from './KanbanTimeline';
+import { KanbanStats } from './KanbanStats';
 import { ModeWheel } from './ModeWheel';
 import type { KView } from '../workspace/sheetPrefs';
 import { newId } from '../workspace/workspace';
@@ -815,6 +817,8 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
             { id: 'board', name: KVIEW_TEXT.board, icon: 'kanban', hint: KVIEW_TEXT.boardHint },
             { id: 'table', name: KVIEW_TEXT.table, icon: 'table', hint: KVIEW_TEXT.tableHint },
             { id: 'calendar', name: KVIEW_TEXT.calendar, icon: 'calendarView', hint: KVIEW_TEXT.calendarHint },
+            { id: 'timeline', name: KVIEW_TEXT.timeline, icon: 'timeline', hint: KVIEW_TEXT.timelineHint },
+            { id: 'stats', name: KVIEW_TEXT.stats, icon: 'stats', hint: KVIEW_TEXT.statsHint },
           ]}
           value={kview}
           onChange={(x) => setKview(x as KView)}
@@ -873,13 +877,23 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
             ws,
             dispatch,
             v,
-            keep: (n: Note) => passes(n) && (kview !== 'table' || show === 'all' || !finished(n) || !foldsDone(ws, n)),
+            keep: (n: Note) => passes(n) && ((kview !== 'table' && kview !== 'stats') || show === 'all' || !finished(n) || !foldsDone(ws, n)),
             onOpen: setCard,
             onMove: (id: string, col: string) => commit(id, col, undefined, Sh.colOf(v, id)?.id),
             say,
             notice,
           };
-          return kview === 'table' ? <KanbanTable {...vp} /> : <KanbanCalendar {...vp} sheetId={sheetId} />;
+          if (kview === 'table') return <KanbanTable {...vp} />;
+          if (kview === 'timeline') return <KanbanTimeline {...vp} sheetId={sheetId} />;
+          if (kview === 'stats')
+            return (
+              <KanbanStats
+                {...vp}
+                onBoard={() => (setKview('board'), say(KVIEW_TEXT.board))}
+                onFilter={(f, what) => (setCf(f), setKview('board'), say(STATS_TEXT.shown(what)))}
+              />
+            );
+          return <KanbanCalendar {...vp} sheetId={sheetId} />;
         })()}
       <div className="kanban__board" ref={boardRef} aria-label={K.board(v.name)} role="group" hidden={kview !== 'board'}>
         {cols.map(column)}
@@ -958,7 +972,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
             if (cur && No.isEmptyDraft(ws, cur)) dispatch({ type: 'noteDiscard', id });
             setCard(null);
             // V122 (K13): in Tabelle und Kalender zurück auf Zeile bzw. Karte
-            if (kview !== 'board') window.setTimeout(() => document.querySelector<HTMLElement>(`[data-row="${id}"], [data-chip="${id}"]`)?.focus(), 0);
+            if (kview !== 'board') window.setTimeout(() => document.querySelector<HTMLElement>(`[data-row="${id}"], [data-chip="${id}"], [data-bar="${id}"]`)?.focus(), 0);
             else focusCard(id);
           }}
         />

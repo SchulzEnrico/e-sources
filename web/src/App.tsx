@@ -118,7 +118,9 @@ import type { FeedbackEnv, FeedbackKind, FeedbackPlace } from './workspace/types
 import { restoreBackup, useGistState, useGistSync } from './workspace/useGistSync';
 import { FEEDBACK_TEXT } from './workspace/terms';
 import { FLASH_EVENT, type FlashRequest, flash, setNoticeMs } from './workspace/flash';
-import { noticeMs, sweep, switchOf, whenOn } from './workspace/ruleSet';
+import { noticeMs, switchOf } from './workspace/ruleSet';
+import { isClaimed, runCheck, runOf } from './workspace/ruleRun';
+import { KIT_TEXT } from './workspace/terms';
 import { sweepClips } from './workspace/audioStore';
 import { sweepPics } from './workspace/imageStore';
 import { audioRefs, imageRefs } from './workspace/notes';
@@ -4989,21 +4991,25 @@ export default function App(props: { sent?: string }) {
     const t = window.setTimeout(() => (void sweepClips(audioRefs(wsNow.current)), void sweepPics(imageRefs(wsNow.current))), 30000);
     return () => window.clearTimeout(t);
   }, []);
+  // F-231 K10a (V129): Lauf einer Regel-Kette, den kein Board am Ort gemeldet hat (z. B. Zustand in einer Notiz geändert)
+  useEffect(() => {
+    const r = runOf(ws);
+    if (!r || isClaimed(r)) return;
+    flash({ text: [KIT_TEXT.ran(r.names, r.cards, !!r.cut), ...r.texts].join(' '), ms: 6000, action: { label: KIT_TEXT.undo, run: () => dispatch({ type: 'exchange', ws: r.before }) } });
+  }, [ws, dispatch]);
   // F-218 A1 (V92): Dauer der Meldungen am Ort für alle Bauteile
   setNoticeMs(noticeMs(ws));
   // V116 (K7): Arbeitskalender (Feiertage, freie Tage) für alle Terminrechnungen
   setCalendar(ws.calendar);
   // F-220 (V116): Anheften und Belegung der Umschalt-Räder für alle Räder
   useLayoutEffect(() => setWheelSource(ws.wheels, (wheel, prefs) => dispatch({ type: 'wheelPrefs', wheel, prefs })), [ws.wheels, dispatch]);
-  // F-218 W3/W4 (V92): altes Erledigtes archivieren, Fälliges dringend – 30 s nach dem Start (Abgleich durch), dann stündlich
+  // F-218 W3/W4 (V92) / F-231 K10a (V129): Regeln „regelmäßig“ (z. B. altes Erledigtes archivieren, Fälliges dringend) –
+  // 30 s nach dem Start (Abgleich durch), dann stündlich; Meldung mit „Rückgängig“ für die ganze Kette
   useEffect(() => {
     const run = () => {
       const w = wsNow.current;
-      if (!whenOn(w, 'archiveOld') && !whenOn(w, 'dueUrgent')) return;
-      const r = sweep(w);
-      if (!r.archived && !r.urgent) return;
-      dispatch({ type: 'ruleSweep' });
-      flash({ text: `${RULE_SET_TEXT.sweptHead}: ${RULE_SET_TEXT.swept(r.archived, r.urgent)}.` });
+      // Meldung mit „Rückgängig“ kommt über den Bericht des Laufs (Effekt oben)
+      if (runCheck(w).run) dispatch({ type: 'ruleSweep', now: Date.now() });
     };
     const first = window.setTimeout(run, 30000);
     const every = window.setInterval(run, 3600000);

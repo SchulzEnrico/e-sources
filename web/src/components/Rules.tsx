@@ -18,7 +18,8 @@ import type { Action } from '../workspace/useWorkspace';
 import { Row as TintRow } from './Colors';
 import { Icon } from './Icon';
 import { categoryIcon } from '../workspace/icons';
-import { type RuleGroup, RULE_GROUPS, SWITCHES, SWITCH_GROUP, SWITCH_IDS, SWITCH_NO, type SwitchId, WHEN_NO, WHEN_RULES, switchOf, whenOn } from '../workspace/ruleSet';
+import { type RuleGroup, RULE_GROUPS, SWITCHES, SWITCH_GROUP, SWITCH_IDS, SWITCH_NO, type SwitchId, switchOf } from '../workspace/ruleSet';
+import { RuleKit } from './RuleKit';
 import { RULE_SET_TEXT } from '../workspace/terms';
 import { ModeWheel } from './ModeWheel';
 
@@ -98,43 +99,13 @@ export function Rules(p: Props) {
       </section>
     );
   };
-  /** W1–W4: ein/aus wie die eingebauten Regeln. */
+  /** V129 (F-231 K10a): Regel-Baukasten „Wenn … und … dann …“ – W1–W4 sind darin mitgelieferte Regeln. */
   const whenGroup = () => (
     <section className="rules__group" aria-labelledby="rules-h-when">
       <h3 id="rules-h-when" className="radar__detail-head">
         {RULE_SET_TEXT.whenHead}
       </h3>
-      <p className="rules__note">{RULE_SET_TEXT.whenIntro}</p>
-      <ul className="rules__list">
-        {WHEN_RULES.map((id) => {
-          const t = RULE_SET_TEXT.when[id];
-          const on = whenOn(p.ws, id);
-          const tid = `rule-w-${id}`;
-          return (
-            <li key={id} className={on ? 'rules__row' : 'rules__row is-off'} data-rule={`when:${id}`}>
-              <div className="rules__line">
-                <label className="rules__on">
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    aria-describedby={tid}
-                    onChange={() => {
-                      p.dispatch({ type: 'ruleWhen', id, on: !on });
-                      p.say(RULES_TEXT.said(t.name, !on));
-                    }}
-                  />
-                  <strong>{t.name}</strong>
-                  {!on && <span className="rules__off"> · {RULES_TEXT.off}</span>}
-                </label>
-                <span className="rules__no-tag" title={RULE_SET_TEXT.noTitle(WHEN_NO[id])}>{WHEN_NO[id]}</span>
-              </div>
-              <p id={tid} className="rules__text">
-                {t.text}
-              </p>
-            </li>
-          );
-        })}
-      </ul>
+      <RuleKit ws={p.ws} dispatch={p.dispatch} say={p.say} />
     </section>
   );
 

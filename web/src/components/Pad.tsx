@@ -4,7 +4,7 @@
  * Entscheidungen: Claude Doc „Pads mit Notizblock und Lageplan“ (P1–P9).
  */
 import { askFeedback } from './FeedbackQuick';
-import { FEEDBACK_TEXT } from '../workspace/terms';
+import { FEEDBACK_TEXT, KIT_TEXT } from '../workspace/terms';
 import { type CSSProperties, type Dispatch, type KeyboardEvent, type PointerEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useKeyboard } from './useKeyboard';
 import type { Action } from '../workspace/useWorkspace';
@@ -906,6 +906,12 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               {sheet?.kind === 'kanban' && (
                 <Item icon="tag" hint={TAG_TEXT.manageHint} onClick={() => (close(), window.dispatchEvent(new CustomEvent('esource:kanbantags', { detail: sheet.id })))}>
                   {TAG_TEXT.manage(boardTags(ws, sheet.id).filter((t) => t.count).length)} …
+                </Item>
+              )}
+              {/* V129 (F-231 K10a): Automatisierung – Regeln dieses Boards (dieselbe Liste wie im Cockpit „Regeln“) */}
+              {sheet?.kind === 'kanban' && (
+                <Item icon="rules" hint={KIT_TEXT.menuHint} onClick={() => (close(), window.dispatchEvent(new CustomEvent('esource:kanbanrules', { detail: sheet.id })))}>
+                  {KIT_TEXT.menu} …
                 </Item>
               )}
               {/* V88 (BL3): Spalten dieses Boards als Vorlage merken */}

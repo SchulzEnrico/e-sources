@@ -676,7 +676,7 @@ describe('Speicher v5 und Datei-Version 2', () => {
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (r.ok) expect(W.panelUrl(r.file.workspace.panels[0])).toBe('https://a.de');
-    expect(X.FILE_VERSION).toBe(12);
+    expect(X.FILE_VERSION).toBe(13);
   });
 
   it('Bereich und Szenario bleiben erhalten (F-116, vorbereitet)', () => {
@@ -6554,7 +6554,7 @@ describe('F-221 Feedback (V102, FB1–FB12)', () => {
     ws = Fb.setFeedbackState(ws, 'a', 'planned', { now });
     ws = { ...ws, feedbackPrefs: { askEase: false }, wheels: { cockpit: { pinned: ['kanban'], hidden: ['kanban', 'rules'], auto: false, order: ['kanban', 'todo'] } } };
     const file = X.toTransferFile(ws, 'Mac', now);
-    expect(file.version).toBe(12);
+    expect(file.version).toBe(13);
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -6633,7 +6633,7 @@ describe('F-222 Entscheidungen (V103, N1–N12, Dateiformat 11)', () => {
     const d = { ...base(), pairs: { 'k1|k2': 2 as const }, links: [{ kind: 'note' as const, id: 'n1' }], marks: [{ at: now.toISOString(), text: 'angelegt' }] };
     const ws = { ...W.defaultWorkspace(), decisions: [d] };
     const file = X.toTransferFile(ws, 'Mac', now);
-    expect(file.version).toBe(12);
+    expect(file.version).toBe(13);
     const r = X.readTransferFile(JSON.stringify(file));
     expect(r.ok).toBe(true);
     if (!r.ok) return;

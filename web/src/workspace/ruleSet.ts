@@ -14,6 +14,7 @@
 import { RULE_SET_TEXT } from './terms';
 import type { Note, Workspace } from './types';
 import { dayOf, isFinished, notesOf, setState, shiftDay, updateNote } from './notes';
+import { type KitRule, kitOf, parseRules, setOn } from './ruleKit';
 
 // ---------------------------------------------------------------- A1–A9 Schalter
 
@@ -81,8 +82,10 @@ export const URGENT_DAYS = 1;
 /** Gespeicherte Abweichungen vom Werk. */
 export interface RuleSet {
   sw?: Partial<Record<SwitchId, string>>;
-  /** Eingeschaltete Wenn-dann-Regeln. */
+  /** Eingeschaltete Wenn-dann-Regeln (bis V128; fehlt `rules`, gelten sie für die mitgelieferten Regeln). */
   when?: WhenRule[];
+  /** V129 (F-231 K10a, Dateiformat 13): Regel-Baukasten – alle Regeln samt mitgelieferten W1–W4 (ruleKit.ts). */
+  rules?: KitRule[];
 }
 
 export const ruleSetOf = (ws: Workspace): RuleSet => ws.ruleSet ?? {};
@@ -97,7 +100,8 @@ export function switchOf<K extends SwitchId>(ws: Workspace, id: K): SwitchValue<
 const withSet = (ws: Workspace, rs: RuleSet): Workspace => {
   const clean: RuleSet = {};
   if (rs.sw && Object.keys(rs.sw).length) clean.sw = rs.sw;
-  if (rs.when?.length) clean.when = rs.when;
+  if (rs.when?.length && !rs.rules) clean.when = rs.when;
+  if (rs.rules) clean.rules = rs.rules;
   const { ruleSet: _o, ...rest } = ws;
   return Object.keys(clean).length ? { ...rest, ruleSet: clean } : rest;
 };
@@ -111,10 +115,12 @@ export function setSwitch<K extends SwitchId>(ws: Workspace, id: K, value: Switc
   return withSet(ws, { ...rs, sw: value === all[0] ? sw : { ...sw, [id]: value } });
 }
 
-export const whenOn = (ws: Workspace, id: WhenRule) => !!ruleSetOf(ws).when?.includes(id);
+/** V129 (K10a): W1–W4 sind mitgelieferte Bausteinregeln – Ein/Aus steht in der Regel (bzw. bis zur ersten Änderung in `when`). */
+export const whenOn = (ws: Workspace, id: WhenRule) => !!kitOf(ws).find((r) => r.w === id)?.on;
 
 export function setWhen(ws: Workspace, id: WhenRule, on: boolean): Workspace {
   const rs = ruleSetOf(ws);
+  if (rs.rules) return setOn(ws, `w-${id}`, on);
   const list = rs.when ?? [];
   if (on === list.includes(id)) return ws;
   return withSet(ws, { ...rs, when: on ? WHEN_RULES.filter((x) => x === id || list.includes(x)) : list.filter((x) => x !== id) });
@@ -133,7 +139,9 @@ export function parseRuleSet(v: unknown): RuleSet | undefined {
     }
     if (Object.keys(sw).length) out.sw = sw;
   }
-  if (Array.isArray(r.when)) {
+  const rules = parseRules(r.rules);
+  if (rules) out.rules = rules;
+  else if (Array.isArray(r.when)) {
     const when = WHEN_RULES.filter((w) => (r.when as unknown[]).includes(w));
     if (when.length) out.when = when;
   }

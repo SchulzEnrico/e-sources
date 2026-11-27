@@ -42,6 +42,10 @@ import { Icon } from './Icon';
 import { CardMirrors, MirrorBar, MirrorSign, mirrorLabel } from './CardMirrors';
 import * as Mi from '../workspace/mirrors';
 import { MIRROR_TEXT as MI_T } from '../workspace/terms';
+import { KIT_TEXT } from '../workspace/terms';
+import * as RR from '../workspace/ruleRun';
+import * as RK from '../workspace/ruleKit';
+import { RuleKit } from './RuleKit';
 
 export const COL_STATE_ICON: Record<ColState, IconName> = { open: 'todo', doing: 'play', review: 'show', done: 'check' };
 const COL_STATES: ColState[] = ['open', 'doing', 'review', 'done'];
@@ -107,6 +111,9 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   // V125 (K8): eigene Felder des Boards
   const [fieldsOpen, setFieldsOpen] = useState(false);
   const fieldsBtn = useRef<HTMLButtonElement>(null);
+  // V129 (F-231 K10a): Automatisierung – Regeln dieses Boards (⋮ › „Automatisierung“ bzw. Knopf unten)
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const rulesBtn = useRef<HTMLButtonElement>(null);
   // V126 (F-231 K11): eingeklappte Spalten (persönlich, je Sheet und Gerät) und Meldung am Ort in der Spalte
   const [foldedRaw, setFoldedRaw] = useState<string[]>(() => loadSheetPref(sheetId).folded ?? []);
   const folded = CL.cleanFolded(foldedRaw, cols);
@@ -118,10 +125,22 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   useEffect(() => {
     const open = (e: Event) => (e as CustomEvent<string>).detail === sheetId && setArchOpen(true);
     const tags = (e: Event) => (e as CustomEvent<string>).detail === sheetId && setTagsOpen(true);
+    const rules = (e: Event) => (e as CustomEvent<string>).detail === sheetId && setRulesOpen(true);
     window.addEventListener('esource:kanbanarchive', open);
     window.addEventListener('esource:kanbantags', tags);
-    return () => (window.removeEventListener('esource:kanbanarchive', open), window.removeEventListener('esource:kanbantags', tags));
+    window.addEventListener('esource:kanbanrules', rules);
+    return () => (window.removeEventListener('esource:kanbanarchive', open), window.removeEventListener('esource:kanbantags', tags), window.removeEventListener('esource:kanbanrules', rules));
   }, [sheetId]);
+  // V129 (K10a, B4): Lauf einer Regel-Kette am Ort melden – ganze Kette = ein „Rückgängig“
+  useEffect(() => {
+    const r = RR.runOf(ws);
+    if (!r || RR.isClaimed(r)) return;
+    if (r.view ? r.view !== sheetId : !(r.note && v && No.idsIn(v).includes(r.note))) return;
+    RR.claimRun(r);
+    const text = [KIT_TEXT.ran(r.names, r.cards, !!r.cut), ...r.texts].join(' ');
+    notice({ text, undo: () => dispatch({ type: 'exchange', ws: r.before }) });
+    say(text);
+  }, [ws]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const title = (n: Note) => No.titleOf(No.shownNote(n)) || NOTE_TEXT.untitled;
   const colById = (id: string) => cols.find((c) => c.id === id);
@@ -987,6 +1006,23 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
         />
       )}
       {fieldsOpen && <FieldPanel ws={ws} dispatch={dispatch} sheetId={sheetId} say={say} onClose={() => (setFieldsOpen(false), window.setTimeout(() => fieldsBtn.current?.focus(), 0))} />}
+      {rulesOpen && (
+        <section
+          className="sheet__move karch ktags kfld rkit__panel"
+          aria-label={KIT_TEXT.panelHead(v?.name ?? '')}
+          onKeyDown={(e) => e.key === 'Escape' && !e.defaultPrevented && (e.preventDefault(), e.stopPropagation(), setRulesOpen(false), window.setTimeout(() => rulesBtn.current?.focus(), 0))}
+        >
+          <header className="karch__head">
+            <span className="sheet__move-cap">
+              <Icon name="rules" size={12} className="icon icon--inline" /> {KIT_TEXT.panelHead(v?.name ?? '')}
+            </span>
+            <button type="button" className="help__run" onClick={() => (setRulesOpen(false), window.setTimeout(() => rulesBtn.current?.focus(), 0))}>
+              {KIT_TEXT.close}
+            </button>
+          </header>
+          <RuleKit ws={ws} dispatch={dispatch} say={say} board={sheetId} />
+        </section>
+      )}
       {tagsOpen && <TagPanel ws={ws} dispatch={dispatch} sheetId={sheetId} say={say} onClose={() => (setTagsOpen(false), window.setTimeout(() => tagsBtn.current?.focus(), 0))} />}
       <span id={`${sheetId}-cardkeys`} className="sr-only">{K.cardKeys}</span>
       <span className="sr-only" role="status">{K.info(cols.length, No.idsIn(v).length)}</span>
@@ -1104,6 +1140,10 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
           {/* V125 (K8): eigene Felder des Boards und Abstimmen (Trello „Custom Fields“, „Voting“) */}
           <button type="button" ref={fieldsBtn} className="kcol__add kcol__arch" aria-expanded={fieldsOpen} title={FIELD_TEXT.manageHint} onClick={() => setFieldsOpen(!fieldsOpen)}>
             <Icon name="fields" size={13} /> {FIELD_TEXT.manage(CFd.fieldsOf(v).length)}
+          </button>
+          {/* V129 (K10a): Automatisierung wie Trello Butler */}
+          <button type="button" ref={rulesBtn} className="kcol__add kcol__arch" aria-expanded={rulesOpen} title={KIT_TEXT.menuHint} onClick={() => setRulesOpen(!rulesOpen)}>
+            <Icon name="rules" size={13} /> {KIT_TEXT.menu} ({RK.rulesFor(RK.kitOf(ws), sheetId).filter((r) => r.on).length})
           </button>
           <label className="kcol__add kcol__arch kcov__board" title={VOTE_TEXT.boardHint}>
             <input type="checkbox" checked={!!v.votes} onChange={(e) => (dispatch({ type: 'boardVotes', view: sheetId, on: e.target.checked }), say(e.target.checked ? VOTE_TEXT.boardOn : VOTE_TEXT.boardOff))} />{' '}

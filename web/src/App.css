@@ -10028,3 +10028,27 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 /* V128 (F-231 K12): Stern für Sheets – am Reiter und hinter Namen in Ziel-Leisten und Cockpit */
 .pad__tabstar, .starmark { display: inline-flex; align-items: center; flex: none; margin-left: 4px; color: #e2b93b; }
 .pad__tabstar svg, .starmark svg { fill: currentColor; }
+
+/* V129 (F-231 K10a): Regel-Baukasten „Wenn … und … dann …“ */
+.rkit { display: flex; flex-direction: column; gap: 6px; }
+.rkit__terms { display: grid; gap: 2px; margin: 0; font-size: 0.82em; opacity: 0.85; }
+.rkit__terms div { display: flex; gap: 6px; }
+.rkit__terms dt { font-weight: 600; min-width: 3.2em; }
+.rkit__terms dd { margin: 0; }
+.rkit__bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rkit__count, .rkit__scope, .rkit__keys { font-size: 0.8em; opacity: 0.75; }
+.rkit__badge { font-size: 0.75em; padding: 0 6px; border-radius: 8px; border: 1px solid currentColor; opacity: 0.7; }
+.rkit__edit { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--accent, #6aa0ff); border-radius: 8px; }
+.rkit__head { display: flex; align-items: center; gap: 8px; }
+.rkit__line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rkit__lab { display: inline-flex; align-items: center; gap: 6px; }
+.rkit__word { min-width: 3.2em; font-weight: 700; text-align: right; }
+.rkit__in { min-width: 9em; }
+.rkit__in--wide { min-width: 16em; flex: 1 1 16em; }
+.rkit__num { width: 5em; }
+.rkit__days, .rkit__not { display: inline-flex; align-items: center; gap: 4px; font-size: 0.9em; }
+.rkit__preview { margin: 4px 0 0; padding: 6px 8px; border-radius: 6px; background: color-mix(in srgb, currentColor 7%, transparent); }
+.rkit__cap { font-weight: 600; }
+.rkit__chain { font-size: 0.8em; }
+.rkit__panel { max-height: min(70vh, 640px); overflow: auto; }
+.rkit__edit :is(input, select):focus-visible, .rkit button:focus-visible { outline: 2px solid var(--accent, #6aa0ff); outline-offset: 1px; }

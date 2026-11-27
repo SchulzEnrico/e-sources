@@ -33,6 +33,8 @@ import * as Sr from './stars';
 import * as NT from './noteTree';
 import * as NL from './notesLayouts';
 import * as RS from './ruleSet';
+import * as RK from './ruleKit';
+import * as RR from './ruleRun';
 import type { BoardTemplate, ColState, FocusView, NoteState, NoteView, NoteViewKind, PadPlace, Person, Project, ProjectBaseline, SourceLink, SourceSpot } from './types';
 import * as Bl from './baseline';
 import * as Wo from './wheelOrder';
@@ -172,6 +174,14 @@ export type Action =
   | { type: 'ruleSwitch'; id: RS.SwitchId; value: string }
   | { type: 'ruleWhen'; id: RS.WhenRule; on: boolean }
   | { type: 'ruleSweep'; now?: number }
+  // V129 (F-231 K10a): Regel-Baukasten
+  | { type: 'kitSave'; rule: RK.KitRule }
+  | { type: 'kitOn'; id: string; on: boolean }
+  | { type: 'kitCopy'; id: string; newId: string }
+  | { type: 'kitRemove'; id: string }
+  | { type: 'kitRestore'; undo: RK.RuleUndo }
+  | { type: 'kitReset'; id: string }
+  | { type: 'kitMove'; id: string; dir: -1 | 1 }
   | { type: 'tintPanel'; id: string; change: Partial<Record<TintKind, string | null>> }
   | { type: 'tintSlot'; setup: ScreenSetup; area: string; change: Partial<Record<TintKind, string | null>> }
   | { type: 'clearTints'; win: string }
@@ -446,14 +456,18 @@ export const idSeq = (ids: readonly string[]) => {
 /** F-206 Schritt 8 (V94, P6): Aktionen, die eine Notiz neu anlegen – sie bekommt „ich“ als zuständig. */
 const NEW_NOTE = new Set<Action['type']>(['padOpen', 'newNote', 'tabNote', 'noteForPage', 'sheetAdd', 'padNote', 'checkToTask', 'pspAdd']);
 
+/** V129 (K10a): Aktionen, nach denen keine Regeln laufen (Abgleich, Rückgängig, Regeln selbst ändern). */
+const NO_RULES = new Set<Action['type']>(['remote', 'replace', 'exchange', 'layoutUndo', 'sheetRestore', 'noteUndoDiscard', 'tplRestore', 'ruleSweep', 'kitSave', 'kitOn', 'kitCopy', 'kitRemove', 'kitRestore', 'kitReset', 'kitMove', 'ruleWhen', 'ruleSwitch']);
+
 export function reducer(ws: Workspace, a: Action): Workspace {
   const raw = step(ws, a);
   const next0 = NEW_NOTE.has(a.type) && raw !== ws ? Ps.defaultAssignee(ws, raw) : raw;
-  // F-218 (V92): Wenn-dann-Regeln W1/W2 (nicht bei Abgleich – das andere Gerät hat sie schon angewandt)
-  const next = a.type === 'remote' || next0 === ws ? next0 : Sh.applyWhenRules(ws, next0);
+  // F-218 (V92) / F-231 K10a (V129): Regel-Baukasten nach jeder Änderung (nicht beim Abgleich – das andere Gerät hat
+  // sie schon angewandt – und nicht beim Zurückholen eines alten Stands, sonst lösen „Rückgängig“-Schritte Regeln aus)
+  const next = NO_RULES.has(a.type) || next0 === ws ? next0 : RR.applyRules(ws, next0);
   // F-27: Fensterliste passend zu den Panels halten (leere Fenster fallen weg).
   // F-51: leerer Zusatz-Desk mit gespeicherten Layouts wechselt, statt wegzufallen.
-  return a.type === 'remote' || next === ws ? next : Win.syncWindows(DL.rescueEmptyDesks(next));
+  return a.type === 'remote' || next === ws ? next : RR.carryRun(next, Win.syncWindows(DL.rescueEmptyDesks(next)));
 }
 
 function step(ws: Workspace, a: Action): Workspace {
@@ -1033,7 +1047,21 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'ruleWhen':
       return RS.setWhen(ws, a.id, a.on);
     case 'ruleSweep':
-      return RS.sweep(ws, a.now).ws;
+      return RR.runCheck(ws, a.now).ws;
+    case 'kitSave':
+      return RK.saveRule(ws, a.rule);
+    case 'kitOn':
+      return RK.setOn(ws, a.id, a.on);
+    case 'kitCopy':
+      return RK.copyRule(ws, a.id, a.newId);
+    case 'kitRemove':
+      return RK.removeRule(ws, a.id)?.ws ?? ws;
+    case 'kitRestore':
+      return RK.restoreRule(ws, a.undo);
+    case 'kitReset':
+      return RK.resetBuiltIn(ws, a.id);
+    case 'kitMove':
+      return RK.moveRule(ws, a.id, a.dir);
     case 'layoutSwitch':
       return DL.switchLayout(ws, a.win, a.id);
     case 'spaceAdd':

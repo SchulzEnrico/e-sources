@@ -10503,3 +10503,29 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
 .paper__matrix tr.is-out > * { color: #999; }
 .paper select.paper__in { color-scheme: light; width: auto; max-width: 100%; }
 @media (forced-colors: active) { .paper__calc, .paper__req.is-open, .paper__gaps { color: CanvasText; } }
+
+/* V140 (F-237): Eisenhower-Matrizen in 15.2 – Rad „Matrix“, Name/Person/Datum, Auswahl abbilden/übernehmen, Felder als Knopf */
+.pjf__eisen { margin: 0 0 6px; }
+.pjf__eisenmeta { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 0 0 10px; }
+.pjf__eisenfield { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.pjf__eisenfield > span { color: var(--muted, #6b6b6b); }
+.pjf__eisenfield input { min-width: 160px; }
+.pjf__eisenpick { margin: 0 0 10px; padding: 10px; border-radius: 8px; background: #f3f3f3; color: #1b1b1b; font-size: 12px; max-width: 640px; }
+.pjf__eisenlist { list-style: none; margin: 6px 0 8px; padding: 0; max-height: 260px; overflow: auto; display: grid; gap: 4px; }
+.pjf__svg.is-editable .fg-quad { cursor: copy; outline: none; }
+.pjf__svg.is-editable .fg-quad:focus-visible { stroke: #d0021b; stroke-width: 2; stroke-dasharray: 6 4; fill: #d0021b; fill-opacity: 0.04; }
+
+/* V140 (Enrico 14:27/14:28): Nachrichtenquadrat – fährt man über ein senkrechtes Feld (oder fokussiert es), erscheint das
+   ganze Feld waagerecht als Karte (Überschrift und Text); die senkrechte Schrift tritt zurück */
+.pjf__svg .fg-vert, .pjf__svg .fg-card { pointer-events: none; }
+.pjf__svg .fg-card { opacity: 0; transition: opacity 0.15s; }
+.pjf__svg svg:has([data-edit$=':rSelf']:hover, [data-edit$=':rSelf']:focus-visible) .fg-card[data-k='rSelf'],
+.pjf__svg svg:has([data-edit$=':sSelf']:hover, [data-edit$=':sSelf']:focus-visible) .fg-card[data-k='sSelf'],
+.pjf__svg svg:has([data-edit$=':sAppeal']:hover, [data-edit$=':sAppeal']:focus-visible) .fg-card[data-k='sAppeal'],
+.pjf__svg svg:has([data-edit$=':rAppeal']:hover, [data-edit$=':rAppeal']:focus-visible) .fg-card[data-k='rAppeal'] { opacity: 1; }
+.pjf__svg svg:has([data-edit$=':rSelf']:hover, [data-edit$=':rSelf']:focus-visible) .fg-vert[data-k='rSelf'],
+.pjf__svg svg:has([data-edit$=':sSelf']:hover, [data-edit$=':sSelf']:focus-visible) .fg-vert[data-k='sSelf'],
+.pjf__svg svg:has([data-edit$=':sAppeal']:hover, [data-edit$=':sAppeal']:focus-visible) .fg-vert[data-k='sAppeal'],
+.pjf__svg svg:has([data-edit$=':rAppeal']:hover, [data-edit$=':rAppeal']:focus-visible) .fg-vert[data-k='rAppeal'] { opacity: 0.25; }
+.pjf__fig.is-square .pjf__svg svg { overflow: visible; }
+.pjf__fig.is-square .pjf__svg { overflow: visible; }

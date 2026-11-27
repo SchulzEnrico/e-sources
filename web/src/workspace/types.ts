@@ -868,6 +868,9 @@ export interface NoteView {
   star?: true;
   /** Regel „Abnahme nötig“: erledigt → „in Prüfung“, bis bestätigt. */
   review?: boolean;
+  /** V140 (F-237 H2): nur Eisenhower – für wen die Matrix gilt (Name; fehlt = ich) und Datum der Einschätzung. */
+  person?: string;
+  date?: string;
   /** V65 (Sheet): Besitzer. */
   owner?: SheetOwner;
   /** V65: Bereich für Übersichten. */
@@ -988,6 +991,12 @@ export interface Project {
   annexes?: AnnexItem[];
   /** F-234 D3 (V137): von Hand verschobene Kästen je Grafik (Zielhierarchie, Organigramm) – Kasten-Id › Versatz in px. */
   figLayout?: Record<string, Record<string, { dx: number; dy: number }>>;
+  /** V140 (F-237 H6): Eisenhower-Matrizen aus dem Notizen-Modus, die in 15.2 abgebildet sind (Ids von Sheets). */
+  eisenMaps?: string[];
+  /** V140 (F-237): in 15.2 gewählte Matrix. */
+  eisenSel?: string;
+  /** V140 (F-237 H8): Matrix mit den offenen Arbeitspaketen einmalig angelegt. */
+  eisenInit?: true;
   /** V118 (F-230 F6): eigener Arbeitskalender des Projekts (auch leer = ohne Feiertage); fehlt = der gemeinsame. */
   calendar?: WorkCalendar;
   /** V118 (F-230 Option C): was eine importierte Datei trägt, E-Sources aber nicht kennt – geht beim Export unverändert zurück. */

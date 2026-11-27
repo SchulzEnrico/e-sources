@@ -11,6 +11,7 @@ import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf, projectStatus, typ
 import { personById } from './persons';
 import { projectById } from './projects';
 import { figureSvg } from './gpmFigures';
+import * as Sh from './sheets';
 
 export const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
@@ -429,6 +430,25 @@ function formSection(ws: Workspace, p: Project, f: FormDef): string {
         if (svg) out.push(`<figure>${svg}<figcaption class="meta">Abbildung: ${esc(`${f.name} – ${title}`)}</figcaption></figure>`);
       }
       out.push(`<table class="kv"><tbody>${cols.filter((c) => c.key !== 'code' && c.key !== 'title').map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r.id, c))}</td></tr>`).join('')}</tbody></table>`);
+    }
+  } else if (f.source === 'eisenhower') {
+    // V140 (F-237 H6): je abgebildeter Matrix eine Seite wie Abb. 17 – Grafik und Tabelle der offenen Einträge
+    const mats = Sh.projectMatrices(ws, p.id);
+    if (!mats.length) out.push(`<p class="empty">Keine Eisenhower-Matrix.</p>`);
+    for (const v of mats) {
+      const head = [v.name, v.person, v.date ? v.date.split('-').reverse().join('.') : ''].filter(Boolean).join(' · ');
+      if (mats.length > 1) out.push(`<h3>${esc(head)}</h3>`);
+      const svg = figureSvg(ws, p.id, 'eisenhower', { row: v.id });
+      if (svg) out.push(`<figure>${svg}<figcaption class="meta">Abbildung: ${esc(`${f.name} – ${v.name}`)}</figcaption></figure>`);
+      const list = Sh.matrixEntries(ws, v);
+      if (!list.length) out.push(`<p class="empty">Keine offenen Einträge.</p>`);
+      else {
+        const one = { ...p, eisenSel: v.id };
+        const w2 = { ...ws, projects: (ws.projects ?? []).map((x) => (x.id === p.id ? one : x)) };
+        out.push(`<table><thead><tr>${cols.map((c) => `<th scope="col">${esc(c.label)}</th>`).join('')}</tr></thead><tbody>`);
+        for (const { note } of list) out.push(`<tr>${cols.map((c) => `<td>${esc(displayValue(w2, one, c, Fk.cellValue(w2, p.id, f, note.id, c.key)))}</td>`).join('')}</tr>`);
+        out.push(`</tbody></table>`);
+      }
     }
   } else {
     if (f.figure) {

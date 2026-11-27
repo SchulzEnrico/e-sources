@@ -12,12 +12,11 @@ import type { NoteViewKind, Pad as PadT, PadPlace, Workspace } from '../workspac
 import { DRAG_NOTE } from './SourceChips';
 import * as NS from '../workspace/noteSources';
 import * as No from '../workspace/notes';
-import * as Sh from '../workspace/sheets';
 import { PAD_MIN, type PadUndo, padUndoOf, padWith } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
 import { noticeLater } from '../workspace/flash';
 import { switchOf } from '../workspace/ruleSet';
-import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_MORE_TEXT, TAG_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, STAGE_TEXT, STAR_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_MORE_TEXT, TAG_TEXT, KANBAN_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, STAGE_TEXT, STAR_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
 import { starredViews } from '../workspace/stars';
 import { archiveCount } from '../workspace/kanbanMore';
 import { newId } from '../workspace/workspace';
@@ -608,12 +607,7 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   };
 
   const addSheet = (kind: NoteViewKind, tpl?: string) => {
-    // V87 (E3): genau eine Eisenhower-Matrix – öffnet die vorhandene
-    const matrix = kind === 'eisenhower' ? Sh.theMatrix(ws) : undefined;
-    if (matrix) {
-      dispatch({ type: 'padOpen', desk: pad.desk, ref: { view: matrix.id }, ids: [newId(), newId(), newId()] });
-      return notify(MATRIX_TEXT.exists);
-    }
+    // V140 (F-237): mehrere Eisenhower-Matrizen erlaubt (vorher E3 „genau eine“) – nur die persönliche sammelt ein
     if (pad.sheets.length >= PAD_SHEETS_MAX) return notify(PAD_TEXT.full(PAD_SHEETS_MAX));
     const id = newId();
     dispatch({ type: 'padAddSheet', id: pad.id, kind, sheet: id, ...(tpl ? { tpl } : {}) });

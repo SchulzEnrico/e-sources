@@ -5438,12 +5438,13 @@ describe('F-206 Schritt 7: Kanban-Oberfläche (V87)', () => {
 });
 
 describe('F-206 Schritt 7: Menü G und genau eine Matrix (V87)', () => {
-  it('E3: eine zweite Matrix anlegen öffnet die vorhandene', () => {
+  it('E3 aufgehoben (V140, F-237): eine zweite Matrix entsteht, die erste bleibt die persönliche', () => {
     let ws = W.defaultWorkspace();
     ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'eisenhower', ids: ['m1', 'p1', 's1'] });
     expect(Sh.theMatrix(ws)?.id).toBe('m1');
     ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'eisenhower', ids: ['m2', 'p2', 's2'] });
-    expect(No.viewsOf(ws).filter((v) => v.kind === 'eisenhower').map((v) => v.id)).toEqual(['m1']);
+    expect(No.viewsOf(ws).filter((v) => v.kind === 'eisenhower').map((v) => v.id)).toEqual(['m1', 'm2']);
+    expect(Sh.theMatrix(ws)?.id).toBe('m1');
     ws = reducer(ws, { type: 'padCreate', desk: '', kind: 'kanban', ids: ['k1', 'p3', 's3'] });
     expect(No.viewsOf(ws).filter((v) => v.kind === 'kanban').length).toBe(1);
   });

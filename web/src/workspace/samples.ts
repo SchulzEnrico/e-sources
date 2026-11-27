@@ -5,6 +5,7 @@
 import type { Workspace } from './types';
 import * as Sp from './sampleProject';
 import * as Sl from './sampleLogistics';
+import { ensureMatrices } from './formKit';
 
 export type SampleKey = 'cg' | 'fp';
 export interface SampleDef {
@@ -31,4 +32,14 @@ export const SAMPLES: SampleDef[] = [
 export const shownSamples = (dev: boolean): SampleDef[] => SAMPLES.filter((s) => !s.retired && (dev || s.key === 'cg'));
 export const sampleOf = (key: SampleKey | undefined): SampleDef => SAMPLES.find((s) => s.key === key) ?? SAMPLES[0];
 export const hasSample = (ws: Workspace, key: SampleKey): boolean => (ws.projects ?? []).some((p) => p.id === sampleOf(key).id);
-export const toggleSample = (ws: Workspace, key: SampleKey | undefined, on: boolean): Workspace => (on ? sampleOf(key).add(ws) : sampleOf(key).remove(ws));
+/**
+ * V140 (F-237 H8): Beim Anlegen bekommt das Beispiel seine Eisenhower-Matrix wie Abb. 17; beim Entfernen gehen die
+ * Matrizen des Projekts mit (die Einträge-Notizen gehören zum Beispiel und sind ohnehin weg).
+ */
+export function toggleSample(ws: Workspace, key: SampleKey | undefined, on: boolean): Workspace {
+  const d = sampleOf(key);
+  if (on) return ensureMatrices(d.add(ws));
+  const out = d.remove(ws);
+  const views = (out.noteViews ?? []).filter((v) => !(v.kind === 'eisenhower' && v.owner?.kind === 'project' && v.owner.id === d.id));
+  return views.length === (out.noteViews ?? []).length ? out : { ...out, noteViews: views };
+}

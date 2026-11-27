@@ -320,7 +320,7 @@ export function parseCheckGpm(c: Record<string, unknown>): { due?: string; by?: 
 }
 
 /** Liest die GPM-Teile eines Projekts; Bezüge (Oberziel, Konfliktziele, Personen) werden bereinigt. */
-type GpmPart = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'close' | 'wpReports' | 'teamRoles' | 'messages' | 'moderations' | 'actions' | 'annexes' | 'figLayout';
+type GpmPart = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'close' | 'wpReports' | 'teamRoles' | 'messages' | 'moderations' | 'actions' | 'annexes' | 'figLayout' | 'eisenMaps' | 'eisenSel' | 'eisenInit';
 export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, GpmPart> {
   const out: Pick<Project, GpmPart> = {};
   const charter = sanitizeCharter(r.charter);
@@ -368,6 +368,13 @@ export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, GpmPa
   if (anx) out.annexes = anx;
   const fl = parseFigLayout(r.figLayout);
   if (fl) out.figLayout = fl;
+  // V140 (F-237): abgebildete und gewählte Eisenhower-Matrix, einmalige Anlage
+  if (Array.isArray(r.eisenMaps)) {
+    const maps = [...new Set((r.eisenMaps as unknown[]).filter((x): x is string => typeof x === 'string' && !!x))].slice(0, 50);
+    if (maps.length) out.eisenMaps = maps;
+  }
+  if (typeof r.eisenSel === 'string' && r.eisenSel) out.eisenSel = r.eisenSel;
+  if (r.eisenInit === true) out.eisenInit = true;
   return out;
 }
 

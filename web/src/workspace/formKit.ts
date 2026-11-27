@@ -25,6 +25,8 @@ import { editProject, editRoles, projectById, rolesOf } from './projects';
 import { addSteer, editRisk, risksOf, RISK_STATES, RISK_STRATEGIES, steerCode } from './risks';
 import { editPerson, personById } from './persons';
 import { pspRows, pspTree } from './psp';
+import * as Sh from './sheets';
+import { createView, deleteView, placeNote, removeFromView, restoreView, viewById, viewsOf, type ViewUndo } from './notes';
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
@@ -390,7 +392,7 @@ export const FIELDS: Record<FormSource, readonly FieldSpec[]> = {
   ],
   eisenhower: [
     { key: 'code', label: 'PSP-Code', kind: 'text', readonly: true },
-    { key: 'title', label: 'Aufgabe', kind: 'text', readonly: true },
+    { key: 'title', label: 'Aufgabe', kind: 'text', help: 'Eintrag der Matrix – eigene Aufgabe oder übernommenes Arbeitspaket (dieselbe Notiz wie im Notizen-Modus)' },
     { key: 'important', label: 'wichtig', kind: 'bool', help: 'Wie im Notizen-Modus: trägt zu den Zielen bei' },
     { key: 'urgent', label: 'dringend', kind: 'bool', help: 'Wie im Notizen-Modus: hat einen nahen Termin' },
     { key: 'quadrant', label: 'Quadrant', kind: 'choice', readonly: true, options: opts(['do', 'plan', 'delegate', 'drop'] as const, EISENHOWER_LABEL) },
@@ -690,11 +692,11 @@ export function rowsOf(ws: Workspace, pid: string, form: FormDef): FormRow[] {
         .sort((a, b) => (order.get(a.wp) ?? 1e9) - (order.get(b.wp) ?? 1e9) || (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
         .map((x) => ({ id: x.id, note: x.wp }));
     }
-    case 'eisenhower':
-      return taskRows(ws, pid)
-        .filter((t) => !t.milestone && !t.summary)
-        .filter((t) => { const n = noteOf(ws, t.id); return !!n && n.state !== 'done' && n.state !== 'archived'; })
-        .map((t) => ({ id: t.id, note: t.id, depth: t.depth }));
+    case 'eisenhower': {
+      // V140 (F-237): Einträge der gewählten Matrix – nicht mehr fest die Arbeitspakete aus dem PSP
+      const v = Sh.projectMatrix(ws, pid);
+      return v ? Sh.matrixEntries(ws, v).map(({ note }) => ({ id: note.id, note: note.id })) : [];
+    }
     case 'close':
       return [{ id: pid }];
     case 'mta':
@@ -827,7 +829,8 @@ export function cellValue(ws: Workspace, pid: string, form: FormDef, rowId: stri
     case 'eisenhower': {
       const n = noteOf(ws, rowId);
       if (!n) return undefined;
-      if (key === 'code') return taskRows(ws, pid).find((t) => t.id === rowId)?.code;
+      // V140 (H10): PSP-Code auch für Arbeitspakete der Teilprojekte
+      if (key === 'code') return pspRows(pspTree(ws, pid)).find((t) => t.kind === 'task' && t.id === rowId)?.code;
       if (key === 'title') return titleOf(n);
       if (key === 'important') return !!n.important;
       if (key === 'urgent') return !!n.urgent;
@@ -1009,6 +1012,7 @@ export function setCell(ws: Workspace, pid: string, form: FormDef, rowId: string
       return editItem(ws, pid, form.source, rowId, { [key]: val }, now);
     case 'eisenhower':
       if (key === 'important' || key === 'urgent') return updateNote(ws, rowId, { [key]: val === true }, act);
+      if (key === 'title') return typeof val === 'string' && val.trim() ? updateNote(ws, rowId, { title: val.trim() }, act) : ws;
       return ws;
     case 'close':
       return editClose(ws, pid, { [key]: val }, now);
@@ -1032,7 +1036,7 @@ export function setCell(ws: Workspace, pid: string, form: FormDef, rowId: string
 
 const LIST: Partial<Record<FormSource, GpmList>> = { goals: 'goals', conflicts: 'conflicts', stakeholders: 'stakeholders', phases: 'phases', comms: 'comms', reports: 'reports', docs: 'docs', checks: 'checks', lessons: 'lessons', changes: 'changes', rules: 'rules', wpReports: 'wpReports', teamRoles: 'teamRoles', messages: 'messages', moderations: 'moderations', actions: 'actions', annexes: 'annexes' };
 /** V115: gerechnete Formulare ohne eigene Zeilen. */
-const COMPUTED: readonly FormSource[] = ['persons', 'costs', 'ev', 'mta', 'eisenhower'];
+const COMPUTED: readonly FormSource[] = ['persons', 'costs', 'ev', 'mta'];
 /** Kann das Formular Zeilen anlegen? (Ressourcen entstehen über Einsätze; Einsätze brauchen Vorgang und Person.) */
 
 /** V133 (F-232 P9): breite Tabellen (mehr als 7 Spalten) stehen im Querformat – im Bericht (Seite „wide“) und auf dem Blatt. */
@@ -1049,12 +1053,25 @@ export const canRemoveRow = (form: FormDef): boolean => form.layout === 'table' 
 export const canMoveRow = (form: FormDef): boolean => !!LIST[form.source] && form.source !== 'reports' && form.source !== 'wpReports' && form.layout === 'table';
 
 /** G4: Zeile anlegen; Einsatz braucht `init.task` und `init.person`, Zielkonflikt nimmt sonst die ersten zwei Ziele. */
-export function addRow(ws: Workspace, pid: string, form: FormDef, act: Act & { id: string; at?: number; init?: { task?: string; person?: string; a?: string; b?: string; parent?: string; rkind?: 'staff' | 'external' } }): { ws: Workspace; id: string } | null {
+/** Vorgaben für eine neue Zeile (V140: `quad` = Feld eines neuen Eisenhower-Eintrags). */
+export type RowInit = { task?: string; person?: string; a?: string; b?: string; parent?: string; rkind?: 'staff' | 'external'; quad?: EisenQuadKey };
+export type EisenQuadKey = 'do' | 'plan' | 'delegate' | 'drop';
+
+export function addRow(ws: Workspace, pid: string, form: FormDef, act: Act & { id: string; at?: number; init?: RowInit }): { ws: Workspace; id: string } | null {
   const p = projectById(ws, pid);
   if (!p || !canAddRow(form)) return null;
   const now = act.now ?? Date.now();
   const kinds = form.filter?.split(',');
   switch (form.source) {
+    case 'eisenhower': {
+      // V140 (F-237 H3): neuer Eintrag in der gewählten Matrix, im angegebenen Feld (sonst „liegen lassen“)
+      const v = Sh.projectMatrix(ws, pid);
+      if (!v) return null;
+      const q = act.init?.quad ?? 'drop';
+      const made = createNote(ws, { title: 'Neuer Eintrag', important: q === 'do' || q === 'plan', urgent: q === 'do' || q === 'delegate' }, { id: act.id, now, by: act.by });
+      const r = placeNote(made.ws, made.id, { view: v.id }, { now, by: act.by });
+      return { ws: r.ok ? r.ws : made.ws, id: made.id };
+    }
     case 'goals': {
       // V137 (Bearbeiten im Blatt): Unterziel – Art und Code vom Oberziel (L1 → L1.n)
       const up = act.init?.parent ? (p.goals ?? []).find((g) => g.id === act.init!.parent) : undefined;
@@ -1186,7 +1203,8 @@ export type RowUndo =
   | { kind: 'note'; undo: NoteUndo }
   | { kind: 'use'; note: string; use: NonNullable<Note['use']> }
   | { kind: 'roles'; pid: string; roles: Project['roles'] }
-  | { kind: 'accept'; note: string; accept: NonNullable<Note['accept']> };
+  | { kind: 'accept'; note: string; accept: NonNullable<Note['accept']> }
+  | { kind: 'eisen'; view: string; ids: string[]; note: string; flags?: Pick<Note, 'important' | 'urgent'>; del?: NoteUndo };
 
 /** Zeile löschen (Notizen samt Unter-Notizen, wie überall); Ressourcen nicht (Personen-Cockpit). */
 export function removeRow(ws: Workspace, pid: string, form: FormDef, rowId: string, now = Date.now()): { ws: Workspace; undo: RowUndo } | null {
@@ -1216,6 +1234,26 @@ export function removeRow(ws: Workspace, pid: string, form: FormDef, rowId: stri
       const out = editRoles(ws, pid, { kind: 'remove', role: rowId });
       return out === ws ? null : { ws: out, undo: { kind: 'roles', pid, roles: p.roles } };
     }
+    case 'eisenhower': {
+      // V140 (F-237 H3): aus der Matrix nehmen; eine Notiz, die es nur hier gab, wird gelöscht (Rückgängig am Ort)
+      const v = Sh.projectMatrix(ws, pid);
+      const n = noteOf(ws, rowId);
+      if (!v || !n) return null;
+      if (!v.ids.includes(rowId)) {
+        // von der persönlichen Matrix eingesammelt: Einstufung zurücknehmen, dann ist sie draußen
+        const flags = { important: n.important, urgent: n.urgent };
+        return { ws: updateNote(ws, rowId, { important: undefined, urgent: undefined }, { now }), undo: { kind: 'eisen', view: v.id, ids: v.ids, note: rowId, flags } };
+      }
+      let out = removeFromView(ws, rowId, v.id, { now });
+      const elsewhere = viewsOf(out).some((x) => (x.kind === 'kanban' ? (x.cols ?? []).some((c) => c.ids.includes(rowId)) : x.ids.includes(rowId)));
+      const only = !n.project && !elsewhere && !notesOf(out).some((c) => c.parent === rowId);
+      let del: NoteUndo | undefined;
+      if (only) {
+        const d = deleteNote(out, rowId);
+        if (d) (out = d.ws), (del = d.undo);
+      }
+      return { ws: out, undo: { kind: 'eisen', view: v.id, ids: v.ids, note: rowId, ...(del ? { del } : {}) } };
+    }
     case 'accept': {
       const { note, i } = splitCheck(rowId);
       const n = noteOf(ws, note);
@@ -1235,6 +1273,11 @@ export function undoRemoveRow(ws: Workspace, u: RowUndo, now = Date.now()): Work
   if (u.kind === 'note') return restoreNotes(ws, u.undo, { now });
   if (u.kind === 'use') return patchNote(ws, u.note, (n) => ({ ...n, use: u.use }), now);
   if (u.kind === 'accept') return patchNote(ws, u.note, (n) => ({ ...n, accept: u.accept }), now);
+  if (u.kind === 'eisen') {
+    let out = u.del ? restoreNotes(ws, u.del, { now }) : ws;
+    if (u.flags) out = updateNote(out, u.note, u.flags, { now });
+    return Sh.setMatrixIds(out, u.view, u.ids);
+  }
   return editProject(ws, u.pid, { roles: u.roles }, now);
 }
 
@@ -1580,7 +1623,8 @@ export function parseFormTemplates(v: unknown): FormTemplate[] {
 /** Alle Änderungen der Formulare als eine Action (`{ type: 'form', op }` in useWorkspace). */
 export type FormOp =
   | { op: 'cell'; pid: string; form: FormDef; row: string; key: string; value: CellValue; at: number; by?: string }
-  | { op: 'add'; pid: string; form: FormDef; id: string; at: number; by?: string; init?: { task?: string; person?: string; a?: string; b?: string; parent?: string; rkind?: 'staff' | 'external' } }
+  | { op: 'add'; pid: string; form: FormDef; id: string; at: number; by?: string; init?: RowInit }
+  | { op: 'eisen'; pid: string; act: EisenAct; at: number }
   | { op: 'figMove'; pid: string; fig: string; key: string; dx: number; dy: number; at: number }
   | { op: 'figReset'; pid: string; fig: string; at: number }
   | { op: 'remove'; pid: string; form: FormDef; row: string; at: number }
@@ -1622,6 +1666,8 @@ export function applyForm(ws: Workspace, o: FormOp): Workspace {
   switch (o.op) {
     case 'figMove':
       return setFigOffset(ws, o.pid, o.fig, o.key, o.dx, o.dy, o.at);
+    case 'eisen':
+      return applyEisen(ws, o.pid, o.act, o.at);
     case 'figReset':
       return resetFigLayout(ws, o.pid, o.fig, o.at);
     case 'cell':
@@ -1659,4 +1705,87 @@ export function applyForm(ws: Workspace, o: FormOp): Workspace {
       return out;
     }
   }
+}
+
+// ---------------------------------------------------------------- V140 (F-237): Eisenhower-Matrizen in 15.2
+
+/** Aktionen an den Matrizen von 15.2 (eine Matrix = ein Eisenhower-Sheet wie im Notizen-Modus). */
+export type EisenAct =
+  | { kind: 'new'; id: string; name: string; person?: string; date?: string }
+  | { kind: 'select'; view: string }
+  | { kind: 'map'; view: string; on: boolean }
+  | { kind: 'edit'; view: string; name?: string; person?: string; date?: string }
+  | { kind: 'take'; view: string; ids: string[] }
+  | { kind: 'delete'; view: string }
+  | { kind: 'restore'; undo: ViewUndo; maps?: string[]; sel?: string };
+
+/** Offene Arbeitspakete des Projekts (ohne Meilensteine und Sammelvorgänge) – Auswahl für „Arbeitspakete übernehmen …“. */
+export function openWorkPackages(ws: Workspace, pid: string, withSubs = false): { id: string; code?: string; title: string; project: string }[] {
+  // V140 (H10): auf Wunsch mit den Arbeitspaketen der Teilprojekte (PSP-Code aus dem Gesamt-PSP)
+  return pspRows(pspTree(ws, pid))
+    .filter((t) => t.kind === 'task' && (withSubs || t.owner === pid))
+    .filter((t) => !t.milestone && !t.summary)
+    .filter((t) => { const n = noteOf(ws, t.id); return !!n && n.state !== 'done' && n.state !== 'archived'; })
+    .map((t) => ({ id: t.id, ...(t.code ? { code: t.code } : {}), title: t.title, project: t.owner }));
+}
+
+export function applyEisen(ws: Workspace, pid: string, a: EisenAct, now = Date.now()): Workspace {
+  const p = projectById(ws, pid);
+  if (!p) return ws;
+  switch (a.kind) {
+    case 'new': {
+      const made = createView(ws, 'eisenhower', a.name, { id: a.id });
+      const out = Sh.editMatrix(made.ws, made.id, { owner: { kind: 'project', id: pid }, person: a.person, date: a.date });
+      return editProject(out, pid, { eisenSel: made.id }, now);
+    }
+    case 'select':
+      return Sh.projectMatrices(ws, pid).some((v) => v.id === a.view) ? editProject(ws, pid, { eisenSel: a.view }, now) : ws;
+    case 'map': {
+      const v = viewById(ws, a.view);
+      if (!v || v.kind !== 'eisenhower' || Sh.matrixProject(v) === pid) return ws;
+      const maps = (p.eisenMaps ?? []).filter((x) => x !== a.view);
+      if (a.on) maps.push(a.view);
+      return editProject(ws, pid, { eisenMaps: maps.length ? maps : undefined, eisenSel: a.on ? a.view : p.eisenSel === a.view ? undefined : p.eisenSel }, now);
+    }
+    case 'edit':
+      return Sh.editMatrix(ws, a.view, { name: a.name, person: a.person, date: a.date });
+    case 'take': {
+      let out = ws;
+      for (const id of a.ids) {
+        const r = placeNote(out, id, { view: a.view }, { now });
+        if (r.ok) out = r.ws;
+      }
+      return out;
+    }
+    case 'delete': {
+      const v = viewById(ws, a.view);
+      if (!v || Sh.matrixProject(v) !== pid) return ws;
+      const r = deleteView(ws, a.view);
+      return r ? editProject(r.ws, pid, { eisenSel: p.eisenSel === a.view ? undefined : p.eisenSel }, now) : ws;
+    }
+    case 'restore':
+      return editProject(restoreView(ws, a.undo), pid, { eisenMaps: a.maps, eisenSel: a.sel ?? a.undo.view.id }, now);
+  }
+}
+
+/**
+ * V140 (F-237 H8): Einmalig je Projekt eine Matrix mit den offenen Arbeitspaketen anlegen – so sieht 15.2 (Abb. 17)
+ * nach dem Umbau aus wie vorher. Läuft beim Laden; danach merkt sich das Projekt `eisenInit`.
+ */
+export function ensureMatrices(ws: Workspace, now = Date.now()): Workspace {
+  let out = ws;
+  for (const p of ws.projects ?? []) {
+    if (p.eisenInit) continue;
+    const id = `eis-${p.id}`;
+    if (!viewById(out, id) && !viewsOf(out).some((v) => v.kind === 'eisenhower' && Sh.matrixProject(v) === p.id)) {
+      const wps = openWorkPackages(out, p.id);
+      if (wps.length) {
+        out = applyEisen(out, p.id, { kind: 'new', id, name: `Eisenhower-Matrix ${p.name}`.slice(0, 80) }, now);
+        out = applyEisen(out, p.id, { kind: 'take', view: id, ids: wps.map((w) => w.id) }, now);
+      }
+    }
+    // Merker ohne „geändert“-Zeit, damit der Abgleich das Laden nicht als Änderung zählt
+    out = { ...out, projects: (out.projects ?? []).map((x) => (x.id === p.id ? { ...x, eisenInit: true as const } : x)) };
+  }
+  return out;
 }

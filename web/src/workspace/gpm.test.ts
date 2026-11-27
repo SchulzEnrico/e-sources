@@ -692,7 +692,7 @@ describe('F-234 (V135): Grafik-Blätter wie im Report', () => {
     const F = await import('./gpmFigures');
     const S = await import('./sampleProject');
     const R = await import('./gpmReport');
-    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const ws = Fk.ensureMatrices(S.addSampleProject(W.defaultWorkspace(), 5));
     const pid = S.SAMPLE_PROJECT;
     const figs = Fk.GPM_D.forms.filter((f) => f.layout === 'figure');
     expect(figs.map((f) => f.figure)).toEqual(['goalTree', 'org', 'phasePlan', 'psp', 'gantt', 'load']);
@@ -805,7 +805,7 @@ describe('F-234 (V137): AP-Statusbericht, Persönliche Kompetenzen, Anlagen, Bea
     const F = await import('./gpmFigures');
     const S = await import('./sampleProject');
     const R = await import('./gpmReport');
-    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const ws = Fk.ensureMatrices(S.addSampleProject(W.defaultWorkspace(), 5));
     const pid = S.SAMPLE_PROJECT;
     const p = ws.projects!.find((x) => x.id === pid)!;
     // Abb. 15
@@ -837,7 +837,7 @@ describe('F-234 (V137): AP-Statusbericht, Persönliche Kompetenzen, Anlagen, Bea
   });
   it('AP-Statusbericht anlegen friert Plan, Soll und Ist am Stichtag ein', async () => {
     const S = await import('./sampleProject');
-    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const ws = Fk.ensureMatrices(S.addSampleProject(W.defaultWorkspace(), 5));
     const pid = S.SAMPLE_PROJECT;
     const r = Fk.addRow(ws, pid, form('wpReports'), { id: 'x1', now: Date.parse('2027-05-17T10:00:00Z'), init: { task: 'cg-31' } })!;
     const rep = r.ws.projects!.find((x) => x.id === pid)!.wpReports!.find((x) => x.id === 'x1')!;
@@ -850,7 +850,7 @@ describe('F-234 (V137): AP-Statusbericht, Persönliche Kompetenzen, Anlagen, Bea
   it('V138: auch Phasenplan, Balkenplan, Eisenhower, Nachrichtenquadrat und Belbin sind am Ort bearbeitbar', async () => {
     const F = await import('./gpmFigures');
     const S = await import('./sampleProject');
-    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const ws = Fk.ensureMatrices(S.addSampleProject(W.defaultWorkspace(), 5));
     const pid = S.SAMPLE_PROJECT;
     const p = ws.projects!.find((x) => x.id === pid)!;
     const keys = (svg: string) => [...svg.matchAll(/data-edit="([^"]+)"/g)].map((m) => m[1]);
@@ -926,7 +926,7 @@ describe('F-234 (V137): AP-Statusbericht, Persönliche Kompetenzen, Anlagen, Bea
   it('V139: Eisenhower zeigt „liegen lassen“, Feld unter dem Zeiger und Marken je Feld', async () => {
     const F = await import('./gpmFigures');
     const S = await import('./sampleProject');
-    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const ws = Fk.ensureMatrices(S.addSampleProject(W.defaultWorkspace(), 5));
     const svg = F.figureSvg(ws, S.SAMPLE_PROJECT, 'eisenhower');
     expect(svg).toMatch(/\d+ liegen lassen/);
     expect(svg).not.toContain(', 0 liegen lassen');
@@ -943,6 +943,89 @@ describe('F-234 (V137): AP-Statusbericht, Persönliche Kompetenzen, Anlagen, Bea
     expect(g.ghBot).toBeGreaterThan(gh);
     expect(F.figureSvg(ws, S.SAMPLE_PROJECT, 'eisenhower', { all: true })).not.toContain('weitere');
     expect(F.eisenQuadAt(x0 + 10, y0 + g.ghTop + g.ghBot - 5, g)).toBe('drop');
+  });
+  it('V140 (F-237): Eisenhower-Matrizen unabhängig vom PSP – Anlage wie Abb. 17, eigene Einträge, mehrere, abbilden', async () => {
+    const F = await import('./gpmFigures');
+    const S = await import('./sampleProject');
+    const Sh = await import('./sheets');
+    const No = await import('./notes');
+    const R = await import('./gpmReport');
+    const pid = S.SAMPLE_PROJECT;
+    const eis = form('eisenhower');
+    // H8: einmalig eine Matrix mit den offenen Arbeitspaketen, danach nicht wieder
+    let ws = Fk.ensureMatrices(S.addSampleProject(W.defaultWorkspace(), 5));
+    const m0 = Sh.projectMatrix(ws, pid)!;
+    expect(m0.id).toBe(`eis-${pid}`);
+    expect(m0.ids.length).toBe(Fk.openWorkPackages(ws, pid).length);
+    expect(ws.projects!.find((x) => x.id === pid)!.eisenInit).toBe(true);
+    expect(Fk.ensureMatrices(ws)).toBe(ws);
+    // H2/H3: neue Matrix im Projekt mit Person und Datum, Eintrag direkt im Feld
+    ws = Fk.applyForm(ws, { op: 'eisen', pid, act: { kind: 'new', id: 'mx2', name: 'Meine Woche', person: 'Enrico', date: '2026-12-07' }, at: 1 });
+    expect(Sh.projectMatrix(ws, pid)!.id).toBe('mx2');
+    expect(Fk.rowsOf(ws, pid, eis)).toEqual([]);
+    ws = Fk.applyForm(ws, { op: 'add', pid, form: eis, id: 'e1', at: 2, init: { quad: 'plan' } });
+    expect(No.noteById(ws, 'e1')).toMatchObject({ important: true, urgent: false });
+    expect(Fk.rowsOf(ws, pid, eis).map((r) => r.id)).toEqual(['e1']);
+    ws = Fk.setCell(ws, pid, eis, 'e1', 'title', 'Angebot Lackieranlage lesen');
+    const svg = F.figureSvg(ws, pid, 'eisenhower', { day: '2026-12-01' });
+    expect(svg).toContain('07.12.2026');
+    expect(svg).toContain('Enrico');
+    expect(svg).toContain('Angebot Lackieranlage lesen');
+    expect(svg).toContain('data-quad="drop"');
+    // Arbeitspaket übernehmen; Herausnehmen lässt es bestehen, ein Eintrag nur hier wird gelöscht – Rückgängig holt ihn
+    ws = Fk.applyForm(ws, { op: 'eisen', pid, act: { kind: 'take', view: 'mx2', ids: ['cg-11'] }, at: 3 });
+    expect(Fk.rowsOf(ws, pid, eis).map((r) => r.id)).toContain('cg-11');
+    const r1 = Fk.removeRow(ws, pid, eis, 'cg-11', 4)!;
+    expect(No.noteById(r1.ws, 'cg-11')).toBeDefined();
+    const r2 = Fk.removeRow(r1.ws, pid, eis, 'e1', 5)!;
+    expect(No.noteById(r2.ws, 'e1')).toBeUndefined();
+    const back = Fk.undoRemoveRow(r2.ws, r2.undo, 6);
+    expect(Fk.rowsOf(back, pid, eis).map((r) => r.id)).toEqual(['e1']);
+    // H5: nur die persönliche Matrix sammelt Notizen mit wichtig/dringend ein
+    let w2 = No.createView(back, 'eisenhower', 'Persönlich', { id: 'pm' }).ws;
+    w2 = No.createNote(w2, { title: 'Steuer', important: true }, { id: 'n9' }).ws;
+    expect(Sh.theMatrix(w2)!.id).toBe('pm');
+    expect(Sh.matrixEntries(w2, No.viewById(w2, 'pm')!).some((e) => e.note.id === 'n9')).toBe(true);
+    expect(Sh.matrixEntries(w2, No.viewById(w2, 'mx2')!).some((e) => e.note.id === 'n9')).toBe(false);
+    // H6: Matrix aus Notizen abbilden – steht im Rad und im Bericht, „nicht mehr abbilden“ nimmt sie heraus
+    w2 = Fk.applyForm(w2, { op: 'eisen', pid, act: { kind: 'map', view: 'pm', on: true }, at: 7 });
+    expect(Sh.projectMatrices(w2, pid).map((v) => v.id)).toEqual([`eis-${pid}`, 'mx2', 'pm']);
+    expect(Sh.projectMatrix(w2, pid)!.id).toBe('pm');
+    const html = R.reportHtml(w2, pid, { day: '2026-12-01' });
+    expect(html).toContain('Abbildung: Eisenhower-Matrix – Persönlich');
+    expect(html).toContain('Abbildung: Eisenhower-Matrix – Meine Woche');
+    // gespeichert und wieder gelesen: Person, Datum, abgebildete Matrizen
+    const rd = parseWorkspace(JSON.parse(JSON.stringify(w2)))!;
+    expect(No.viewById(rd, 'mx2')).toMatchObject({ person: 'Enrico', date: '2026-12-07', owner: { kind: 'project', id: pid } });
+    expect(rd.projects!.find((x) => x.id === pid)!.eisenMaps).toEqual(['pm']);
+    w2 = Fk.applyForm(w2, { op: 'eisen', pid, act: { kind: 'map', view: 'pm', on: false }, at: 8 });
+    expect(Sh.projectMatrices(w2, pid).map((v) => v.id)).toEqual([`eis-${pid}`, 'mx2']);
+    expect(No.viewById(w2, 'pm')).toBeDefined();
+    // Matrix löschen und zurückholen
+    const d = No.deleteView(w2, 'mx2')!;
+    let w3 = Fk.applyForm(w2, { op: 'eisen', pid, act: { kind: 'delete', view: 'mx2' }, at: 9 });
+    expect(Sh.projectMatrices(w3, pid).map((v) => v.id)).toEqual([`eis-${pid}`]);
+    w3 = Fk.applyForm(w3, { op: 'eisen', pid, act: { kind: 'restore', undo: d.undo }, at: 10 });
+    expect(Sh.projectMatrix(w3, pid)!.id).toBe('mx2');
+  });
+  it('V140 (H10, Enrico 14:22): Teilprojekte – ihre Matrizen und Arbeitspakete stehen im übergeordneten Projekt zur Wahl', async () => {
+    const S = await import('./sampleProject');
+    const Sh = await import('./sheets');
+    const Pj = await import('./projects');
+    const NLo = await import('./notes');
+    const pid = S.SAMPLE_PROJECT;
+    let ws = Fk.ensureMatrices(S.addSampleProject(W.defaultWorkspace(), 5));
+    const sub = Pj.addProject(ws, 'Teilprojekt Lager', { parent: pid })!;
+    ws = NLo.createNote(sub.ws, { title: 'Regale aufbauen', project: sub.id }, { id: 'sub-1' }).ws;
+    ws = Fk.applyForm(ws, { op: 'eisen', pid: sub.id, act: { kind: 'new', id: 'mxs', name: 'Lager-Matrix' }, at: 1 });
+    expect(Sh.projectMatrices(ws, pid).map((v) => v.id)).toContain('mxs');
+    expect(Sh.projectMatrices(ws, sub.id).map((v) => v.id)).toEqual(['mxs']);
+    const wps = Fk.openWorkPackages(ws, pid, true);
+    expect(wps.find((w) => w.id === 'sub-1')?.project).toBe(sub.id);
+    expect(Fk.openWorkPackages(ws, pid).some((w) => w.id === 'sub-1')).toBe(false);
+    ws = Fk.applyForm(ws, { op: 'eisen', pid, act: { kind: 'take', view: `eis-${pid}`, ids: ['sub-1'] }, at: 2 });
+    ws = Fk.applyForm(ws, { op: 'eisen', pid, act: { kind: 'select', view: `eis-${pid}` }, at: 3 });
+    expect(Fk.cellValue(ws, pid, form('eisenhower'), 'sub-1', 'code')).toBe(wps.find((w) => w.id === 'sub-1')!.code);
   });
   it('V139 (F-232 P9): Problemstellung als Blatt – Gliederung, ausgeschaltete Felder, Pflicht, eigene Felder', async () => {
     const Fb = await import('./feedback');

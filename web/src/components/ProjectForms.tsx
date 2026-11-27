@@ -25,6 +25,9 @@ import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf } from '../workspac
 import { APP_VERSION } from '../workspace/feedback';
 import { PaperSizeWheel, ProjectSheet, paperZoom, usePaperSize } from './ProjectSheet';
 import { eisenGeo, eisenMarks, eisenQuadAt, figureSvg, loadDefault, loadPersons, type EisenQuad } from '../workspace/gpmFigures';
+import * as Sh from '../workspace/sheets';
+import { defaultViewName, deleteView } from '../workspace/notes';
+import { rolesOf } from '../workspace/projects';
 
 /** F-234 D2: Grafik-Blatt → bedienbare Ansicht im Projekt-Modus */
 const FIGURE_VIEW: Record<string, 'psp' | 'gantt' | 'res' | undefined> = { psp: 'psp', gantt: 'gantt', phasePlan: 'gantt', load: 'res' };
@@ -196,22 +199,103 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
   const movable = figKind === 'goalTree' || figKind === 'psp' || figKind === 'org';
   // V139 (Enrico 13:52): Eisenhower – Einträge in ein anderes Feld ziehen (setzt wichtig/dringend), Alt+Pfeil ebenso
   const quadDrag = figKind === 'eisenhower';
-  // V139 (Enrico 13:55): Rad „Einträge“ Gekürzt · Alle – bei „Alle“ wachsen die Felder mit (je Gerät gemerkt)
-  const [eisenAll, setEisenAllState] = useState(() => {
+  // V139 (Enrico 13:55): Rad „Einträge“ Gekürzt · Alle – bei „Alle“ wachsen die Felder mit (je Gerät gemerkt);
+  // V140 (F-237 H7): dritte Stellung „Erledigte“ zeigt auch erledigte Einträge (durchgestrichen)
+  const [eisenMode, setEisenModeState] = useState<'short' | 'all' | 'done'>(() => {
     try {
-      return localStorage.getItem('esource.eisenAll.v1') === 'all';
+      const v = localStorage.getItem('esource.eisenAll.v1');
+      return v === 'all' || v === 'done' ? v : 'short';
     } catch {
-      return false;
+      return 'short';
     }
   });
-  const setEisenAll = (on: boolean) => {
-    setEisenAllState(on);
+  const eisenAll = eisenMode !== 'short';
+  const setEisenMode = (m: 'short' | 'all' | 'done') => {
+    setEisenModeState(m);
     try {
-      localStorage.setItem('esource.eisenAll.v1', on ? 'all' : 'short');
+      localStorage.setItem('esource.eisenAll.v1', m);
     } catch {
       /* nur bis zum Neuladen */
     }
-    say(on ? T.figAllOn : T.figAllOff);
+    say(m === 'all' ? T.figAllOn : m === 'done' ? T.figAllDoneOn : T.figAllOff);
+  };
+  // V140 (F-237): mehrere Matrizen in 15.2 – gewählte Matrix, Auswahl „abbilden“ bzw. „Arbeitspakete übernehmen“
+  const mats = quadDrag ? Sh.projectMatrices(ws, p.id) : [];
+  const mat = quadDrag ? Sh.projectMatrix(ws, p.id) : undefined;
+  const matOwn = !!mat && Sh.matrixProject(mat) === p.id;
+  const [eisenPick, setEisenPick] = useState<null | 'map' | 'take'>(null);
+  const [pickSel, setPickSel] = useState<string[]>([]);
+  const pickRef = useRef<HTMLDivElement>(null);
+  useEffect(() => setEisenPick(null), [form.id, p.id]);
+  const eisen = (act: Fk.EisenAct) => run({ op: 'eisen', pid: p.id, act, at: Date.now() });
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const newMatrix = () => {
+    const id = newId();
+    const name = defaultViewName(ws, 'eisenhower');
+    eisen({ kind: 'new', id, name, date: today() });
+    tell(T.eisenNew(name), () => eisen({ kind: 'delete', view: id }));
+    window.setTimeout(() => figRef.current?.querySelector<HTMLInputElement>('.pjf__eisenmeta input')?.focus(), 30);
+  };
+  const openPick = (k: 'map' | 'take') => {
+    setPickSel(k === 'map' ? (p.eisenMaps ?? []).filter((x) => Sh.matricesOf(ws).some((v) => v.id === x)) : []);
+    setEisenPick(k);
+    window.setTimeout(() => pickRef.current?.querySelector<HTMLElement>('input, button')?.focus(), 0);
+  };
+  const closePick = () => {
+    const k = eisenPick;
+    setEisenPick(null);
+    window.setTimeout(() => figRef.current?.querySelector<HTMLElement>(`[data-pick="${k}"]`)?.focus(), 0);
+  };
+  const applyPick = () => {
+    if (eisenPick === 'map') {
+      const had = new Set(p.eisenMaps ?? []);
+      const want = new Set(pickSel);
+      const on = pickSel.filter((x) => !had.has(x));
+      const off = [...had].filter((x) => !want.has(x));
+      for (const v of off) eisen({ kind: 'map', view: v, on: false });
+      for (const v of on) eisen({ kind: 'map', view: v, on: true });
+      tell(T.eisenMapped(on.length, off.length), on.length || off.length ? () => { for (const v of on) eisen({ kind: 'map', view: v, on: false }); for (const v of off) eisen({ kind: 'map', view: v, on: true }); } : undefined);
+    } else if (eisenPick === 'take' && mat) {
+      const ids = pickSel;
+      const was = mat.ids;
+      if (ids.length) eisen({ kind: 'take', view: mat.id, ids });
+      tell(T.eisenTaken(ids.length), ids.length ? () => run({ op: 'undoRow', undo: { kind: 'eisen', view: mat.id, ids: was, note: ids[0] }, at: Date.now() }) : undefined);
+    }
+    closePick();
+  };
+  const dropMatrix = () => {
+    if (!mat) return;
+    if (matOwn) {
+      const r = deleteView(ws, mat.id);
+      if (!r) return;
+      const maps = p.eisenMaps;
+      eisen({ kind: 'delete', view: mat.id });
+      tell(T.eisenDeleted(mat.name), () => eisen({ kind: 'restore', undo: r.undo, maps, sel: mat.id }));
+    } else {
+      const id = mat.id;
+      eisen({ kind: 'map', view: id, on: false });
+      tell(T.eisenUnmapped(mat.name), () => eisen({ kind: 'map', view: id, on: true }));
+    }
+  };
+  const addEntry = (q: EisenQuad) => {
+    if (!mat) return;
+    const id = newId();
+    const at = Date.now();
+    const init = { quad: q };
+    const r = Fk.addRow(ws, p.id, form, { id, now: at, by, init });
+    if (!r) return;
+    run({ op: 'add', pid: p.id, form, id, at, by, init });
+    tell(T.eisenAdded(T.figQuadName[q]), () => run({ op: 'remove', pid: p.id, form, row: id, at: Date.now() }));
+    setFigEdit({ key: `eisenhower:${id}`, x: 0, y: 48 });
+  };
+  const removeEntry = (key: string) => {
+    const id = key.split(':')[1];
+    const n = (ws.notes ?? []).find((x) => x.id === id);
+    const r = Fk.removeRow(ws, p.id, form, id, Date.now());
+    if (!r || !n) return;
+    run({ op: 'remove', pid: p.id, form, row: id, at: Date.now() });
+    tell(T.eisenRemoved(n.title || id), () => run({ op: 'undoRow', undo: r.undo, at: Date.now() }));
+    window.setTimeout(() => figRef.current?.querySelector<HTMLElement>('[data-edit^="eisenhower:"], [data-quad]')?.focus(), 30);
   };
   const setQuad = (key: string, q: EisenQuad) => {
     const id = key.split(':')[1];
@@ -240,6 +324,8 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
     const r = Fk.addRow(ws, p.id, tf, { id, now: at, by });
     if (!r) return;
     run({ op: 'add', pid: p.id, form: tf, id, at, by });
+    // V140 (F-237): das neue Arbeitspaket liegt gleich in der gewählten Matrix
+    if (mat) eisen({ kind: 'take', view: mat.id, ids: [r.id] });
     tell(T.added, () => run({ op: 'remove', pid: p.id, form: tf, row: r.id, at: Date.now() }));
     // Kasten-Fenster mit Titel usw. gleich öffnen; der neue Eintrag steht unter „liegen lassen“
     setFigEdit({ key: `tasks:${r.id}`, x: 0, y: 48 });
@@ -265,10 +351,24 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
       const el = (e.target as Element).closest('[data-edit]');
       if (el) openFig(el);
     },
+    onDoubleClick: (e: React.MouseEvent) => {
+      // V140 (F-237 H3): Doppelklick in ein leeres Stück eines Felds legt dort einen Eintrag an
+      const q = (e.target as Element).closest('[data-quad]')?.getAttribute('data-quad') as EisenQuad | null;
+      if (quadDrag && q && !(e.target as Element).closest('[data-edit]')) addEntry(q);
+    },
     onKeyDown: (e: React.KeyboardEvent) => {
+      const qEl = (e.target as Element).closest('[data-quad]');
+      if (quadDrag && qEl && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        return addEntry(qEl.getAttribute('data-quad') as EisenQuad);
+      }
       const el = (e.target as Element).closest('[data-edit]');
       if (!el) return;
       const key = el.getAttribute('data-edit')!;
+      if (quadDrag && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault();
+        return removeEntry(key);
+      }
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         openFig(el);
@@ -321,7 +421,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
       if (quadDrag) {
         const svg = d.el.ownerSVGElement;
         const b = svg?.getBoundingClientRect();
-        const q = b ? eisenQuadAt((e.clientX - b.left) * d.k, (e.clientY - b.top) * d.k, eisenGeo(ws, p.id, eisenAll)) : null;
+        const q = b ? eisenQuadAt((e.clientX - b.left) * d.k, (e.clientY - b.top) * d.k, eisenGeo(ws, p.id, eisenAll, mat?.id, eisenMode === 'done')) : null;
         if (q) setQuad(d.key, q);
         else say(T.figQuadOut);
         return;
@@ -332,11 +432,12 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
   const figureBlock = () => {
     const people = form.figure === 'load' ? loadPersons(ws, p.id) : [];
     const who = people.some((x) => x.id === loadWho) ? loadWho : loadDefault(ws, p.id);
-    const svg = figureSvg(ws, p.id, form.figure, { person: who, row: recRow?.id, all: eisenAll });
+    const svg = figureSvg(ws, p.id, form.figure, { person: who, row: quadDrag ? mat?.id : recRow?.id, all: eisenAll, done: eisenMode === 'done' });
     const target = form.figure ? FIGURE_VIEW[form.figure] : undefined;
-    const editable = !!svg && svg.includes('data-edit=');
+    const editable = !!svg && (svg.includes('data-edit=') || quadDrag);
     return (
       <figure className={`pjf__figure pjf__fig is-${form.figure}`} ref={figRef}>
+        {quadDrag && eisenBlock()}
         {(people.length > 1 || (target && openView) || quadDrag || (movable && p.figLayout?.[form.figure!])) && (
           <div className="pjf__figbar">
             {people.length > 1 && (
@@ -348,11 +449,11 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
             {quadDrag && (
               <span className="layouts__label pj__wheel pjf__figwho">
                 <span aria-hidden="true">{T.figAll}</span>
-                <ModeWheel label={T.figAll} value={eisenAll ? 'all' : 'short'} onChange={(v) => setEisenAll(v === 'all')} options={[{ id: 'short', name: T.figAllShort, hint: T.figAllShortHint }, { id: 'all', name: T.figAllAll, hint: T.figAllAllHint }]} />
+                <ModeWheel label={T.figAll} value={eisenMode} onChange={(v) => setEisenMode(v as 'short' | 'all' | 'done')} options={[{ id: 'short', name: T.figAllShort, hint: T.figAllShortHint }, { id: 'all', name: T.figAllAll, hint: T.figAllAllHint }, { id: 'done', name: T.figAllDone, hint: T.figAllDoneHint }]} />
               </span>
             )}
             <span className="pjf__figacts2">
-              {quadDrag && (
+              {quadDrag && mat && (
                 <button type="button" className="help__run" title={T.figAddTaskHint} onClick={addEisenTask}>
                   <Icon name="plus" size={12} className="icon icon--inline" /> {T.figAddTask}
                 </button>
@@ -370,7 +471,9 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
             </span>
           </div>
         )}
-        {svg ? (
+        {quadDrag && !mat ? (
+          <p className="lc__muted">{T.eisenNone}</p>
+        ) : svg ? (
           target && openView && !editable ? (
             <button type="button" className="pjf__figbtn" title={T.figOpen(T.figView[target])} aria-label={T.figOpen(T.figView[target])} onClick={() => openView(target)}>
               <span className="pjf__svg" dangerouslySetInnerHTML={{ __html: svg }} />
@@ -388,6 +491,114 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
         )}
         {svg && <figcaption className="help__text">{T.figCaption[form.figure ?? 'goalTree']}{editable ? ` ${movable ? T.figEditHint : quadDrag ? T.figEisenHint : T.figEditHint2}` : target && openView ? ` ${T.figOpenHint(T.figView[target])}` : ''}</figcaption>}
       </figure>
+    );
+  };
+  /** V140 (F-237): Matrizen in 15.2 – Rad „Matrix“, anlegen, aus Notizen abbilden, Arbeitspakete übernehmen, Name/Person/Datum */
+  const eisenBlock = () => {
+    const names = [...new Set(rolesOf(p).map((r) => (r.person ? Ps.personById(ws, r.person)?.name : undefined) ?? r.name).filter(Boolean))];
+    const pickList =
+      eisenPick === 'map'
+        ? Sh.matricesOf(ws).filter((v) => { const pj = Sh.matrixProject(v); return pj !== p.id && !Sh.subProjectIds(ws, p.id).has(pj ?? ''); }).map((v) => {
+            const pj = Sh.matrixProject(v);
+            const where = Sh.theMatrix(ws)?.id === v.id ? T.eisenPersonal : pj ? T.eisenOfProject((ws.projects ?? []).find((x) => x.id === pj)?.name ?? '') : T.eisenNotes;
+            return { id: v.id, name: v.name, hint: `${where}${v.person ? ` · ${v.person}` : ''}` };
+          })
+        : eisenPick === 'take' && mat
+          ? Fk.openWorkPackages(ws, p.id, true).filter((w) => !mat.ids.includes(w.id)).map((w) => ({ id: w.id, name: `${w.code ? `${w.code} ` : ''}${w.title}`, hint: w.project !== p.id ? T.eisenOfSub((ws.projects ?? []).find((x) => x.id === w.project)?.name ?? '') : '' }))
+          : [];
+    const commit = (k: 'name' | 'person' | 'date', v: string) => {
+      if (!mat || (mat[k] ?? '') === v.trim()) return;
+      if (k === 'name' && !v.trim()) return;
+      eisen({ kind: 'edit', view: mat.id, [k]: v });
+      tell(T.figSaved);
+    };
+    const field = (k: 'name' | 'person' | 'date', label: string, type: string, hint: string) => (
+      <label className="pjf__eisenfield">
+        <span>{label}</span>
+        <input
+          key={`${mat?.id}-${k}-${mat?.[k] ?? ''}`}
+          type={type}
+          defaultValue={mat?.[k] ?? ''}
+          title={hint}
+          {...(k === 'person' ? { list: `${base}-eisenwho`, placeholder: T.eisenMe } : {})}
+          onBlur={(e) => commit(k, e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), commit(k, (e.target as HTMLInputElement).value))}
+        />
+      </label>
+    );
+    return (
+      <div className="pjf__eisen">
+        <div className="pjf__figbar" role="group" aria-label={T.eisenGroup}>
+          {mats.length > 0 && mat && (
+            <span className="layouts__label pj__wheel pjf__figwho">
+              <span aria-hidden="true">{T.eisenWhich}</span>
+              <ModeWheel label={T.eisenWhich} value={mat.id} onChange={(id) => (eisen({ kind: 'select', view: id }), say(mats.find((v) => v.id === id)?.name ?? ''))} options={mats.map((v) => { const pj = Sh.matrixProject(v); return { id: v.id, name: v.name, hint: pj === p.id ? T.eisenOwnHint : pj && Sh.subProjectIds(ws, p.id).has(pj) ? T.eisenOfSub((ws.projects ?? []).find((x) => x.id === pj)?.name ?? '') : T.eisenMapHint }; })} />
+            </span>
+          )}
+          <span className="pjf__figacts2">
+            <button type="button" className="help__run" title={T.eisenNewHint} onClick={newMatrix}>
+              <Icon name="plus" size={12} className="icon icon--inline" /> {T.eisenNewBtn}
+            </button>
+            <button type="button" className="help__run" data-pick="map" aria-expanded={eisenPick === 'map'} title={T.eisenMapBtnHint} onClick={() => (eisenPick === 'map' ? closePick() : openPick('map'))}>
+              {T.eisenMapBtn}
+            </button>
+            {mat && (
+              <button type="button" className="help__run" data-pick="take" aria-expanded={eisenPick === 'take'} title={T.eisenTakeHint} onClick={() => (eisenPick === 'take' ? closePick() : openPick('take'))}>
+                {T.eisenTakeBtn}
+              </button>
+            )}
+            {mat && (matOwn || (p.eisenMaps ?? []).includes(mat.id)) && (
+              <button type="button" className="help__run" title={matOwn ? T.eisenDeleteHint : T.eisenUnmapHint} onClick={dropMatrix}>
+                {matOwn ? <><Icon name="trash" size={12} className="icon icon--inline" /> {T.eisenDeleteBtn}</> : T.eisenUnmapBtn}
+              </button>
+            )}
+          </span>
+        </div>
+        {eisenPick && (
+          <div className="pjf__eisenpick sunken" role="dialog" aria-label={eisenPick === 'map' ? T.eisenMapBtn : T.eisenTakeBtn} ref={pickRef} onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), closePick())}>
+            <p className="help__text">{eisenPick === 'map' ? T.eisenMapIntro : T.eisenTakeIntro}</p>
+            {pickList.length ? (
+              <ul className="pjf__eisenlist">
+                {pickList.map((x) => (
+                  <li key={x.id}>
+                    <label className="pjf__check">
+                      <input type="checkbox" checked={pickSel.includes(x.id)} onChange={(e) => setPickSel(e.target.checked ? [...pickSel, x.id] : pickSel.filter((y) => y !== x.id))} /> {x.name}
+                      {x.hint && <span className="lc__muted"> – {x.hint}</span>}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="lc__muted">{eisenPick === 'map' ? T.eisenMapNone : T.eisenTakeNone}</p>
+            )}
+            <span className="pjf__figacts2">
+              {eisenPick === 'take' && pickList.length > 1 && (
+                <button type="button" className="help__run" onClick={() => setPickSel(pickSel.length === pickList.length ? [] : pickList.map((x) => x.id))}>
+                  {pickSel.length === pickList.length ? T.eisenNoneBtn : T.eisenAllBtn}
+                </button>
+              )}
+              {pickList.length > 0 && (
+                <button type="button" className="help__run" onClick={applyPick}>
+                  {T.eisenApply}
+                </button>
+              )}
+              <button type="button" className="help__run" onClick={closePick}>
+                {T.eisenCancel}
+              </button>
+            </span>
+          </div>
+        )}
+        {mat && (
+          <div className="pjf__eisenmeta">
+            {field('name', T.eisenName, 'text', T.eisenNameHint)}
+            {field('person', T.eisenPerson, 'text', T.eisenPersonHint)}
+            {field('date', T.eisenDate, 'date', T.eisenDateHint)}
+            <datalist id={`${base}-eisenwho`}>
+              {names.map((n) => <option key={n} value={n} />)}
+            </datalist>
+          </div>
+        )}
+      </div>
     );
   };
   /** Feldliste wie im Report: zweispaltige Tabelle Bezeichnung | Wert */
@@ -739,7 +950,7 @@ const FIG_FIELDS: Record<string, string[]> = {
   eisenhower: ['code', 'title', 'important', 'urgent', 'quadrant'],
 };
 /** V138: Formulare, deren Zeilen im Blatt nicht gelöscht werden (Eisenhower = Sicht auf die Arbeitspakete; Einzelfelder) */
-const FIG_NO_REMOVE = new Set(['eisenhower', 'messages', 'teamRoles']);
+const FIG_NO_REMOVE = new Set(['messages', 'teamRoles']);
 
 /**
  * V137 (Enrico 12:59): Bearbeiten in der Grafik – Felder des Kastens am Ort (unter dem Kasten), dazu „Unterpunkt anlegen“
@@ -752,7 +963,12 @@ function FigEditor({ edit, fig, ws, p, tpl, run, tell, say, by, onOpen, onClose 
   const box = useRef<HTMLDivElement>(null);
   const [note, setNote] = useState('');
   useEffect(() => {
-    window.setTimeout(() => box.current?.querySelector<HTMLElement>('input:not([type=checkbox]), textarea, select')?.focus(), 0);
+    window.setTimeout(() => {
+      const el = box.current?.querySelector<HTMLElement>('input:not([type=checkbox]), textarea, select');
+      el?.focus();
+      // V140: Vorgabetext eines neuen Eintrags („Neuer Eintrag“ …) markieren – Tippen ersetzt ihn
+      if (el instanceof HTMLInputElement && /^Neue[rs]? /.test(el.value)) el.select();
+    }, 0);
   }, []);
   if (!form) return null;
   const keys = field ? [field] : ((fig === 'gantt' && fid === 'tasks' ? FIG_FIELDS.ganttTasks : FIG_FIELDS[fid]) ?? []);

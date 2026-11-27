@@ -959,6 +959,11 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
     }
     // V124/V125 (F-231 K6, K8): Titelbilder aus (fehlte beim Laden bis V124), eigene Felder, Abstimmen
     if (raw.noCovers === true) view.noCovers = true;
+    // V140 (F-237 H2): Person und Datum einer Eisenhower-Matrix
+    if (kind === 'eisenhower') {
+      if (typeof raw.person === 'string' && raw.person.trim()) view.person = raw.person.trim().slice(0, 80);
+      if (typeof raw.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date)) view.date = raw.date;
+    }
     if (kind === 'kanban') {
       const fields = cleanFieldDefs(raw.fields);
       if (fields) view.fields = fields;

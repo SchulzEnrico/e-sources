@@ -448,9 +448,7 @@ export type Action =
  */
 export function padOpenResult(ws: Workspace, a: { desk: string; ref?: No.NoteRef; create?: 'note' | NoteViewKind; ids: string[]; by?: string; tpl?: string }): Pd.OpenInPadResult & { id?: string } {
   const make = idSeq(a.ids);
-  // V87 (E3): genau eine Eisenhower-Matrix – eine zweite anlegen öffnet die vorhandene
-  const matrix = a.create === 'eisenhower' ? Sh.theMatrix(ws) : undefined;
-  if (matrix) return Pd.openSheetInPad(ws, a.desk, matrix.id, { makeId: make });
+  // V140 (F-237): mehrere Eisenhower-Matrizen erlaubt (vorher E3 „genau eine“)
   if (a.create) {
     // V88 (BL2): Kanban aus einer Vorlage – Spalten-Ids kommen danach zufällig (Aufrufer braucht nur die Sheet-Id)
     const made =
@@ -627,7 +625,7 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'calOwn':
       return Cal.setOwnCalendar(ws, a.project, a.on);
     case 'exchange':
-      return a.ws;
+      return Fk.ensureMatrices(a.ws); // V140 (F-237 H8)
     case 'taskPreds': {
       const r = Gt.setPreds(ws, a.project, a.id, a.links);
       return r.ok ? r.ws : ws;
@@ -685,11 +683,11 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'fbAskEase':
       return Fb.setAskEase(ws, a.on);
     case 'liveProject':
-      return Lv.refreshLiveProject(ws, a.at ?? Date.now());
+      return Fk.ensureMatrices(Lv.refreshLiveProject(ws, a.at ?? Date.now()));
     case 'liveCopy': {
       // F-235 (V136): Besucher der Demo legen eine eigene, bearbeitbare Kopie an
       const r = Lv.copyLiveProject(ws, a.at ?? Date.now());
-      return r.ws;
+      return Fk.ensureMatrices(r.ws);
     }
     case 'sampleProject':
       // V134 (F-233): Beispiel nach Kennung (ohne = ColorGentlemen wie bisher)
@@ -1168,6 +1166,7 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'restoreTints':
       return restoreTints(ws, a.snap);
     case 'replace':
+      return Fk.ensureMatrices(a.ws); // V140 (F-237 H8): ältere Dateien bekommen ihre Matrix wie Abb. 17
     case 'remote':
       return a.ws;
     case 'toWindow':
@@ -1202,7 +1201,7 @@ function step(ws: Workspace, a: Action): Workspace {
  * neue Stand wird übernommen, ohne ihn zurückzuschreiben. Es gilt die letzte Änderung.
  */
 export function useWorkspace() {
-  const [ws, raw] = useReducer(reducer, undefined, loadWorkspace);
+  const [ws, raw] = useReducer(reducer, undefined, () => Fk.ensureMatrices(loadWorkspace()));
   const remote = useRef<Workspace | null>(null);
   // V111: Rückgängig für Anordnungen (Strg/⌘+Z) – vor jeder Anordnungs-Aktion den Stand merken
   const wsRef = useRef(ws);

@@ -7,13 +7,14 @@
  * Einsatzmittelganglinie (Abb. 14) aus den Einsätzen. Reine Funktionen (SVG-Text); dieselben Bausteine zeigen das Blatt
  * (ProjectForms) und der Bericht (gpmReport). Tests in gpm.test.ts („F-234“).
  */
-import type { Project, ProjectRole, Workspace } from './types';
+import type { NoteView, Project, ProjectRole, Workspace } from './types';
 import { ganttOf, phaseBars, type Gantt } from './gantt';
 import { pspRows, pspTree, type PspNode } from './psp';
 import { resourceUse, type ResRow } from './resources';
 import { personById } from './persons';
 import { projectById, rolesOf } from './projects';
-import { titleOf } from './notes';
+import { titleOf, viewById } from './notes';
+import { matrixEntries, projectMatrix } from './sheets';
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
@@ -847,50 +848,63 @@ export function eisenQuadAt(x: number, y: number, g: EisenGeo = EISEN_GEO): Eise
   const important = y < y0 + ghTop;
   return important ? (urgent ? 'do' : 'plan') : urgent ? 'delegate' : 'drop';
 }
-type EisenItem = { id: string; text: string };
-/** Einträge je Feld aus den offenen Arbeitspaketen (gleiche Regel wie die Tabelle). */
-function eisenItems(ws: Workspace, pid: string): Record<EisenQuad, EisenItem[]> {
-  const rows = pspRows(pspTree(ws, pid)).filter((n) => n.kind === 'task' && n.owner === pid && !n.milestone && !n.summary);
-  const byId = new Map((ws.notes ?? []).map((n) => [n.id, n]));
+type EisenItem = { id: string; text: string; done?: boolean };
+/** V140 (F-237): Matrix der Grafik – ausdrücklich angegeben (Bericht je Matrix) oder die in 15.2 gewählte. */
+export function eisenView(ws: Workspace, pid: string, view?: string): NoteView | undefined {
+  const v = view ? viewById(ws, view) : undefined;
+  return v?.kind === 'eisenhower' ? v : projectMatrix(ws, pid);
+}
+/** Einträge je Feld aus der Matrix (gleiche Regel wie die Tabelle); `done` zeigt auch Erledigte (H7). */
+function eisenItems(ws: Workspace, pid: string, view?: string, done = false): Record<EisenQuad, EisenItem[]> {
   const q: Record<EisenQuad, EisenItem[]> = { plan: [], do: [], drop: [], delegate: [] };
-  for (const r of rows) {
-    const n = byId.get(r.id);
-    if (!n || n.state === 'done' || n.state === 'archived') continue;
+  const v = eisenView(ws, pid, view);
+  if (!v) return q;
+  const codes = new Map(pspRows(pspTree(ws, pid)).filter((n) => n.kind === 'task').map((r) => [r.id, r.code]));
+  const KEY = { 1: 'do', 2: 'plan', 3: 'delegate', 4: 'drop' } as const;
+  for (const { note: n, quad } of matrixEntries(ws, v, done ? 'all' : 'open')) {
+    const code = codes.get(n.id);
+    const fin = n.state === 'done' || n.state === 'archived' || n.state === 'review';
     // V139 (Enrico 13:52): weder wichtig noch dringend = „liegen lassen“ – wie in der Tabelle darunter
-    const k = n.important ? (n.urgent ? 'do' : 'plan') : n.urgent ? 'delegate' : 'drop';
-    q[k].push({ id: r.id, text: `${r.code ? `${r.code} ` : ''}${r.title}` });
+    q[KEY[quad]].push({ id: n.id, text: `${code ? `${code} ` : ''}${titleOf(n)}`, ...(fin ? { done: true } : {}) });
   }
   return q;
 }
 const itemsHeight = (list: EisenItem[]) => list.reduce((h, it) => h + wrap(`- ${it.text}`, 44, 2).length * 13 + 9, 0);
 /** V139 (Enrico 13:55): Lage der Matrix; `all` = Felder so hoch, dass jeder Eintrag zu sehen ist. */
-export function eisenGeo(ws: Workspace, pid: string, all = false): EisenGeo {
-  if (!all) return EISEN_GEO;
-  const q = eisenItems(ws, pid);
+export function eisenGeo(ws: Workspace, pid: string, all = false, view?: string, done = false): EisenGeo {
+  if (!all && !done) return EISEN_GEO;
+  const q = eisenItems(ws, pid, view, done);
   return { ...EISEN_GEO, ghTop: Math.max(EISEN.gh, 40 + 30 + Math.max(itemsHeight(q.plan), itemsHeight(q.do))), ghBot: Math.max(EISEN.gh, 30 + 34 + Math.max(itemsHeight(q.drop), itemsHeight(q.delegate))) };
 }
 /** Marken eines Felds: wichtig = oben, dringend = rechts. */
 export const eisenMarks = (q: EisenQuad) => ({ important: q === 'do' || q === 'plan', urgent: q === 'do' || q === 'delegate' });
 
 /** Abb. 17: vier Felder nach wichtig/dringend aus den offenen Vorgängen (Felder „wichtig“ und „dringend“ wie im Notizen-Modus). */
-export function eisenhowerSvg(ws: Workspace, pid: string, day: string, all = false): string {
+export function eisenhowerSvg(ws: Workspace, pid: string, day: string, all = false, view?: string, done = false): string {
   const p = projectById(ws, pid);
-  if (!p) return '';
-  const q = eisenItems(ws, pid);
+  const v = eisenView(ws, pid, view);
+  if (!p || !v) return '';
+  if (done) all = true;
+  const q = eisenItems(ws, pid, v.id, done);
   const W = 760;
-  const { x0, y0, gw, ghTop, ghBot } = eisenGeo(ws, pid, all);
+  const { x0, y0, gw, ghTop, ghBot } = eisenGeo(ws, pid, all, v.id, done);
   const H = 520 + (ghTop - EISEN.gh) + (ghBot - EISEN.gh);
   const gh = ghTop;
   const gh2 = ghTop + ghBot;
   const parts: string[] = [];
   parts.push(`<rect x="${x0 + 40}" y="6" width="${2 * gw - 80}" height="40" rx="6" fill="url(#fgHead)" filter="url(#fgShadow)"/>`);
-  parts.push(`<text x="${x0 + gw}" y="33" text-anchor="middle" font-size="19" font-weight="bold" fill="#fff">${esc(`${dmy(day)} ${p.charter?.no ? `${p.name} - ${p.charter.no}` : p.name}`.slice(0, 54))}</text>`);
+  // V140 (F-237 H2): Datum der Matrix, Projekt wie Abb. 17, dazu die Person, wenn sie nicht „ich“ ist
+  parts.push(`<text x="${x0 + gw}" y="33" text-anchor="middle" font-size="19" font-weight="bold" fill="#fff">${esc(`${dmy(v.date ?? day)} ${p.charter?.no ? `${p.name} - ${p.charter.no}` : p.name}${v.person ? ` · ${v.person}` : ''}`.slice(0, 60))}</text>`);
   parts.push(`<rect x="${x0}" y="${y0}" width="${2 * gw}" height="${gh2}" rx="8" fill="url(#fgGray)" stroke="${LOOK.grayLine}" filter="url(#fgShadow)"/>`);
   parts.push(`<line x1="${x0 + gw}" y1="${y0 + 8}" x2="${x0 + gw}" y2="${y0 + gh2 - 8}" stroke="#fff" stroke-width="3"/><line x1="${x0 + gw}" y1="${y0 + 8}" x2="${x0 + gw}" y2="${y0 + gh2 - 8}" stroke="#555" stroke-width="1"/>`);
   parts.push(`<line x1="${x0 + 8}" y1="${y0 + gh}" x2="${x0 + 2 * gw - 8}" y2="${y0 + gh}" stroke="#fff" stroke-width="3"/><line x1="${x0 + 8}" y1="${y0 + gh}" x2="${x0 + 2 * gw - 8}" y2="${y0 + gh}" stroke="#555" stroke-width="1"/>`);
   const corner = (x: number, y: number, t: string, anchor: 'start' | 'end') => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="11" fill="${LOOK.muted}">${t}</text>`;
+  // V140 (F-237 H3): jedes Feld ist ein Knopf – Doppelklick bzw. Enter legt dort einen Eintrag an
+  const QN = { plan: 'planen', do: 'erledigen', drop: 'liegen lassen', delegate: 'delegieren' } as const;
+  const quad = (k: EisenQuad, x: number, y: number, w: number, h: number) => `<rect class="fg-quad" data-quad="${k}" tabindex="0" role="button" aria-label="${esc(`Feld ${QN[k]} – Enter legt hier einen Eintrag an`)}" x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff" fill-opacity="0"/>`;
+  parts.push(quad('plan', x0, y0, gw, gh), quad('do', x0 + gw, y0, gw, gh), quad('drop', x0, y0 + gh, gw, ghBot), quad('delegate', x0 + gw, y0 + gh, gw, ghBot));
   parts.push(corner(x0 + 10, y0 + 16, 'planen', 'start'), corner(x0 + 2 * gw - 10, y0 + 16, 'erledigen', 'end'), corner(x0 + 10, y0 + gh2 - 8, 'liegen lassen', 'start'), corner(x0 + 2 * gw - 10, y0 + gh2 - 8, 'delegieren', 'end'));
-  const items = (list: { id: string; text: string }[], x: number, y: number, tone: string, bold: boolean, rowH: number) => {
+  const items = (list: EisenItem[], x: number, y: number, tone: string, bold: boolean, rowH: number) => {
     const out: string[] = [];
     let yy = y;
     const maxY = all ? Infinity : y + rowH - 44;
@@ -901,7 +915,8 @@ export function eisenhowerSvg(ws: Workspace, pid: string, day: string, all = fal
         break;
       }
       out.push(`<g${edg(`eisenhower:${list[i].id}`, list[i].text)}>${hit(x - 6, yy - 11, gw - 16, lines.length * 13 + 4)}`);
-      lines.forEach((l, j) => out.push(`<text x="${x}" y="${yy + j * 13}" font-size="11"${bold ? ' font-weight="bold"' : ''} fill="${tone}">${esc(l)}</text>`));
+      const fin = list[i].done;
+      lines.forEach((l, j) => out.push(`<text x="${x}" y="${yy + j * 13}" font-size="11"${bold && !fin ? ' font-weight="bold"' : ''} fill="${fin ? LOOK.muted : tone}"${fin ? ' text-decoration="line-through"' : ''}>${esc(l)}</text>`));
       out.push('</g>');
       yy += lines.length * 13 + 9;
     }
@@ -914,8 +929,7 @@ export function eisenhowerSvg(ws: Workspace, pid: string, day: string, all = fal
   parts.push(`<text x="${x0 + gw / 2}" y="${y0 + gh2 + 16}" text-anchor="middle" font-size="11" fill="${LOOK.muted}">nicht</text><text x="${x0 + gw * 1.5}" y="${y0 + gh2 + 16}" text-anchor="middle" font-size="11" fill="${LOOK.muted}">sehr</text>`);
   parts.push(`<text x="${x0 + gw}" y="${y0 + gh2 + 44}" text-anchor="middle" font-size="22" font-weight="bold" fill="#9b9b9b">Dringlichkeit</text>`);
   parts.push(`<text transform="translate(${x0 + 2 * gw + 30} ${y0 + gh2 / 2}) rotate(90)" text-anchor="middle" font-size="30" font-weight="bold" fill="#9b9b9b">Eisenhower-Matrix</text>`);
-  const n = q.do.length + q.plan.length + q.delegate.length + q.drop.length;
-  return n ? svgWrap(W, H, `Eisenhower-Matrix: ${q.do.length} erledigen, ${q.plan.length} planen, ${q.delegate.length} delegieren, ${q.drop.length} liegen lassen`, parts.join('')) : '';
+  return svgWrap(W, H, `${v.name}: ${q.do.length} erledigen, ${q.plan.length} planen, ${q.delegate.length} delegieren, ${q.drop.length} liegen lassen`, parts.join(''));
 }
 
 // ---------------------------------------------------------------- F-234 (V137): Nachrichtenquadrat nach Schulz von Thun wie Abb. 18
@@ -942,12 +956,21 @@ export function squareSvg(p: Project, rowId: string | undefined): string {
   inner.forEach((d, i) => parts.push(`<path d="${d}" fill="${tones[i]}" stroke="#777" stroke-width="0.6"/>`));
   parts.push(`<rect x="${c}" y="${c}" width="${S - 2 * c}" height="${S - 2 * c}" fill="#9d9d9d" stroke="#666"/>`);
   parts.push(`<rect x="${c}" y="${S / 2 - 4}" width="${S - 2 * c}" height="8" fill="${LOOK.wine}"/>`);
-  const lines = (x: number, y: number, ls: string[], o2: { size?: number; bold?: boolean; fill?: string; rot?: number } = {}) => {
+  // V140 (Enrico 14:26 „Die Texte dürfen nicht über die Ränder hinauslaufen“): `max` = Breite des Felds an dieser Stelle –
+  // die Zeilen brechen danach um, und eine Zeile, die geschätzt breiter wäre, wird auf die Breite gestaucht (textLength)
+  const lines = (x: number, y: number, ls: string[], o2: { size?: number; bold?: boolean; fill?: string; rot?: number; max?: number; vert?: string } = {}) => {
     const size = o2.size ?? 10;
     const tr = o2.rot ? ` transform="rotate(${o2.rot} ${x} ${y})"` : '';
     const y0 = y - ((ls.length - 1) * (size + 2)) / 2;
-    return `<g${tr}>${ls.map((l, i) => `<text x="${x}" y="${(y0 + i * (size + 2)).toFixed(1)}" text-anchor="middle" font-size="${size}"${o2.bold ? ' font-weight="bold"' : ''} fill="${o2.fill ?? LOOK.ink}">${esc(l)}</text>`).join('')}</g>`;
+    const fit = (l: string) => (o2.max && l.length * size * (o2.bold ? 0.6 : 0.55) > o2.max ? ` textLength="${o2.max}" lengthAdjust="spacingAndGlyphs"` : '');
+    // V140 (Enrico 14:27): senkrechter Eintrag stellt sich beim Hover/Fokus seines Felds waagerecht auf (CSS .fg-vert), mit hellem Grund
+    const bw = Math.min(o2.max ?? 1e9, Math.max(...ls.map((l) => l.length)) * size * 0.6) + 16;
+    const bh = ls.length * (size + 2) + 10;
+    const bg = o2.vert ? `<rect class="fg-vbg" x="${(x - bw / 2).toFixed(1)}" y="${(y0 - size - 4).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh}" rx="6" fill="#fff" fill-opacity="0"/>` : '';
+    return `<g${tr}${o2.vert ? ` class="fg-vert" data-k="${o2.vert}"` : ''}>${bg}${ls.map((l, i) => `<text x="${x}" y="${(y0 + i * (size + 2)).toFixed(1)}" text-anchor="middle" font-size="${size}"${o2.bold ? ' font-weight="bold"' : ''}${fit(l)} fill="${o2.fill ?? LOOK.ink}">${esc(l)}</text>`).join('')}</g>`;
   };
+  /** Zeichen je Zeile für eine Breite (fett geschätzt 0,6 em je Zeichen). */
+  const per = (w: number, size: number) => Math.max(8, Math.floor(w / (size * 0.6)));
   const head = (x: number, y: number, t: string, rot = 0) => lines(x, y, [t], { size: 13, bold: true, fill: LOOK.wine, rot });
   // Empfänger außen (oben Sachebene, rechts Appell, unten Beziehung, links Selbstkundgabe), Sender innen
   const outerMid = (o + e) / 2;
@@ -968,14 +991,33 @@ export function squareSvg(p: Project, rowId: string | undefined): string {
   };
   for (const [k, [label, x, y, w, h]] of Object.entries(FIELD)) parts.push(`<g${edg(`messages:${m.id}:${k}`, label)}>${hit(x, y, w, h)}</g>`);
   const fieldsAt = parts.length;
-  parts.push(head(S / 2, o + 20, 'Empfänger'), lines(S / 2, outerMid + 14, cap(m.rFact, 78, 4), { bold: true, size: 12 }));
-  parts.push(head(S / 2, e + 18, 'Sender'), lines(S / 2, sendMid + 14, cap(m.sFact, 54, 3), { bold: true, size: 12 }));
-  parts.push(head(S / 2, S - e - 64, 'Sender'), lines(S / 2, S - sendMid + 10, cap(m.sRel, 54, 3), { bold: true, size: 12 }));
-  parts.push(head(S / 2, S - o - 74, 'Empfänger'), lines(S / 2, S - outerMid + 12, cap(m.rRel, 78, 4), { bold: true, size: 12 }));
-  parts.push(head(o + 20, S / 2, 'Empfänger', -90), lines(outerMid + 14, S / 2, cap(m.rSelf, 78, 4), { bold: true, size: 12, rot: -90 }));
-  parts.push(head(e + 18, S / 2, 'Sender', -90), lines(sendMid + 12, S / 2, cap(m.sSelf, 54, 3), { bold: true, size: 12, rot: -90 }));
-  parts.push(head(S - e - 18, S / 2, 'Sender', -90), lines(S - sendMid - 2, S / 2, cap(m.sAppeal, 54, 3), { bold: true, size: 12, rot: -90 }));
-  parts.push(head(S - o - 20, S / 2, 'Empfänger', -90), lines(S - outerMid - 2, S / 2, cap(m.rAppeal, 78, 4), { bold: true, size: 12, rot: -90 }));
+  // Breite der Trapeze an der schmalsten Textzeile (innen), mit Rand
+  const wOut = S - 2 * (outerMid + 14 + 24) - 24;
+  const wSend = S - 2 * (sendMid + 14 + 16) - 24;
+  const tx = (t: string | undefined, w: number, max: number, size = 12) => cap(t, per(w, size), max);
+  parts.push(head(S / 2, o + 20, 'Empfänger'), lines(S / 2, outerMid + 14, tx(m.rFact, wOut, 4), { bold: true, size: 12, max: wOut }));
+  parts.push(head(S / 2, e + 18, 'Sender'), lines(S / 2, sendMid + 14, tx(m.sFact, wSend, 3), { bold: true, size: 12, max: wSend }));
+  parts.push(head(S / 2, S - e - 64, 'Sender'), lines(S / 2, S - sendMid + 10, tx(m.sRel, wSend, 3), { bold: true, size: 12, max: wSend }));
+  parts.push(head(S / 2, S - o - 74, 'Empfänger'), lines(S / 2, S - outerMid + 12, tx(m.rRel, wOut, 4), { bold: true, size: 12, max: wOut }));
+  // senkrechte Einträge kommen zuletzt (über die Klickflächen, ohne Zeiger), damit sie beim Aufstellen über allem liegen
+  const verts = [
+    lines(outerMid + 14, S / 2, tx(m.rSelf, wOut, 4), { bold: true, size: 12, rot: -90, max: wOut, vert: 'rSelf' }),
+    lines(sendMid + 12, S / 2, tx(m.sSelf, wSend, 3), { bold: true, size: 12, rot: -90, max: wSend, vert: 'sSelf' }),
+    lines(S - sendMid - 2, S / 2, tx(m.sAppeal, wSend, 3), { bold: true, size: 12, rot: -90, max: wSend, vert: 'sAppeal' }),
+    lines(S - outerMid - 2, S / 2, tx(m.rAppeal, wOut, 4), { bold: true, size: 12, rot: -90, max: wOut, vert: 'rAppeal' }),
+  ];
+  // V140 (Enrico 14:28 „Das ganze Feld“): beim Hover/Fokus erscheint das ganze Feld waagerecht als Karte – Überschrift und Text
+  const card = (k: string, who: string, t: string | undefined, cx: number) => {
+    // genau mittig über der senkrechten Schrift, Sender und Empfänger gleich breit (Enrico 14:31) – außen ragt die Karte
+    // dafür über den Rand der Grafik hinaus (CSS overflow: visible)
+    const W = 300;
+    const ls = cap(t, per(W - 24, 12), 10);
+    const h = 36 + ls.length * 14 + 12;
+    const y = S / 2 - h / 2;
+    return `<g class="fg-card" data-k="${k}" opacity="0"><rect x="${cx - W / 2}" y="${y}" width="${W}" height="${h}" rx="8" fill="#fff" fill-opacity="0.97" stroke="${LOOK.wine}" stroke-width="1.2" filter="url(#fgShadow)"/>${lines(cx, y + 22, [who], { size: 13, bold: true, fill: LOOK.wine })}${lines(cx, y + 36 + ((ls.length - 1) * 14) / 2 + 6, ls, { size: 12, bold: true, max: W - 24 })}</g>`;
+  };
+  verts.push(card('rSelf', 'Empfänger · Selbstkundgabe', m.rSelf, outerMid + 14), card('sSelf', 'Sender · Selbstkundgabe', m.sSelf, sendMid + 12), card('sAppeal', 'Sender · Appellseite', m.sAppeal, S - sendMid - 2), card('rAppeal', 'Empfänger · Appellseite', m.rAppeal, S - outerMid - 2));
+  parts.push(head(o + 20, S / 2, 'Empfänger', -90), head(e + 18, S / 2, 'Sender', -90), head(S - e - 18, S / 2, 'Sender', -90), head(S - o - 20, S / 2, 'Empfänger', -90));
   // roter Rahmen mit den Fragen der vier Seiten
   parts.push(lines(S / 2, s + 13, ['Worüber ich informiere'], { size: 9.5, bold: true, fill: '#fff' }));
   parts.push(lines(S / 2, S - s - 5, ['Wie wir zueinander stehen'], { size: 9.5, bold: true, fill: '#fff' }));
@@ -986,18 +1028,19 @@ export function squareSvg(p: Project, rowId: string | undefined): string {
   parts.push(lines(f + 30, S / 2, ['Selbstkundgabe'], { size: 22, bold: true, fill: '#7d7d7d', rot: -90 }));
   parts.push(lines(S - f - 22, S / 2, ['Appellseite'], { size: 22, bold: true, fill: '#fff', rot: -90 }));
   // Mitte
-  parts.push(lines(S / 2, c + 34, ['Nachricht'], { size: 22, bold: true, fill: LOOK.wine }), lines(S / 2, c + 76, cap(m.message, 34, 4), { size: 14, bold: true }));
-  parts.push(lines(S / 2, S / 2 + 34, ['Reaktion'], { size: 22, bold: true, fill: LOOK.wine }), lines(S / 2, S / 2 + 76, cap(m.reaction, 34, 4), { size: 14, bold: true }));
+  const wMid = S - 2 * c - 20;
+  parts.push(lines(S / 2, c + 34, ['Nachricht'], { size: 22, bold: true, fill: LOOK.wine }), lines(S / 2, c + 76, tx(m.message, wMid, 3, 14), { size: 14, bold: true, max: wMid }));
+  parts.push(lines(S / 2, S / 2 + 34, ['Reaktion'], { size: 22, bold: true, fill: LOOK.wine }), lines(S / 2, S / 2 + 76, tx(m.reaction, wMid, 3, 14), { size: 14, bold: true, max: wMid }));
   parts.push(`<text transform="translate(${S + 62} ${S}) rotate(-90)" font-size="64" font-weight="bold" fill="#b3b3b3">Nachrichtenquadrat</text><text transform="translate(${S + 84} ${S}) rotate(-90)" font-size="18" font-weight="bold" fill="#9a9a9a">nach Schulz von Thun</text>`);
   const hits = parts.splice(fieldsAt - Object.keys(FIELD).length, Object.keys(FIELD).length);
-  parts.push(...hits);
+  parts.push(...hits, ...verts);
   return svgWrap(S + 92, S, `Nachrichtenquadrat: ${m.topic}${m.message ? ` – Nachricht „${m.message}“` : ''}`, parts.join(''));
 }
 
 /** Kennung der Grafik eines Formulars (FormDef.figure). */
 export type FigureKind = 'goalTree' | 'org' | 'phasePlan' | 'psp' | 'gantt' | 'load' | 'wpReport' | 'belbin' | 'eisenhower' | 'square';
 /** Grafik eines Formulars mit Layout `figure` (leer, wenn noch nichts zu zeichnen ist). */
-export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefined, o: { person?: string; row?: string; day?: string; all?: boolean } = {}): string {
+export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefined, o: { person?: string; row?: string; day?: string; all?: boolean; done?: boolean } = {}): string {
   const p = projectById(ws, pid);
   if (!p || !kind) return '';
   switch (kind) {
@@ -1018,7 +1061,8 @@ export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefin
     case 'belbin':
       return belbinSvg(ws, p, o.row);
     case 'eisenhower':
-      return eisenhowerSvg(ws, pid, o.day ?? new Date().toISOString().slice(0, 10), o.all);
+      // V140 (F-237): `row` = Matrix (Bericht je Matrix), sonst die in 15.2 gewählte
+      return eisenhowerSvg(ws, pid, o.day ?? new Date().toISOString().slice(0, 10), o.all, o.row, o.done);
     case 'square':
       return squareSvg(p, o.row);
   }

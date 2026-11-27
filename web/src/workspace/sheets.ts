@@ -414,7 +414,9 @@ export function matrixOf(ws: Workspace, v: NoteView, show: 'open' | 'all' = 'ope
     const n = No.noteById(ws, id);
     if (n && !seen.has(n.id)) list.push(n), seen.add(n.id);
   }
-  for (const n of No.notesOf(ws)) if (!seen.has(n.id) && !own.has(n.id) && (n.important || n.urgent) && !finished(n) && !n.unsaved) list.push(n), seen.add(n.id);
+  // V140 (F-237 H5): nur die persönliche Matrix sammelt alle Notizen mit wichtig/dringend ein, alle anderen zeigen ihre Einträge
+  if (theMatrix(ws)?.id === v.id)
+    for (const n of No.notesOf(ws)) if (!seen.has(n.id) && !own.has(n.id) && (n.important || n.urgent) && !finished(n) && !n.unsaved) list.push(n), seen.add(n.id);
   const out = { unsorted: [] as Note[], quads: { 1: [], 2: [], 3: [], 4: [] } as Record<Quad, Note[]>, done: 0 };
   for (const n of list) {
     if (finished(n)) {
@@ -440,9 +442,15 @@ export function setQuad(ws: Workspace, viewId: string, noteId: string, q: Quad, 
   return next;
 }
 
-/** Die eine Matrix (E3: genau eine je Person – lokal gibt es nur „mich“). */
+/** Projekt einer Matrix (V140, F-237: Matrix in 15.2 angelegt). */
+export const matrixProject = (v: NoteView): string | undefined => (v.owner?.kind === 'project' ? v.owner.id : undefined);
+
+/**
+ * Die persönliche Matrix (V140, F-237 H5; vorher E3 „genau eine“): die erste ohne Projekt und ohne andere Person.
+ * Nur sie sammelt alle Notizen mit wichtig/dringend ein.
+ */
 export function theMatrix(ws: Workspace): NoteView | undefined {
-  return No.viewsOf(ws).find((v) => v.kind === 'eisenhower');
+  return No.viewsOf(ws).find((v) => v.kind === 'eisenhower' && !matrixProject(v) && !v.person);
 }
 
 // ---------- Filter (S3) ----------
@@ -481,7 +489,7 @@ export function matrixSummary(ws: Workspace, v: NoteView): { quads: Record<Quad,
   return { quads, unsorted: m.unsorted.length, open: m.unsorted.length + quads[1] + quads[2] + quads[3] + quads[4], done: m.done };
 }
 
-/** Alle Matrizen (heute genau eine; mit Personen in Schritt 8 mehrere). */
+/** Alle Matrizen (V140, F-237: beliebig viele). */
 export const matricesOf = (ws: Workspace): NoteView[] => No.viewsOf(ws).filter((v) => v.kind === 'eisenhower');
 
 // ---------- F-218 (V92): Wenn-dann-Regeln W1/W2 nach jeder Änderung ----------
@@ -516,4 +524,71 @@ export function applyWhenRules(prev: Workspace, next: Workspace, now = Date.now(
     }
   }
   return out;
+}
+
+// ---------- V140 (F-237): Eisenhower-Matrizen in 15.2 ----------
+
+/** Matrizen, die 15.2 des Projekts zeigt: dort angelegte und aus dem Notizen-Modus abgebildete (H6), in Sheet-Reihenfolge. */
+export function projectMatrices(ws: Workspace, pid: string): NoteView[] {
+  const p = (ws.projects ?? []).find((x) => x.id === pid);
+  const maps = new Set(p?.eisenMaps ?? []);
+  // V140 (Enrico 14:22 „Teilprojekte nicht vergessen“, H10): auch die Matrizen der Teilprojekte (alle Ebenen)
+  const subs = subProjectIds(ws, pid);
+  return matricesOf(ws).filter((v) => matrixProject(v) === pid || maps.has(v.id) || subs.has(matrixProject(v) ?? ''));
+}
+
+/** Ids aller Teilprojekte (alle Ebenen, ohne Kreise). */
+export function subProjectIds(ws: Workspace, pid: string): Set<string> {
+  const out = new Set<string>();
+  const walk = (id: string) => {
+    for (const c of ws.projects ?? []) if (c.parent === id && c.id !== pid && !out.has(c.id)) out.add(c.id), walk(c.id);
+  };
+  walk(pid);
+  return out;
+}
+
+/** In 15.2 gewählte Matrix (fehlt die Wahl, die erste). */
+export function projectMatrix(ws: Workspace, pid: string): NoteView | undefined {
+  const list = projectMatrices(ws, pid);
+  const sel = (ws.projects ?? []).find((x) => x.id === pid)?.eisenSel;
+  return list.find((v) => v.id === sel) ?? list[0];
+}
+
+/** Einträge einer Matrix in Lese-Reihenfolge (erledigen, planen, delegieren, liegen lassen; nicht Eingeordnete wie „liegen lassen“). */
+export function matrixEntries(ws: Workspace, v: NoteView, show: 'open' | 'all' = 'open'): { note: Note; quad: Quad }[] {
+  const m = matrixOf(ws, v, show);
+  const out: { note: Note; quad: Quad }[] = [];
+  for (const q of [1, 2, 3, 4] as Quad[]) for (const n of m.quads[q]) out.push({ note: n, quad: q });
+  for (const n of m.unsorted) out.push({ note: n, quad: 4 });
+  return out;
+}
+
+/** Name, Person, Datum oder Projekt einer Matrix ändern (leer = entfernen). */
+export function editMatrix(ws: Workspace, id: string, patch: { name?: string; person?: string; date?: string; owner?: NoteView['owner'] }): Workspace {
+  const views = No.viewsOf(ws);
+  if (!views.some((v) => v.id === id && v.kind === 'eisenhower')) return ws;
+  return {
+    ...ws,
+    noteViews: views.map((v) => {
+      if (v.id !== id) return v;
+      const out: NoteView = { ...v };
+      if (patch.name !== undefined && patch.name.trim()) out.name = patch.name.trim().slice(0, 80);
+      if (patch.person !== undefined) {
+        if (patch.person.trim()) out.person = patch.person.trim().slice(0, 80);
+        else delete out.person;
+      }
+      if (patch.date !== undefined) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(patch.date)) out.date = patch.date;
+        else delete out.date;
+      }
+      if (patch.owner) out.owner = patch.owner;
+      return out;
+    }),
+  };
+}
+
+/** Reihenfolge der Einträge einer Matrix zurücklegen (Rückgängig). */
+export function setMatrixIds(ws: Workspace, id: string, ids: string[]): Workspace {
+  const known = new Set(No.notesOf(ws).map((n) => n.id));
+  return { ...ws, noteViews: No.viewsOf(ws).map((v) => (v.id === id ? { ...v, ids: ids.filter((x) => known.has(x)) } : v)) };
 }

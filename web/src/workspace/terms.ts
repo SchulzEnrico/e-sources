@@ -2722,6 +2722,14 @@ export const PSP_TEXT = {
 
 /** V115 (F-206 Schritt 10): Netzplan */
 export const NET_TEXT = {
+  // V135: Zoom (Enrico 12:01/12:02)
+  zoom: 'Zoom',
+  zoomFit: 'Ganz',
+  zoomFitHint: 'ganzer Plan im Bild – Doppelklick rückt eine Stelle in normaler Größe heran, Esc zeigt wieder alles',
+  zoomHint: 'Größe des Netzplans',
+  zoomIn: 'Stelle in normaler Größe herangerückt – Esc zeigt wieder den ganzen Plan',
+  zoomAll: 'Ganzer Netzplan im Bild',
+  zoomDblHint: 'Doppelklick: diese Stelle in normaler Größe heranrücken · Esc: ganzer Plan',
   head: (name: string) => `Netzplan: ${name}`,
   empty: 'Noch keine geplanten Vorgänge – lege im PSP Vorgänge an und gib ihnen im Gantt Dauer und Vorgänger.',
   span: (a: string, b: string) => `Projekt: ${a} – ${b}`,
@@ -2844,6 +2852,11 @@ export const GANTT_TEXT = {
 };
 
 export const PROJECTS_TEXT = {
+  // F-235 (V135): Live-Projekt E-Sources
+  liveAdd: 'Live-Projekt E-Sources',
+  liveUpdate: 'Live-Projekt aktualisieren',
+  liveHint: (chat: string) => `Projekt E-Sources mit dem Stand aus dem Lastenheft (${chat}) anlegen bzw. aktualisieren – eigene Notizen am Projekt bleiben`,
+  liveDone: (chat: string, done: number, all: number) => `Live-Projekt E-Sources auf Stand ${chat}: ${done} von ${all} F-Punkten fertig.`,
   taskLimit: 'Task-Limit je Person',
   taskLimitHint: 'Höchstens so viele offene Aufgaben je Person in diesem Projekt – beim Zuweisen fragt E-Sources nach, sperrt aber nicht (gilt das kleinere aus Projekt und Person)',
   taskLimitNone: 'ohne',
@@ -3762,6 +3775,27 @@ export const FORMS_TEXT = {
   report: 'Bericht',
   reportHint: 'Projektbericht: alle Formulare in Kapitelfolge mit Kopf- und Fußzeile – öffnet sich in einem neuen Fenster, dort drucken oder als PDF sichern',
   reportOpened: 'Projektbericht in neuem Fenster geöffnet – dort „Drucken bzw. als PDF sichern“.',
+  // F-234 (V135): Grafik-Blätter
+  figWho: 'Ressource',
+  figView: { psp: 'PSP', gantt: 'Gantt', res: 'Ressourcen' } as Record<'psp' | 'gantt' | 'res', string>,
+  figOpen: (v: string) => `In der Ansicht „${v}“ bearbeiten`,
+  figOpenHint: (v: string) => `Klick auf die Grafik öffnet die Ansicht „${v}“ zum Bearbeiten.`,
+  figCaption: {
+    goalTree: 'Zielhierarchie aus den Zielen und ihren Oberzielen (Kapitel 2.2) – Farbe nach MUSS, SOLL, KANN wie im Report.',
+    org: 'Projektorganisation aus den Rollen (Kapitel 6.2): Auftraggeber bzw. Lenkung oben, Projektleitung darunter, das Team in Reihen.',
+    phasePlan: 'Phasenplan aus Phasen (Beginn/Ende oder aus den Vorgängen der Phase) und Meilensteinen; unten die Projektmonate.',
+    psp: 'Codierter Projektstrukturplan: Projekt oben, Teilaufgaben weinrot, Arbeitspakete grau – wie Abbildung 10 im Report.',
+    gantt: 'Vernetzter Balkenplan: kritische Vorgänge rot, Pfeile = Abhängigkeiten, Rauten = Meilensteine.',
+    load: 'Einsatzmittelganglinie: Stunden je Woche nach Arbeitspaket gestapelt, rote Linie = Vorrat (Kapazität), schwarze Linie = Bedarf.',
+  } as Record<string, string>,
+  figNone: {
+    goalTree: 'Noch keine Ziele – erst in Kapitel 2.2 „Projektziele“ anlegen.',
+    org: 'Noch keine Rollen – erst in Kapitel 6.2 „Projektorganisation (AKV)“ anlegen.',
+    phasePlan: 'Noch keine Phasen mit Terminen – in Kapitel 7 „Phasenplan“ Beginn und Ende eintragen oder Vorgängen eine Phase geben.',
+    psp: 'Noch keine Arbeitspakete – in Kapitel 8 oder in der Ansicht „PSP“ anlegen.',
+    gantt: 'Noch keine Vorgänge mit Terminen.',
+    load: 'Noch keine Einsätze mit Stunden – in Kapitel 10 „Einsatz je Arbeitspaket“ eintragen.',
+  } as Record<string, string>,
   reportSaved: 'Kein neues Fenster möglich – der Druckdialog des Berichts ist offen; dort „Als PDF sichern“ wählen.',
   recordPick: (what: string) => `${what} wählen`,
   recordPrev: 'Voriger Eintrag',

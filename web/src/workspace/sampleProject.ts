@@ -133,6 +133,7 @@ const ORG_TEXT = [
 ].join('\n');
 
 /** V109 (F-226, L1): Ziele aus Tab. 1, Nicht-Ziele aus Kap. 2.2. */
+const dmyShift = (d: string) => shift(d).split('-').reverse().join('.');
 const GOALS: NonNullable<Project['goals']> = [
   { id: 'cg-l1', code: 'L1', text: 'Neue Betriebsstätte errichtet', kind: 'perf', level: 'must', owner: ME_ID },
   { id: 'cg-l11', code: 'L1.1', text: 'Alte Werkstatt umgebaut', measure: 'Lager entkernt, Wand zur Werkstatt entfernt, Dach und Heizung repariert, elektrische Anlage erfüllt alle Anforderungen', kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-l1' },
@@ -143,6 +144,21 @@ const GOALS: NonNullable<Project['goals']> = [
   { id: 'cg-l2', code: 'L2', text: 'Neue Organisationsstrukturen errichtet', kind: 'perf', level: 'must', owner: ME_ID },
   { id: 'cg-l21', code: 'L2.1', text: 'Aufbaustruktur festgelegt', measure: 'Rollen, Aufgaben, Verantwortungen und Befugnisse definiert', kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-l2' },
   { id: 'cg-l22', code: 'L2.2', text: 'Prozesse festgelegt', measure: 'alle organisatorischen und technischen Abläufe definiert, alle Stelleninhaber bekannt', kind: 'perf', level: 'must', owner: `${PERSON_PREFIX}lm`, parent: 'cg-l2' },
+  // V135 (Abgleich mit Abb. 4): Termin- und Kostenziele wie im Report
+  { id: 'cg-t', code: 'T', text: 'Termine', kind: 'perf', level: 'must', owner: ME_ID },
+  { id: 'cg-t1', code: 'T1', text: `Start: ${dmyShift('2020-12-01')}`, kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-t' },
+  { id: 'cg-t2', code: 'T2', text: `Ende: ${dmyShift('2021-06-30')}`, kind: 'perf', level: 'should', owner: ME_ID, parent: 'cg-t' },
+  { id: 'cg-t3', code: 'T3', text: `Büroräume eingerichtet: ${dmyShift('2021-01-29')}`, kind: 'perf', level: 'should', owner: ME_ID, parent: 'cg-t' },
+  { id: 'cg-t4', code: 'T4', text: `Werkstatt betriebsbereit: ${dmyShift('2021-02-26')}`, kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-t' },
+  { id: 'cg-t5', code: 'T5', text: `Lackieranlage 1 betriebsbereit: ${dmyShift('2021-04-16')}`, kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-t' },
+  { id: 'cg-t6', code: 'T6', text: `Lackieranlage 2 betriebsbereit: ${dmyShift('2021-06-18')}`, kind: 'perf', level: 'should', owner: ME_ID, parent: 'cg-t' },
+  { id: 'cg-k', code: 'K', text: 'Kosten', kind: 'perf', level: 'must', owner: ME_ID },
+  { id: 'cg-k1', code: 'K1', text: 'Technische Ausstattung 45 % v. B.', kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-k' },
+  { id: 'cg-k2', code: 'K2', text: 'Umbau & Instandsetzung 20 % v. B.', kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-k' },
+  { id: 'cg-k3', code: 'K3', text: 'Büroausstattung 5 % v. B.', kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-k' },
+  { id: 'cg-k4', code: 'K4', text: 'PM-Kosten 10 % v. B.', kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-k' },
+  { id: 'cg-k5', code: 'K5', text: 'Personalkosten 15 % v. B.', kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-k' },
+  { id: 'cg-k6', code: 'K6', text: 'Risikorücklage 5 % v. B.', kind: 'perf', level: 'must', owner: ME_ID, parent: 'cg-k' },
   { id: 'cg-s1', code: 'S1', text: '15 neue Arbeitsplätze geschaffen', kind: 'social', level: 'should', owner: `${PERSON_PREFIX}gl` },
   { id: 'cg-s2', code: 'S2', text: 'Mitarbeiterzufriedenheit verbessert', measure: 'modernste Technik erleichtert Abläufe und verbessert die Ergebnisqualität', kind: 'social', level: 'can', owner: `${PERSON_PREFIX}gl` },
   { id: 'cg-n1', code: 'N1', text: 'Aktive Marketingmaßnahmen und Akquise weiterer Kunden für diesen Standort', consequence: 'Laufkundschaft wird bedient, aber nicht priorisiert; Anfragen gehen an den Vertriebsinnendienst. Der Werkvertrag mit der HM hat höchste Priorität.', kind: 'non' },
@@ -163,6 +179,28 @@ const STAKEHOLDERS: NonNullable<Project['stakeholders']> = [
   sh('cg-sx4', 'SH-EX 04', 'Hr. Klar (Bezirksschornsteinfeger)', 'ex', 'Wird die Inbetriebnahme der Lackieranlagen nur freigeben, wenn alle Grenzwerte den gesetzlichen Vorgaben entsprechen.', 'discursive', 'Wird direkt zu Beginn mit allen nötigen Informationen versorgt, um die gesetzlichen Vorgaben genau mit ihm abstimmen zu können und diese beim Bau zu berücksichtigen.', -1, 3, 3),
   sh('cg-sx5', 'SH-EX 05', 'Hr. Talib (Glasklar GmbH, Anwendungstechnik)', 'ex', 'Ist an der Prozessgestaltung beteiligt. Wird zeitlich von der Inbetriebnahme der ersten Lackieranlage und der Funktionsfähigkeit der Werkstatt abhängig sein, um sich dann maßgeblich am Projekterfolg beteiligen zu können.', 'participative', 'Wird zu allen Anforderungen und Terminen in seinem Verantwortungsbereich informiert und durch den Werkstattleiter koordiniert.', 1, 1, 3),
   sh('cg-sx6', 'SH-EX 06', 'Anwohner', 'ex', 'Befürchten Belästigungen durch Lärm und die Emissionen der Lackieranlagen.', 'repressive', 'Sollen vorerst nur im gesetzlich notwendigen Rahmen informiert werden.', -1, 3, 1),
+];
+
+/** V135 (Abgleich mit Abb. 8): DKI-Matrix aus Sicht des Projektleiters – Strategie des Reports in Klammern bei „Information“. */
+const COMMS: NonNullable<Project['comms']> = [
+  { id: 'cg-k01', content: 'Informationen zum Projektfortschritt, zu Abweichungen und Störungen', sender: 'PL Hr. Schulz', receiver: 'GF/AG Hr. Meier', strategy: 'push', doc: 'Statusbericht gemäß den Vorgaben aus dem Projekthandbuch', info: 'mündlich und schriftlich (partizipativ, aktive Einbindung)', freq: '14-täglich, jeweils montags bis 10:00 Uhr und mündlich bei Bedarf' },
+  { id: 'cg-k02', content: 'Komplettes Review mit Analyse und Erfahrungssicherung des Gesamtprojekts', sender: 'PL Hr. Schulz', receiver: 'GF/AG Hr. Meier', strategy: 'push', doc: 'Abschlussbericht gemäß den Vorgaben aus dem Projekthandbuch', info: 'Projektabschluss-Sitzung mit allen internen Projektbeteiligten, inkl. Präsentation des Berichts (partizipativ)', freq: '1× in der Abschlussphase' },
+  { id: 'cg-k03', content: 'Sämtliche Projektinformationen, Anforderungen, Pläne, Berichte, Angebote', sender: 'PL Hr. Schulz', receiver: 'QMB/PB Fr. Mikitta', strategy: 'push', doc: 'Komplette Dokumentation aller Interaktionen', info: 'mündlich und schriftlich (partizipativ, aktive Einbindung)', freq: 'tägliche Abstimmung' },
+  { id: 'cg-k04', content: 'Sämtliche Projektinformationen, Anforderungen, Pläne, Berichte, Angebote', sender: 'QMB/PB Fr. Mikitta', receiver: 'PL Hr. Schulz', strategy: 'push', doc: 'Komplette Dokumentation aller Interaktionen', info: 'mündlich und schriftlich (partizipativ, aktive Einbindung)', freq: 'tägliche Abstimmung' },
+  { id: 'cg-k05', content: 'Informationen zu Anforderungen, Änderungen und Entscheidungen des AG sowie zum Projektfortschritt und zu Terminen', sender: 'PL Hr. Schulz', receiver: 'mittelbar beteiligte Fachbereichsleiter', strategy: 'push', doc: 'Gesprächsprotokolle; Berichte und Präsentationen', info: 'persönlich und schriftlich; Diskussion auf Basis von Präsentationen (partizipativ, aktive Einbindung)', freq: 'wöchentlich schriftlich, jeweils dienstags bis 17:00 Uhr, täglich mündlich nach Bedarf' },
+  { id: 'cg-k06', content: 'Informationen zu Anforderungen, Änderungen und Entscheidungen des AG sowie zum Projektfortschritt und zu Terminen', sender: 'PL Hr. Schulz', receiver: 'Projektmitarbeiter', strategy: 'push', doc: 'Agenda; AP-Ergebnisse; Verlaufsprotokoll', info: 'schriftlich und persönlich (partizipativ, aktive Einbindung)', freq: 'wöchentlich schriftlich, jeweils dienstags bis 17:00 Uhr, täglich mündlich nach Bedarf' },
+  { id: 'cg-k07', content: 'Informationen zu Anforderungen, Änderungen und Entscheidungen des AG sowie zum Projektfortschritt und zu Terminen', sender: 'PL Hr. Schulz', receiver: 'Dienstleister und Lieferanten', strategy: 'push', doc: 'Vertrag inkl. Anforderungsprotokoll; mögl. Gesprächsprotokolle', info: 'schriftlich und persönlich (aktive Einbindung)', freq: 'einmalig schriftlich bei Projektstart bzw. Vertragsabschluss, nach Bedarf mündlich und schriftlich' },
+  { id: 'cg-k08', content: 'Informationen zu Anforderungen, Änderungen und Entscheidungen des AG sowie zum Projektfortschritt und zu Terminen', sender: 'PL Hr. Schulz', receiver: 'Hr. Klar (Bezirksschornsteinfeger)', strategy: 'push', doc: 'Anforderungs- und Gesprächsprotokolle; Abnahmebestätigungen', info: 'schriftlich und persönlich (aktive Einbindung)', freq: 'einmalig schriftlich bei Projektstart bzw. Vertragsabschluss, nach Bedarf mündlich und schriftlich' },
+  { id: 'cg-k09', content: 'Unbedenklichkeitsbescheinigung des Elektrikers zum Zustand der elektrischen Anlagen', sender: 'PL Hr. Schulz', receiver: 'Fr. Stenzel (Vermieterin)', strategy: 'pull', doc: 'Unbedenklichkeitsbescheinigung', info: 'schriftlich per Mail (passive Einbindung)', freq: 'einmalig nach Erhalt der Bescheinigung' },
+  { id: 'cg-k10', content: 'Zielgruppengerechte Informationen zum Projekt', sender: 'PL Hr. Schulz', receiver: 'Anwohner', strategy: 'pull', doc: 'Layout der Baustelleninformation', info: 'Vorhaben- und Baustelleninformation durch Informationstafel 4×3 m vor dem Gelände (passive Einbindung)', freq: 'einmalig zum Projektbeginn' },
+  { id: 'cg-k11', content: 'Durch den AG freigegebene Informationen zum aktuellen Stand und zum Vorhaben', sender: 'PL Hr. Schulz', receiver: 'Anwohner', strategy: 'push', doc: 'Dialog- und Diskussionsinhalte nach Bedarf', info: 'mündlich mit allen Beteiligten (aktive Einbindung)', freq: 'nach Bedarf' },
+  { id: 'cg-k12', content: 'Durch den AG freigegebene stakeholderrelevante Projektinformationen aus den Statusberichten', sender: 'GL Hr. Kabel', receiver: 'GF der HM Hr. Drewens', strategy: 'pull', doc: 'gesamter Schriftverkehr', info: 'schriftlich per Mail, mündlich bei Bedarf (passive Einbindung)', freq: 'nach Informationsfreigabe, im Zyklus der Projekt-Statusberichte' },
+];
+
+/** V135: Lessons Learned – aus den Erfahrungen, die der Report schildert (Kap. 10.2 und 14.1). */
+const LESSONS: NonNullable<Project['lessons']> = [
+  { id: 'cg-ll1', topic: 'Zentrale Planungselemente gegen späte Änderungswünsche absichern', kind: 'improve', phase: 'cg-ph2', what: 'Nach unterschriebener Detailplanung wollte die Gebietsleitung günstigere Lackieranlagen anschaffen; etwa drei Viertel der Planung hätten neu erarbeitet werden müssen (Nachrichtenquadrat, Kap. 14.1).', cause: 'Persönlicher Anspruch unter dem Vorwand der Kostenziele; die Lackieranlagen sind ein zentrales Planungselement.', advice: 'Alle technischen Anforderungen und Termine offenlegen und eine Frist bis zum Ende der Detailplanung setzen – Wünsche bleiben möglich, das Projekt bleibt im Plan.', owner: ME_ID, shared: true },
+  { id: 'cg-ll2', topic: 'Engpässe der Projektleitung früh mit dem AG abstimmen und dokumentieren', kind: 'good', phase: 'cg-ph2', what: 'Die Einsatzmittelganglinie der Projektleitung zeigte im zweiten Projektmonat eine Überschreitung des Vorrats (Kap. 10.2).', cause: 'Mehrere Arbeitspakete der Projektleitung liefen gleichzeitig.', advice: `Minimale Terminverschiebung von CG-1.3.3 Büroräume einrichten am ${dmyShift('2021-01-29')} auf dem kurzen Dienstweg mit dem AG abgestimmt und im Statusbericht festgehalten; M2 gilt auch ohne final eingerichtete Büroräume als erreicht.`, owner: ME_ID, shared: true },
 ];
 
 /** V109 (F-226, L7): Phasen (Tab. 9), Beginn/Ende aus den Meilensteinen. */
@@ -246,6 +284,8 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
     budget: 400000,
     priority: 1,
     // V108 (Tab. 7): Instanzen – kein Lenkungsausschuss, Änderungen entscheidet der Auftraggeber
+    comms: COMMS,
+    lessons: LESSONS,
     roles: [
       { id: 'lead', name: 'Projektleitung', person: ME_ID },
       { id: 'client', name: 'Auftraggeber', person: CLIENT },

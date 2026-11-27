@@ -1,3 +1,4 @@
+import * as Lv from './liveProject';
 import { setFit, setZoom } from './zoom';
 import { type ColorsSnap, type DesignSnap, restoreColors, restoreDesign } from './reset';
 import { setPause, setPauseShown, setSourcesKeep, toggleKeep, toggleKeepTab } from './pause';
@@ -279,6 +280,8 @@ export type Action =
   /** V118 (F-230): Import fertig gerechnet (bzw. Rückgängig) – Stand übernehmen */
   | { type: 'exchange'; ws: Workspace }
   | { type: 'sampleProject'; on: boolean; key?: import('./samples').SampleKey }
+  /** F-235 (V135): Live-Projekt E-Sources anlegen bzw. aktualisieren */
+  | { type: 'liveProject'; at?: number }
   /* F-221 (V102): Feedback */
   | { type: 'fbAdd'; id: string; v: Fb.NewFeedback; at: string }
   | { type: 'fbEdit'; id: string; patch: Fb.FeedbackPatch }
@@ -675,6 +678,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return Pr.undoBecomeDecision(ws, a.undo);
     case 'fbAskEase':
       return Fb.setAskEase(ws, a.on);
+    case 'liveProject':
+      return Lv.refreshLiveProject(ws, a.at ?? Date.now());
     case 'sampleProject':
       // V134 (F-233): Beispiel nach Kennung (ohne = ColorGentlemen wie bisher)
       return Sm.toggleSample(ws, a.key, a.on);

@@ -1,4 +1,4 @@
-import { SAMPLES, hasSample } from './workspace/samples';
+import { SAMPLES, hasSample, shownSamples } from './workspace/samples';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { ZOOM_DEFAULT, fitFor, fitStart, frameWidth, nearestStep, shownZoom, zoomOf, zoomStep } from './workspace/zoom';
 import * as NS from './workspace/noteSources';
@@ -4219,7 +4219,7 @@ function DeskApp(props: DeskProps) {
               </Item>
               {/* V100 (F-206 Schritt 10): Beispielprojekt aus Enricos Projektreport zum Testen von PSP, Gantt & Co. */}
               {/* V134 (F-233): je Beispielprojekt ein Eintrag */}
-              {SAMPLES.map((sm) => {
+              {SAMPLES.filter((sm) => shownSamples(import.meta.env.DEV).includes(sm) || hasSample(ws, sm.key)).map((sm) => {
                 const st = sampleText(sm);
                 const has = hasSample(ws, sm.key);
                 return (

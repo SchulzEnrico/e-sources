@@ -373,6 +373,7 @@ export const fieldSpec = (src: FormSource, key: string): FieldSpec | undefined =
 
 const cols = (src: FormSource, keys?: string[]): FormColumn[] => (keys ?? FIELDS[src].map((f) => f.key)).map((key) => ({ key }));
 export const GPM_D_ID = 'gpm-d';
+const FIGURES: NonNullable<FormDef['figure']>[] = ['goalTree', 'org', 'phasePlan', 'psp', 'gantt', 'load'];
 /** G3: nach GPM-Leitfaden Z01D Rev. 09, Kapitel wie im Report; dazu ICB4-Ergänzungen der Stufe 1 (G11). */
 export const GPM_D: FormTemplate = {
   id: GPM_D_ID,
@@ -381,6 +382,8 @@ export const GPM_D: FormTemplate = {
     { id: 'charter', chapter: '2.1', name: 'Projektsteckbrief', source: 'charter', layout: 'fields', columns: cols('charter'), stage: 1, icb: '4.5.1 · 4.3.1' },
     { id: 'goals', chapter: '2.2', name: 'Projektziele', source: 'goals', layout: 'table', columns: cols('goals'), filter: 'perf,social', stage: 1, icb: '4.5.2' },
     { id: 'nongoals', chapter: '2.2', name: 'Nicht-Ziele', source: 'goals', layout: 'table', columns: cols('goals', ['code', 'text', 'consequence']), filter: 'non', stage: 1, icb: '4.5.2 · 4.5.3' },
+    // F-234 (V135): Grafiken aus den vorhandenen Daten als eigene Kapitel-Blätter wie im Report (nur zum Lesen, Daten in den Formularen daneben)
+    { id: 'goalTree', chapter: '2.2', name: 'Zielhierarchie', source: 'goals', layout: 'figure', figure: 'goalTree', columns: [], stage: 1, icb: '4.5.2' },
     { id: 'conflicts', chapter: '2.3', name: 'Zielkonflikte', source: 'conflicts', layout: 'table', columns: cols('conflicts'), stage: 1, icb: '4.5.2' },
     { id: 'rules', chapter: '2.4', name: 'Auflagen', source: 'rules', layout: 'table', columns: cols('rules'), stage: 2, icb: '4.3.3' },
     { id: 'accept', chapter: '3.1', name: 'Abnahmekriterien', source: 'accept', layout: 'table', columns: cols('accept'), stage: 2, icb: '4.5.3 · 4.5.6' },
@@ -388,17 +391,22 @@ export const GPM_D: FormTemplate = {
     { id: 'envPortfolio', chapter: '4', name: 'Umfeld-Portfolio', source: 'stakeholders', layout: 'portfolio', columns: cols('stakeholders', ['code', 'name', 'side', 'area']), filter: 'env', stage: 2, icb: '4.5.12' },
     { id: 'shPortfolio', chapter: '4', name: 'Stakeholder-Portfolio', source: 'stakeholders', layout: 'portfolio', columns: cols('stakeholders', ['code', 'name', 'attitude', 'power', 'conflict']), filter: 'sh', stage: 2, icb: '4.5.12 · 4.3.4' },
     { id: 'risks', chapter: '5', name: 'Chancen und Risiken', source: 'risks', layout: 'table', columns: cols('risks'), stage: 1, icb: '4.5.11' },
+    { id: 'org', chapter: '6.1', name: 'Projektorganisation (Organigramm)', source: 'roles', layout: 'figure', figure: 'org', columns: [], stage: 1, icb: '4.5.5 · 4.3.2' },
     { id: 'roles', chapter: '6.2', name: 'Projektorganisation (AKV)', source: 'roles', layout: 'table', columns: cols('roles'), stage: 1, icb: '4.5.5 · 4.3.2' },
     { id: 'comms', chapter: '6.3', name: 'Kommunikationsplan (DKI-Matrix)', source: 'comms', layout: 'table', columns: cols('comms'), stage: 2, icb: '4.5.5 · 4.5.12' },
     { id: 'docs', chapter: '6.4', name: 'Dokumentation', source: 'docs', layout: 'table', columns: cols('docs'), stage: 2, icb: '4.5.5' },
+    { id: 'phasePlan', chapter: '7', name: 'Phasenplan (Grafik)', source: 'phases', layout: 'figure', figure: 'phasePlan', columns: [], stage: 1, icb: '4.5.4' },
     { id: 'phases', chapter: '7', name: 'Phasenplan', source: 'phases', layout: 'table', columns: cols('phases'), stage: 1, icb: '4.5.4' },
     { id: 'milestones', chapter: '7', name: 'Meilensteine', source: 'milestones', layout: 'table', columns: cols('milestones'), stage: 1, icb: '4.5.4' },
     { id: 'mta', chapter: '7', name: 'Meilenstein-Trendanalyse', source: 'mta', layout: 'chart', columns: cols('mta'), stage: 2, icb: '4.5.4 · 4.5.10' },
+    { id: 'pspChart', chapter: '8', name: 'Projektstrukturplan (PSP)', source: 'tasks', layout: 'figure', figure: 'psp', columns: [], stage: 1, icb: '4.5.3' },
     { id: 'tasks', chapter: '8', name: 'Arbeitspakete', source: 'tasks', layout: 'table', columns: cols('tasks'), stage: 1, icb: '4.5.3 · 4.5.4' },
     { id: 'wp', chapter: '8.3', name: 'Arbeitspaketbeschreibung', source: 'wp', layout: 'record', columns: cols('wp'), stage: 2, icb: '4.5.3 · 4.5.10' },
+    { id: 'ganttChart', chapter: '9', name: 'Balkenplan mit kritischem Pfad', source: 'tasks', layout: 'figure', figure: 'gantt', columns: [], stage: 1, icb: '4.5.4' },
     { id: 'checks', chapter: '9', name: 'Prüfung am Lieferobjekt', source: 'checks', layout: 'table', columns: cols('checks'), stage: 2, icb: '4.5.6' },
     { id: 'persons', chapter: '10', name: 'Ressourcen', source: 'persons', layout: 'table', columns: cols('persons'), stage: 1, icb: '4.5.8' },
     { id: 'uses', chapter: '10', name: 'Einsatz je Arbeitspaket', source: 'uses', layout: 'table', columns: cols('uses'), stage: 1, icb: '4.5.8 · 4.5.7' },
+    { id: 'load', chapter: '10', name: 'Auslastungsdiagramm', source: 'persons', layout: 'figure', figure: 'load', columns: [], stage: 2, icb: '4.5.8' },
     { id: 'costs', chapter: '11', name: 'Kostenganglinie', source: 'costs', layout: 'chart', columns: cols('costs'), stage: 2, icb: '4.5.7' },
     { id: 'ev', chapter: '11', name: 'Earned Value (Fertigstellungswert)', source: 'ev', layout: 'table', columns: cols('ev'), stage: 2, icb: '4.5.7' },
     { id: 'procure', chapter: '11', name: 'Beschaffung', source: 'procure', layout: 'table', columns: cols('procure'), stage: 1, icb: '4.5.9' },
@@ -854,6 +862,8 @@ const COMPUTED: readonly FormSource[] = ['persons', 'costs', 'ev', 'mta'];
 
 /** V133 (F-232 P9): breite Tabellen (mehr als 7 Spalten) stehen im Querformat – im Bericht (Seite „wide“) und auf dem Blatt. */
 export function isWideForm(f: FormDef, colCount: number): boolean {
+  // F-234: Balkenplan und PSP brauchen das Querformat wie Abb. 10/13 im Report
+  if (f.layout === 'figure') return f.figure === 'gantt' || f.figure === 'psp' || f.figure === 'goalTree';
   return (f.layout === 'table' || f.layout === 'chart' || f.layout === 'portfolio') && colCount > 7;
 }
 
@@ -1338,7 +1348,8 @@ export function parseFormTemplates(v: unknown): FormTemplate[] {
         chapter: typeof f.chapter === 'string' ? f.chapter.slice(0, 12) : '',
         name: typeof f.name === 'string' && f.name.trim() ? f.name.trim().slice(0, 80) : 'Formular',
         source: f.source as FormSource,
-        layout: f.layout === 'fields' || f.layout === 'record' || f.layout === 'chart' || f.layout === 'portfolio' ? f.layout : 'table',
+        layout: f.layout === 'fields' || f.layout === 'record' || f.layout === 'chart' || f.layout === 'portfolio' || f.layout === 'figure' ? f.layout : 'table',
+        ...(f.layout === 'figure' && typeof f.figure === 'string' && FIGURES.includes(f.figure as NonNullable<FormDef['figure']>) ? { figure: f.figure as NonNullable<FormDef['figure']> } : {}),
         columns,
         ...(typeof f.filter === 'string' && f.filter ? { filter: f.filter } : {}),
         ...(typeof f.stage === 'number' ? { stage: f.stage } : {}),

@@ -137,7 +137,7 @@ describe('F-226 Baukasten (V109): Vorlage GPM Level D, Zellen, Zeilen, eigene Fe
   };
   const form = (id: string) => Fk.GPM_D.forms.find((f) => f.id === id)!;
   it('Vorlage: Kapitel in Leitfaden-Reihenfolge, jede Spalte im Feldkatalog, Stufe 1 und 2', () => {
-    expect(Fk.GPM_D.forms.map((f) => f.chapter)).toEqual(['2.1', '2.2', '2.2', '2.3', '2.4', '3.1', '4', '4', '4', '5', '6.2', '6.3', '6.4', '7', '7', '7', '8', '8.3', '9', '10', '10', '11', '11', '11', '12', '13', '14', '14']);
+    expect(Fk.GPM_D.forms.map((f) => f.chapter)).toEqual(['2.1', '2.2', '2.2', '2.2', '2.3', '2.4', '3.1', '4', '4', '4', '5', '6.1', '6.2', '6.3', '6.4', '7', '7', '7', '7', '8', '8', '8.3', '9', '9', '10', '10', '10', '11', '11', '11', '12', '13', '14', '14']);
     const chapters = Fk.GPM_D.forms.map((f) => parseFloat(f.chapter));
     expect([...chapters].sort((a, b) => a - b)).toEqual(chapters);
     for (const f of Fk.GPM_D.forms) {
@@ -275,7 +275,7 @@ describe('F-226 Beispielprojekt ColorGentlemen in den Formularen (V109)', () => 
   const form = (id: string) => Fk.GPM_D.forms.find((f) => f.id === id)!;
   it('Steckbrief, Ziele, Konflikte, Stakeholder, Phasen aus dem Report', () => {
     expect(p.charter).toMatchObject({ no: 'CG-1', reserve: 20000, costMaterial: 304949, model: 'classic' });
-    expect(Fk.rowsOf(ws, pid, form('goals')).map((r) => Fk.cellValue(ws, pid, form('goals'), r.id, 'code'))).toEqual(['L1', 'L1.1', 'L1.2', 'L1.3', 'L1.4', 'L1.5', 'L2', 'L2.1', 'L2.2', 'S1', 'S2']);
+    expect(Fk.rowsOf(ws, pid, form('goals')).map((r) => Fk.cellValue(ws, pid, form('goals'), r.id, 'code'))).toEqual(['L1', 'L1.1', 'L1.2', 'L1.3', 'L1.4', 'L1.5', 'L2', 'L2.1', 'L2.2', 'T', 'T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'K', 'K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'S1', 'S2']);
     expect(Fk.rowsOf(ws, pid, form('nongoals'))).toHaveLength(2);
     expect(p.conflicts!.map((c) => c.first)).toEqual(['a', 'a']);
     expect(p.stakeholders!.map((s) => s.code)).toEqual(['SH-IN 01', 'SH-IN 02', 'SH-IN 03', 'SH-IN 04', 'SH-IN 06', 'SH-EX 01', 'SH-EX 02', 'SH-EX 03', 'SH-EX 04', 'SH-EX 05', 'SH-EX 06']);
@@ -429,7 +429,9 @@ describe('F-226 Stufe 2 (V113): Abnahmekriterien, AKV, DKI, Arbeitspaket, Status
     w = Fk.setCell(w, pid, f, 'c2', 'strategy', 'push');
     w = Fk.setCell(w, pid, f, 'c2', 'strategy', 'quatsch');
     w = Fk.moveRow(w, pid, f, 'c2', -1, 3);
-    expect(Fk.rowsOf(w, pid, f).map((r) => r.id).slice(0, 1)).toEqual(['c2']);
+    // V135: ColorGentlemen hat jetzt die DKI-Matrix aus Abb. 8 – c2 steht nach dem Verschieben vor c1
+    const ids = Fk.rowsOf(w, pid, f).map((r) => r.id);
+    expect(ids.indexOf('c2')).toBe(ids.indexOf('c1') - 1);
     const again = parseWorkspace(JSON.parse(JSON.stringify(w)))!;
     expect(Fk.cellValue(again, pid, f, 'c2', 'content')).toBe('Statusbericht');
   });
@@ -580,7 +582,7 @@ describe('F-226 Stufe 2 Rest (V115): MTA, Dokumentation, Prüfung, Abschluss, Le
     const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
     const p = Pj.projectById(back, pid)!;
     expect(p.docs?.[0].place).toBe('Laufwerk P:');
-    expect(p.lessons?.[0].kind).toBe('good');
+    expect(p.lessons?.find((l) => l.id === 'x-lessons')?.kind).toBe('good');
     const rm = Fk.removeRow(ws, pid, form('changes'), 'x-changes', 4)!;
     expect(Pj.projectById(rm.ws, pid)!.changes).toBeUndefined();
   });
@@ -682,5 +684,62 @@ describe('F-232 P9 (V133): Formulare als Blatt in Report-Reihenfolge', () => {
     expect(Fk.isWideForm(charter, 20)).toBe(false);
     expect(Fk.isWideForm({ ...tasks, layout: 'table' }, 8)).toBe(true);
     expect(Fk.isWideForm({ ...tasks, layout: 'table' }, 7)).toBe(false);
+  });
+});
+
+describe('F-234 (V135): Grafik-Blätter wie im Report', () => {
+  it('jede Grafik hat ein Kapitel-Blatt, zeichnet aus den Beispieldaten und steht im Bericht', async () => {
+    const F = await import('./gpmFigures');
+    const S = await import('./sampleProject');
+    const R = await import('./gpmReport');
+    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const pid = S.SAMPLE_PROJECT;
+    const figs = Fk.GPM_D.forms.filter((f) => f.layout === 'figure');
+    expect(figs.map((f) => f.figure)).toEqual(['goalTree', 'org', 'phasePlan', 'psp', 'gantt', 'load']);
+    for (const f of figs) {
+      const svg = F.figureSvg(ws, pid, f.figure);
+      expect(svg.startsWith('<svg'), f.id).toBe(true);
+      expect(Fk.canAddRow(f)).toBe(false);
+    }
+    expect(Fk.isWideForm(figs.find((f) => f.figure === 'gantt')!, 0)).toBe(true);
+    expect(Fk.isWideForm(figs.find((f) => f.figure === 'org')!, 0)).toBe(false);
+    // PSP: sechs Teilaufgaben der ersten Ebene wie Abb. 10, keine Meilensteine
+    const psp = F.pspSheetSvg(ws, pid);
+    expect(psp).toContain('CG-1.6');
+    expect(psp).not.toContain('CG-1.7');
+    // Zielhierarchie mit Legende MUSS/SOLL/KANN und Nichtzielen
+    const gt = F.goalTreeSvg(ws.projects!.find((p) => p.id === pid)!);
+    expect(gt).toContain('MUSS');
+    expect(gt).toContain('Nichtziele');
+    // leere Projekte: nichts zu zeichnen
+    expect(F.figureSvg(W.defaultWorkspace(), 'x', 'psp')).toBe('');
+    // Bericht enthält die Grafiken als Abbildung
+    const html = R.reportHtml(ws, pid, { day: '2026-12-01' });
+    expect(html).toContain('Abbildung: Zielhierarchie');
+    expect(html).toContain('Abbildung: Balkenplan mit kritischem Pfad');
+  });
+  it('Zeilenumbruch: feste Breite, höchstens n Zeilen, lange Wörter getrennt', async () => {
+    const F = await import('./gpmFigures');
+    expect(F.wrap('Neue Organisationsstrukturen errichtet', 14)).toEqual(['Neue', 'Organisations-', 'strukturen', 'errichtet']);
+    expect(F.wrap('a b c d e f g h', 3, 2)).toEqual(['a b', 'c …']);
+  });
+});
+
+describe('F-235 (V135): Live-Projekt E-Sources', () => {
+  it('legt das Projekt aus dem Lastenheft an; Aktualisieren ersetzt nur Claudes Teile, eigene Notizen bleiben', async () => {
+    const Lv = await import('./liveProject');
+    const D = await import('./liveProjectData');
+    let ws = Lv.refreshLiveProject(W.defaultWorkspace(), 5);
+    expect(Lv.hasLiveProject(ws)).toBe(true);
+    const mine = (w: Workspace) => (w.notes ?? []).filter((n) => n.project === Lv.LIVE_PROJECT);
+    const groups = new Set(D.LIVE_ITEMS.map((i) => i.group)).size;
+    expect(mine(ws).length).toBe(D.LIVE_ITEMS.length + groups + 2);
+    ws = NLo.createNote(ws, { title: 'Eigene Notiz', project: Lv.LIVE_PROJECT }, { id: 'own-1', now: 6 }).ws;
+    ws = Lv.refreshLiveProject(ws, 7);
+    expect(mine(ws).length).toBe(D.LIVE_ITEMS.length + groups + 3);
+    expect((ws.notes ?? []).some((n) => n.id === 'own-1')).toBe(true);
+    expect((ws.projects ?? []).filter((p) => p.id === Lv.LIVE_PROJECT).length).toBe(1);
+    const c = Lv.liveCounts();
+    expect(c.done + c.part + c.open).toBe(c.all);
   });
 });

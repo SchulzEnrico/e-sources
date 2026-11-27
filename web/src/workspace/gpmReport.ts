@@ -10,6 +10,7 @@ import * as Fk from './formKit';
 import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf, projectStatus, type CostCurve, type EvCurve, type Mta, type PortfolioDot } from './gpmCalc';
 import { personById } from './persons';
 import { projectById } from './projects';
+import { figureSvg } from './gpmFigures';
 
 export const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
@@ -395,7 +396,11 @@ function formSection(ws: Workspace, p: Project, f: FormDef): string {
   const wide = Fk.isWideForm(f, cols.length);
   const out: string[] = [`<section id="f-${esc(f.id)}"${wide ? ' class="wide"' : ''}><h2>${esc(`${f.chapter} ${f.name}`)}${f.icb ? ` <span class="icb">ICB4 ${esc(f.icb)}</span>` : ''}</h2>`];
   const val = (rowId: string, c: Fk.FormCol) => displayValue(ws, p, c, Fk.cellValue(ws, p.id, f, rowId, c.key));
-  if (f.layout === 'fields') {
+  if (f.layout === 'figure') {
+    // F-234: Grafik-Blatt (Zielhierarchie, Organigramm, Phasenplan, PSP, Balkenplan, Auslastung)
+    const svg = figureSvg(ws, p.id, f.figure);
+    out.push(svg ? `<figure>${svg}<figcaption class="meta">Abbildung: ${esc(f.name)}</figcaption></figure>` : `<p class="empty">Noch nichts zu zeichnen.</p>`);
+  } else if (f.layout === 'fields') {
     const r = rows[0]?.id ?? p.id;
     out.push(`<table class="kv"><tbody>${cols.map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r, c))}</td></tr>`).join('')}</tbody></table>`);
   } else if (f.layout === 'record') {

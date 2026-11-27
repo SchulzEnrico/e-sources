@@ -38,7 +38,9 @@ import * as Dp from '../workspace/deskProject';
 import { DESK_PROJECT_TEXT as DPT } from '../workspace/terms';
 import { sampleText, PAPER_TEXT } from '../workspace/terms';
 import { ProjectSheet } from './ProjectSheet';
-import { SAMPLES, hasSample, sampleOf, type SampleKey } from '../workspace/samples';
+import { LIVE_PROJECT, hasLiveProject, liveCounts } from '../workspace/liveProject';
+import { LIVE_STAND } from '../workspace/liveProjectData';
+import { shownSamples, hasSample, sampleOf, type SampleKey } from '../workspace/samples';
 import { ACCENTS } from '../workspace/look';
 import { DeskProjectBar } from './DeskProject';
 
@@ -242,11 +244,17 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
             <Icon name="tour" size={13} className="icon icon--inline" /> {T.tour}
           </button>
           {/* V132: Beispielprojekt aus Enricos ICB4-Report sichtbar in der Projektliste (vorher nur im ⚙); V134 (F-233): je Beispiel ein Knopf */}
-          {SAMPLES.filter((sm) => !hasSample(ws, sm.key)).map((sm) => (
+          {shownSamples(import.meta.env.DEV).filter((sm) => !hasSample(ws, sm.key)).map((sm) => (
             <button key={sm.key} type="button" className="help__run pj__sample" title={sampleText(sm).hint} onClick={() => addSample(sm.key)}>
               <Icon name="project" size={13} className="icon icon--inline" /> {sampleText(sm).short}
             </button>
           ))}
+          {/* F-235 (V135): Live-Projekt E-Sources – beim Entwickeln anlegen bzw. aktualisieren (Stand aus dem Lastenheft) */}
+          {import.meta.env.DEV && (
+            <button type="button" className="help__run pj__live" title={T.liveHint(LIVE_STAND.chat)} onClick={() => (dispatch({ type: 'liveProject', at: Date.now() }), setSel(LIVE_PROJECT), tell(T.liveDone(LIVE_STAND.chat, liveCounts().done, liveCounts().all)), focusRow(LIVE_PROJECT))}>
+              <Icon name="project" size={13} className="icon icon--inline" /> {hasLiveProject(ws) ? T.liveUpdate : T.liveAdd}
+            </button>
+          )}
           <button type="button" id="pj-add" className="help__run" aria-expanded={adding} disabled={full} title={full ? T.full(Pj.PROJECTS_MAX) : T.addHint} onClick={() => (adding ? setAdding(false) : openAdd())}>
             <Icon name="plus" size={13} className="icon icon--inline" /> {T.add}
           </button>
@@ -300,9 +308,9 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
       {!shown ? (
         <div className="pj__empty">
           <p className="lc__muted">{T.empty}</p>
-          {SAMPLES.some((sm) => !hasSample(ws, sm.key)) && (
+          {shownSamples(import.meta.env.DEV).some((sm) => !hasSample(ws, sm.key)) && (
             <p className="pj__samples">
-              {SAMPLES.filter((sm) => !hasSample(ws, sm.key)).map((sm) => (
+              {shownSamples(import.meta.env.DEV).filter((sm) => !hasSample(ws, sm.key)).map((sm) => (
                 <button key={sm.key} type="button" className="help__run lc__primary" title={sampleText(sm).hint} onClick={() => addSample(sm.key)}>
                   <Icon name="project" size={13} className="icon icon--inline" /> {sampleText(sm).add}
                 </button>
@@ -470,7 +478,7 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
           {view === 'risks' || view === 'changes' ? (
             <ProjectSteer key={`${shown.id}-${view}`} ws={ws} p={shown} kind={view === 'risks' ? 'risk' : 'change'} dispatch={dispatch} say={say} focus={steerFocus} />
           ) : view === 'forms' ? (
-            <ProjectForms key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
+            <ProjectForms key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} openView={(v) => setView(v)} />
           ) : view === 'feedback' ? (
             <ProjectFeedback key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
           ) : view === 'decide' ? (

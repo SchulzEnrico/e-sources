@@ -7,8 +7,10 @@
  * hoch/runter = in der Spalte), Pos1/Ende, Enter öffnet die Notiz. Logik in workspace/network.ts.
  * V133 (Enrico): Kästen grau neumorph und größer (alles lesbar); Klick bzw. Leertaste zeigt den Vorgang als eingesenkte
  * Karte („sunken“) neben dem Kasten (Angaben, Vorgänger/Nachfolger, „Notiz öffnen“), Esc schließt sie und führt zum Kasten zurück.
+ * V135 (Enrico 12:01/12:02): Zoom-Rad bis „Ganz“ (ganzer Plan im Bild); in verkleinerter Ansicht rückt ein Doppelklick die
+ * Stelle in normaler Größe (100 %) in den Bildausschnitt, Esc zeigt wieder den ganzen Plan.
  */
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { Project, Workspace } from '../workspace/types';
 import * as Gt from '../workspace/gantt';
@@ -17,6 +19,19 @@ import { GANTT_TEXT as G, NET_TEXT as N, TERMS } from '../workspace/terms';
 import { Icon } from './Icon';
 import { CardWindow } from './SheetViews';
 import { fmtDay } from './ProjectPsp';
+import { ModeWheel } from './ModeWheel';
+
+const ZOOMS = ['fit', '50', '75', '100', '125'] as const;
+type Zoom = (typeof ZOOMS)[number];
+const ZOOM_KEY = 'esource.netZoom.v1';
+const loadZoom = (): Zoom => {
+  try {
+    const v = localStorage.getItem(ZOOM_KEY) as Zoom | null;
+    return v && ZOOMS.includes(v) ? v : '100';
+  } catch {
+    return '100';
+  }
+};
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 const BOX_W = 210;
@@ -36,6 +51,24 @@ export function ProjectNetwork({ ws, p, dispatch, say }: { ws: Workspace; p: Pro
   const openNote = (id: string) => setCard(id);
   const refs = useRef(new Map<string, HTMLButtonElement>());
   const boxRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoomState] = useState<Zoom>(loadZoom);
+  const [boxSize, setBoxSize] = useState({ w: 0, h: 0 });
+  const centerAt = useRef<{ x: number; y: number } | null>(null);
+  const setZoom = (z: Zoom) => {
+    setZoomState(z);
+    try {
+      localStorage.setItem(ZOOM_KEY, z);
+    } catch {
+      /* ohne Speicher: bis zum Neuladen */
+    }
+  };
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setBoxSize({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   // V133 (Enrico: „Die Anzeige läuft aus dem Bild, wenn man am Rand etwas öffnet“): Vorgangskarte nach dem Öffnen ganz ins Bild rollen
   useEffect(() => {
     if (pop) document.getElementById('nw-pop')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
@@ -58,6 +91,35 @@ export function ProjectNetwork({ ws, p, dispatch, say }: { ws: Workspace; p: Pro
   const width = net.cols * (BOX_W + GAP_X) + 20;
   const height = rowsMax * (BOX_H + GAP_Y) + 20;
   const pos = (n: Nw.NetNode) => ({ x: 10 + n.col * (BOX_W + GAP_X), y: 10 + n.line * (BOX_H + GAP_Y) });
+  // Zoom: „Ganz“ passt den Plan in Breite und Höhe der Fläche (höchstens 100 %)
+  const fitScale = boxSize.w ? Math.min(1, (boxSize.w - 4) / width, Math.max(200, window.innerHeight * 0.62 - 4) / height) : 1;
+  const z = zoom === 'fit' ? fitScale : Number(zoom) / 100;
+  const zoomDbl = (e: MouseEvent<HTMLDivElement>) => {
+    if (z >= 1 || !boxRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = boxRef.current.getBoundingClientRect();
+    centerAt.current = { x: (e.clientX - r.left + boxRef.current.scrollLeft) / z, y: (e.clientY - r.top + boxRef.current.scrollTop) / z };
+    setZoom('100');
+    boxRef.current.focus({ preventScroll: true });
+    say(N.zoomIn);
+  };
+  // nach dem Heranrücken: die doppelt geklickte Stelle in die Mitte des Bildausschnitts
+  useEffect(() => {
+    const c = centerAt.current;
+    const el = boxRef.current;
+    if (!c || !el) return;
+    centerAt.current = null;
+    el.scrollLeft = Math.max(0, c.x * z - el.clientWidth / 2);
+    el.scrollTop = Math.max(0, c.y * z - el.clientHeight / 2);
+  }, [z]);
+  const boxKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Escape' || pop || card || zoom === 'fit') return;
+    e.preventDefault();
+    e.stopPropagation();
+    setZoom('fit');
+    say(N.zoomAll);
+  };
   const go = (id: string | undefined) => {
     if (!id) return;
     setSel(id);
@@ -106,13 +168,18 @@ export function ProjectNetwork({ ws, p, dispatch, say }: { ws: Workspace; p: Pro
           <input type="checkbox" checked={crit} onChange={(e) => setCrit(e.target.checked)} />
           {G.showCritical}
         </label>
+        <span className="layouts__label pj__wheel nw__zoom">
+          <span aria-hidden="true">{N.zoom}</span>
+          <ModeWheel label={N.zoom} value={zoom} onChange={(v) => (setZoom(v as Zoom), say(v === 'fit' ? N.zoomAll : `${N.zoom} ${v} %`))} options={ZOOMS.map((v) => ({ id: v, name: v === 'fit' ? N.zoomFit : `${v} %`, hint: v === 'fit' ? N.zoomFitHint : N.zoomHint }))} />
+        </span>
         <p className="lc__keys gt__sum" role="status">
           {N.span(fmtDay(g.start), fmtDay(g.end))} · {N.count(net.nodes.length, net.links.length)} · <span className={crit ? 'pj__crit-tag' : ''}>{G.criticalCount(critCount)}</span>
         </p>
       </div>
       <p className="lc__keys" id="nw-keys">{N.keys}</p>
-      <div className="nw__box" ref={boxRef} role="group" aria-label={N.head(p.name)} aria-describedby="nw-keys">
-        <div className="nw__canvas" style={{ width, height }}>
+      <div className={`nw__box${z < 1 ? ' is-zoomed' : ''}`} ref={boxRef} role="group" aria-label={N.head(p.name)} aria-describedby="nw-keys" onDoubleClickCapture={zoomDbl} onKeyDown={boxKey} tabIndex={-1} title={z < 1 ? N.zoomDblHint : undefined}>
+        <div className="nw__sizer" style={{ width: width * z, height: height * z }}>
+        <div className="nw__canvas" style={{ width, height, transform: z !== 1 ? `scale(${z})` : undefined, transformOrigin: '0 0' }}>
           <svg className="nw__links" width={width} height={height} aria-hidden="true">
             <defs>
               <marker id="nw-arr" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L6 3L0 6z" /></marker>
@@ -218,6 +285,7 @@ export function ProjectNetwork({ ws, p, dispatch, say }: { ws: Workspace; p: Pro
               </div>
             );
           })()}
+        </div>
         </div>
       </div>
       <p className="lc__keys nw__legend">{N.legend}</p>

@@ -24,6 +24,10 @@ import * as Rp from '../workspace/gpmReport';
 import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf } from '../workspace/gpmCalc';
 import { APP_VERSION } from '../workspace/feedback';
 import { PaperSizeWheel, ProjectSheet, paperZoom, usePaperSize } from './ProjectSheet';
+import { figureSvg, loadDefault, loadPersons } from '../workspace/gpmFigures';
+
+/** F-234 D2: Grafik-Blatt → bedienbare Ansicht im Projekt-Modus */
+const FIGURE_VIEW: Record<string, 'psp' | 'gantt' | 'res' | undefined> = { psp: 'psp', gantt: 'gantt', phasePlan: 'gantt', load: 'res' };
 
 /** V133 (F-232 P9): Formulare stehen auf einem hellen Blatt wie im Report – Grafiken daher in den Druckfarben */
 const UI_COLORS: Rp.SvgColors = Rp.PRINT_COLORS;
@@ -52,7 +56,7 @@ const parseNum = (v: string): number | '' | undefined => {
 const fmtNum = (v: Fk.CellValue, kind: Fk.FieldKind, digits?: number): string => (typeof v !== 'number' ? (v === undefined ? '' : String(v)) : Fk.fmtNumber(v, kind, digits));
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
 
-export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void; inPad?: boolean }) {
+export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void; inPad?: boolean; openView?: (v: 'psp' | 'gantt' | 'res') => void }) {
   const tpl = Fk.templateOf(ws, p);
   const [fid, setFidState] = useState(loadForm);
   const form = tpl.forms.find((f) => f.id === fid) ?? tpl.forms[0];
@@ -63,6 +67,8 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
   // V113: Einzelansicht (Arbeitspaket, Statusbericht) – gewählte Zeile; Ziel für neue Abnahmekriterien
   const [rec, setRec] = useState('');
   const [acceptTask, setAcceptTask] = useState('');
+  // F-234 D4: Auslastungsdiagramm je Ressource (Rad), Vorgabe Projektleitung
+  const [loadWho, setLoadWho] = useState('');
   const body = useRef<HTMLDivElement>(null);
   const by = ws.profile?.name || undefined;
   const base = inPad ? 'pjf-pad' : 'pjf';
@@ -234,9 +240,9 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
             <Icon name="plus" size={13} className="icon icon--inline" /> {T.addRow}
           </button>
         )}
-        <button type="button" className="help__run pjf__fieldsbtn" aria-expanded={panel} aria-controls={`${base}-fields`} title={T.fieldsHint} onClick={() => setPanel(!panel)}>
+        {form.layout !== 'figure' && <button type="button" className="help__run pjf__fieldsbtn" aria-expanded={panel} aria-controls={`${base}-fields`} title={T.fieldsHint} onClick={() => setPanel(!panel)}>
           {T.fields}
-        </button>
+        </button>}
         <span className={`pjf__open${openCount ? ' is-open' : ''}`} title={T.openHint}>
           {openCount ? T.open(openCount) : T.allSet}
         </span>
@@ -367,8 +373,36 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
           </figcaption>
         </figure>
       )}
+      {form.layout === 'figure' && (() => {
+        const people = form.figure === 'load' ? loadPersons(ws, p.id) : [];
+        const who = people.some((x) => x.id === loadWho) ? loadWho : loadDefault(ws, p.id);
+        const svg = figureSvg(ws, p.id, form.figure, { person: who });
+        const target = form.figure ? FIGURE_VIEW[form.figure] : undefined;
+        return (
+          <figure className={`pjf__figure pjf__fig is-${form.figure}`}>
+            {people.length > 1 && (
+              <span className="layouts__label pj__wheel pjf__figwho">
+                <span aria-hidden="true">{T.figWho}</span>
+                <ModeWheel label={T.figWho} value={who} onChange={(id) => (setLoadWho(id), say(people.find((x) => x.id === id)?.name ?? ''))} options={people.map((x) => ({ id: x.id, name: x.name, hint: `${x.total.toLocaleString('de-DE')} h` }))} />
+              </span>
+            )}
+            {svg ? (
+              target && openView ? (
+                <button type="button" className="pjf__figbtn" title={T.figOpen(T.figView[target])} aria-label={T.figOpen(T.figView[target])} onClick={() => openView(target)}>
+                  <span className="pjf__svg" dangerouslySetInnerHTML={{ __html: svg }} />
+                </button>
+              ) : (
+                <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: svg }} />
+              )
+            ) : (
+              <p className="lc__muted">{T.figNone[form.figure ?? 'goalTree']}</p>
+            )}
+            {svg && <figcaption className="help__text">{T.figCaption[form.figure ?? 'goalTree']}{target && openView ? ` ${T.figOpenHint(T.figView[target])}` : ''}</figcaption>}
+          </figure>
+        );
+      })()}
       <div ref={body} className="pjf__body">
-        {form.layout === 'record' ? (
+        {form.layout === 'figure' ? null : form.layout === 'record' ? (
           !recRow ? (
             <p className="lc__muted">{T.recordNone[form.source] ?? T.empty}</p>
           ) : (

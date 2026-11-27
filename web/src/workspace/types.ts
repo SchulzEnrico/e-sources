@@ -1500,7 +1500,9 @@ export interface FormDef {
   name: string;
   source: FormSource;
   /** Tabelle (Zeilen) oder Feldliste (ein Objekt); V113: `record` = Feldliste je Zeile (Auswahl-Rad), `chart` = Ganglinie, `portfolio` = Grafik */
-  layout: 'table' | 'fields' | 'record' | 'chart' | 'portfolio';
+  layout: 'table' | 'fields' | 'record' | 'chart' | 'portfolio' | 'figure';
+  /** F-234 (V135): Grafik eines Kapitel-Blatts mit Layout `figure` (gpmFigures.ts) */
+  figure?: 'goalTree' | 'org' | 'phasePlan' | 'psp' | 'gantt' | 'load';
   columns: FormColumn[];
   /** Zeilen-Filter, z. B. Ziel-Art `non` */
   filter?: string;

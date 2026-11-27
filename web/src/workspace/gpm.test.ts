@@ -667,3 +667,20 @@ describe('F-206 Schritt 10 (V115): Netzplan', () => {
     expect(net.links.some((l) => l.critical)).toBe(true);
   });
 });
+
+describe('F-232 P9 (V133): Formulare als Blatt in Report-Reihenfolge', () => {
+  it('Kapitel stehen in Report-Reihenfolge, breite Tabellen im Querformat wie im Bericht', () => {
+    const { ws, id } = Pj.addProject(W.defaultWorkspace(), 'Blatt')!;
+    const p = ws.projects!.find((x) => x.id === id)!;
+    const tpl = Fk.templateOf(ws, p);
+    const nums = tpl.forms.map((f) => Number(f.chapter.split('.')[0]));
+    expect(nums).toEqual([...nums].sort((a, b) => a - b));
+    expect(tpl.forms[0].source).toBe('charter');
+    const tasks = tpl.forms.find((f) => f.id === 'tasks')!;
+    expect(Fk.isWideForm(tasks, Fk.columnsOf(p, tasks).length)).toBe(Fk.columnsOf(p, tasks).length > 7);
+    const charter = tpl.forms.find((f) => f.id === 'charter')!;
+    expect(Fk.isWideForm(charter, 20)).toBe(false);
+    expect(Fk.isWideForm({ ...tasks, layout: 'table' }, 8)).toBe(true);
+    expect(Fk.isWideForm({ ...tasks, layout: 'table' }, 7)).toBe(false);
+  });
+});

@@ -851,6 +851,12 @@ const LIST: Partial<Record<FormSource, GpmList>> = { goals: 'goals', conflicts: 
 /** V115: gerechnete Formulare ohne eigene Zeilen. */
 const COMPUTED: readonly FormSource[] = ['persons', 'costs', 'ev', 'mta'];
 /** Kann das Formular Zeilen anlegen? (Ressourcen entstehen über Einsätze; Einsätze brauchen Vorgang und Person.) */
+
+/** V133 (F-232 P9): breite Tabellen (mehr als 7 Spalten) stehen im Querformat – im Bericht (Seite „wide“) und auf dem Blatt. */
+export function isWideForm(f: FormDef, colCount: number): boolean {
+  return (f.layout === 'table' || f.layout === 'chart' || f.layout === 'portfolio') && colCount > 7;
+}
+
 export const canAddRow = (form: FormDef): boolean => (form.layout === 'table' || form.layout === 'record') && !COMPUTED.includes(form.source);
 /** Kann man Zeilen von Hand verschieben? (nur Listen am Projekt) */
 /** V115: Zeilen löschen – nicht bei gerechneten Formularen (Earned Value, Kosten) und Ressourcen. */

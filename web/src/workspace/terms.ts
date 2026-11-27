@@ -2716,8 +2716,15 @@ export const NET_TEXT = {
   empty: 'Noch keine geplanten Vorgänge – lege im PSP Vorgänge an und gib ihnen im Gantt Dauer und Vorgänger.',
   span: (a: string, b: string) => `Projekt: ${a} – ${b}`,
   count: (n: number, l: number) => `${n === 1 ? '1 Vorgang' : `${n} Vorgänge`}, ${l === 1 ? '1 Abhängigkeit' : `${l} Abhängigkeiten`}`,
-  keys: 'Pfeile wandern zwischen den Kästen (links/rechts = Vorgänger/Nachfolger-Stufe, hoch/runter = in der Spalte) · Pos1/Ende · Enter oder Doppelklick öffnet die Notiz',
-  keysShort: 'Pfeile wandern · Enter öffnet',
+  keys: 'Pfeile wandern zwischen den Kästen (links/rechts = Vorgänger/Nachfolger-Stufe, hoch/runter = in der Spalte) · Pos1/Ende · Klick oder Leertaste zeigt den Vorgang, Esc schließt · Enter oder Doppelklick öffnet die Notiz',
+  keysShort: 'Klick zeigt den Vorgang · Enter öffnet die Notiz',
+  popLabel: (name: string) => `Vorgang ${name}`,
+  popClose: 'Vorgang schließen (Esc)',
+  popNr: (nr: number | string) => `Nr. ${nr}`,
+  popMs: 'Meilenstein',
+  popDays: (d: number) => `${d} ${d === 1 ? 'Arbeitstag' : 'Arbeitstage'}`,
+  popDone: 'erledigt',
+  popCrit: 'kritisch (kein Puffer)',
   legend: 'Je Kasten: oben frühester Anfang (FA) · Dauer · frühestes Ende (FE), unten spätester Anfang (SA) · Puffer (P, Arbeitstage) · spätestes Ende (SE). Rot umrandet = kritisch (kein Puffer). Sammelvorgänge stehen nicht im Netzplan; ihre Abhängigkeiten gelten für die Vorgänge darin.',
   es: 'Frühester Anfang (FA)',
   ef: 'Frühestes Ende (FE)',
@@ -2731,7 +2738,7 @@ export const NET_TEXT = {
   preds: 'Vorgänger',
   succs: 'Nachfolger',
   open: 'Notiz öffnen',
-  opened: 'Notiz geöffnet.',
+  opened: 'Notiz im Kartenfenster geöffnet.',
 };
 
 /** F-206 Schritt 10 (V116): Ressourcen-Ansicht im Projekt (MS Project „Ressource: Einsatz“) */
@@ -3665,6 +3672,12 @@ export const STEER_TEXT = {
 
 /** F-226 (V109): Projekt-Modus › Ansicht „Formulare“ (Formular-Baukasten nach GPM). */
 export const FORMS_TEXT = {
+  // V133 (F-232 P9): jedes Formular als Blatt wie im Report
+  sheetTitle: (f: string, p: string) => `Formular ${f}, Projekt ${p} – Blatt wie im Report`,
+  sheetCaption: (f: string) => `Formular: ${f}`,
+  sheetHint: 'Blatt wie im Report (Hochformat) – direkt in die Felder schreiben; Enter übernimmt, Esc verwirft.',
+  sheetWide: 'Breite Tabelle: Blatt im Querformat wie im Report – direkt in die Felder schreiben; Enter übernimmt, Esc verwirft.',
+  sheetCharter: 'Der Projektsteckbrief ist dasselbe Blatt wie in der Ansicht „Steckbrief“ – jede Angabe liegt nur einmal.',
   head: (p: string) => `Formulare – ${p}`,
   chapter: 'Kapitel',
   chapterHint: (icb?: string) => (icb ? `ICB4 ${icb}` : ''),

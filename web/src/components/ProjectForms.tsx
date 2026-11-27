@@ -23,9 +23,10 @@ import { requestTour, tourAutoStart } from '../workspace/tour';
 import * as Rp from '../workspace/gpmReport';
 import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf } from '../workspace/gpmCalc';
 import { APP_VERSION } from '../workspace/feedback';
+import { PaperSizeWheel, ProjectSheet, paperZoom, usePaperSize } from './ProjectSheet';
 
-/** V113: Farben der Grafiken in der Oberfläche (folgen Darstellung und Akzentfarbe) */
-const UI_COLORS: Rp.SvgColors = { ink: 'var(--strong)', muted: 'var(--muted)', line: 'var(--line)', bar: 'rgba(var(--accent-rgb), 0.45)', sum: 'var(--accent)', budget: '#5fb36a', dot: 'var(--accent)' };
+/** V133 (F-232 P9): Formulare stehen auf einem hellen Blatt wie im Report – Grafiken daher in den Druckfarben */
+const UI_COLORS: Rp.SvgColors = Rp.PRINT_COLORS;
 const todayDay = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -172,6 +173,33 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
   const dots = form.layout === 'portfolio' ? portfolioOf(p) : [];
   const dotsOpen = form.layout === 'portfolio' ? dots.filter((d) => (form.filter === 'sh' ? d.attitude === undefined || d.power === undefined : !d.side || !d.area)).length : 0;
   const eur = (v: number) => `${v.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
+  // V133 (F-232 P9): Blatt wie im Report – breite Tabellen (mehr als 7 Spalten) im Querformat wie die Seiten „wide“ im Bericht
+  const [size, setSize] = usePaperSize(say);
+  const wide = Fk.isWideForm(form, cols.length);
+  const isCharter = form.source === 'charter' && form.layout === 'fields';
+  /** Feldliste wie im Report: zweispaltige Tabelle Bezeichnung | Wert */
+  const kv = (rowId: string, list: Fk.FormCol[]) => (
+    <table className="paper__table pjf__kv">
+      <colgroup>
+        <col className="paper__colL" />
+        <col />
+      </colgroup>
+      <tbody>
+        {list.map((c) => (
+          <tr key={c.key} className={miss.has(`${rowId}|${c.key}`) ? 'is-miss' : undefined}>
+            <th scope="row">
+              {c.label}
+              {c.required && <span className="pjf__req" title={T.required} aria-label={T.required}>*</span>}
+            </th>
+            <td className={`pjf__cell is-${c.kind}${miss.has(`${rowId}|${c.key}`) ? ' is-miss' : ''}`}>
+              <Cell ws={ws} p={p} form={form} rowId={rowId} col={c} miss={miss.has(`${rowId}|${c.key}`)} label={c.label} onSet={setValue} />
+              {c.help && <span className="pjf__help">{c.help}</span>}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 
   return (
     <section className="dc pjs pjf" aria-labelledby={`${base}-head`}>
@@ -271,6 +299,23 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
           <button type="submit" className="fbq__save" disabled={!targets.length}>{T.acceptAdd}</button>
         </form>
       )}
+      {isCharter ? (
+        <>
+          <p className="help__text pjf__sheetnote">{T.sheetCharter}</p>
+          <ProjectSheet ws={ws} p={p} dispatch={dispatch} say={say} />
+        </>
+      ) : (
+      <div className="paper__wrap">
+        <div className="paper__bar">
+          <PaperSizeWheel size={size} setSize={setSize} />
+          <span className="lc__muted">{wide ? T.sheetWide : T.sheetHint}</span>
+        </div>
+        <article className={`paper paper--form${wide ? ' is-wide' : ''}`} style={paperZoom(size)} aria-label={T.sheetTitle(`${form.chapter} ${form.name}`, p.name)}>
+          <header className="paper__head">
+            <span className="paper__chapter">{form.name}{form.icb ? ` [${form.icb}]` : ''}</span>
+            <span className="paper__project">{p.name}</span>
+          </header>
+          <h2 className="paper__h">{form.chapter} {form.name}</h2>
       {form.layout === 'chart' && curve && (
         <figure className="pjf__figure">
           {curve.months.length ? (
@@ -350,32 +395,14 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
                 </button>
               </div>
               {form.source === 'reports' && <p className="help__text">{T.reportFrozen}</p>}
-              <div className="pjf__fields" data-row={recRow.id} key={recRow.id}>
-                {cols.map((c) => (
-                  <label key={c.key} className={`pjf__field${c.kind === 'long' || c.kind === 'lines' ? ' is-wide' : ''}`}>
-                    <span className="fbq__label">
-                      {c.label}
-                      {c.required && <span className="pjf__req" title={T.required} aria-label={T.required}>*</span>}
-                    </span>
-                    <Cell ws={ws} p={p} form={form} rowId={recRow.id} col={c} miss={miss.has(`${recRow.id}|${c.key}`)} label={c.label} onSet={setValue} />
-                    {c.help && <span className="pjf__help">{c.help}</span>}
-                  </label>
-                ))}
+              <div className="pjf__fields is-kv" data-row={recRow.id} key={recRow.id}>
+                {kv(recRow.id, cols)}
               </div>
             </>
           )
         ) : form.layout === 'fields' ? (
-          <div className="pjf__fields" data-row={rows[0]?.id}>
-            {cols.map((c) => (
-              <label key={c.key} className={`pjf__field${c.kind === 'long' || c.kind === 'lines' ? ' is-wide' : ''}`}>
-                <span className="fbq__label">
-                  {c.label}
-                  {c.required && <span className="pjf__req" title={T.required} aria-label={T.required}>*</span>}
-                </span>
-                <Cell ws={ws} p={p} form={form} rowId={rows[0]?.id ?? p.id} col={c} miss={miss.has(`${rows[0]?.id}|${c.key}`)} label={c.label} onSet={setValue} />
-                {c.help && <span className="pjf__help">{c.help}</span>}
-              </label>
-            ))}
+          <div className="pjf__fields is-kv" data-row={rows[0]?.id}>
+            {kv(rows[0]?.id ?? p.id, cols)}
           </div>
         ) : !rows.length ? (
           form.layout === 'chart' ? null : <p className="lc__muted">{form.source === 'persons' ? T.personsNone : form.source === 'conflicts' && (p.goals?.length ?? 0) < 2 ? T.conflictsNone : T.empty}</p>
@@ -448,6 +475,10 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
           </div>
         )}
       </div>
+          <p className="paper__caption">{T.sheetCaption(form.name)}</p>
+        </article>
+      </div>
+      )}
     </section>
   );
 }

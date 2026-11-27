@@ -28,6 +28,30 @@ const loadSize = (): Size => {
   }
 };
 
+/** V133 (F-232 P9): Rad „Größe“ gemeinsam für alle Blätter (Steckbrief und Formulare) – gleicher Speicher je Gerät. */
+export function usePaperSize(say: (t: string) => void): [Size, (v: Size) => void] {
+  const [size, setSizeState] = useState<Size>(loadSize);
+  const setSize = (v: Size) => {
+    setSizeState(v);
+    try {
+      localStorage.setItem(SIZE_KEY, v);
+    } catch {
+      /* nur bis zum Neuladen */
+    }
+    say(S.sizeSaid(v));
+  };
+  return [size, setSize];
+}
+export function PaperSizeWheel({ size, setSize }: { size: Size; setSize: (v: Size) => void }) {
+  return (
+    <span className="layouts__label pj__wheel">
+      <span aria-hidden="true">{S.size}</span>
+      <ModeWheel label={S.size} value={size} onChange={(v) => setSize(v as Size)} options={SIZES.map((v) => ({ id: v, name: `${v} %`, hint: S.sizeHint }))} />
+    </span>
+  );
+}
+export const paperZoom = (size: Size) => ({ '--paper-zoom': Number(size) / 100 }) as CSSProperties;
+
 const dmy = (d?: string) => (d ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : '');
 const parseMoney = (v: string): number | null | undefined => {
   if (!v.trim()) return null;
@@ -104,7 +128,7 @@ function Row({ label, msg, children }: { label: string; msg: React.ReactNode; ch
 
 export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void }) {
   const c: ProjectCharter = p.charter ?? {};
-  const [size, setSizeState] = useState<Size>(loadSize);
+  const [size, setSize] = usePaperSize(say);
   const [msg, setMsg] = useState<{ text: string; at: string } | null>(null);
   const timer = useRef(0);
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -113,15 +137,6 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
     setMsg({ text, at });
     say(text);
     timer.current = noticeLater(() => setMsg(null));
-  };
-  const setSize = (v: Size) => {
-    setSizeState(v);
-    try {
-      localStorage.setItem(SIZE_KEY, v);
-    } catch {
-      /* nur bis zum Neuladen */
-    }
-    say(S.sizeSaid(v));
   };
   const charter = (key: keyof ProjectCharter, label: string) => (v: string | number | null) => {
     dispatch({ type: 'charterEdit', id: p.id, patch: { [key]: v } });
@@ -161,13 +176,10 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
   return (
     <div className="paper__wrap">
       <div className="paper__bar">
-        <span className="layouts__label pj__wheel">
-          <span aria-hidden="true">{S.size}</span>
-          <ModeWheel label={S.size} value={size} onChange={(v) => setSize(v as Size)} options={SIZES.map((v) => ({ id: v, name: `${v} %`, hint: S.sizeHint }))} />
-        </span>
+        <PaperSizeWheel size={size} setSize={setSize} />
         <span className="lc__muted">{S.barHint}</span>
       </div>
-      <article className="paper" style={{ '--paper-zoom': Number(size) / 100 } as CSSProperties} aria-label={S.title(p.name)}>
+      <article className="paper" style={paperZoom(size)} aria-label={S.title(p.name)}>
         <header className="paper__head">
           <span className="paper__chapter">{S.chapter}</span>
           <span className="paper__project">{p.name}</span>

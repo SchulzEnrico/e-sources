@@ -5,6 +5,8 @@
  * Nachfolgern. Aufbau wie Gantt (NF-08): Kopf mit „Kritischen Pfad zeigen“ und Zusammenfassung, unten die
  * Angaben des gewählten Vorgangs. Tastatur: Pfeile wandern zwischen den Kästen (links/rechts = Spalte,
  * hoch/runter = in der Spalte), Pos1/Ende, Enter öffnet die Notiz. Logik in workspace/network.ts.
+ * V133 (Enrico): Kästen grau neumorph und größer (alles lesbar); Klick bzw. Leertaste zeigt den Vorgang als eingesenkte
+ * Karte („sunken“) neben dem Kasten (Angaben, Vorgänger/Nachfolger, „Notiz öffnen“), Esc schließt sie und führt zum Kasten zurück.
  */
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Action } from '../workspace/useWorkspace';
@@ -13,25 +15,36 @@ import * as Gt from '../workspace/gantt';
 import * as Nw from '../workspace/network';
 import { GANTT_TEXT as G, NET_TEXT as N, TERMS } from '../workspace/terms';
 import { Icon } from './Icon';
-import { openNote } from './SourceChips';
+import { CardWindow } from './SheetViews';
 import { fmtDay } from './ProjectPsp';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
-const BOX_W = 190;
-const BOX_H = 86;
+const BOX_W = 210;
+const BOX_H = 112;
 const GAP_X = 56;
+const POP_W = 300;
 const GAP_Y = 22;
 
-export function ProjectNetwork({ ws, p, say }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void }) {
+export function ProjectNetwork({ ws, p, dispatch, say }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void }) {
   const g = Gt.ganttOf(ws, p.id);
   const net = Nw.networkOf(ws, p.id, g);
   const [crit, setCrit] = useState(true);
   const [sel, setSel] = useState<string | undefined>(net.nodes[0]?.id);
+  const [pop, setPop] = useState<string | undefined>();
+  // V133 (Enrico: „sollte natürlich in der gleichen Ansicht aufgehen“): Notiz im Kartenfenster über dem Netzplan statt im Pad
+  const [card, setCard] = useState<string | undefined>();
+  const openNote = (id: string) => setCard(id);
   const refs = useRef(new Map<string, HTMLButtonElement>());
+  const boxRef = useRef<HTMLDivElement>(null);
+  // V133 (Enrico: „Die Anzeige läuft aus dem Bild, wenn man am Rand etwas öffnet“): Vorgangskarte nach dem Öffnen ganz ins Bild rollen
+  useEffect(() => {
+    if (pop) document.getElementById('nw-pop')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [pop]);
   const cur = sel ? net.byId.get(sel) : undefined;
   useEffect(() => {
     if (sel && !net.byId.has(sel)) setSel(net.nodes[0]?.id);
-  }, [sel, net]);
+    if (pop && !net.byId.has(pop)) setPop(undefined);
+  }, [sel, pop, net]);
 
   if (!net.nodes.length) {
     return (
@@ -64,12 +77,18 @@ export function ProjectNetwork({ ws, p, say }: { ws: Workspace; p: Project; disp
     else if (e.key === 'ArrowLeft') to = near(n.col - 1);
     else if (e.key === 'Home') to = net.nodes[0].id;
     else if (e.key === 'End') to = net.nodes[net.nodes.length - 1].id;
-    else if (e.key === 'Enter') {
+    else if (e.key === 'Escape' && pop) {
+      e.preventDefault();
+      e.stopPropagation();
+      setPop(undefined);
+      return;
+    } else if (e.key === 'Enter') {
       e.preventDefault();
       openNote(n.id);
       return;
     } else return;
     e.preventDefault();
+    if (pop && to) setPop(to);
     go(to);
   };
   const critCount = net.nodes.filter((n) => n.row.critical).length;
@@ -92,7 +111,7 @@ export function ProjectNetwork({ ws, p, say }: { ws: Workspace; p: Project; disp
         </p>
       </div>
       <p className="lc__keys" id="nw-keys">{N.keys}</p>
-      <div className="nw__box" role="group" aria-label={N.head(p.name)} aria-describedby="nw-keys">
+      <div className="nw__box" ref={boxRef} role="group" aria-label={N.head(p.name)} aria-describedby="nw-keys">
         <div className="nw__canvas" style={{ width, height }}>
           <svg className="nw__links" width={width} height={height} aria-hidden="true">
             <defs>
@@ -128,7 +147,9 @@ export function ProjectNetwork({ ws, p, say }: { ws: Workspace; p: Project; disp
                 tabIndex={sel === n.id ? 0 : -1}
                 aria-label={label}
                 title={`${name(n)}\n${N.keysShort}`}
-                onClick={() => setSel(n.id)}
+                aria-expanded={pop === n.id}
+                aria-controls={pop === n.id ? 'nw-pop' : undefined}
+                onClick={() => (setSel(n.id), setPop(pop === n.id ? undefined : n.id))}
                 onFocus={() => setSel(n.id)}
                 onDoubleClick={() => openNote(n.id)}
                 onKeyDown={(e) => key(e, n)}
@@ -150,9 +171,71 @@ export function ProjectNetwork({ ws, p, say }: { ws: Workspace; p: Project; disp
               </button>
             );
           })}
+          {pop && net.byId.get(pop) && (() => {
+            const n = net.byId.get(pop)!;
+            const { x, y } = pos(n);
+            const r = n.row;
+            // rechts neben dem Kasten, wenn dort im sichtbaren Ausschnitt Platz ist; sonst links daneben, sonst darunter –
+            // nie über dem gewählten Kasten
+            const box = boxRef.current;
+            const viewL = box?.scrollLeft ?? 0;
+            const viewR = box ? viewL + box.clientWidth : width;
+            const right = x + BOX_W + POP_W + 12 <= Math.min(width, viewR);
+            const leftSide = !right && x - POP_W - 10 >= Math.max(4, viewL);
+            const left = right ? x + BOX_W + 10 : leftSide ? x - POP_W - 10 : Math.max(viewL + 4, Math.min(x, viewR - POP_W - 4));
+            const top = right || leftSide ? y : y + BOX_H + 8;
+            const close = () => (setPop(undefined), refs.current.get(n.id)?.focus());
+            return (
+              <div
+                id="nw-pop"
+                className={`nw__pop sunken${crit && r.critical ? ' is-crit' : ''}`}
+                role="region"
+                aria-label={N.popLabel(name(n))}
+                style={{ left, top, width: POP_W }}
+                onKeyDown={(e) => e.key === 'Escape' && (e.preventDefault(), e.stopPropagation(), close())}
+              >
+                <div className="nw__pophead">
+                  <strong>{r.node.code} {r.node.title}</strong>
+                  <button type="button" className="remind__x" aria-label={N.popClose} title={N.popClose} onClick={close}>
+                    <Icon name="close" size={12} />
+                  </button>
+                </div>
+                <p className="nw__popstate">
+                  {N.popNr(r.nr)} · {r.node.milestone ? N.popMs : N.popDays(r.days)}
+                  {r.node.done ? ` · ${N.popDone}` : ''}
+                  {crit && r.critical ? ` · ${N.popCrit}` : ''}
+                </p>
+                <dl className="nw__popdates">
+                  <dt>{N.es}</dt><dd>{fmtDay(n.es)}</dd>
+                  <dt>{N.ef}</dt><dd>{fmtDay(n.ef)}</dd>
+                  <dt>{N.ls}</dt><dd>{fmtDay(n.ls)}</dd>
+                  <dt>{N.lf}</dt><dd>{fmtDay(n.lf)}</dd>
+                  <dt>{N.float}</dt><dd className={r.float < 0 ? 'pj__late' : undefined}>{r.float}</dd>
+                </dl>
+                <p className="nw__poplinks"><span className="fbq__label">{N.preds}</span> {preds(n.id).map(name).join(' · ') || '–'}</p>
+                <p className="nw__poplinks"><span className="fbq__label">{N.succs}</span> {succs(n.id).map(name).join(' · ') || '–'}</p>
+                <button type="button" className="help__run" onClick={() => (openNote(n.id), say(N.opened))}>{N.open}</button>
+              </div>
+            );
+          })()}
         </div>
       </div>
       <p className="lc__keys nw__legend">{N.legend}</p>
+      {card && (
+        <CardWindow
+          ws={ws}
+          dispatch={dispatch}
+          noteId={card}
+          where={N.head(p.name)}
+          sheetId=""
+          say={say}
+          onClose={() => {
+            const id = card;
+            setCard(undefined);
+            window.setTimeout(() => refs.current.get(id)?.focus(), 0);
+          }}
+        />
+      )}
       {cur && (
         <div className="pj__task nw__info" aria-live="polite">
           <strong>{name(cur)}</strong>

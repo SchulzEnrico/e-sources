@@ -335,7 +335,7 @@ const cssText = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').rep
 function formSection(ws: Workspace, p: Project, f: FormDef): string {
   const cols = Fk.columnsOf(p, f);
   const rows = Fk.rowsOf(ws, p.id, f);
-  const wide = (f.layout === 'table' || f.layout === 'chart' || f.layout === 'portfolio') && cols.length > 7;
+  const wide = Fk.isWideForm(f, cols.length);
   const out: string[] = [`<section id="f-${esc(f.id)}"${wide ? ' class="wide"' : ''}><h2>${esc(`${f.chapter} ${f.name}`)}${f.icb ? ` <span class="icb">ICB4 ${esc(f.icb)}</span>` : ''}</h2>`];
   const val = (rowId: string, c: Fk.FormCol) => displayValue(ws, p, c, Fk.cellValue(ws, p.id, f, rowId, c.key));
   if (f.layout === 'fields') {

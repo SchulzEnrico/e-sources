@@ -9134,7 +9134,8 @@ span.pj__twist { cursor: default; }
 .gt__months, .gt__ticks { position: relative; height: 50%; }
 .gt__months span, .gt__ticks span { position: absolute; top: 0; height: 100%; display: flex; align-items: center; padding-left: 4px; box-sizing: border-box; border-left: 1px solid var(--line); font-size: 11px; color: var(--muted, inherit); overflow: hidden; white-space: nowrap; }
 .gt__ticks.is-day span { justify-content: center; padding: 0; font-size: 10px; }
-.gt__body { position: relative; background-image: repeating-linear-gradient(90deg, transparent 0 calc(var(--gt-day) * 5), rgba(127, 127, 127, 0.09) calc(var(--gt-day) * 5) calc(var(--gt-day) * 7)); }
+/* V134: eigene Stapelebene – Balken laufen beim Scrollen unter der festen Kopfzeile durch (Enrico 11:22) */
+.gt__body { position: relative; isolation: isolate; background-image: repeating-linear-gradient(90deg, transparent 0 calc(var(--gt-day) * 5), rgba(127, 127, 127, 0.09) calc(var(--gt-day) * 5) calc(var(--gt-day) * 7)); }
 .gt__body.is-month { background-image: none; }
 .gt__band { position: absolute; left: 0; right: 0; height: var(--gt-row); border-bottom: 1px solid rgba(127, 127, 127, 0.08); }
 .gt__band.is-sel { background: rgba(var(--accent-rgb), 0.12); }
@@ -10135,6 +10136,9 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 .pj .pc__body,
 .pj.is-psp .pc__body,
 .pj.is-gantt .pc__body { grid-template-columns: minmax(0, 1fr); }
+/* V134 (Enrico 11:23): Risiken und Änderungen ebenso – Tabelle über die ganze Breite, Angaben der gewählten Zeile darunter */
+.pj .pjs__body { grid-template-columns: minmax(0, 1fr); }
+.pj .pjs__details .pjs__card { max-width: none; }
 /* V132 (Enrico): Projekt wählen im Feld „Name“ */
 .pj__namecell { position: relative; }
 .pj__pickcount { margin-left: 8px; font-size: 11px; font-weight: 400; opacity: 0.7; }
@@ -10357,3 +10361,51 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
 }
 .nw .nw__pop.sunken.is-crit { box-shadow: inset 0 0 0 2px rgb(224, 82, 70), inset 4px 5px 10px rgba(0, 0, 0, 0.5), inset -3px -3px 7px rgba(var(--hi), 0.16) !important; }
 .nw .nw__pop.sunken { background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.16), rgba(var(--accent-rgb), 0.28)), linear-gradient(145deg, var(--neu-bottom), var(--neu-top)); }
+
+/* V134 (Enrico 11:24/11:25): Formular-Blätter – Felder in Papier-Optik ohne dunklen Glas-Schatten, und jede Tabelle passt in die Breite des Blatts (alle Kapitel) */
+.paper--form :is(input:not([type='checkbox']), textarea, select) { box-shadow: none; text-shadow: none; }
+.paper--form :is(input:not([type='checkbox']), textarea, select):focus { box-shadow: 0 0 0 2px rgba(163, 20, 27, 0.18); }
+.paper--form .pjf__body { overflow-x: visible; }
+.paper--form .pjf__table { table-layout: auto; width: 100%; max-width: 100%; }
+.paper--form .pjf__table th, .paper--form .pjf__table td { white-space: normal; overflow-wrap: anywhere; hyphens: auto; }
+.paper--form .pjf__table td.pjf__cell :is(input:not([type='checkbox']), select, textarea) { width: 100%; max-width: 100%; min-width: 0 !important; box-sizing: border-box; }
+/* V134 (Enrico 11:28): Kästchen auf dem Blatt klar als Kästchen erkennbar – weiß mit dunklem Rand, Häkchen in Report-Rot */
+.paper--form input[type='checkbox'] { appearance: none; -webkit-appearance: none; width: 16px !important; height: 16px !important; min-width: 16px !important; flex: none; margin: 2px 0 0; border: 1.5px solid #555 !important; border-radius: 3px !important; background: #fff !important; box-shadow: none !important; cursor: pointer; display: inline-grid; place-content: center; vertical-align: middle; }
+.paper--form input[type='checkbox']::before { background: var(--paper-red, #a3141b); filter: none; }
+@media (forced-colors: active) { .paper--form input[type='checkbox'] { appearance: auto !important; -webkit-appearance: auto !important; } }
+.paper--form input[type='checkbox']:hover { border-color: var(--paper-red, #a3141b) !important; }
+.paper--form input[type='checkbox']:focus-visible { outline: 2px solid var(--paper-red, #a3141b); outline-offset: 2px; }
+.paper--form input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
+.paper--form .pjf__table td.is-text, .paper--form .pjf__table td.is-money { min-width: 4.5em; }
+.paper--form .pjf__table td.pjf__cell input[type='date'] { padding-inline: 1px; font-size: 0.92em; }
+.paper--form .pjf__table td.pjf__acts { width: 1%; white-space: nowrap; }
+.paper--form .remind__x { background: none !important; box-shadow: none !important; border: 0 !important; width: auto !important; height: auto !important; min-width: 0 !important; min-height: 0 !important; padding: 2px 3px !important; border-radius: 3px !important; color: #888; }
+.paper--form .remind__x:hover:not(:disabled), .paper--form .remind__x:focus-visible { color: var(--paper-red); background: #f3ece6 !important; }
+.paper--form .remind__x:disabled { opacity: 0.3; }
+/* V134 (Enrico 11:27): Portfolios auf dem Blatt in voller Breite, linksbündig; Zahlen in Blatt-Tabellen linksbündig wie im Report */
+.paper--form .pjf__svg, .paper--form .pjf__svg.is-portfolio { max-width: none; margin: 0; }
+.paper--form .pjf__table td.pjf__cell :is(input[type='number'], input[inputmode]) , .paper--form .pjf__table td.is-number, .paper--form .pjf__table td.is-money, .paper--form .pjf__table td.is-pct, .paper--form .pjf__table td.is-number input, .paper--form .pjf__table td.is-money input, .paper--form .pjf__table td.is-pct input { text-align: left; }
+/* V134: Spalten mit langen Texten bekommen Platz (3.1 Abnahmekriterium war 58 px schmal) */
+.paper--form .pjf__table td.is-long { min-width: 11em; }
+.paper--form .pjf__table td.is-date { min-width: 7.6em; }
+/* V134: feste Tabellenaufteilung auf dem Blatt – passt immer in die Breite; Mindestbreiten von vorhin aufheben */
+.paper--form .pjf__table.is-fixed { table-layout: fixed; }
+.paper--form .pjf__table.is-fixed col.pjf__actcol { width: 26px; }
+.paper--form .pjf__table.is-fixed td.pjf__cell { min-width: 0; }
+.paper--form .pjf__table.is-fixed td.pjf__acts { width: auto; white-space: normal; padding: 2px 0 2px 2px; }
+.paper--form .pjf__table.is-fixed td.pjf__acts .remind__x { display: block; margin: 0 auto 2px; }
+.paper--form .pjf__recbar { gap: 4px; }
+.paper--form .pjf__recbar .remind__x { border: 1px solid #ccc !important; padding: 3px 6px !important; }
+/* V134 (Enrico 11:31 „Kein Zeilenumbruch“): schreibgeschützte Werte brechen auf dem Blatt um; leere Kopfzelle über den Aktionen ohne Rahmen */
+.paper--form .pjf__ro { white-space: normal; overflow-wrap: anywhere; }
+.paper--form .pjf__table thead th:last-child:not(:has(*:not(.sr-only))) { border: 0; background: none; }
+.paper--form .pjf__table .pjf__auto { display: block; width: fit-content; max-width: 100%; margin-top: 1px; font-size: 0.72em; white-space: normal; overflow-wrap: anywhere; }
+.pj__samples { display: flex; flex-wrap: wrap; gap: 8px; }
+/* V134 (Enrico 11:46): Umschalt-Rad zur Projektwahl neben dem Namen in der Projektliste */
+.pj__namecell { white-space: nowrap; }
+.pj__namecell > .pc__name { display: inline-flex; vertical-align: middle; }
+.pj__namewheel { display: inline-flex; align-items: flex-end; gap: 12px; vertical-align: bottom; margin-right: 14px; }
+.pj__namewheel > .pj__wheel { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; margin: 0; }
+/* V134 (Enrico 11:49 „Das darf nie aus dem Bild laufen“): Projektliste mit Projekt- und Ansicht-Rad bleibt beim Scrollen oben stehen */
+.pj .pc__tablewrap { position: sticky; top: 0; z-index: 40; background: var(--panel, #1b1d22); box-shadow: 0 6px 10px -8px rgba(0, 0, 0, 0.6); }
+.pj .pc__tablewrap thead th { position: static; }

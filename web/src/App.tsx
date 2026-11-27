@@ -1,4 +1,4 @@
-import { hasSampleProject } from './workspace/sampleProject';
+import { SAMPLES, hasSample } from './workspace/samples';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { ZOOM_DEFAULT, fitFor, fitStart, frameWidth, nearestStep, shownZoom, zoomOf, zoomStep } from './workspace/zoom';
 import * as NS from './workspace/noteSources';
@@ -72,7 +72,7 @@ import { importSlot, isSlotFile, readSlotFile, slotFileName, slotToFile } from '
 import { type NoteHit, tabShowing, titleOf as noteTitleOf, viewById } from './workspace/notes';
 import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, setPanelSize, resetPanel, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_LAYOUT_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, SAMPLE_TEXT, STAGE_TEXT, VIEW_TEXT } from './workspace/terms';
+import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_LAYOUT_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, sampleText, STAGE_TEXT, VIEW_TEXT } from './workspace/terms';
 import { type DeskMode, PHONE_MQ, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
 import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, RULE_SET_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
@@ -4218,16 +4218,22 @@ function DeskApp(props: DeskProps) {
                 Beispiel-Sources anlegen
               </Item>
               {/* V100 (F-206 Schritt 10): Beispielprojekt aus Enricos Projektreport zum Testen von PSP, Gantt & Co. */}
-              <Item icon="project"
-                onClick={() => {
-                  const on = !hasSampleProject(ws);
-                  dispatch({ type: 'sampleProject', on });
-                  notify(on ? SAMPLE_TEXT.added : SAMPLE_TEXT.removed, undefined, false, undefined, document.querySelector('button[aria-label="Einstellungen"]'));
-                  close();
-                }}
-              >
-                {hasSampleProject(ws) ? SAMPLE_TEXT.remove : SAMPLE_TEXT.add}
-              </Item>
+              {/* V134 (F-233): je Beispielprojekt ein Eintrag */}
+              {SAMPLES.map((sm) => {
+                const st = sampleText(sm);
+                const has = hasSample(ws, sm.key);
+                return (
+                  <Item key={sm.key} icon="project"
+                    onClick={() => {
+                      dispatch({ type: 'sampleProject', on: !has, key: sm.key });
+                      notify(!has ? st.added : st.removed, undefined, false, undefined, document.querySelector('button[aria-label="Einstellungen"]'));
+                      close();
+                    }}
+                  >
+                    {has ? st.remove : st.add}
+                  </Item>
+                );
+              })}
               <li className="menu__sep" role="separator" />
               {/* V84 (F-216, NF-08): Bildschirm als Umschalt-Rad wie das Gerät in der Layouts-Vorschau (Anschlag, der Größe nach) */}
               <li role="none" className="menu__wheel">

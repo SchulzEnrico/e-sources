@@ -27,6 +27,9 @@ import { PaperSizeWheel, ProjectSheet, paperZoom, usePaperSize } from './Project
 
 /** V133 (F-232 P9): Formulare stehen auf einem hellen Blatt wie im Report – Grafiken daher in den Druckfarben */
 const UI_COLORS: Rp.SvgColors = Rp.PRINT_COLORS;
+/** V134: Gewicht einer Spalte für die feste Tabellenaufteilung auf dem Blatt (lange Texte breit, Zahlen und Kästchen schmal). */
+const COL_WEIGHT: Record<string, number> = { long: 3, lines: 3, akv: 3, goal: 2, note: 2, name: 2.2, text: 1.6, person: 1.5, roles: 1.5, use: 1.5, phase: 1.4, choice: 1.3, date: 1.45, money: 1.2, number: 0.9, pct: 0.9, accept: 2, gpm: 1, bool: 0.7 };
+const colWeight = (c: { key: string; kind: string }) => (c.key === 'code' ? 1 : COL_WEIGHT[c.kind] ?? 1.3);
 const todayDay = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -347,7 +350,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
         <figure className="pjf__figure">
           {mta.rows.some((r) => r.series.some(Boolean)) ? (
             <>
-              <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: Rp.mtaSvg(mta, Rp.mtaNames(ws, p.id), UI_COLORS, 720, 300) }} />
+              <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: Rp.mtaSvg(mta, Rp.mtaNames(ws, p.id), UI_COLORS) }} />
               <figcaption className="help__text">{T.mtaSum(mta.points.length, !!p.baseline)}</figcaption>
             </>
           ) : (
@@ -409,7 +412,14 @@ export function ProjectForms({ ws, p, dispatch, say, inPad }: { ws: Workspace; p
         ) : (
           <div className="pjs__left">
             {form.layout === 'chart' && <p className="fbq__label pjf__tabhead">{form.source === 'mta' ? T.mtaTable : T.chartTable}</p>}
-            <table className="pc__table pjf__table" aria-labelledby={`${base}-head`}>
+            <table className="pc__table pjf__table is-fixed" aria-labelledby={`${base}-head`}>
+              {/* V134 (Enrico 11:25 „muss in der Breite zur Seite passen … bei allen anderen auch“): feste Aufteilung nach Spaltenart, Summe = Blattbreite */}
+              <colgroup>
+                {cols.map((c) => (
+                  <col key={c.key} style={{ width: `${(100 * colWeight(c)) / cols.reduce((a, x) => a + colWeight(x), 0)}%` }} />
+                ))}
+                <col className="pjf__actcol" />
+              </colgroup>
               <thead>
                 <tr>
                   {cols.map((c) => (

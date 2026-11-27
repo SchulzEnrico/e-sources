@@ -114,7 +114,7 @@ export function ProjectSteer({ ws, p, kind, dispatch, say, focus }: { ws: Worksp
       <header className="dc__top">
         <h4 id={`${base}-head`} className="dc__head">{kind === 'risk' ? T.headRisks(p.name) : T.headChanges(p.name)}</h4>
         <button type="button" id={`${base}-add`} className="help__run" aria-expanded={adding} onClick={() => setAdding(!adding)}>
-          <Icon name="plus" size={13} className="icon icon--inline" /> {kind === 'risk' ? T.addRisk : T.addChange}
+          <Icon name="plus" size={13} className="icon icon--inline" /> {(kind === 'risk' ? T.addRisk : T.addChange).replace(/^\+\s*/, '')}
         </button>
         {kind === 'risk' && (
           <span className="layouts__label pj__wheel">

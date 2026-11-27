@@ -2631,6 +2631,16 @@ export const PERSONS_TEXT = {
 
 /** F-206 Schritt 10 (V99): Projekt-Modus – Projektliste und Steckbrief, aufgebaut wie Cockpit „Personen“ (NF-08). */
 /** V100: Beispielprojekt aus Enricos Projektreport (⚙). */
+/** V134 (F-233): Texte je Beispielprojekt (ColorGentlemen, Logistik-Center). */
+export const sampleText = (s: { name: string; tasks: number; roles: number; source: string }) => ({
+  add: `Beispielprojekt „${s.name}“ anlegen`,
+  remove: `Beispielprojekt „${s.name}“ entfernen`,
+  added: `Beispielprojekt „${s.name}“ angelegt (${s.tasks} Vorgänge, ${s.roles} Rollen) – zu sehen im Projekt-Modus. Entfernen wieder hier im ⚙.`,
+  removed: `Beispielprojekt „${s.name}“ entfernt – samt Vorgängen und Rollen.`,
+  short: `Beispiel „${s.name}“`,
+  hint: `Beispielprojekt „${s.name}“ aus dem ${s.source} anlegen – mit Steckbrief, Formularen, PSP, Gantt, Rollen, Meilensteinen und Vorgängern zum Ausprobieren; entfernen über ⚙`,
+  addedHere: `Beispielprojekt „${s.name}“ angelegt (${s.tasks} Vorgänge, ${s.roles} Rollen) und gewählt. Entfernen über ⚙.`,
+});
 export const SAMPLE_TEXT = {
   add: 'Beispielprojekt „ColorGentlemen“ anlegen',
   remove: 'Beispielprojekt „ColorGentlemen“ entfernen',

@@ -36,9 +36,9 @@ import { PROJECT_FEEDBACK_TEXT, PSP_TEXT } from '../workspace/terms';
 import * as Ps from '../workspace/persons';
 import * as Dp from '../workspace/deskProject';
 import { DESK_PROJECT_TEXT as DPT } from '../workspace/terms';
-import { SAMPLE_TEXT, PAPER_TEXT } from '../workspace/terms';
+import { sampleText, PAPER_TEXT } from '../workspace/terms';
 import { ProjectSheet } from './ProjectSheet';
-import { hasSampleProject, SAMPLE_PROJECT } from '../workspace/sampleProject';
+import { SAMPLES, hasSample, sampleOf, type SampleKey } from '../workspace/samples';
 import { ACCENTS } from '../workspace/look';
 import { DeskProjectBar } from './DeskProject';
 
@@ -160,11 +160,12 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
   const similar = newName.trim() ? Pj.similarProjects(ws, newName) : [];
 
   const openAdd = (parent = '') => (setAdding(true), setNewParent(parent), setError(''));
-  const addSample = () => {
-    dispatch({ type: 'sampleProject', on: true });
-    setSel(SAMPLE_PROJECT);
-    tell(SAMPLE_TEXT.addedHere);
-    focusRow(SAMPLE_PROJECT);
+  const addSample = (key: SampleKey) => {
+    const sm = sampleOf(key);
+    dispatch({ type: 'sampleProject', on: true, key });
+    setSel(sm.id);
+    tell(sampleText(sm).addedHere);
+    focusRow(sm.id);
   };
   const create = () => {
     const name = newName.trim();
@@ -237,19 +238,15 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
           {T.head}
         </h3>
         <span className="lc__head-tools">
-          <span className="layouts__label pj__wheel pj__viewwheel">
-            <span aria-hidden="true">{PSP_TEXT.view}</span>
-            <ArrangedWheel wheel="projectView" label={PSP_TEXT.viewLabel} value={view} onChange={(v) => setView(v as ProjectView)} options={VIEWS.map((v) => (v === 'feedback' && fresh > 0 ? { id: v, name: PROJECT_FEEDBACK_TEXT.viewFresh(PSP_TEXT.views[v], fresh), hint: `${PSP_TEXT.viewHint[v]} – ${PROJECT_FEEDBACK_TEXT.freshHint(fresh)}` } : { id: v, name: PSP_TEXT.views[v], hint: PSP_TEXT.viewHint[v] }))} />
-          </span>
           <button type="button" className="help__run pj__tour" title={T.tourHint} aria-label={T.tourHint} onClick={() => requestTour('projects')}>
             <Icon name="tour" size={13} className="icon icon--inline" /> {T.tour}
           </button>
-          {/* V132: Beispielprojekt aus Enricos ICB4-Report sichtbar in der Projektliste (vorher nur im ⚙) */}
-          {!hasSampleProject(ws) && (
-            <button type="button" className="help__run pj__sample" title={SAMPLE_TEXT.hint} onClick={addSample}>
-              <Icon name="project" size={13} className="icon icon--inline" /> {SAMPLE_TEXT.short}
+          {/* V132: Beispielprojekt aus Enricos ICB4-Report sichtbar in der Projektliste (vorher nur im ⚙); V134 (F-233): je Beispiel ein Knopf */}
+          {SAMPLES.filter((sm) => !hasSample(ws, sm.key)).map((sm) => (
+            <button key={sm.key} type="button" className="help__run pj__sample" title={sampleText(sm).hint} onClick={() => addSample(sm.key)}>
+              <Icon name="project" size={13} className="icon icon--inline" /> {sampleText(sm).short}
             </button>
-          )}
+          ))}
           <button type="button" id="pj-add" className="help__run" aria-expanded={adding} disabled={full} title={full ? T.full(Pj.PROJECTS_MAX) : T.addHint} onClick={() => (adding ? setAdding(false) : openAdd())}>
             <Icon name="plus" size={13} className="icon icon--inline" /> {T.add}
           </button>
@@ -303,11 +300,13 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
       {!shown ? (
         <div className="pj__empty">
           <p className="lc__muted">{T.empty}</p>
-          {!hasSampleProject(ws) && (
-            <p>
-              <button type="button" className="help__run lc__primary" title={SAMPLE_TEXT.hint} onClick={addSample}>
-                <Icon name="project" size={13} className="icon icon--inline" /> {SAMPLE_TEXT.add}
-              </button>
+          {SAMPLES.some((sm) => !hasSample(ws, sm.key)) && (
+            <p className="pj__samples">
+              {SAMPLES.filter((sm) => !hasSample(ws, sm.key)).map((sm) => (
+                <button key={sm.key} type="button" className="help__run lc__primary" title={sampleText(sm).hint} onClick={() => addSample(sm.key)}>
+                  <Icon name="project" size={13} className="icon icon--inline" /> {sampleText(sm).add}
+                </button>
+              ))}
             </p>
           )}
           {undo && <UndoLine undo={undo} dispatch={dispatch} say={say} onBack={(id) => (setSel(id), setUndo(null), focusRow(id))} />}
@@ -338,6 +337,22 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
                   return (
                     <tr key={p.id} className={`${on ? 'is-sel' : ''}${p.state === 'done' || p.state === 'stopped' ? ' is-closed' : ''}`}>
                       <th scope="row" style={{ '--depth': r.depth } as CSSProperties} className="pj__namecell">
+                        {/* V134 (Enrico 11:46/11:48): Projekt wählen mit dem Umschalt-Rad ganz vorn in der Zelle (springt nicht mit der Namenslänge; statt „n Projekte ▾“) */}
+                        {on && (
+                          <span className="pj__namewheel" onClick={(e) => e.stopPropagation()}>
+                            {list.length > 1 && (
+                              <span className="layouts__label pj__wheel">
+                                <span aria-hidden="true">Projekt</span>
+                                <ModeWheel label={T.namePickLabel} value={p.id} options={list.map((x) => ({ id: x.id, name: x.name }))} onChange={(id) => (setSel(id), setPicking(false), say(T.namePicked(list.find((x) => x.id === id)?.name ?? '')))} />
+                              </span>
+                            )}
+                            {/* V134 (Enrico 11:48): Rad „Ansicht“ direkt neben dem Projekt-Rad */}
+                            <span className="layouts__label pj__wheel pj__viewwheel">
+            <span aria-hidden="true">{PSP_TEXT.view}</span>
+            <ArrangedWheel wheel="projectView" label={PSP_TEXT.viewLabel} value={view} onChange={(v) => setView(v as ProjectView)} options={VIEWS.map((v) => (v === 'feedback' && fresh > 0 ? { id: v, name: PROJECT_FEEDBACK_TEXT.viewFresh(PSP_TEXT.views[v], fresh), hint: `${PSP_TEXT.viewHint[v]} – ${PROJECT_FEEDBACK_TEXT.freshHint(fresh)}` } : { id: v, name: PSP_TEXT.views[v], hint: PSP_TEXT.viewHint[v] }))} />
+          </span>
+                          </span>
+                        )}
                         {renaming === p.id ? (
                           <form
                             className="pc__rename"
@@ -387,7 +402,6 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
                             {r.depth > 0 && <span className="pj__branch" aria-hidden="true">└</span>}
                             <span>{p.name}</span>
                             {p.priority !== undefined && p.priority <= 2 && <span className="pj__prio" title={`${T.priority}: ${T.priorityName(p.priority)}`}>P{p.priority}</span>}
-                            {list.length > 1 && <span className="pj__pickcount" aria-hidden="true">{T.namePickCount(list.length)} ▾</span>}
                           </button>
                         )}
                         {picking && (

@@ -81,42 +81,79 @@ export function curveSvg(c: CostCurve, col: SvgColors, w = 640, h = 260, title =
 }
 
 /** V115: Meilenstein-Trendanalyse – waagerecht die Berichtszeitpunkte, senkrecht der prognostizierte Termin je Meilenstein;
- * die Winkelhalbierende (Prognose = Berichtstag) zeigt, wann ein Meilenstein erreicht ist. Steigt eine Linie, rutscht der Termin. */
-export function mtaSvg(m: Mta, names: Map<string, string>, col: SvgColors, w = 640, h = 300): string {
+ * die Winkelhalbierende (Prognose = Berichtstag) zeigt, wann ein Meilenstein erreicht ist. Steigt eine Linie, rutscht der Termin.
+ * V134 (Enrico 11:30 „Darstellung eine Katastrophe“): klassisches MTA-Dreieck – beide Achsen dieselbe Zeitachse (Monate),
+ * Berichte nach Datum statt gleichmäßig verteilt, Diagonale über die ganze Fläche, Raster je Monat, Meilensteine als
+ * Linien bis zum letzten Bericht, Beschriftung rechts voll ausgeschrieben, ohne Überlappung, mit Führungslinie. */
+export function mtaSvg(m: Mta, names: Map<string, string>, col: SvgColors, w = 720, h = 440): string {
   const rows = m.rows.filter((r) => r.series.some(Boolean));
   if (!rows.length || !m.points.length) return '';
   const days = [...m.points.map((x) => x.day), ...rows.flatMap((r) => r.series.filter((x): x is string => !!x))].sort();
-  const lo = Date.parse(days[0]);
-  const hi = Math.max(lo + 864e5, Date.parse(days[days.length - 1]));
-  const pad = { l: 70, r: 120, t: 14, b: 36 };
-  const iw = w - pad.l - pad.r;
-  const ih = h - pad.t - pad.b;
-  const n = m.points.length;
-  const x = (i: number) => pad.l + (n === 1 ? iw / 2 : (i / (n - 1)) * iw);
-  const y = (d: string) => pad.t + ih - ((Date.parse(d) - lo) / (hi - lo)) * ih;
+  // Monatsanfang vor dem frühesten bis Monatsende nach dem spätesten Termin
+  const lo = Date.parse(`${days[0].slice(0, 7)}-01`);
+  const last = new Date(Date.parse(days[days.length - 1]));
+  const hi = Date.UTC(last.getUTCFullYear(), last.getUTCMonth() + 1, 1);
+  const pad = { l: 62, r: 230, t: 12, b: 52 };
+  const side = Math.min(w - pad.l - pad.r, h - pad.t - pad.b);
+  const iw = side;
+  const ih = side;
+  const t = (d: string) => (Date.parse(d) - lo) / (hi - lo);
+  const x = (d: string) => pad.l + t(d) * iw;
+  const y = (d: string) => pad.t + ih - t(d) * ih;
+  const f = (n: number) => n.toFixed(1);
   const dm = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(2, 4)}`;
+  const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
   const parts: string[] = [];
-  parts.push(`<line x1="${pad.l}" y1="${pad.t + ih}" x2="${pad.l + iw}" y2="${pad.t + ih}" stroke="${col.line}"/><line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${pad.t + ih}" stroke="${col.line}"/>`);
-  for (const f of [0, 0.5, 1]) {
-    const d = new Date(lo + (hi - lo) * f).toISOString().slice(0, 10);
-    parts.push(`<text x="${pad.l - 6}" y="${(y(d) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="${col.muted}">${dm(d)}</text>`);
-  }
-  // Winkelhalbierende: Prognose = Berichtstag
-  const diag = m.points.map((pt, i) => `${x(i).toFixed(1)},${y(pt.day).toFixed(1)}`).join(' ');
-  parts.push(`<polyline points="${diag}" fill="none" stroke="${col.muted}" stroke-dasharray="4 3"/>`);
-  m.points.forEach((pt, i) => parts.push(`<text x="${x(i).toFixed(1)}" y="${pad.t + ih + 14}" text-anchor="middle" font-size="10" fill="${col.muted}">${esc(pt.label)}</text>`));
-  const palette = [col.sum, col.budget, col.bar, '#c88a2e', '#7a5cc4', '#3a9bb0', '#b0567a', '#6b8e23'];
-  rows.forEach((r, k) => {
-    const c = palette[k % palette.length];
-    const pts = r.series.map((d, i) => (d ? `${x(i).toFixed(1)},${y(d).toFixed(1)}` : '')).filter(Boolean);
-    const nm = names.get(r.id) ?? r.id;
-    if (pts.length > 1) parts.push(`<polyline points="${pts.join(' ')}" fill="none" stroke="${c}" stroke-width="2"/>`);
-    r.series.forEach((d, i) => d && parts.push(`<circle cx="${x(i).toFixed(1)}" cy="${y(d).toFixed(1)}" r="3" fill="${c}"><title>${esc(`${nm}: ${dm(d)} (${m.points[i].label})`)}</title></circle>`));
-    const last = [...r.series].reverse().find(Boolean);
-    if (last) parts.push(`<text x="${pad.l + iw + 8}" y="${(y(last) + 4).toFixed(1)}" font-size="10" fill="${c}">${esc(nm.slice(0, 22))}</text>`);
+  // Raster je Monat (beide Achsen), Beschriftung bei höchstens 12 Monaten jeden, sonst jeden zweiten
+  const months: string[] = [];
+  for (let d = new Date(lo); d.getTime() <= hi; d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))) months.push(d.toISOString().slice(0, 10));
+  const every = months.length > 13 ? 2 : 1;
+  months.forEach((d, i) => {
+    parts.push(`<line x1="${f(x(d))}" y1="${pad.t}" x2="${f(x(d))}" y2="${pad.t + ih}" stroke="${col.line}" stroke-opacity="0.6"/>`);
+    parts.push(`<line x1="${pad.l}" y1="${f(y(d))}" x2="${pad.l + iw}" y2="${f(y(d))}" stroke="${col.line}" stroke-opacity="0.6"/>`);
+    if (i % every || i === months.length - 1) return;
+    const mid = new Date(Date.parse(d) + 15 * 864e5).toISOString().slice(0, 10);
+    const lab = `${MON[Number(d.slice(5, 7)) - 1]} ${d.slice(2, 4)}`;
+    parts.push(`<text x="${f(x(mid))}" y="${pad.t + ih + 13}" text-anchor="middle" font-size="9" fill="${col.muted}">${lab}</text>`);
+    parts.push(`<text x="${pad.l - 5}" y="${f(y(mid) + 3)}" text-anchor="end" font-size="9" fill="${col.muted}">${lab}</text>`);
   });
-  parts.push(`<text x="${pad.l}" y="${h - 4}" font-size="10" fill="${col.ink}">Gestrichelt: Prognose = Berichtstag (Meilenstein erreicht) · steigende Linie = Termin rutscht</text>`);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(`Meilenstein-Trendanalyse: ${rows.length} Meilensteine, ${n} Zeitpunkte`)}">${parts.join('')}</svg>`;
+  parts.push(`<rect x="${pad.l}" y="${pad.t}" width="${iw}" height="${ih}" fill="none" stroke="${col.ink}" stroke-opacity="0.5"/>`);
+  // Winkelhalbierende: Prognose = Berichtstag; darüber noch offen, auf der Linie erreicht
+  parts.push(`<line x1="${pad.l}" y1="${pad.t + ih}" x2="${pad.l + iw}" y2="${pad.t}" stroke="${col.ink}" stroke-opacity="0.55" stroke-dasharray="5 3"/>`);
+  parts.push(`<polygon points="${pad.l},${pad.t + ih} ${pad.l + iw},${pad.t} ${pad.l + iw},${pad.t + ih}" fill="${col.line}" fill-opacity="0.25"/>`);
+  // Berichtszeitpunkte als senkrechte Marken unten
+  m.points.forEach((pt) => {
+    parts.push(`<line x1="${f(x(pt.day))}" y1="${pad.t}" x2="${f(x(pt.day))}" y2="${pad.t + ih}" stroke="${col.muted}" stroke-dasharray="2 3"/>`);
+    parts.push(`<text x="${f(x(pt.day))}" y="${pad.t + ih + 26}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="${col.ink}">${esc(pt.label)}</text>`);
+  });
+  parts.push(`<text x="${pad.l + iw / 2}" y="${pad.t + ih + 40}" text-anchor="middle" font-size="10.5" fill="${col.ink}">Berichtszeitpunkt</text>`);
+  parts.push(`<text x="12" y="${pad.t + ih / 2}" text-anchor="middle" font-size="10.5" fill="${col.ink}" transform="rotate(-90 12 ${pad.t + ih / 2})">Prognostizierter Termin</text>`);
+  const palette = [col.sum, col.budget, '#3f6fa8', '#c88a2e', '#7a5cc4', '#3a9bb0', '#b0567a', '#6b8e23', '#8a6d3b', '#d0606a'];
+  // Beschriftung rechts: nach Termin sortiert, Mindestabstand 13 px, in die Fläche geklemmt
+  const labs = rows.map((r, k) => {
+    const c = palette[k % palette.length];
+    const idx = r.series.map((d, i) => (d ? i : -1)).filter((i) => i >= 0);
+    const lastI = idx[idx.length - 1];
+    return { r, c, lastI, lastD: r.series[lastI]!, ly: y(r.series[lastI]!) };
+  }).sort((a, b) => b.ly - a.ly);
+  const gap = 13;
+  for (let i = 1; i < labs.length; i++) labs[i].ly = Math.min(labs[i].ly, labs[i - 1].ly - gap);
+  const over = pad.t + 4 - labs[labs.length - 1].ly;
+  if (over > 0) for (const l of labs) l.ly += over;
+  for (let i = labs.length - 2; i >= 0; i--) labs[i].ly = Math.max(labs[i].ly, labs[i + 1].ly + gap);
+  for (const { r, c, lastI, lastD, ly } of labs) {
+    const nm = names.get(r.id) ?? r.id;
+    const pts = r.series.map((d, i) => (d ? `${f(x(m.points[i].day))},${f(y(d))}` : '')).filter(Boolean);
+    if (pts.length > 1) parts.push(`<polyline points="${pts.join(' ')}" fill="none" stroke="${c}" stroke-width="2"/>`);
+    r.series.forEach((d, i) => d && parts.push(`<circle cx="${f(x(m.points[i].day))}" cy="${f(y(d))}" r="3.5" fill="${r.done ? '#fff' : c}" stroke="${c}" stroke-width="1.5"><title>${esc(`${nm}: ${dm(d)} (${m.points[i].label})`)}</title></circle>`));
+    const lx = x(m.points[lastI].day);
+    const tx = pad.l + iw + 10;
+    parts.push(`<polyline points="${f(lx + 4)},${f(y(lastD))} ${f(pad.l + iw + 2)},${f(y(lastD))} ${f(tx - 2)},${f(ly)}" fill="none" stroke="${c}" stroke-opacity="0.45"/>`);
+    const full = nm.length > 38 ? `${nm.slice(0, 37)}…` : nm;
+    parts.push(`<text x="${f(tx)}" y="${f(ly + 3.5)}" font-size="9.5" fill="${c}">${esc(full)}<title>${esc(`${nm}: ${dm(lastD)}`)}</title></text>`);
+  }
+  parts.push(`<text x="${pad.l + iw + 10}" y="${h - 6}" font-size="9" fill="${col.muted}">Gestrichelt: Termin = Berichtstag (erreicht) · ○ erledigt</text>`);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(`Meilenstein-Trendanalyse: ${rows.length} Meilensteine, ${m.points.length} Zeitpunkte`)}">${parts.join('')}</svg>`;
 }
 
 /** V118: Earned Value über die Zeit (ICB4 4.5.7) – Planwert PV als Linie über die Laufzeit, Fertigstellungswert EV
@@ -228,21 +265,40 @@ export function envSvg(dots: PortfolioDot[], col: SvgColors, w = 560, h = 340): 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(`Umfeld-Portfolio: ${dots.length - open} Stakeholder eingeordnet${open ? `, ${open} ohne Angabe` : ''}`)}">${parts.join('')}</svg>`;
 }
 
-/** Stakeholder-Portfolio: Einstellung −2…+2 (waagerecht) × Macht/Einfluss 1–3 (senkrecht), Kreisgröße = Konfliktpotenzial. */
-export function shSvg(dots: PortfolioDot[], col: SvgColors, w = 560, h = 340): string {
-  const pad = { l: 60, t: 16, r: 64, b: 44 };
+/** Stakeholder-Portfolio: Einstellung −2…+2 (waagerecht) × Macht/Einfluss 1–3 (senkrecht), Kreisgröße = Konfliktpotenzial.
+ * V134 (Enrico 11:27 „optisch schöner“): Quadranten getönt und benannt (Opponenten/Promotoren …), intern und extern in
+ * zwei Farben, Beschriftung mit hellem Rand (lesbar über Linien), Legende unten; volle Blattbreite. */
+export function shSvg(dots: PortfolioDot[], col: SvgColors, w = 680, h = 400): string {
+  const pad = { l: 54, t: 14, r: 92, b: 66 };
   const iw = w - pad.l - pad.r;
   const ih = h - pad.t - pad.b;
   const x = (a: number) => pad.l + ((a + 2) / 4) * iw;
   const y = (p: number) => pad.t + ih - ((p - 1) / 2) * ih;
+  const ext = '#3f6fa8';
   const parts: string[] = [];
+  const quad: [number, number, string, string][] = [
+    [pad.l, pad.t, '179,38,30', 'Opponenten – kritisch, eng steuern'],
+    [x(0), pad.t, '46,125,50', 'Promotoren – einbinden'],
+    [pad.l, y(2), '191,128,0', 'Gegner ohne Macht – beobachten'],
+    [x(0), y(2), '63,111,168', 'Unterstützer – informieren'],
+  ];
+  for (const [qx, qy, rgb, name] of quad) {
+    parts.push(`<rect x="${qx}" y="${qy}" width="${iw / 2}" height="${ih / 2}" fill="rgb(${rgb})" fill-opacity="0.07"/>`);
+    const right = qx > pad.l;
+    parts.push(`<text x="${right ? qx + iw / 2 - 6 : qx + 6}" y="${qy + ih / 2 - 6}" text-anchor="${right ? 'end' : 'start'}" font-size="10" font-style="italic" fill="rgb(${rgb})">${name}</text>`);
+  }
   parts.push(`<rect x="${pad.l}" y="${pad.t}" width="${iw}" height="${ih}" fill="none" stroke="${col.line}"/>`);
-  parts.push(`<line x1="${x(0)}" y1="${pad.t}" x2="${x(0)}" y2="${pad.t + ih}" stroke="${col.line}" stroke-dasharray="3 3"/>`);
-  parts.push(`<line x1="${pad.l}" y1="${y(2)}" x2="${pad.l + iw}" y2="${y(2)}" stroke="${col.line}" stroke-dasharray="3 3"/>`);
+  parts.push(`<line x1="${x(0)}" y1="${pad.t}" x2="${x(0)}" y2="${pad.t + ih}" stroke="${col.line}"/>`);
+  parts.push(`<line x1="${pad.l}" y1="${y(2)}" x2="${pad.l + iw}" y2="${y(2)}" stroke="${col.line}"/>`);
   for (const a of [-2, -1, 0, 1, 2]) parts.push(`<text x="${x(a)}" y="${pad.t + ih + 14}" text-anchor="middle" font-size="10" fill="${col.muted}">${a > 0 ? `+${a}` : a === 0 ? '0' : `−${-a}`}</text>`);
   for (const p of [1, 2, 3]) parts.push(`<text x="${pad.l - 6}" y="${y(p) + 4}" text-anchor="end" font-size="10" fill="${col.muted}">${p}</text>`);
-  parts.push(`<text x="${pad.l + iw / 2}" y="${h - 8}" text-anchor="middle" font-size="11" fill="${col.ink}">Einstellung zum Projekt (−2 dagegen · +2 dafür)</text>`);
+  parts.push(`<text x="${pad.l + iw / 2}" y="${pad.t + ih + 32}" text-anchor="middle" font-size="11" fill="${col.ink}">Einstellung zum Projekt (−2 dagegen · +2 dafür)</text>`);
   parts.push(`<text x="14" y="${pad.t + ih / 2}" text-anchor="middle" font-size="11" fill="${col.ink}" transform="rotate(-90 14 ${pad.t + ih / 2})">Macht/Einfluss</text>`);
+  // Legende
+  const ly = h - 10;
+  parts.push(`<circle cx="${pad.l + 6}" cy="${ly - 4}" r="5" fill="${col.dot}" fill-opacity="0.35" stroke="${col.dot}"/><text x="${pad.l + 16}" y="${ly}" font-size="10" fill="${col.ink}">intern</text>`);
+  parts.push(`<circle cx="${pad.l + 66}" cy="${ly - 4}" r="5" fill="${ext}" fill-opacity="0.35" stroke="${ext}"/><text x="${pad.l + 76}" y="${ly}" font-size="10" fill="${col.ink}">extern</text>`);
+  parts.push(`<text x="${pad.l + 126}" y="${ly}" font-size="10" fill="${col.muted}">Kreisgröße = Konfliktpotenzial (1 gering – 3 hoch)</text>`);
   // V113: mehrere an derselben Stelle – senkrecht gestapelt um den Punkt, Beschriftung rechts daneben (nichts überdeckt sich)
   const at = new Map<string, PortfolioDot[]>();
   for (const d of dots) {
@@ -252,16 +308,17 @@ export function shSvg(dots: PortfolioDot[], col: SvgColors, w = 560, h = 340): s
   }
   const placed: { d: PortfolioDot; cx: number; cy: number }[] = [];
   for (const group of at.values()) {
-    const step = Math.min(15, (ih - 12) / Math.max(1, group.length - 1));
+    const step = Math.min(16, (ih / 2 - 12) / Math.max(1, group.length - 1));
     const span = (group.length - 1) * step;
     let top = y(group[0].power!) - span / 2;
-    top = Math.min(Math.max(top, pad.t + 6), pad.t + ih - 6 - span);
+    top = Math.min(Math.max(top, pad.t + 9), pad.t + ih - 9 - span);
     group.forEach((d, n) => placed.push({ d, cx: x(d.attitude!), cy: top + n * step }));
   }
   for (const { d, cx, cy } of placed) {
-    const r = 3 + (d.conflict ?? 1) * 1.5;
-    parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${col.dot}" fill-opacity="0.35" stroke="${col.dot}"><title>${esc(`${d.code ? `${d.code} ` : ''}${d.name}: Einstellung ${d.attitude}, Macht ${d.power}${d.conflict ? `, Konfliktpotenzial ${d.conflict}` : ''}`)}</title></circle>`);
-    parts.push(`<text x="${cx + r + 2}" y="${cy + 4}" font-size="10" fill="${col.ink}">${lab(d)}</text>`);
+    const r = 3.5 + (d.conflict ?? 1) * 1.5;
+    const c = d.side === 'ex' ? ext : col.dot;
+    parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}" fill-opacity="0.35" stroke="${c}" stroke-width="1.2"><title>${esc(`${d.code ? `${d.code} ` : ''}${d.name}: Einstellung ${d.attitude}, Macht ${d.power}${d.conflict ? `, Konfliktpotenzial ${d.conflict}` : ''}`)}</title></circle>`);
+    parts.push(`<text x="${cx + r + 3}" y="${cy + 3.5}" font-size="10" fill="${col.ink}" stroke="#fff" stroke-width="3" stroke-opacity="0.85" paint-order="stroke">${lab(d)}</text>`);
   }
   const open = dots.filter((d) => d.attitude === undefined || d.power === undefined).length;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(`Stakeholder-Portfolio: ${dots.length - open} Stakeholder eingeordnet${open ? `, ${open} ohne Einstellung oder Macht` : ''}`)}">${parts.join('')}</svg>`;

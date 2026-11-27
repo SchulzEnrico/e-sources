@@ -68,7 +68,7 @@ const prepareTexts = (n: PrepareNames): Pr.PrepareTexts => ({
 });
 import * as Rk from './risks';
 import * as Fk from './formKit';
-import * as Sp from './sampleProject';
+import * as Sm from './samples';
 import * as Gp from './gpm';
 import * as Wt from './watch';
 import * as FL from './focusLoad';
@@ -278,7 +278,7 @@ export type Action =
   | { type: 'calOwn'; project: string; on: boolean }
   /** V118 (F-230): Import fertig gerechnet (bzw. Rückgängig) – Stand übernehmen */
   | { type: 'exchange'; ws: Workspace }
-  | { type: 'sampleProject'; on: boolean }
+  | { type: 'sampleProject'; on: boolean; key?: import('./samples').SampleKey }
   /* F-221 (V102): Feedback */
   | { type: 'fbAdd'; id: string; v: Fb.NewFeedback; at: string }
   | { type: 'fbEdit'; id: string; patch: Fb.FeedbackPatch }
@@ -676,7 +676,8 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'fbAskEase':
       return Fb.setAskEase(ws, a.on);
     case 'sampleProject':
-      return a.on ? Sp.addSampleProject(ws) : Sp.removeSampleProject(ws);
+      // V134 (F-233): Beispiel nach Kennung (ohne = ColorGentlemen wie bisher)
+      return Sm.toggleSample(ws, a.key, a.on);
     case 'personRemove':
       return Ps.removePerson(ws, a.id)?.ws ?? ws;
     case 'personRestore':

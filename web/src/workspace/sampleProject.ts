@@ -115,14 +115,14 @@ const ROWS: Row[] = [
 
 const noteId = (nr: number) => `${NOTE_PREFIX}${nr}`;
 
-/** „4; 5; 26AA; 10EA+1“ → Vorgänger (Abstand in Arbeitstagen wie MS Project). */
-export function parsePreds(s: string | undefined): NoteLink[] {
+/** „4; 5; 26AA; 10EA+1“ → Vorgänger (Abstand in Arbeitstagen wie MS Project). V134: Präfix der Ids wählbar (zweites Beispiel). */
+export function parsePreds(s: string | undefined, prefix = NOTE_PREFIX): NoteLink[] {
   if (!s) return [];
   return s.split(';').flatMap((part) => {
     const m = /^\s*(\d+)\s*(EA|AA|EE|AE)?\s*([+-]\s*\d+)?/.exec(part);
     if (!m) return [];
     const lag = m[3] ? Number(m[3].replace(/\s/g, '')) : 0;
-    return [{ id: noteId(Number(m[1])), rel: (m[2] ?? 'EA') as NoteRel, ...(lag ? { lag } : {}) }];
+    return [{ id: `${prefix}${Number(m[1])}`, rel: (m[2] ?? 'EA') as NoteRel, ...(lag ? { lag } : {}) }];
   });
 }
 
@@ -149,8 +149,8 @@ const GOALS: NonNullable<Project['goals']> = [
   { id: 'cg-n2', code: 'N2', text: 'Neue Prozesse auf andere Standorte übertragen (perspektivisch, nicht Inhalt des Projekts)', kind: 'non' },
 ];
 
-/** V109 (F-226, L2): Stakeholderanalyse (Tab. 4) – Einstellung positiv/negativ = +1/−1, gering/hoch = 1/3. */
-const sh = (id: string, code: string, name: string, side: 'in' | 'ex', interests: string, strategy: 'participative' | 'informative' | 'discursive' | 'repressive', measures: string, att: 1 | -1, conflict: 1 | 3, power: 1 | 3, person?: string) => ({ id, code, name, side, interests, strategy, measures, attitude: att, conflict, power, ...(person ? { person } : {}) });
+/** V109 (F-226, L2): Stakeholderanalyse (Tab. 4) – V134: alle als „sozial“ im Umfeld-Portfolio (Personen bzw. Gruppen); Einstellung positiv/negativ = +1/−1, gering/hoch = 1/3. */
+const sh = (id: string, code: string, name: string, side: 'in' | 'ex', interests: string, strategy: 'participative' | 'informative' | 'discursive' | 'repressive', measures: string, att: 1 | -1, conflict: 1 | 3, power: 1 | 3, person?: string) => ({ id, code, name, side, area: 'social' as const, interests, strategy, measures, attitude: att, conflict, power, ...(person ? { person } : {}) });
 const STAKEHOLDERS: NonNullable<Project['stakeholders']> = [
   sh('cg-sh1', 'SH-IN 01', 'Hr. Meier (GF, Auftraggeber)', 'in', 'Will die HM von der Leistungsfähigkeit der FIT überzeugen, seine Marktposition in der Region stärken und mit dem Schaffen von Arbeitsplätzen das Image weiter verbessern.', 'participative', 'Permanente Abstimmung zu allen Schritten im Projekt.', 1, 1, 3, CLIENT),
   sh('cg-sh2', 'SH-IN 02', 'Hr. Kabel (Gebietsleitung)', 'in', 'Will die Kosten für Anschaffungen, Reparaturen und Ressourcen so niedrig wie möglich halten, unterstützt aber die Vorgaben von SH-IN 01. Ist außerdem für die Suche und Einstellung der 15 MA zuständig.', 'participative', 'Kümmert sich um die Vertragsabschlüsse mit Lieferanten und Dienstleistern, weshalb eine permanente Abstimmung über die Finanzen erforderlich ist.', 1, 1, 3, `${PERSON_PREFIX}gl`),
@@ -301,7 +301,15 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
 
 /** Beispielprojekt ganz entfernen: Projekt, seine Vorgänge („cg-…“) und die eigens angelegten Personen. */
 export function removeSampleProject(ws: Workspace): Workspace {
-  if (!hasSampleProject(ws) && !notesOf(ws).some((n) => n.id.startsWith(NOTE_PREFIX))) return ws;
+  return removeSampleBy(ws, SAMPLE_PROJECT, NOTE_PREFIX, PERSON_PREFIX);
+}
+
+/** V134 (F-233): ein Beispielprojekt entfernen – Projekt, Notizen mit dem Präfix, eigens angelegte Personen. */
+export function removeSampleBy(ws: Workspace, pid: string, notePrefix: string, personPrefix: string): Workspace {
+  const NOTE_PREFIX = notePrefix;
+  const PERSON_PREFIX = personPrefix;
+  const SAMPLE_PROJECT = pid;
+  if (!(ws.projects ?? []).some((p) => p.id === pid) && !notesOf(ws).some((n) => n.id.startsWith(NOTE_PREFIX))) return ws;
   const notes = notesOf(ws).filter((n) => !(n.id.startsWith(NOTE_PREFIX) && (!n.project || n.project === SAMPLE_PROJECT)));
   const still = new Set(notes.map((n) => n.assignee));
   const persons = (ws.persons ?? []).filter((p) => !p.id.startsWith(PERSON_PREFIX) || still.has(p.id));

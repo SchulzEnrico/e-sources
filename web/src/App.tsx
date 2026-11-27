@@ -1,4 +1,5 @@
 import { SAMPLES, hasSample, shownSamples } from './workspace/samples';
+import { liveLocked, liveStale } from './workspace/liveProject';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { ZOOM_DEFAULT, fitFor, fitStart, frameWidth, nearestStep, shownZoom, zoomOf, zoomStep } from './workspace/zoom';
 import * as NS from './workspace/noteSources';
@@ -5002,6 +5003,10 @@ export default function App(props: { sent?: string }) {
     const r = runOf(ws);
     if (!r || isClaimed(r)) return;
     flash({ text: [KIT_TEXT.ran(r.names, r.cards, !!r.cut, r.made, r.late), ...r.texts].join(' '), ms: 6000, action: { label: KIT_TEXT.undo, run: () => dispatch({ type: 'exchange', ws: r.before }) } });
+  }, [ws, dispatch]);
+  // F-235 (V136): Online-Demo – Live-Projekt E-Sources von selbst anlegen bzw. auf den Stand dieser Fassung bringen
+  useEffect(() => {
+    if (liveLocked() && liveStale(ws)) dispatch({ type: 'liveProject', at: Date.now() });
   }, [ws, dispatch]);
   // F-218 A1 (V92): Dauer der Meldungen am Ort für alle Bauteile
   setNoticeMs(noticeMs(ws));

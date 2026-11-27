@@ -733,13 +733,58 @@ describe('F-235 (V135): Live-Projekt E-Sources', () => {
     expect(Lv.hasLiveProject(ws)).toBe(true);
     const mine = (w: Workspace) => (w.notes ?? []).filter((n) => n.project === Lv.LIVE_PROJECT);
     const groups = new Set(D.LIVE_ITEMS.map((i) => i.group)).size;
-    expect(mine(ws).length).toBe(D.LIVE_ITEMS.length + groups + 2);
+    expect(mine(ws).length).toBe(D.LIVE_ITEMS.length + groups + 2 + D.LIVE_CHANGES.length);
     ws = NLo.createNote(ws, { title: 'Eigene Notiz', project: Lv.LIVE_PROJECT }, { id: 'own-1', now: 6 }).ws;
     ws = Lv.refreshLiveProject(ws, 7);
-    expect(mine(ws).length).toBe(D.LIVE_ITEMS.length + groups + 3);
+    expect(mine(ws).length).toBe(D.LIVE_ITEMS.length + groups + 3 + D.LIVE_CHANGES.length);
     expect((ws.notes ?? []).some((n) => n.id === 'own-1')).toBe(true);
     expect((ws.projects ?? []).filter((p) => p.id === Lv.LIVE_PROJECT).length).toBe(1);
     const c = Lv.liveCounts();
     expect(c.done + c.part + c.open).toBe(c.all);
+  });
+  it('L7 (V136): Basisplan nur mit dem ursprünglichen Umfang, Dazugekommenes als genehmigte Änderungen', async () => {
+    const Lv = await import('./liveProject');
+    const D = await import('./liveProjectData');
+    const ws = Lv.refreshLiveProject(W.defaultWorkspace(), 5);
+    const p = (ws.projects ?? []).find((x) => x.id === Lv.LIVE_PROJECT)!;
+    expect(Object.keys(p.baseline!.tasks).length).toBe(D.LIVE_ITEMS.filter((i) => i.base).length);
+    const ch = (ws.notes ?? []).filter((n) => n.project === Lv.LIVE_PROJECT && n.type === 'change');
+    expect(ch.length).toBe(D.LIVE_CHANGES.length);
+    expect(ch.every((n) => n.change?.state === 'approved' && !!n.change.why && !!n.change.decided?.at)).toBe(true);
+    expect(D.LIVE_CHANGES.flatMap((c) => c.fs).length).toBe(D.LIVE_ITEMS.filter((i) => !i.base).length);
+    expect(p.goals?.some((g) => g.code === 'L3' && /Ä-\d+/.test(g.text))).toBe(true);
+    expect(p.changes?.length).toBe(D.LIVE_CHANGES.length);
+    expect(p.changes?.[0].measure).toMatch(/^Ä-1: /);
+  });
+  it('Schreibschutz (V136): Änderungen am Live-Projekt werden abgewiesen, der Rest der Aktion gilt; Kopie ist frei', async () => {
+    const Lv = await import('./liveProject');
+    const { reducer } = await import('./useWorkspace');
+    let ws = Lv.refreshLiveProject(W.defaultWorkspace(), 5);
+    const live = (w: Workspace) => (w.notes ?? []).filter(Lv.isLiveNote);
+    const before = live(ws);
+    Lv.setLiveLock(true);
+    try {
+      const t = before.find((n) => n.id.startsWith('es-n-f-'))!;
+      let next = reducer(ws, { type: 'projectRemove', id: Lv.LIVE_PROJECT } as never);
+      expect(Lv.hasLiveProject(next)).toBe(true);
+      expect(live(next)).toEqual(before);
+      next = Lv.keepLive(ws, NLo.updateNote(ws, t.id, { title: 'geändert' }, { now: 9 }));
+      expect(live(next).find((n) => n.id === t.id)).toBe(t);
+      const own = NLo.createNote(ws, { title: 'Fremd', project: Lv.LIVE_PROJECT }, { id: 'x-1', now: 9 }).ws;
+      expect((Lv.keepLive(ws, own).notes ?? []).some((n) => n.id === 'x-1')).toBe(false);
+      const other = NLo.createNote(ws, { title: 'Frei' }, { id: 'x-2', now: 9 }).ws;
+      expect((Lv.keepLive(ws, other).notes ?? []).some((n) => n.id === 'x-2')).toBe(true);
+      ws = reducer(ws, { type: 'liveCopy', at: 10 } as never);
+      const cp = (ws.projects ?? []).find((x) => x.id === 'pj-esk1')!;
+      expect(cp.name).toBe('E-Sources (Kopie)');
+      const kids = (ws.notes ?? []).filter((n) => n.project === 'pj-esk1');
+      expect(kids.length).toBe(before.length);
+      expect(kids.every((n) => !n.parent || kids.some((k) => k.id === n.parent))).toBe(true);
+      const k1 = kids.find((n) => n.parent)!;
+      expect(Lv.keepLive(ws, NLo.updateNote(ws, k1.id, { title: 'meins' }, { now: 11 }))).not.toBe(ws);
+      expect(Lv.liveChanged(ws, NLo.updateNote(ws, k1.id, { title: 'meins' }, { now: 11 }))).toBe(false);
+    } finally {
+      Lv.setLiveLock(false);
+    }
   });
 });

@@ -38,7 +38,7 @@ import * as Dp from '../workspace/deskProject';
 import { DESK_PROJECT_TEXT as DPT } from '../workspace/terms';
 import { sampleText, PAPER_TEXT } from '../workspace/terms';
 import { ProjectSheet } from './ProjectSheet';
-import { LIVE_PROJECT, hasLiveProject, liveCounts } from '../workspace/liveProject';
+import { LIVE_PROJECT, hasLiveProject, liveBlockedAt, liveCopyId, liveCounts, liveLocked } from '../workspace/liveProject';
 import { LIVE_STAND } from '../workspace/liveProjectData';
 import { shownSamples, hasSample, sampleOf, type SampleKey } from '../workspace/samples';
 import { ACCENTS } from '../workspace/look';
@@ -250,6 +250,12 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
             </button>
           ))}
           {/* F-235 (V135): Live-Projekt E-Sources – beim Entwickeln anlegen bzw. aktualisieren (Stand aus dem Lastenheft) */}
+          {/* V136: in der Online-Demo zum Ansehen (wird beim Start von selbst angelegt; der Knopf holt es zurück und zeigt es) */}
+          {!import.meta.env.DEV && (sel !== LIVE_PROJECT || !hasLiveProject(ws)) && (
+            <button type="button" className="help__run pj__live" title={T.liveShowHint} onClick={() => (hasLiveProject(ws) || dispatch({ type: 'liveProject', at: Date.now() }), setSel(LIVE_PROJECT), focusRow(LIVE_PROJECT))}>
+              <Icon name="project" size={13} className="icon icon--inline" /> {T.liveShow}
+            </button>
+          )}
           {import.meta.env.DEV && (
             <button type="button" className="help__run pj__live" title={T.liveHint(LIVE_STAND.chat)} onClick={() => (dispatch({ type: 'liveProject', at: Date.now() }), setSel(LIVE_PROJECT), tell(T.liveDone(LIVE_STAND.chat, liveCounts().done, liveCounts().all)), focusRow(LIVE_PROJECT))}>
               <Icon name="project" size={13} className="icon icon--inline" /> {hasLiveProject(ws) ? T.liveUpdate : T.liveAdd}
@@ -474,6 +480,21 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
             {note && <p className="layouts__undo" role="status">{note}</p>}
             {error && !adding && <p className="layouts__error" role="alert">{error}</p>}
           </div>
+
+          {/* F-235 (V136): Schreibschutz am Ort – Hinweis über der Ansicht, abgewiesene Änderung wird hier gemeldet */}
+          {shown.id === LIVE_PROJECT && liveLocked() && (
+            <LiveLockNote
+              ws={ws}
+              chat={shown.live ?? LIVE_STAND.chat}
+              onCopy={() => {
+                const id = liveCopyId(ws);
+                dispatch({ type: 'liveCopy', at: Date.now() });
+                setSel(id);
+                tell(T.liveCopied(`${shown.name} (Kopie${id === 'pj-esk1' ? '' : ` ${id.slice(6)}`})`));
+                focusRow(id);
+              }}
+            />
+          )}
 
           {view === 'risks' || view === 'changes' ? (
             <ProjectSteer key={`${shown.id}-${view}`} ws={ws} p={shown} kind={view === 'risks' ? 'risk' : 'change'} dispatch={dispatch} say={say} focus={steerFocus} />
@@ -762,5 +783,28 @@ function ProjectRoles({ ws, p, dispatch, say }: { ws: Workspace; p: Project; dis
       )}
       {msg && <p className="layouts__undo" role="status">{msg}</p>}
     </fieldset>
+  );
+}
+
+/** F-235 (V136): Hinweis am Ort „Live-Projekt – nur zum Ansehen“; meldet eine abgewiesene Änderung 2,5 s lang. */
+function LiveLockNote({ ws, chat, onCopy }: { ws: Workspace; chat: string; onCopy: () => void }) {
+  const [bump, setBump] = useState(0);
+  const seen = useRef(liveBlockedAt());
+  useEffect(() => {
+    const at = liveBlockedAt();
+    if (at === seen.current) return;
+    seen.current = at;
+    setBump(at);
+    const t = window.setTimeout(() => setBump(0), 2500);
+    return () => window.clearTimeout(t);
+  }, [ws]);
+  return (
+    <p className={`pj__readonly${bump ? ' is-blocked' : ''}`} role="note">
+      <Icon name="lock" size={13} className="icon icon--inline" /> <strong>{T.liveLocked}</strong> {T.liveLockedMore(chat)}
+      <button type="button" className="help__run lc__primary" title={T.liveCopyHint} onClick={onCopy}>
+        <Icon name="copy" size={13} className="icon icon--inline" /> {T.liveCopy}
+      </button>
+      <span className="pj__blocked" role="status">{bump ? T.liveBlocked : ''}</span>
+    </p>
   );
 }

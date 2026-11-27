@@ -282,6 +282,7 @@ export type Action =
   | { type: 'sampleProject'; on: boolean; key?: import('./samples').SampleKey }
   /** F-235 (V135): Live-Projekt E-Sources anlegen bzw. aktualisieren */
   | { type: 'liveProject'; at?: number }
+  | { type: 'liveCopy'; id?: string; at?: number }
   /* F-221 (V102): Feedback */
   | { type: 'fbAdd'; id: string; v: Fb.NewFeedback; at: string }
   | { type: 'fbEdit'; id: string; patch: Fb.FeedbackPatch }
@@ -484,8 +485,13 @@ export function reducer(ws: Workspace, a: Action): Workspace {
   const next = NO_RULES.has(a.type) || next0 === ws ? next0 : RR.applyRules(ws, next0);
   // F-27: Fensterliste passend zu den Panels halten (leere Fenster fallen weg).
   // F-51: leerer Zusatz-Desk mit gespeicherten Layouts wechselt, statt wegzufallen.
-  return a.type === 'remote' || next === ws ? next : RR.carryRun(next, Win.syncWindows(DL.rescueEmptyDesks(next)));
+  const done = a.type === 'remote' || next === ws ? next : RR.carryRun(next, Win.syncWindows(DL.rescueEmptyDesks(next)));
+  // F-235 (V136): Live-Projekt in der Online-Demo nur zum Ansehen – zentral hier abgewiesen (Abgleich, Laden und
+  // „Live-Projekt aktualisieren“ ausgenommen); beim Entwickeln ist der Schutz aus
+  return LIVE_FREE.has(a.type) ? done : Lv.keepLive(ws, done);
 }
+/** F-235 (V136): Aktionen, die das Live-Projekt trotz Schreibschutz ändern dürfen. */
+const LIVE_FREE = new Set<Action['type']>(['remote', 'replace', 'exchange', 'liveProject']);
 
 function step(ws: Workspace, a: Action): Workspace {
   switch (a.type) {
@@ -680,6 +686,11 @@ function step(ws: Workspace, a: Action): Workspace {
       return Fb.setAskEase(ws, a.on);
     case 'liveProject':
       return Lv.refreshLiveProject(ws, a.at ?? Date.now());
+    case 'liveCopy': {
+      // F-235 (V136): Besucher der Demo legen eine eigene, bearbeitbare Kopie an
+      const r = Lv.copyLiveProject(ws, a.at ?? Date.now());
+      return r.ws;
+    }
     case 'sampleProject':
       // V134 (F-233): Beispiel nach Kennung (ohne = ColorGentlemen wie bisher)
       return Sm.toggleSample(ws, a.key, a.on);

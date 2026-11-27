@@ -10405,6 +10405,14 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
 .paper--form .pjf__table thead th:last-child:not(:has(*:not(.sr-only))) { border: 0; background: none; }
 .paper--form .pjf__table .pjf__auto { display: block; width: fit-content; max-width: 100%; margin-top: 1px; font-size: 0.72em; white-space: normal; overflow-wrap: anywhere; }
 .pj__samples { display: flex; flex-wrap: wrap; gap: 8px; }
+/* F-235 (V136): Live-Projekt in der Demo nur zum Ansehen – Hinweis am Ort, abgewiesene Änderung kurz hervorgehoben */
+.pj__readonly { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 6px 0; padding: 6px 10px; border: 1px solid var(--accent, #4a8); border-radius: var(--radius, 6px); background: color-mix(in srgb, var(--accent, #4a8) 10%, transparent); font-size: 0.85rem; }
+.pj__readonly .help__run { margin-left: auto; }
+.pj__readonly.is-blocked { animation: pj-bump 0.4s ease 2; border-color: var(--warn, #d80); }
+.pj__blocked:empty { flex-basis: 0; }
+.pj__blocked { flex-basis: 100%; color: var(--warn, #d80); font-weight: 600; }
+@keyframes pj-bump { 50% { transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) { .pj__readonly.is-blocked { animation: none; } }
 /* V134 (Enrico 11:46): Umschalt-Rad zur Projektwahl neben dem Namen in der Projektliste */
 .pj__namecell { white-space: nowrap; }
 .pj__namecell > .pc__name { display: inline-flex; vertical-align: middle; }

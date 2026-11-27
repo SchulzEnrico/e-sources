@@ -983,6 +983,8 @@ export interface Project {
   calendar?: WorkCalendar;
   /** V118 (F-230 Option C): was eine importierte Datei trägt, E-Sources aber nicht kennt – geht beim Export unverändert zurück. */
   foreign?: ForeignBag;
+  /** F-235 (V136): nur am Live-Projekt – Stand (Chat), aus dem es erzeugt wurde. */
+  live?: string;
   created: number;
   changed: number;
 }

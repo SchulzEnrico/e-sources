@@ -5,6 +5,11 @@ import MobileGate from './components/MobileGate';
 import SendPage from './components/SendPage';
 import { sentUrl, withoutSent } from './workspace/send';
 import { windowTarget } from './workspace/useWindows';
+import { setLiveLock } from './workspace/liveProject';
+
+// F-235 (V136): in der Online-Demo (gebaute Fassung) ist das Live-Projekt E-Sources nur zum Ansehen
+// (zum Prüfen beim Entwickeln: ?demo in der Adresse)
+setLiveLock(!import.meta.env.DEV || new URLSearchParams(window.location.search).has('demo'));
 
 const root = createRoot(document.getElementById('root')!);
 const renderApp = (sent?: string) =>

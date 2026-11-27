@@ -258,21 +258,50 @@ export function pspSheetSvg(ws: Workspace, pid: string): string {
  * Weisung (durchgezogen), fachliche Weisung (gestrichelt), Vertrag (grau gepunktet); Legende rechts. Ohne eingetragene
  * Hierarchie wie bisher: Auftraggeber bzw. Lenkung oben, Projektleitung darunter, das Team unter der Projektleitung.
  */
+/**
+ * V139: übergeordnete Rolle je Rolle für das Organigramm – eingetragen (`parent`) geht vor, sonst gewohnte Ordnung:
+ * Auftraggeber/Lenkung oben, Projektleitung darunter, übrige darunter. Kreise werden aufgelöst (die Rolle, an der
+ * sich der Kreis schließt, steht dann oben), damit keine Rolle aus dem Bild fällt.
+ */
+export function orgParents(roles: readonly ProjectRole[]): Map<string, string | undefined> {
+  const isTop = (n: string) => /auftrag|lenk|steuer|geschäftsf|sponsor/i.test(n);
+  const isLead = (r: ProjectRole) => r.id === 'lead' || /projektleit/i.test(r.name);
+  const byId = new Map(roles.map((r) => [r.id, r]));
+  const lead = roles.find(isLead);
+  const tops = roles.filter((r) => r !== lead && isTop(r.name));
+  const out = new Map<string, string | undefined>();
+  for (const r of roles) {
+    const auto = r === lead ? tops[0]?.id : tops.includes(r) ? (r === tops[0] ? undefined : tops[0].id) : lead?.id ?? tops[0]?.id;
+    const set = r.parent && r.parent !== r.id && byId.has(r.parent) ? r.parent : undefined;
+    out.set(r.id, set ?? (auto === r.id ? undefined : auto));
+  }
+  // Kreise lösen: zuerst gewohnte (nicht eingetragene) Verbindungen kappen, sonst die eingetragene
+  for (const r of roles) {
+    const path: string[] = [];
+    let cur: string | undefined = r.id;
+    while (cur && !path.includes(cur)) {
+      path.push(cur);
+      cur = out.get(cur);
+    }
+    if (!cur) continue;
+    const loop = path.slice(path.indexOf(cur));
+    const cut = loop.find((id) => !byId.get(id)?.parent) ?? loop[0];
+    out.set(cut, undefined);
+  }
+  return out;
+}
+
 export function orgChartSvg(ws: Workspace, p: Project): string {
   const roles = p.roles ?? [];
   if (!roles.length) return '';
   OFF = p.figLayout?.org ?? {};
   const who = (id?: string) => (id ? personById(ws, id)?.name ?? '' : '');
-  const isTop = (n: string) => /auftrag|lenk|steuer|geschäftsf|sponsor/i.test(n);
   const isLead = (r: ProjectRole) => r.id === 'lead' || /projektleit/i.test(r.name);
   const byId = new Map(roles.map((r) => [r.id, r]));
-  const parentOf = new Map<string, string | undefined>();
-  if (roles.some((r) => r.parent)) for (const r of roles) parentOf.set(r.id, r.parent && byId.has(r.parent) ? r.parent : undefined);
-  else {
-    const lead = roles.find(isLead);
-    const tops = roles.filter((r) => r !== lead && isTop(r.name));
-    for (const r of roles) parentOf.set(r.id, r === lead ? tops[0]?.id : tops.includes(r) ? (r === tops[0] ? undefined : tops[0].id) : lead?.id ?? tops[0]?.id);
-  }
+  // V139 (Enrico 13:48): je Rolle – eingetragene „Übergeordnete Rolle“ geht vor, alle anderen behalten die gewohnte
+  // Ordnung (Auftraggeber bzw. Lenkung oben, Projektleitung darunter, Team darunter). Vorher fiel die gewohnte Ordnung
+  // für alle weg, sobald eine einzige Rolle einen Eintrag hatte – die Kästen sprangen auseinander.
+  const parentOf = orgParents(roles);
   const ext = (r: ProjectRole) => r.kind === 'external';
   const internal = roles.filter((r) => !ext(r));
   const kidsOf = (id: string) => internal.filter((r) => parentOf.get(r.id) === id && r.kind !== 'staff');
@@ -804,38 +833,67 @@ export function belbinSvg(ws: Workspace, p: Project, rowId: string | undefined):
 
 // ---------------------------------------------------------------- F-234 (V137): Eisenhower-Matrix wie Abb. 17
 
-/** Abb. 17: vier Felder nach wichtig/dringend aus den offenen Vorgängen (Felder „wichtig“ und „dringend“ wie im Notizen-Modus). */
-export function eisenhowerSvg(ws: Workspace, pid: string, day: string): string {
-  const p = projectById(ws, pid);
-  if (!p) return '';
+/** V139: Lage der vier Felder in der Eisenhower-Grafik (viewBox-Einheiten) – für Ziehen in ein anderes Feld. */
+export const EISEN = { x0: 70, y0: 60, gw: 300, gh: 190 } as const;
+export type EisenQuad = 'do' | 'plan' | 'delegate' | 'drop';
+/** V139: Lage der Matrix – Höhe der oberen (wichtig) und unteren Reihe; mit „alle zeigen“ wachsen sie mit. */
+export interface EisenGeo { x0: number; y0: number; gw: number; ghTop: number; ghBot: number }
+const EISEN_GEO: EisenGeo = { x0: EISEN.x0, y0: EISEN.y0, gw: EISEN.gw, ghTop: EISEN.gh, ghBot: EISEN.gh };
+/** Feld unter einem Punkt der Grafik (viewBox-Einheiten); außerhalb der Matrix null. */
+export function eisenQuadAt(x: number, y: number, g: EisenGeo = EISEN_GEO): EisenQuad | null {
+  const { x0, y0, gw, ghTop, ghBot } = g;
+  if (x < x0 || x > x0 + 2 * gw || y < y0 || y > y0 + ghTop + ghBot) return null;
+  const urgent = x >= x0 + gw;
+  const important = y < y0 + ghTop;
+  return important ? (urgent ? 'do' : 'plan') : urgent ? 'delegate' : 'drop';
+}
+type EisenItem = { id: string; text: string };
+/** Einträge je Feld aus den offenen Arbeitspaketen (gleiche Regel wie die Tabelle). */
+function eisenItems(ws: Workspace, pid: string): Record<EisenQuad, EisenItem[]> {
   const rows = pspRows(pspTree(ws, pid)).filter((n) => n.kind === 'task' && n.owner === pid && !n.milestone && !n.summary);
   const byId = new Map((ws.notes ?? []).map((n) => [n.id, n]));
-  const q: Record<'plan' | 'do' | 'drop' | 'delegate', { id: string; text: string }[]> = { plan: [], do: [], drop: [], delegate: [] };
+  const q: Record<EisenQuad, EisenItem[]> = { plan: [], do: [], drop: [], delegate: [] };
   for (const r of rows) {
     const n = byId.get(r.id);
-    if (!n || n.state === 'done' || n.state === 'archived' || (!n.important && !n.urgent)) continue;
-    const k = n.important ? (n.urgent ? 'do' : 'plan') : 'delegate';
+    if (!n || n.state === 'done' || n.state === 'archived') continue;
+    // V139 (Enrico 13:52): weder wichtig noch dringend = „liegen lassen“ – wie in der Tabelle darunter
+    const k = n.important ? (n.urgent ? 'do' : 'plan') : n.urgent ? 'delegate' : 'drop';
     q[k].push({ id: r.id, text: `${r.code ? `${r.code} ` : ''}${r.title}` });
   }
-  // „liegen lassen“ nur, was ausdrücklich weder wichtig noch dringend ist, wäre unbestimmt – dort stehen offene Vorgänge ohne beide Marken nicht
+  return q;
+}
+const itemsHeight = (list: EisenItem[]) => list.reduce((h, it) => h + wrap(`- ${it.text}`, 44, 2).length * 13 + 9, 0);
+/** V139 (Enrico 13:55): Lage der Matrix; `all` = Felder so hoch, dass jeder Eintrag zu sehen ist. */
+export function eisenGeo(ws: Workspace, pid: string, all = false): EisenGeo {
+  if (!all) return EISEN_GEO;
+  const q = eisenItems(ws, pid);
+  return { ...EISEN_GEO, ghTop: Math.max(EISEN.gh, 40 + 30 + Math.max(itemsHeight(q.plan), itemsHeight(q.do))), ghBot: Math.max(EISEN.gh, 30 + 34 + Math.max(itemsHeight(q.drop), itemsHeight(q.delegate))) };
+}
+/** Marken eines Felds: wichtig = oben, dringend = rechts. */
+export const eisenMarks = (q: EisenQuad) => ({ important: q === 'do' || q === 'plan', urgent: q === 'do' || q === 'delegate' });
+
+/** Abb. 17: vier Felder nach wichtig/dringend aus den offenen Vorgängen (Felder „wichtig“ und „dringend“ wie im Notizen-Modus). */
+export function eisenhowerSvg(ws: Workspace, pid: string, day: string, all = false): string {
+  const p = projectById(ws, pid);
+  if (!p) return '';
+  const q = eisenItems(ws, pid);
   const W = 760;
-  const H = 520;
-  const x0 = 70;
-  const y0 = 60;
-  const gw = 300;
-  const gh = 190;
+  const { x0, y0, gw, ghTop, ghBot } = eisenGeo(ws, pid, all);
+  const H = 520 + (ghTop - EISEN.gh) + (ghBot - EISEN.gh);
+  const gh = ghTop;
+  const gh2 = ghTop + ghBot;
   const parts: string[] = [];
   parts.push(`<rect x="${x0 + 40}" y="6" width="${2 * gw - 80}" height="40" rx="6" fill="url(#fgHead)" filter="url(#fgShadow)"/>`);
   parts.push(`<text x="${x0 + gw}" y="33" text-anchor="middle" font-size="19" font-weight="bold" fill="#fff">${esc(`${dmy(day)} ${p.charter?.no ? `${p.name} - ${p.charter.no}` : p.name}`.slice(0, 54))}</text>`);
-  parts.push(`<rect x="${x0}" y="${y0}" width="${2 * gw}" height="${2 * gh}" rx="8" fill="url(#fgGray)" stroke="${LOOK.grayLine}" filter="url(#fgShadow)"/>`);
-  parts.push(`<line x1="${x0 + gw}" y1="${y0 + 8}" x2="${x0 + gw}" y2="${y0 + 2 * gh - 8}" stroke="#fff" stroke-width="3"/><line x1="${x0 + gw}" y1="${y0 + 8}" x2="${x0 + gw}" y2="${y0 + 2 * gh - 8}" stroke="#555" stroke-width="1"/>`);
+  parts.push(`<rect x="${x0}" y="${y0}" width="${2 * gw}" height="${gh2}" rx="8" fill="url(#fgGray)" stroke="${LOOK.grayLine}" filter="url(#fgShadow)"/>`);
+  parts.push(`<line x1="${x0 + gw}" y1="${y0 + 8}" x2="${x0 + gw}" y2="${y0 + gh2 - 8}" stroke="#fff" stroke-width="3"/><line x1="${x0 + gw}" y1="${y0 + 8}" x2="${x0 + gw}" y2="${y0 + gh2 - 8}" stroke="#555" stroke-width="1"/>`);
   parts.push(`<line x1="${x0 + 8}" y1="${y0 + gh}" x2="${x0 + 2 * gw - 8}" y2="${y0 + gh}" stroke="#fff" stroke-width="3"/><line x1="${x0 + 8}" y1="${y0 + gh}" x2="${x0 + 2 * gw - 8}" y2="${y0 + gh}" stroke="#555" stroke-width="1"/>`);
   const corner = (x: number, y: number, t: string, anchor: 'start' | 'end') => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="11" fill="${LOOK.muted}">${t}</text>`;
-  parts.push(corner(x0 + 10, y0 + 16, 'planen', 'start'), corner(x0 + 2 * gw - 10, y0 + 16, 'erledigen', 'end'), corner(x0 + 10, y0 + 2 * gh - 8, 'liegen lassen', 'start'), corner(x0 + 2 * gw - 10, y0 + 2 * gh - 8, 'delegieren', 'end'));
-  const items = (list: { id: string; text: string }[], x: number, y: number, tone: string, bold: boolean) => {
+  parts.push(corner(x0 + 10, y0 + 16, 'planen', 'start'), corner(x0 + 2 * gw - 10, y0 + 16, 'erledigen', 'end'), corner(x0 + 10, y0 + gh2 - 8, 'liegen lassen', 'start'), corner(x0 + 2 * gw - 10, y0 + gh2 - 8, 'delegieren', 'end'));
+  const items = (list: { id: string; text: string }[], x: number, y: number, tone: string, bold: boolean, rowH: number) => {
     const out: string[] = [];
     let yy = y;
-    const maxY = y + gh - 44;
+    const maxY = all ? Infinity : y + rowH - 44;
     for (let i = 0; i < list.length; i++) {
       const lines = wrap(`- ${list[i].text}`, 44, 2);
       if (yy + lines.length * 14 > maxY) {
@@ -849,15 +907,15 @@ export function eisenhowerSvg(ws: Workspace, pid: string, day: string): string {
     }
     return out.join('');
   };
-  parts.push(items(q.plan, x0 + 14, y0 + 40, LOOK.wine, true), items(q.do, x0 + gw + 14, y0 + 40, LOOK.wine, true), items(q.drop, x0 + 14, y0 + gh + 30, LOOK.ink, false), items(q.delegate, x0 + gw + 14, y0 + gh + 30, LOOK.ink, true));
+  parts.push(items(q.plan, x0 + 14, y0 + 40, LOOK.wine, true, ghTop), items(q.do, x0 + gw + 14, y0 + 40, LOOK.wine, true, ghTop), items(q.drop, x0 + 14, y0 + gh + 30, LOOK.ink, false, ghBot), items(q.delegate, x0 + gw + 14, y0 + gh + 30, LOOK.ink, true, ghBot));
   // Achsen
-  parts.push(`<text transform="translate(${x0 - 30} ${y0 + gh}) rotate(-90)" text-anchor="middle" font-size="22" font-weight="bold" fill="${LOOK.wine}">Wichtigkeit</text>`);
-  parts.push(`<text transform="translate(${x0 - 8} ${y0 + gh / 2}) rotate(-90)" text-anchor="middle" font-size="10" fill="${LOOK.muted}">sehr</text><text transform="translate(${x0 - 8} ${y0 + gh * 1.5}) rotate(-90)" text-anchor="middle" font-size="10" fill="${LOOK.muted}">nicht</text>`);
-  parts.push(`<text x="${x0 + gw / 2}" y="${y0 + 2 * gh + 16}" text-anchor="middle" font-size="11" fill="${LOOK.muted}">nicht</text><text x="${x0 + gw * 1.5}" y="${y0 + 2 * gh + 16}" text-anchor="middle" font-size="11" fill="${LOOK.muted}">sehr</text>`);
-  parts.push(`<text x="${x0 + gw}" y="${y0 + 2 * gh + 44}" text-anchor="middle" font-size="22" font-weight="bold" fill="#9b9b9b">Dringlichkeit</text>`);
-  parts.push(`<text transform="translate(${x0 + 2 * gw + 30} ${y0 + gh}) rotate(90)" text-anchor="middle" font-size="30" font-weight="bold" fill="#9b9b9b">Eisenhower-Matrix</text>`);
-  const n = q.do.length + q.plan.length + q.delegate.length;
-  return n ? svgWrap(W, H, `Eisenhower-Matrix: ${q.do.length} erledigen, ${q.plan.length} planen, ${q.delegate.length} delegieren`, parts.join('')) : '';
+  parts.push(`<text transform="translate(${x0 - 30} ${y0 + gh2 / 2}) rotate(-90)" text-anchor="middle" font-size="22" font-weight="bold" fill="${LOOK.wine}">Wichtigkeit</text>`);
+  parts.push(`<text transform="translate(${x0 - 8} ${y0 + gh / 2}) rotate(-90)" text-anchor="middle" font-size="10" fill="${LOOK.muted}">sehr</text><text transform="translate(${x0 - 8} ${y0 + gh + ghBot / 2}) rotate(-90)" text-anchor="middle" font-size="10" fill="${LOOK.muted}">nicht</text>`);
+  parts.push(`<text x="${x0 + gw / 2}" y="${y0 + gh2 + 16}" text-anchor="middle" font-size="11" fill="${LOOK.muted}">nicht</text><text x="${x0 + gw * 1.5}" y="${y0 + gh2 + 16}" text-anchor="middle" font-size="11" fill="${LOOK.muted}">sehr</text>`);
+  parts.push(`<text x="${x0 + gw}" y="${y0 + gh2 + 44}" text-anchor="middle" font-size="22" font-weight="bold" fill="#9b9b9b">Dringlichkeit</text>`);
+  parts.push(`<text transform="translate(${x0 + 2 * gw + 30} ${y0 + gh2 / 2}) rotate(90)" text-anchor="middle" font-size="30" font-weight="bold" fill="#9b9b9b">Eisenhower-Matrix</text>`);
+  const n = q.do.length + q.plan.length + q.delegate.length + q.drop.length;
+  return n ? svgWrap(W, H, `Eisenhower-Matrix: ${q.do.length} erledigen, ${q.plan.length} planen, ${q.delegate.length} delegieren, ${q.drop.length} liegen lassen`, parts.join('')) : '';
 }
 
 // ---------------------------------------------------------------- F-234 (V137): Nachrichtenquadrat nach Schulz von Thun wie Abb. 18
@@ -939,7 +997,7 @@ export function squareSvg(p: Project, rowId: string | undefined): string {
 /** Kennung der Grafik eines Formulars (FormDef.figure). */
 export type FigureKind = 'goalTree' | 'org' | 'phasePlan' | 'psp' | 'gantt' | 'load' | 'wpReport' | 'belbin' | 'eisenhower' | 'square';
 /** Grafik eines Formulars mit Layout `figure` (leer, wenn noch nichts zu zeichnen ist). */
-export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefined, o: { person?: string; row?: string; day?: string } = {}): string {
+export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefined, o: { person?: string; row?: string; day?: string; all?: boolean } = {}): string {
   const p = projectById(ws, pid);
   if (!p || !kind) return '';
   switch (kind) {
@@ -960,7 +1018,7 @@ export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefin
     case 'belbin':
       return belbinSvg(ws, p, o.row);
     case 'eisenhower':
-      return eisenhowerSvg(ws, pid, o.day ?? new Date().toISOString().slice(0, 10));
+      return eisenhowerSvg(ws, pid, o.day ?? new Date().toISOString().slice(0, 10), o.all);
     case 'square':
       return squareSvg(p, o.row);
   }

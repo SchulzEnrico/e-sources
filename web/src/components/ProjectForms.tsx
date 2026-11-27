@@ -24,7 +24,7 @@ import * as Rp from '../workspace/gpmReport';
 import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf } from '../workspace/gpmCalc';
 import { APP_VERSION } from '../workspace/feedback';
 import { PaperSizeWheel, ProjectSheet, paperZoom, usePaperSize } from './ProjectSheet';
-import { figureSvg, loadDefault, loadPersons } from '../workspace/gpmFigures';
+import { eisenGeo, eisenMarks, eisenQuadAt, figureSvg, loadDefault, loadPersons, type EisenQuad } from '../workspace/gpmFigures';
 
 /** F-234 D2: Grafik-Blatt → bedienbare Ansicht im Projekt-Modus */
 const FIGURE_VIEW: Record<string, 'psp' | 'gantt' | 'res' | undefined> = { psp: 'psp', gantt: 'gantt', phasePlan: 'gantt', load: 'res' };
@@ -194,6 +194,56 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
   useEffect(() => setFigEdit(null), [form.id, p.id]);
   const figKind = form.figure;
   const movable = figKind === 'goalTree' || figKind === 'psp' || figKind === 'org';
+  // V139 (Enrico 13:52): Eisenhower – Einträge in ein anderes Feld ziehen (setzt wichtig/dringend), Alt+Pfeil ebenso
+  const quadDrag = figKind === 'eisenhower';
+  // V139 (Enrico 13:55): Rad „Einträge“ Gekürzt · Alle – bei „Alle“ wachsen die Felder mit (je Gerät gemerkt)
+  const [eisenAll, setEisenAllState] = useState(() => {
+    try {
+      return localStorage.getItem('esource.eisenAll.v1') === 'all';
+    } catch {
+      return false;
+    }
+  });
+  const setEisenAll = (on: boolean) => {
+    setEisenAllState(on);
+    try {
+      localStorage.setItem('esource.eisenAll.v1', on ? 'all' : 'short');
+    } catch {
+      /* nur bis zum Neuladen */
+    }
+    say(on ? T.figAllOn : T.figAllOff);
+  };
+  const setQuad = (key: string, q: EisenQuad) => {
+    const id = key.split(':')[1];
+    const n = (ws.notes ?? []).find((x) => x.id === id);
+    if (!n) return;
+    const mk = eisenMarks(q);
+    if (!!n.important === mk.important && !!n.urgent === mk.urgent) return;
+    const at = Date.now();
+    const was = { important: !!n.important, urgent: !!n.urgent };
+    run({ op: 'cell', pid: p.id, form, row: id, key: 'important', value: mk.important, at, by });
+    run({ op: 'cell', pid: p.id, form, row: id, key: 'urgent', value: mk.urgent, at, by });
+    tell(T.figQuad(T.figQuadName[q]), () => {
+      run({ op: 'cell', pid: p.id, form, row: id, key: 'important', value: was.important, at: Date.now(), by });
+      run({ op: 'cell', pid: p.id, form, row: id, key: 'urgent', value: was.urgent, at: Date.now(), by });
+    });
+  };
+  const quadOf = (key: string): EisenQuad => {
+    const n = (ws.notes ?? []).find((x) => x.id === key.split(':')[1]);
+    return n?.important ? (n.urgent ? 'do' : 'plan') : n?.urgent ? 'delegate' : 'drop';
+  };
+  const addEisenTask = () => {
+    const tf = tpl.forms.find((f) => f.id === 'tasks') ?? Fk.GPM_D.forms.find((f) => f.id === 'tasks');
+    if (!tf) return;
+    const id = newId();
+    const at = Date.now();
+    const r = Fk.addRow(ws, p.id, tf, { id, now: at, by });
+    if (!r) return;
+    run({ op: 'add', pid: p.id, form: tf, id, at, by });
+    tell(T.added, () => run({ op: 'remove', pid: p.id, form: tf, row: r.id, at: Date.now() }));
+    // Kasten-Fenster mit Titel usw. gleich öffnen; der neue Eintrag steht unter „liegen lassen“
+    setFigEdit({ key: `tasks:${r.id}`, x: 0, y: 48 });
+  };
   const offNow = (key: string) => (figKind ? p.figLayout?.[figKind]?.[key] : undefined) ?? { dx: 0, dy: 0 };
   const openFig = (el: Element) => {
     const key = el.getAttribute('data-edit');
@@ -222,6 +272,15 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         openFig(el);
+      } else if (quadDrag && e.altKey && e.key.startsWith('Arrow')) {
+        e.preventDefault();
+        const mk = eisenMarks(quadOf(key));
+        if (e.key === 'ArrowUp') mk.important = true;
+        if (e.key === 'ArrowDown') mk.important = false;
+        if (e.key === 'ArrowRight') mk.urgent = true;
+        if (e.key === 'ArrowLeft') mk.urgent = false;
+        setQuad(key, mk.important ? (mk.urgent ? 'do' : 'plan') : mk.urgent ? 'delegate' : 'drop');
+        focusBox(key);
       } else if (movable && e.altKey && e.key.startsWith('Arrow')) {
         e.preventDefault();
         const o = offNow(key);
@@ -231,7 +290,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
       }
     },
     onPointerDown: (e: React.PointerEvent) => {
-      if (!movable || e.button !== 0) return;
+      if (!(movable || quadDrag) || e.button !== 0) return;
       const el = (e.target as Element).closest('[data-edit]') as SVGGElement | null;
       const svg = el?.ownerSVGElement;
       if (!el || !svg) return;
@@ -259,18 +318,26 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
       window.setTimeout(() => (skipClick.current = false), 60);
       d.el.removeAttribute('transform');
       d.el.classList.remove('is-drag');
+      if (quadDrag) {
+        const svg = d.el.ownerSVGElement;
+        const b = svg?.getBoundingClientRect();
+        const q = b ? eisenQuadAt((e.clientX - b.left) * d.k, (e.clientY - b.top) * d.k, eisenGeo(ws, p.id, eisenAll)) : null;
+        if (q) setQuad(d.key, q);
+        else say(T.figQuadOut);
+        return;
+      }
       moveBox(d.key, d.dx0 + (e.clientX - d.sx) * d.k, d.dy0 + (e.clientY - d.sy) * d.k);
     },
   };
   const figureBlock = () => {
     const people = form.figure === 'load' ? loadPersons(ws, p.id) : [];
     const who = people.some((x) => x.id === loadWho) ? loadWho : loadDefault(ws, p.id);
-    const svg = figureSvg(ws, p.id, form.figure, { person: who, row: recRow?.id });
+    const svg = figureSvg(ws, p.id, form.figure, { person: who, row: recRow?.id, all: eisenAll });
     const target = form.figure ? FIGURE_VIEW[form.figure] : undefined;
     const editable = !!svg && svg.includes('data-edit=');
     return (
       <figure className={`pjf__figure pjf__fig is-${form.figure}`} ref={figRef}>
-        {(people.length > 1 || (target && openView) || (movable && p.figLayout?.[form.figure!])) && (
+        {(people.length > 1 || (target && openView) || quadDrag || (movable && p.figLayout?.[form.figure!])) && (
           <div className="pjf__figbar">
             {people.length > 1 && (
               <span className="layouts__label pj__wheel pjf__figwho">
@@ -278,7 +345,18 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
                 <ModeWheel label={T.figWho} value={who} onChange={(id) => (setLoadWho(id), say(people.find((x) => x.id === id)?.name ?? ''))} options={people.map((x) => ({ id: x.id, name: x.name, hint: `${x.total.toLocaleString('de-DE')} h` }))} />
               </span>
             )}
+            {quadDrag && (
+              <span className="layouts__label pj__wheel pjf__figwho">
+                <span aria-hidden="true">{T.figAll}</span>
+                <ModeWheel label={T.figAll} value={eisenAll ? 'all' : 'short'} onChange={(v) => setEisenAll(v === 'all')} options={[{ id: 'short', name: T.figAllShort, hint: T.figAllShortHint }, { id: 'all', name: T.figAllAll, hint: T.figAllAllHint }]} />
+              </span>
+            )}
             <span className="pjf__figacts2">
+              {quadDrag && (
+                <button type="button" className="help__run" title={T.figAddTaskHint} onClick={addEisenTask}>
+                  <Icon name="plus" size={12} className="icon icon--inline" /> {T.figAddTask}
+                </button>
+              )}
               {movable && p.figLayout?.[form.figure!] && (
                 <button type="button" className="help__run" onClick={() => (run({ op: 'figReset', pid: p.id, fig: form.figure!, at: Date.now() }), tell(T.figResetDone))}>
                   {T.figReset}
@@ -308,7 +386,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
             onOpen={(key) => window.setTimeout(() => { const el = figRef.current?.querySelector(`[data-edit="${CSS.escape(key)}"]`); if (el) openFig(el); }, 30)}
             onClose={(back) => (setFigEdit(null), back && focusBox(figEdit.key))} />
         )}
-        {svg && <figcaption className="help__text">{T.figCaption[form.figure ?? 'goalTree']}{editable ? ` ${movable ? T.figEditHint : T.figEditHint2}` : target && openView ? ` ${T.figOpenHint(T.figView[target])}` : ''}</figcaption>}
+        {svg && <figcaption className="help__text">{T.figCaption[form.figure ?? 'goalTree']}{editable ? ` ${movable ? T.figEditHint : quadDrag ? T.figEisenHint : T.figEditHint2}` : target && openView ? ` ${T.figOpenHint(T.figView[target])}` : ''}</figcaption>}
       </figure>
     );
   };

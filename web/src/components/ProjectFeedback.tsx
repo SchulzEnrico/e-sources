@@ -16,6 +16,8 @@ import * as Fb from '../workspace/feedback';
 import { canTriage } from '../workspace/persons';
 import { PROJECT_FEEDBACK_TEXT as T } from '../workspace/terms';
 import { FeedbackCockpit } from './FeedbackCockpit';
+import { FeedbackPaper, ShapeWheel, useShape } from './PaperDocs';
+import { DOC_SHEET_TEXT as DS } from '../workspace/terms';
 
 type Key = Fb.FeedbackText | 'severity';
 const KEYS: readonly Key[] = [...Fb.FEEDBACK_TEXTS, 'severity'];
@@ -33,8 +35,13 @@ export function ProjectFeedback({ ws, p, dispatch, say }: { ws: Workspace; p: Pr
     say(text);
   };
   const n = Fb.newCountOf(ws, p.id);
+  // V139 (F-232 P9): Rad „Darstellung“ Board · Blatt (Problemstellung wie auf Papier), je Gerät gemerkt
+  const [shape, setShape] = useShape('esource.feedbackShape.v1', ['board', 'sheet'] as const, 'board');
   return (
     <div className="pjf">
+      <div className="paper__bar">
+        <ShapeWheel value={shape} onChange={setShape} say={say} options={[{ id: 'board', name: DS.fbBoard, hint: DS.fbBoardHint }, { id: 'sheet', name: DS.fbSheet, hint: DS.fbSheetHint }]} />
+      </div>
       <p className="pjf__intro">{T.intro}{n ? ` ${T.newCount(n)}` : ''}</p>
       {may && (
         <details className="pc__set pjf__form">
@@ -72,7 +79,7 @@ export function ProjectFeedback({ ws, p, dispatch, say }: { ws: Workspace; p: Pr
           <FormKinds p={p} dispatch={dispatch} say={say} />
         </details>
       )}
-      <FeedbackCockpit key={p.id} ws={ws} dispatch={dispatch} say={say} project={p.id} />
+      {shape === 'sheet' ? <FeedbackPaper ws={ws} p={p} dispatch={dispatch} say={say} /> : <FeedbackCockpit key={p.id} ws={ws} dispatch={dispatch} say={say} project={p.id} />}
     </div>
   );
 }

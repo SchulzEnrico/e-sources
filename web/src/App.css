@@ -10459,7 +10459,8 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
 .pjf__svg.is-editable .fg-edit:focus-visible rect { stroke: #d0021b; stroke-width: 2; }
 .pjf__fig.is-goalTree .pjf__svg.is-editable .fg-edit,
 .pjf__fig.is-psp .pjf__svg.is-editable .fg-edit,
-.pjf__fig.is-org .pjf__svg.is-editable .fg-edit { cursor: grab; }
+.pjf__fig.is-org .pjf__svg.is-editable .fg-edit,
+.pjf__fig.is-eisenhower .pjf__svg.is-editable .fg-edit { cursor: grab; }
 .pjf__svg .fg-edit.is-drag { cursor: grabbing; opacity: 0.85; }
 /* V138: Trefferflächen (Balkenplan-Zeile, Eisenhower-Eintrag, Felder im Nachrichtenquadrat, Belbin-Kreis) */
 .pjf__svg.is-editable .fg-edit:hover .fg-hit,
@@ -10486,3 +10487,19 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
 .pjf .dc__top > :not(.pjf__chapter):not(.dc__head) { margin-bottom: 0; }
 .pj__table tr.is-sel .pj__namecell > .pc__name { font-size: 24px; font-weight: 700; vertical-align: bottom; margin-bottom: 3px; position: relative; top: 8px; }
 .pj__table tr.is-sel .pj__namecell > .pc__name .pj__prio { font-size: 13px; }
+
+/* V139 (F-232 P9 Rest): Problemstellung und Entscheidungsvorlage als Blatt */
+.paper__section > th { background: #fff !important; color: var(--paper-red); font-size: 1em !important; text-align: left; border-left-color: transparent !important; border-right-color: transparent !important; padding-top: 10px !important; }
+.paper__req { color: #999; font-weight: 700; }
+.paper__req.is-open { color: var(--paper-red, #a3141b); }
+.paper__gaps { font-size: 0.9em; color: #e0a400; }
+.paper__calc { color: #777; font-style: italic; }
+.paper__calc.is-bad { color: #d00000; font-style: normal; font-weight: 700; }
+.paper__list { margin: 0; padding-left: 1.1em; }
+.paper__num { text-align: center; }
+.paper__cellin { text-align: center; min-width: 3.2em; }
+.paper__matrix th[scope="row"] { text-align: left; }
+.paper__matrix tbody tr + tr > * { border-top: 1px solid #999; }
+.paper__matrix tr.is-out > * { color: #999; }
+.paper select.paper__in { color-scheme: light; width: auto; max-width: 100%; }
+@media (forced-colors: active) { .paper__calc, .paper__req.is-open, .paper__gaps { color: CanvasText; } }

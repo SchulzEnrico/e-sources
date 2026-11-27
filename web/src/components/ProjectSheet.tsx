@@ -69,7 +69,7 @@ export function monthsBetween(start?: string, end?: string): number | undefined 
 }
 
 /** Ein Feld des Blatts: Text (ein- oder mehrzeilig), Zahl (Euro/Ph) oder Datum; speichert beim Verlassen. */
-function Field({ label, value, kind = 'text', multi, strong, onSave, placeholder }: { label: string; value: string | number | undefined; kind?: 'text' | 'money' | 'ph' | 'date'; multi?: boolean; strong?: boolean; onSave: (v: string | number | null) => void; placeholder?: string }) {
+export function Field({ label, value, kind = 'text', multi, strong, onSave, placeholder }: { label: string; value: string | number | undefined; kind?: 'text' | 'money' | 'ph' | 'date'; multi?: boolean; strong?: boolean; onSave: (v: string | number | null) => void; placeholder?: string }) {
   const show = (v: typeof value) => (v === undefined ? '' : kind === 'money' || kind === 'ph' ? (v as number).toLocaleString('de-DE', { maximumFractionDigits: 2 }) : String(v));
   const [draft, setDraft] = useState(show(value));
   const [bad, setBad] = useState(false);
@@ -114,7 +114,7 @@ function Field({ label, value, kind = 'text', multi, strong, onSave, placeholder
   );
 }
 
-function Row({ label, msg, children }: { label: string; msg: React.ReactNode; children: React.ReactNode }) {
+export function Row({ label, msg, children }: { label: string; msg: React.ReactNode; children: React.ReactNode }) {
   return (
     <tr>
       <th scope="row">{label}</th>

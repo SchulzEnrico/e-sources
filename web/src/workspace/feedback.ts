@@ -21,7 +21,7 @@ import type {
 } from './types';
 
 /** App-Stand für die Meldung (FB6) – bei jedem Chat mitzählen. */
-export const APP_VERSION = 'V138';
+export const APP_VERSION = 'V139';
 export const FEEDBACK_MAX = 2000;
 export const TITLE_MAX = 200;
 export const TEXT_MAX = 8000;
@@ -637,7 +637,7 @@ const dt = (iso: string) => {
   return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
-function placeLine(f: Feedback): string {
+export function placeLine(f: Feedback): string {
   const p = f.place;
   const e = f.env;
   const parts = [
@@ -912,3 +912,47 @@ export function parseWheels(v: unknown): Workspace['wheels'] {
   }
   return Object.keys(out).length ? out : undefined;
 }
+
+// ——— V139 (F-232 P9): Problemstellung als Blatt wie auf Papier ———
+
+/** Zeile des Blatts „Problemstellung“: ein Feld der Meldung (Text, Schweregrad) oder ein eigenes Feld des Projekts. */
+export type SheetRow =
+  | { kind: 'text'; key: FeedbackText; label: string; required: boolean; empty: boolean }
+  | { kind: 'severity'; key: 'severity'; label: string; required: boolean; empty: boolean }
+  | { kind: 'custom'; key: string; label: string; required: boolean; empty: boolean; def: FeedbackFieldDef };
+export interface SheetSection {
+  head: string;
+  rows: SheetRow[];
+}
+
+/**
+ * Gliederung des Blatts in der Reihenfolge der Problemstellung (wie `feedbackMarkdown`, Enricos Vorlage): Anlass &
+ * Kontext · Hintergrund · Lösungsansatz · Relevanz · Hypothesen · Angaben für das Projekt · Vermerke. Ausgeschaltete
+ * Felder des Projektformulars fehlen, Pflichtfelder (Formular + Art) sind markiert, leere Abschnitte fallen weg.
+ */
+export function problemSheet(f: Feedback, raw?: FeedbackFormRaw): SheetSection[] {
+  const form = formOf(raw);
+  const want = new Set<string>([...form.required, ...WANTED[f.kind]]);
+  const text = (k: FeedbackText): SheetRow | null =>
+    form.off.includes(k) ? null : { kind: 'text', key: k, label: FILE_LABELS.field[k], required: want.has(k), empty: !f[k] };
+  const sec = (head: string, rows: (SheetRow | null)[]): SheetSection => ({ head, rows: rows.filter((r): r is SheetRow => !!r) });
+  const out = [
+    sec('Anlass & Kontext', [text('what')]),
+    sec('Hintergrund', (['steps', 'expected', 'actual', 'affected', 'workaround'] as const).map(text)),
+    sec('Lösungsansatz', [text('goals'), text('nonGoals')]),
+    sec('Relevanz', [{ kind: 'severity', key: 'severity', label: FILE_LABELS.field.severity, required: want.has('severity'), empty: !f.severity }, text('impact')]),
+    sec('Hypothesen', [text('guess')]),
+    sec(
+      'Angaben für das Projekt',
+      customOf(raw).map((def) => {
+        const v = f.extra?.[def.id];
+        return { kind: 'custom' as const, key: def.id, label: def.name, required: !!def.required, empty: v === undefined || v === '', def };
+      }),
+    ),
+    sec('Vermerke zur Weiterverarbeitung', [text('open'), text('decision')]),
+  ];
+  return out.filter((s) => s.rows.length);
+}
+
+/** Pflichtfelder des Blatts, die noch leer sind (Beschriftungen, für „noch offen: …“ über dem Blatt). */
+export const sheetGaps = (secs: SheetSection[]): string[] => secs.flatMap((s) => s.rows.filter((r) => r.required && r.empty).map((r) => r.label));

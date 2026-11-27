@@ -923,4 +923,59 @@ describe('F-234 (V137): AP-Statusbericht, Persönliche Kompetenzen, Anlagen, Bea
     const d = Fk.removeRow(r.ws, pid, form('roles'), 'lead')!;
     expect(d.ws.projects!.find((x) => x.id === pid)!.roles!.find((x) => x.id === 'office')!.parent).toBe('client');
   });
+  it('V139: Eisenhower zeigt „liegen lassen“, Feld unter dem Zeiger und Marken je Feld', async () => {
+    const F = await import('./gpmFigures');
+    const S = await import('./sampleProject');
+    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const svg = F.figureSvg(ws, S.SAMPLE_PROJECT, 'eisenhower');
+    expect(svg).toMatch(/\d+ liegen lassen/);
+    expect(svg).not.toContain(', 0 liegen lassen');
+    const { x0, y0, gw, gh } = F.EISEN;
+    expect(F.eisenQuadAt(x0 + 10, y0 + 10)).toBe('plan');
+    expect(F.eisenQuadAt(x0 + gw + 10, y0 + 10)).toBe('do');
+    expect(F.eisenQuadAt(x0 + 10, y0 + gh + 10)).toBe('drop');
+    expect(F.eisenQuadAt(x0 + gw + 10, y0 + gh + 10)).toBe('delegate');
+    expect(F.eisenQuadAt(x0 - 5, y0 + 10)).toBeNull();
+    expect(F.eisenMarks('delegate')).toEqual({ important: false, urgent: true });
+    expect(F.eisenMarks('drop')).toEqual({ important: false, urgent: false });
+    // V139 (13:55): „Alle“ – kein „… und n weitere“, Felder wachsen, Ziehen nutzt die gewachsenen Grenzen
+    const g = F.eisenGeo(ws, S.SAMPLE_PROJECT, true);
+    expect(g.ghBot).toBeGreaterThan(gh);
+    expect(F.figureSvg(ws, S.SAMPLE_PROJECT, 'eisenhower', { all: true })).not.toContain('weitere');
+    expect(F.eisenQuadAt(x0 + 10, y0 + g.ghTop + g.ghBot - 5, g)).toBe('drop');
+  });
+  it('V139 (F-232 P9): Problemstellung als Blatt – Gliederung, ausgeschaltete Felder, Pflicht, eigene Felder', async () => {
+    const Fb = await import('./feedback');
+    const f = { id: 'f1', kind: 'bug' as const, title: 'Lack blättert', state: 'new' as const, at: '2026-11-27T10:00:00Z', what: 'Lack löst sich', extra: { c1: 'AP 3.2' } };
+    const raw = { off: ['guess', 'workaround'], required: ['impact'], custom: [{ id: 'c1', name: 'Arbeitspaket', type: 'text' as const }, { id: 'c2', name: 'Entscheidung nötig bis', type: 'date' as const, required: true }] };
+    const secs = Fb.problemSheet(f, raw);
+    expect(secs.map((x) => x.head)).toEqual(['Anlass & Kontext', 'Hintergrund', 'Lösungsansatz', 'Relevanz', 'Angaben für das Projekt', 'Vermerke zur Weiterverarbeitung']);
+    expect(secs[1].rows.map((r) => r.key)).toEqual(['steps', 'expected', 'actual', 'affected']);
+    expect(Fb.sheetGaps(secs)).toEqual(['Schritte zum Nachstellen', 'Erwartet', 'Tatsächlich', 'Schweregrad', 'Folgen', 'Entscheidung nötig bis']);
+    const c = secs.find((x) => x.head === 'Angaben für das Projekt')!.rows;
+    expect(c.map((r) => [r.label, r.empty])).toEqual([['Arbeitspaket', false], ['Entscheidung nötig bis', true]]);
+  });
+  it('V139: eine eingetragene übergeordnete Rolle lässt die übrigen an ihrem gewohnten Platz (kein Auseinanderspringen)', async () => {
+    const F = await import('./gpmFigures');
+    const roles = [
+      { id: 'client', name: 'Auftraggeber' },
+      { id: 'lead', name: 'Projektleitung' },
+      { id: 'pa', name: 'Projektbüro (PA)' },
+      { id: 'lm', name: 'Lackiermeister' },
+      { id: 'neu', name: 'Neue Rolle', parent: 'lead' },
+      { id: 'st', name: 'Neue Stabsstelle', parent: 'neu', kind: 'staff' as const },
+    ];
+    const up = F.orgParents(roles);
+    expect(up.get('client')).toBeUndefined();
+    expect(up.get('lead')).toBe('client');
+    expect(up.get('pa')).toBe('lead');
+    expect(up.get('lm')).toBe('lead');
+    expect(up.get('neu')).toBe('lead');
+    expect(up.get('st')).toBe('neu');
+    // Kreis aus Eintrag und gewohnter Ordnung: die gewohnte Verbindung fällt weg, niemand fällt aus dem Bild
+    const loop = F.orgParents([{ id: 'client', name: 'Auftraggeber', parent: 'pa' }, { id: 'lead', name: 'Projektleitung' }, { id: 'pa', name: 'Projektbüro' }]);
+    expect(loop.get('client')).toBe('pa');
+    expect(loop.get('pa')).toBeUndefined();
+    expect(loop.get('lead')).toBe('client');
+  });
 });

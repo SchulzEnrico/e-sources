@@ -22,6 +22,8 @@ import * as Pr from '../workspace/prepare';
 import { requestTour, tourAutoStart } from '../workspace/tour';
 import { ModeWheel } from './ModeWheel';
 import { DecisionLinks } from './DecisionLinks';
+import { DecisionSheet, ShapeWheel, useShape } from './PaperDocs';
+import { DOC_SHEET_TEXT as DS } from '../workspace/terms';
 
 type Step = 'crit' | 'pair' | 'score' | 'result';
 const STEPS: Step[] = ['crit', 'pair', 'score', 'result'];
@@ -181,6 +183,8 @@ export function Decisions({ ws, p, dispatch, say, open, scope: scope0, inPad }: 
 
 function DecisionTool({ d, ws, dispatch, say, onRemove }: { d: Decision; ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void; onRemove: () => void }) {
   const [step, setStep] = useState<Step>('crit');
+  // V139 (F-232 P9): Rad „Darstellung“ Werkzeug · Blatt (Entscheidungsvorlage wie auf Papier), je Gerät gemerkt
+  const [shape, setShape] = useShape('esource.decisionShape.v1', ['tool', 'sheet'] as const, 'tool');
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const by = ws.profile?.name || undefined;
   const lock = !!d.locked;
@@ -217,6 +221,10 @@ function DecisionTool({ d, ws, dispatch, say, onRemove }: { d: Decision; ws: Wor
           <button type="button" onClick={() => op({ op: 'reopen', by })}>{T.reopen}</button>
         </p>
       )}
+      <div className="paper__bar">
+        <ShapeWheel value={shape} onChange={setShape} say={say} options={[{ id: 'tool', name: DS.dcTool, hint: DS.dcToolHint }, { id: 'sheet', name: DS.dcSheet, hint: DS.dcSheetHint }]} />
+      </div>
+      {shape === 'sheet' ? <DecisionSheet d={d} ws={ws} dispatch={dispatch} say={say} /> : <>
       <div className="dc__stepbar">
         <span className="fbq__label">{T.stepLabel}</span>
         <ModeWheel label={T.stepLabel} value={step} onChange={(s) => (setStep(s as Step), say(`${T.stepLabel}: ${T.steps[s]}`))} options={STEPS.map((s) => ({ id: s, name: T.steps[s], hint: T.stepHints[s] }))} />
@@ -240,6 +248,7 @@ function DecisionTool({ d, ws, dispatch, say, onRemove }: { d: Decision; ws: Wor
           </aside>
         )}
       </div>
+      </>}
     </article>
   );
 }

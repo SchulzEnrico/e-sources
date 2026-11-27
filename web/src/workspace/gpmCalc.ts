@@ -5,7 +5,7 @@
  * mit Summenlinie (ICB4 4.5.7) und die Lage der Stakeholder in den Portfolios (ICB4 4.5.12).
  * Reine Funktionen; Tests in gpm.test.ts („Stufe 2“).
  */
-import type { Note, Project, ProgressMethod, Stakeholder, StatusReport, Workspace } from './types';
+import type { Note, Project, ProgressMethod, Stakeholder, StatusReport, Workspace, WpReport } from './types';
 import { ganttOf, type Gantt } from './gantt';
 import { planCost, planHours, useTotals } from './gpm';
 import { notesOf } from './notes';
@@ -280,6 +280,55 @@ export function newReport(ws: Workspace, pid: string, id: string, day: string): 
       return Object.keys(ms).length ? { ms } : {};
     })(),
   };
+}
+
+/**
+ * F-234 (V137, D5): AP-Statusbericht für ein Arbeitspaket zum Stichtag – Werte eingefroren wie Abb. 15 im Report:
+ * Plan = Basisplan (sonst heutiger Plan), Soll = heutiger Plan aus dem Gantt, Ist = am Vorgang erfasst; Berichtszeitraum
+ * ab dem Tag nach dem letzten Bericht dieses Arbeitspakets (sonst Anfang des Arbeitspakets); Ampel wie beim Projekt.
+ */
+export function newWpReport(ws: Workspace, pid: string, id: string, wp: string, day: string, g: Gantt = ganttOf(ws, pid, day)): WpReport | undefined {
+  const p = projectById(ws, pid);
+  const n = notesOf(ws).find((x) => x.id === wp && x.project === pid);
+  if (!p || !n) return undefined;
+  const r = g.byId.get(wp);
+  const b = p.baseline?.tasks[wp];
+  const sollHours = planHours(ws, n);
+  const sollCost = planCost(ws, n);
+  const progress = progressOf(ws, n);
+  const ah = actHours(n);
+  const ac = actCost(n);
+  const sollStart = r?.planned ? r.start : undefined;
+  const sollEnd = r?.planned ? r.end : undefined;
+  const last = [...(p.wpReports ?? [])].filter((x) => x.wp === wp && x.date < day).sort((a, c) => (a.date < c.date ? -1 : 1)).at(-1);
+  const from = last ? addDays(last.date, 1) : sollStart;
+  // Zeitanteil im Soll: wie weit das Arbeitspaket am Stichtag sein müsste
+  const timeShare = sollStart && sollEnd ? (day < sollStart ? 0 : day >= sollEnd ? 100 : Math.round((100 * workdaysBetween(sollStart, day)) / Math.max(1, workdaysBetween(sollStart, sollEnd)))) : undefined;
+  const behind = timeShare !== undefined && progress + 10 < timeShare;
+  const over = sollCost !== undefined && ac !== undefined && sollCost > 0 && (100 * ac) / sollCost > progress + 10;
+  const late = !!(b?.end && sollEnd && sollEnd > b.end);
+  const out: WpReport = {
+    id,
+    wp,
+    date: day,
+    ...(from && from <= day ? { from } : {}),
+    to: day,
+    light: (behind || late) && over ? 'red' : behind || over || late ? 'yellow' : 'green',
+    progress,
+    ...(b?.start ?? sollStart ? { planStart: b?.start ?? sollStart } : {}),
+    ...(b?.end ?? sollEnd ? { planEnd: b?.end ?? sollEnd } : {}),
+    ...(sollStart ? { sollStart } : {}),
+    ...(sollEnd ? { sollEnd } : {}),
+    ...(n.state !== 'open' && n.state !== 'waiting' && sollStart && sollStart <= day ? { actStart: sollStart } : {}),
+    ...(n.state === 'done' || n.state === 'archived' ? { actEnd: sollEnd && sollEnd < day ? sollEnd : day } : {}),
+    ...(b?.effort ?? sollHours) !== undefined ? { planHours: (b?.effort ?? sollHours)! } : {},
+    ...(sollHours !== undefined ? { sollHours } : {}),
+    ...(ah !== undefined ? { actHours: ah } : {}),
+    ...(b?.cost ?? sollCost) !== undefined ? { planCost: (b?.cost ?? sollCost)! } : {},
+    ...(sollCost !== undefined ? { sollCost } : {}),
+    ...(ac !== undefined ? { actCost: ac } : {}),
+  };
+  return out;
 }
 
 // ---------------------------------------------------------------- Meilenstein-Trendanalyse (V115, ICB4 4.5.4)

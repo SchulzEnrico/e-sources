@@ -33,6 +33,12 @@ import type {
   Stakeholder,
   StatusReport,
   Workspace,
+  WpReport,
+  TeamRole,
+  MessageItem,
+  ModerationItem,
+  ActionItem,
+  AnnexItem,
 } from './types';
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -247,12 +253,74 @@ export function parseRoleAkv(r: Record<string, unknown>): { tasks?: string; powe
   return tidy({ tasks: txt(r.tasks), powers: txt(r.powers), duty: txt(r.duty) });
 }
 /** Abnahmekriterium mit Angaben (L11). */
+// ---------------------------------------------------------------- F-234 (V137): AP-Statusbericht, Persönliche Kompetenzen, Anlagen
+
+export const ACTION_STATES = ['open', 'doing', 'done'] as const;
+export const BELBIN = ['pf', 'um', 'ma', 'er', 'sp', 'be', 'ws', 'ta', 'ko'] as const;
+export type BelbinKey = (typeof BELBIN)[number];
+export const parseWpReport = (r: Record<string, unknown>): WpReport | undefined => {
+  if (!id(r.id) || !id(r.wp) || !isDay(r.date)) return undefined;
+  const day = (v: unknown) => (isDay(v) ? v : undefined);
+  return tidy({
+    id: id(r.id)!,
+    wp: id(r.wp)!,
+    date: r.date,
+    from: day(r.from),
+    to: day(r.to),
+    light: pick(r.light, REPORT_LIGHTS),
+    progress: pct(r.progress),
+    planStart: day(r.planStart),
+    planEnd: day(r.planEnd),
+    sollStart: day(r.sollStart),
+    sollEnd: day(r.sollEnd),
+    actStart: day(r.actStart),
+    actEnd: day(r.actEnd),
+    planHours: money(r.planHours),
+    sollHours: money(r.sollHours),
+    actHours: money(r.actHours),
+    planCost: money(r.planCost),
+    sollCost: money(r.sollCost),
+    actCost: money(r.actCost),
+    done: txt(r.done),
+    measures: txt(r.measures),
+    place: txt(r.place, 120),
+  });
+};
+export const parseTeamRole = (r: Record<string, unknown>): TeamRole | undefined => {
+  if (!id(r.id)) return undefined;
+  const out: Record<string, unknown> = { id: id(r.id), person: id(r.person), date: isDay(r.date) ? r.date : undefined, text: txt(r.text) };
+  for (const k of BELBIN) out[k] = int(r[k], 0, 100);
+  return tidy(out) as unknown as TeamRole;
+};
+export const parseMessage = (r: Record<string, unknown>) =>
+  parseSimple<MessageItem>(r, 'topic', { topic: 'short', date: 'day', sender: 'short', receiver: 'short', message: 'long', reaction: 'long', sFact: 'long', rFact: 'long', sSelf: 'long', rSelf: 'long', sRel: 'long', rRel: 'long', sAppeal: 'long', rAppeal: 'long', result: 'long' });
+export const parseModeration = (r: Record<string, unknown>) => parseSimple<ModerationItem>(r, 'occasion', { occasion: 'short', date: 'day', technique: 'short', participants: 'short', goal: 'long', result: 'long' });
+export const parseAction = (r: Record<string, unknown>) => parseSimple<ActionItem>(r, 'title', { code: 'short', title: 'short', activity: 'long', owner: 'ref', assign: 'short', due: 'day', state: ACTION_STATES, note: 'long' });
+export const parseAnnex = (r: Record<string, unknown>) => parseSimple<AnnexItem>(r, 'title', { code: 'short', title: 'short', form: 'ref', place: 'short', text: 'long' });
+/** D3: Versatz je Grafik und Kasten; höchstens 300 Kästen je Grafik, Werte begrenzt. */
+export function parseFigLayout(v: unknown): Project['figLayout'] {
+  if (!isObj(v)) return undefined;
+  const out: NonNullable<Project['figLayout']> = {};
+  for (const [fig, m] of Object.entries(v).slice(0, 20)) {
+    if (!isObj(m) || !/^[a-zA-Z]{1,20}$/.test(fig)) continue;
+    const boxes: Record<string, { dx: number; dy: number }> = {};
+    for (const [k, d] of Object.entries(m).slice(0, 300)) {
+      if (!id(k) || !isObj(d)) continue;
+      const dx = int(d.dx, -3000, 3000);
+      const dy = int(d.dy, -3000, 3000);
+      if (dx !== undefined && dy !== undefined && (dx || dy)) boxes[k] = { dx, dy };
+    }
+    if (Object.keys(boxes).length) out[fig] = boxes;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 export function parseCheckGpm(c: Record<string, unknown>): { due?: string; by?: string; acceptor?: string; doc?: string } {
   return tidy({ due: isDay(c.due) ? c.due : undefined, by: txt(c.by, 200), acceptor: txt(c.acceptor, 200), doc: txt(c.doc, 300) });
 }
 
 /** Liest die GPM-Teile eines Projekts; Bezüge (Oberziel, Konfliktziele, Personen) werden bereinigt. */
-type GpmPart = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'close';
+type GpmPart = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'close' | 'wpReports' | 'teamRoles' | 'messages' | 'moderations' | 'actions' | 'annexes' | 'figLayout';
 export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, GpmPart> {
   const out: Pick<Project, GpmPart> = {};
   const charter = sanitizeCharter(r.charter);
@@ -286,6 +354,20 @@ export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, GpmPa
   if (rules) out.rules = rules;
   const close = sanitizeClose(r.close);
   if (close) out.close = close;
+  const wpr = list(r.wpReports, parseWpReport);
+  if (wpr) out.wpReports = wpr;
+  const tr = list(r.teamRoles, parseTeamRole);
+  if (tr) out.teamRoles = tr;
+  const msg = list(r.messages, parseMessage);
+  if (msg) out.messages = msg;
+  const mod = list(r.moderations, parseModeration);
+  if (mod) out.moderations = mod;
+  const act = list(r.actions, parseAction);
+  if (act) out.actions = act;
+  const anx = list(r.annexes, parseAnnex);
+  if (anx) out.annexes = anx;
+  const fl = parseFigLayout(r.figLayout);
+  if (fl) out.figLayout = fl;
   return out;
 }
 
@@ -471,9 +553,9 @@ export function hoursOf(n: Note, person: string): number {
 // ---------------------------------------------------------------- Bearbeiten
 
 /** Listen am Projekt, die die Formulare bearbeiten. */
-export type GpmList = 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules';
+export type GpmList = 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'wpReports' | 'teamRoles' | 'messages' | 'moderations' | 'actions' | 'annexes';
 type ItemOf<L extends GpmList> = NonNullable<Project[L]>[number];
-const PARSE: { [L in GpmList]: (r: Record<string, unknown>) => ItemOf<L> | undefined } = { goals: parseGoal, conflicts: parseConflict, stakeholders: parseStakeholder, phases: parsePhase, comms: parseComm, reports: parseReport, docs: parseDoc, checks: parseQCheck, lessons: parseLesson, changes: parseChange, rules: parseRule };
+const PARSE: { [L in GpmList]: (r: Record<string, unknown>) => ItemOf<L> | undefined } = { goals: parseGoal, conflicts: parseConflict, stakeholders: parseStakeholder, phases: parsePhase, comms: parseComm, reports: parseReport, docs: parseDoc, checks: parseQCheck, lessons: parseLesson, changes: parseChange, rules: parseRule, wpReports: parseWpReport, teamRoles: parseTeamRole, messages: parseMessage, moderations: parseModeration, actions: parseAction, annexes: parseAnnex };
 
 function withProject(ws: Workspace, pid: string, fn: (p: Project) => Project | null, now: number): Workspace {
   const list = ws.projects ?? [];

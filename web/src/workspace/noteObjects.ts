@@ -26,6 +26,7 @@ import type {
 import { type Node, isNode, leaves, removeLeaf } from './tree';
 import { parseFeedbackForm } from './feedback';
 import { parseChange, parseRisk } from './risks';
+import { roleLoops } from './projects';
 import { parseCheckGpm, parsePersonGpm, parseProcure, parseProjectGpm, parseResults, parseRoleAkv, parseUses, parseWp } from './gpm';
 import { parseProjectForms } from './formKit';
 import { cleanCover } from './covers';
@@ -213,9 +214,20 @@ export function parseProjects(v: unknown, scopeIds: ReadonlySet<string>): Projec
     if (Array.isArray(r.roles)) {
       const roles = r.roles
         .filter((x): x is Record<string, unknown> => isObj(x) && typeof x.id === 'string' && !!x.id && !!text(x.name))
-        .slice(0, 12)
-        .map((x) => ({ id: x.id as string, name: (x.name as string).slice(0, 60), ...(typeof x.person === 'string' && x.person ? { person: x.person } : {}), ...parseRoleAkv(x) }))
+        .slice(0, 40)
+        .map((x) => ({
+          id: x.id as string,
+          name: (x.name as string).slice(0, 60),
+          ...(typeof x.person === 'string' && x.person ? { person: x.person } : {}),
+          ...parseRoleAkv(x),
+          // V137: Hierarchie (Bezug wird unten geprüft)
+          ...(typeof x.parent === 'string' && x.parent && x.parent !== x.id ? { parent: x.parent } : {}),
+          ...(x.kind === 'staff' || x.kind === 'external' ? { kind: x.kind as 'staff' | 'external' } : {}),
+          ...(x.link === 'full' || x.link === 'tech' || x.link === 'contract' ? { link: x.link as 'full' | 'tech' | 'contract' } : {}),
+          ...(typeof x.org === 'string' && x.org.trim() ? { org: x.org.trim().slice(0, 80) } : {}),
+        }))
         .filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i);
+      for (const r of roles) if (r.parent && (!roles.some((y) => y.id === r.parent) || roleLoops(roles, r.id, r.parent))) delete (r as { parent?: string }).parent;
       if (roles.length) p.roles = roles;
     }
     const form = parseFeedbackForm(r.feedbackForm);

@@ -137,7 +137,7 @@ describe('F-226 Baukasten (V109): Vorlage GPM Level D, Zellen, Zeilen, eigene Fe
   };
   const form = (id: string) => Fk.GPM_D.forms.find((f) => f.id === id)!;
   it('Vorlage: Kapitel in Leitfaden-Reihenfolge, jede Spalte im Feldkatalog, Stufe 1 und 2', () => {
-    expect(Fk.GPM_D.forms.map((f) => f.chapter)).toEqual(['2.1', '2.2', '2.2', '2.2', '2.3', '2.4', '3.1', '4', '4', '4', '5', '6.1', '6.2', '6.3', '6.4', '7', '7', '7', '7', '8', '8', '8.3', '9', '9', '10', '10', '10', '11', '11', '11', '12', '13', '14', '14']);
+    expect(Fk.GPM_D.forms.map((f) => f.chapter)).toEqual(['2.1', '2.2', '2.2', '2.2', '2.3', '2.4', '3.1', '4', '4', '4', '5', '6.1', '6.2', '6.3', '6.4', '7', '7', '7', '7', '8', '8', '8.3', '9', '9', '10', '10', '10', '11', '11', '11', '12', '12.1', '13', '14', '14', '15.1', '15.2', '15.3', '15.4', '15.5', '16']);
     const chapters = Fk.GPM_D.forms.map((f) => parseFloat(f.chapter));
     expect([...chapters].sort((a, b) => a - b)).toEqual(chapters);
     for (const f of Fk.GPM_D.forms) {
@@ -786,5 +786,95 @@ describe('F-235 (V135): Live-Projekt E-Sources', () => {
     } finally {
       Lv.setLiveLock(false);
     }
+  });
+});
+
+describe('F-234 (V137): AP-Statusbericht, Persönliche Kompetenzen, Anlagen, Bearbeiten im Blatt', () => {
+  const form = (id: string) => Fk.GPM_D.forms.find((f) => f.id === id)!;
+  it('neue Kapitel 12.1 und 15.1–16 zeichnen aus dem Beispiel wie im Report und stehen im Bericht', async () => {
+    const F = await import('./gpmFigures');
+    const S = await import('./sampleProject');
+    const R = await import('./gpmReport');
+    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const pid = S.SAMPLE_PROJECT;
+    const p = ws.projects!.find((x) => x.id === pid)!;
+    // Abb. 15
+    const ap = F.figureSvg(ws, pid, 'wpReport');
+    expect(ap).toContain('AP Statusbericht zum 17.05.2027');
+    expect(ap).toContain('18./19. KW');
+    expect(ap).toContain('CG-1.6.4');
+    expect(Fk.cellValue(ws, pid, form('wpReports'), 'cg-wr1', 'restHours')).toBe(97);
+    expect(Fk.cellValue(ws, pid, form('wpReports'), 'cg-wr1', 'restCost')).toBe(3400);
+    // Abb. 16–18
+    expect(F.figureSvg(ws, pid, 'belbin')).toContain('Weichensteller');
+    const eis = F.figureSvg(ws, pid, 'eisenhower', { day: '2026-12-23' });
+    expect(eis).toContain('2 erledigen, 2 planen, 1 delegieren');
+    expect(Fk.cellValue(ws, pid, form('eisenhower'), 'cg-11', 'quadrant')).toBe('delegate');
+    expect(F.figureSvg(ws, pid, 'square')).toContain('günstigere Lackieranlagen');
+    expect(p.annexes?.length).toBe(5);
+    const html = R.reportHtml(ws, pid, { day: '2026-12-01' });
+    expect(html).toContain('Anlage 5: Momentaufnahme Stakeholdermanagement');
+    expect(html).toContain('Abbildung: AP-Statusbericht');
+    // Eisenhower im Blatt ankreuzen = am Vorgang
+    const w2 = Fk.setCell(ws, pid, form('eisenhower'), 'cg-11', 'important', true);
+    expect(w2.notes!.find((n) => n.id === 'cg-11')!.important).toBe(true);
+    // gespeichert und wieder gelesen
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    const q = back.projects!.find((x) => x.id === pid)!;
+    expect(q.wpReports?.[0].actHours).toBe(198);
+    expect(q.teamRoles?.[0].ws).toBe(13);
+    expect(q.messages?.[0].rRel).toContain('Weitsicht');
+  });
+  it('AP-Statusbericht anlegen friert Plan, Soll und Ist am Stichtag ein', async () => {
+    const S = await import('./sampleProject');
+    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const pid = S.SAMPLE_PROJECT;
+    const r = Fk.addRow(ws, pid, form('wpReports'), { id: 'x1', now: Date.parse('2027-05-17T10:00:00Z'), init: { task: 'cg-31' } })!;
+    const rep = r.ws.projects!.find((x) => x.id === pid)!.wpReports!.find((x) => x.id === 'x1')!;
+    expect(rep.wp).toBe('cg-31');
+    expect(rep.sollHours).toBe(295);
+    expect(rep.actHours).toBe(198);
+    expect(rep.from).toBe(rep.sollStart);
+    expect(rep.to).toBe('2027-05-17');
+  });
+  it('Kästen sind bearbeitbar und von Hand verschiebbar (D3), Unterziel und Unter-Arbeitspaket am Ort', async () => {
+    const F = await import('./gpmFigures');
+    const S = await import('./sampleProject');
+    let ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const pid = S.SAMPLE_PROJECT;
+    expect(F.figureSvg(ws, pid, 'psp')).toContain('data-edit="tasks:cg-31"');
+    expect(F.figureSvg(ws, pid, 'org')).toContain('data-edit="roles:lead"');
+    const before = F.figureSvg(ws, pid, 'org');
+    ws = Fk.applyForm(ws, { op: 'figMove', pid, fig: 'org', key: 'roles:lead', dx: 40, dy: -10, at: 1 });
+    expect(ws.projects!.find((x) => x.id === pid)!.figLayout).toEqual({ org: { 'roles:lead': { dx: 40, dy: -10 } } });
+    expect(F.figureSvg(ws, pid, 'org')).not.toBe(before);
+    ws = Fk.applyForm(ws, { op: 'figReset', pid, fig: 'org', at: 2 });
+    expect(ws.projects!.find((x) => x.id === pid)!.figLayout).toBeUndefined();
+    const g = ws.projects!.find((x) => x.id === pid)!.goals!.find((x) => x.code === 'L1')!;
+    const r = Fk.addRow(ws, pid, form('goals'), { id: 'gx', init: { parent: g.id } })!;
+    const ng = r.ws.projects!.find((x) => x.id === pid)!.goals!.find((x) => x.id === 'gx')!;
+    expect(ng.parent).toBe(g.id);
+    expect(ng.code?.startsWith('L1.')).toBe(true);
+    const t = Fk.addRow(ws, pid, form('tasks'), { id: 'tx', init: { parent: 'cg-27' } })!;
+    expect(t.ws.notes!.find((n) => n.id === 'tx')!.parent).toBe('cg-27');
+  });
+  it('Organigramm wie Abb. 7: Hierarchie, Stabsstelle, externe Rollen, Linien und Legende', async () => {
+    const F = await import('./gpmFigures');
+    const S = await import('./sampleProject');
+    let ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const pid = S.SAMPLE_PROJECT;
+    const svg = F.figureSvg(ws, pid, 'org');
+    expect(svg).toContain('Abgrenzung Organisation');
+    expect(svg).toContain('zu koordinierende');
+    expect(svg).toContain('davon 7 extern');
+    const r = Fk.addRow(ws, pid, form('roles'), { id: 'st1', init: { parent: 'lead', rkind: 'staff' } })!;
+    const role = r.ws.projects!.find((x) => x.id === pid)!.roles!.find((x) => x.id === 'st1')!;
+    expect(role).toMatchObject({ parent: 'lead', kind: 'staff', link: 'tech', name: 'Neue Stabsstelle' });
+    // keine Kreise: die Projektleitung kann nicht unter ihre eigene Stabsstelle
+    ws = Fk.setCell(r.ws, pid, form('roles'), 'lead', 'parent', 'st1');
+    expect(ws.projects!.find((x) => x.id === pid)!.roles!.find((x) => x.id === 'lead')!.parent).toBe('client');
+    // Löschen: Untergeordnete rücken nach oben
+    const d = Fk.removeRow(r.ws, pid, form('roles'), 'lead')!;
+    expect(d.ws.projects!.find((x) => x.id === pid)!.roles!.find((x) => x.id === 'office')!.parent).toBe('client');
   });
 });

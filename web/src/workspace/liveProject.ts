@@ -91,11 +91,61 @@ function liveProject(now: number, old?: Project): Project {
     })),
     // L7 (V136): Basisplan = ursprünglicher Umfang (Lastenheft 20.11.2026); später Dazugekommenes zeigt der Soll-Ist-Vergleich als „neu“
     baseline: { at: '2026-11-20T09:00:00.000Z', start: '2026-11-20', end: '2027-01-29', tasks: Object.fromEntries(base.map((i) => [`${NOTE_PREFIX}${i.f.toLowerCase()}`, { effort: i.chats * H_PER_CHAT }])) },
+    ...liveExtras(),
     priority: 1,
     state: 'running',
     live: LIVE_STAND.chat,
     created: old?.created ?? now,
     changed: now,
+  };
+}
+
+/** F-234 (V137): Kapitel 12.1, 15.1–15.5 und 16 am eigenen Projekt – aus der echten Zusammenarbeit (Lastenheft, Übergaben, Arbeitsregeln). */
+function liveExtras(): Pick<Project, 'wpReports' | 'teamRoles' | 'messages' | 'moderations' | 'actions' | 'annexes'> {
+  const f234 = LIVE_ITEMS.find((i) => i.f === 'F-234');
+  const h = (f234?.chats ?? 3) * H_PER_CHAT;
+  return {
+    wpReports: f234
+      ? [{
+          id: 'es-wr1', wp: `${NOTE_PREFIX}f-234`, date: LIVE_STAND.day, from: '2026-11-27', to: LIVE_STAND.day, light: 'green', progress: f234.state === 'done' ? 100 : 80,
+          planStart: '2026-11-27', planEnd: '2026-12-04', sollStart: '2026-11-27', sollEnd: '2026-12-04', actStart: '2026-11-27',
+          planHours: h, sollHours: h, actHours: Math.round(h * 0.8),
+          done: 'Grafik-Blätter wie im Report (Zielhierarchie, Organigramm, Phasenplan, PSP, Balkenplan, Auslastung) stehen; dazu AP-Statusbericht, Teamrollen nach Belbin, Eisenhower-Matrix, Nachrichtenquadrat, Moderationstechniken, Maßnahmenplan und Anlagen. Die Kästen von Zielhierarchie, PSP und Organigramm sind direkt im Blatt bearbeitbar und von Hand verschiebbar.',
+          measures: 'Farbgestaltung und Layout-Generator für alle Dokumente als neuer Wunsch aufgenommen (F-236) – erst Entscheidungs-Doc, dann Bau.',
+          place: 'Hamburg',
+        }]
+      : [],
+    teamRoles: [{
+      id: 'es-tr1', person: ME_ID, pf: 3, um: 13, ma: 11, er: 6, sp: 5, be: 10, ws: 13, ta: 3, ko: 6,
+      text: 'Werte aus dem eigenen Report (Belbin-Test). Im Projekt E-Sources zeigt sich der Weichensteller in den vielen Ideen und Wünschen, die laufend als Änderungen dazukommen; der Umsetzer und Macher hält mit festen Terminen (04.12., Testphase ab 07.12.) und klaren Arbeitsregeln den Takt. Die schwache Perfektionisten-Rolle gleicht Claude mit Tests, Prüflisten und dem Handbuch aus.',
+    }],
+    messages: [{
+      id: 'es-nq1', topic: 'Übergabe zwischen zwei Chats ohne Begrüßungstext', date: '2026-11-24', sender: 'Enrico (Projektleitung)', receiver: 'Claude (Entwicklung)',
+      message: 'Du vergisst immer den Übergabetext.', reaction: 'Ab sofort steht der Begrüßungstext am Ende jeder Übergabe.',
+      sFact: 'Am Ende des Chats fehlt der fertige Text für den Start des nächsten Chats.', rFact: 'Die Übergabedatei allein reicht nicht; der nächste Chat braucht eine fertige Startnachricht.',
+      sSelf: 'Ich will ohne Nacharbeit weitermachen und mich auf die Übergabe verlassen können.', rSelf: 'Er ist genervt, weil er es schon mehrmals sagen musste.',
+      sRel: 'Das haben wir schon besprochen – du solltest es inzwischen wissen.', rRel: 'Er erwartet, dass ich Absprachen dauerhaft einhalte.',
+      sAppeal: 'Liefere den Übergabetext immer von selbst.', rAppeal: 'Den Begrüßungstext in jede Übergabe aufnehmen, ohne Aufforderung.',
+      result: 'Als feste Arbeitsregel festgehalten: Übergabedatei ins Repo, danach Begrüßungstext und Projektstand als Textbaustein. Seitdem in jedem Chat geliefert.',
+    }],
+    moderations: [
+      { id: 'es-mo1', occasion: 'Grundsatzfragen vor dem Bauen', date: '2026-11-23', technique: 'Entscheidungs-Doc an der Seite: Optionen mit Vor- und Nachteilen, was später davon abhängt, Fragen mit Vorschlag und Spalte „Antwort Enrico“; „io“ übernimmt die Vorschläge', participants: 'Enrico, Claude', goal: 'Entscheiden, bevor gebaut wird – nachvollziehbar und im Lastenheft festgehalten.', result: 'Rund 20 Entscheidungs-Docs (F-226 bis F-235), je als PDF unter docs/Arbeitspakete.' },
+      { id: 'es-mo2', occasion: 'Rückmeldungen zu Design und Aufbau', date: '2026-11-21', technique: 'Sammelmodus „>START … <ENDE“ – angelehnt an die Kartenabfrage: erst sammeln, dann gemeinsam umsetzen', participants: 'Enrico, Claude', goal: 'Viele kleine Rückmeldungen ohne Unterbrechung aufnehmen.', result: 'Gesammelte Punkte gehen geordnet ins Lastenheft bzw. in die nächste Bauliste.' },
+      { id: 'es-mo3', occasion: 'Wechsel zwischen den Chats', date: '2026-11-20', technique: 'Übergabe je Chat (Protokoll- und Maßnahmentechnik): Stand, Prüfliste, kleine Punkte, Commit-Text, Begrüßungstext, Projektstand', participants: 'Enrico, Claude', goal: 'Ohne Wissensverlust von Chat zu Chat weiterarbeiten.', result: `Übergaben V61 bis ${LIVE_STAND.chat} im Repo (docs/uebergaben).` },
+    ],
+    actions: [
+      { id: 'es-ma1', code: 'M-1', title: 'Stand vorstellen', activity: 'E-Sources mit dem Live-Projekt und dem Beispiel ColorGentlemen zeigen', owner: ME_ID, assign: 'Meilenstein Termin 04.12.', due: '2026-12-04', state: 'open' },
+      { id: 'es-ma2', code: 'M-2', title: 'Prüfliste abarbeiten', activity: 'Prüflisten aus den Übergaben V77 bis heute durchgehen, Fehler als Meldungen erfassen', owner: ME_ID, assign: 'Testphase', due: '2026-12-07', state: 'open', note: 'Prüfdateien (F9) erst ab 07.12.' },
+      { id: 'es-ma3', code: 'M-3', title: 'Entscheidung F-236 Farben und Layout-Generator', activity: 'Entscheidungs-Doc beantworten', owner: ME_ID, assign: 'F-236', state: 'open' },
+      { id: 'es-ma4', code: 'M-4', title: 'Fragen P11–P14 zu F-232 beantworten', activity: 'Offene Fragen im Entscheidungs-Doc „Dokumente wie auf Papier“', owner: ME_ID, assign: 'F-232', state: 'open' },
+    ],
+    annexes: [
+      { id: 'es-an1', code: 'Anlage 1', title: 'Lastenheft E-Sources', place: 'docs/Lastenheft/Lastenheft_E-Sources.md' },
+      { id: 'es-an2', code: 'Anlage 2', title: 'Benutzerhandbuch', place: 'docs/Handbuch/E-Sources_Handbuch.md' },
+      { id: 'es-an3', code: 'Anlage 3', title: 'Änderungsverzeichnis (Kapitel 13)', form: 'changes' },
+      { id: 'es-an4', code: 'Anlage 4', title: 'Entscheidungs-Docs', place: 'docs/Arbeitspakete (PDF je Entscheidung)' },
+      { id: 'es-an5', code: 'Anlage 5', title: 'Übergaben je Chat', place: 'docs/uebergaben' },
+    ],
   };
 }
 
@@ -124,6 +174,8 @@ export function refreshLiveProject(ws: Workspace, now = Date.now()): Workspace {
         phase: it.state === 'open' ? 'es-ph2' : 'es-ph1',
         effort: { plan: it.chats * H_PER_CHAT, ...(it.state !== 'open' ? { actual: it.chats * H_PER_CHAT } : {}) },
         ...(it.state === 'done' ? { state: 'done' as const } : it.state === 'part' ? { state: 'doing' as const } : {}),
+        // F-234 (V137): Eisenhower – laufende Punkte wichtig und dringend, offene wichtig (planen)
+        ...(it.state === 'part' ? { important: true, urgent: true } : it.state === 'open' ? { important: true } : {}),
       };
       next = createNote(next, init, { id: `${NOTE_PREFIX}${it.f.toLowerCase()}`, now }).ws;
     }

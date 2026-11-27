@@ -275,22 +275,52 @@ export const DEFAULT_ROLES: readonly ProjectRole[] = [
   { id: 'steering', name: 'Lenkungskreis' },
   { id: 'client', name: 'Auftraggeber' },
 ];
-export const ROLES_MAX = 12;
+export const ROLES_MAX = 40;
+/** V137: Wäre `parent` über die Kette ein Nachfahre von `id`? */
+export function roleLoops(roles: readonly ProjectRole[], id: string, parent: string): boolean {
+  const by = new Map(roles.map((r) => [r.id, r]));
+  let cur: string | undefined = parent;
+  const seen = new Set<string>();
+  while (cur && !seen.has(cur)) {
+    if (cur === id) return true;
+    seen.add(cur);
+    cur = by.get(cur)?.parent;
+  }
+  return false;
+}
 export const rolesOf = (p: Project | undefined): ProjectRole[] => (p?.roles ?? DEFAULT_ROLES).map((r) => ({ ...r }));
 export const roleOf = (p: Project | undefined, id: string | undefined): ProjectRole | undefined => (id ? rolesOf(p).find((r) => r.id === id) : undefined);
 
 /** P3: Instanzen ändern – Name (leer = bleibt), Person zuordnen, hinzufügen, entfernen. */
-export function editRoles(ws: Workspace, id: string, op: { kind: 'name'; role: string; name: string } | { kind: 'person'; role: string; person?: string } | { kind: 'add'; name: string; rid: string } | { kind: 'remove'; role: string } | { kind: 'akv'; role: string; key: 'tasks' | 'powers' | 'duty'; text?: string }): Workspace {
+export function editRoles(ws: Workspace, id: string, op: { kind: 'name'; role: string; name: string } | { kind: 'person'; role: string; person?: string } | { kind: 'add'; name: string; rid: string; parent?: string; rkind?: 'staff' | 'external' } | { kind: 'set'; role: string; key: 'parent' | 'kind' | 'link' | 'org'; value?: string } | { kind: 'remove'; role: string } | { kind: 'akv'; role: string; key: 'tasks' | 'powers' | 'duty'; text?: string }): Workspace {
   const p = projectById(ws, id);
   if (!p) return ws;
   let roles = rolesOf(p);
   if (op.kind === 'add') {
     const name = op.name.replace(/\s+/g, ' ').trim().slice(0, 60);
     if (!name || roles.length >= ROLES_MAX || roles.some((r) => r.id === op.rid)) return ws;
-    roles = [...roles, { id: op.rid, name }];
+    const up = op.parent && roles.some((r) => r.id === op.parent) ? op.parent : undefined;
+    roles = [...roles, { id: op.rid, name, ...(up ? { parent: up } : {}), ...(op.rkind ? { kind: op.rkind, link: op.rkind === 'external' ? 'contract' : 'tech' } : {}) }];
   } else if (op.kind === 'remove') {
     if (roles.length <= 1) return ws;
-    roles = roles.filter((r) => r.id !== op.role);
+    // V137: Untergeordnete rücken an die Stelle der gelöschten Rolle
+    const gone = roles.find((r) => r.id === op.role);
+    roles = roles.filter((r) => r.id !== op.role).map((r) => (r.parent === op.role ? (gone?.parent ? { ...r, parent: gone.parent } : (({ parent: _p, ...rest }) => rest)(r)) : r)); // eslint-disable-line @typescript-eslint/no-unused-vars
+  } else if (op.kind === 'set') {
+    const v = (op.value ?? '').trim();
+    roles = roles.map((r) => {
+      if (r.id !== op.role) return r;
+      const next: Record<string, unknown> = { ...r };
+      const ok =
+        op.key === 'parent' ? !!v && v !== r.id && roles.some((y) => y.id === v) && !roleLoops(roles, r.id, v)
+        : op.key === 'kind' ? v === 'staff' || v === 'external'
+        : op.key === 'link' ? v === 'full' || v === 'tech' || v === 'contract'
+        : !!v;
+      if (ok) next[op.key] = op.key === 'org' ? v.slice(0, 80) : v;
+      else if (v) return r; // ungültig (z. B. Kreis): bleibt wie es war
+      else delete next[op.key];
+      return next as unknown as ProjectRole;
+    });
   } else if (op.kind === 'name') {
     const name = op.name.replace(/\s+/g, ' ').trim().slice(0, 60);
     if (!name) return ws;

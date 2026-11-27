@@ -17,8 +17,8 @@ import type {
   ProjectForms,
   Workspace,
 } from './types';
-import { addItem, editCharter, editItem, goalsOf, moveItem, nextCode, parseWp, planCost, planHours, removeItem, riskLevels, riskValue, riskValueAfter, setPhase, setUse, undoRemoveItem, useCost, type GpmList, type GpmUndo, COMM_STRATEGIES, CHANGE_RESIST, CHANGE_STATES, CHECK_METHODS, CHECK_RESULTS, DOC_STATES, editClose, LESSON_KINDS, RULE_SOURCES, RULE_STATES, GOAL_KINDS, GOAL_LEVELS, MODELS, PROCURE_STATES, PROGRESS_METHODS, REPORT_LIGHTS, STAKE_STRATEGIES } from './gpm';
-import { costCurve, earnedValue, mtaOf, newReport, progressOf } from './gpmCalc';
+import { addItem, editCharter, editItem, goalsOf, moveItem, nextCode, parseWp, planCost, planHours, removeItem, riskLevels, riskValue, riskValueAfter, setPhase, setUse, undoRemoveItem, useCost, type GpmList, type GpmUndo, ACTION_STATES, BELBIN, COMM_STRATEGIES, CHANGE_RESIST, CHANGE_STATES, CHECK_METHODS, CHECK_RESULTS, DOC_STATES, editClose, LESSON_KINDS, RULE_SOURCES, RULE_STATES, GOAL_KINDS, GOAL_LEVELS, MODELS, PROCURE_STATES, PROGRESS_METHODS, REPORT_LIGHTS, STAKE_STRATEGIES } from './gpm';
+import { costCurve, earnedValue, mtaOf, newReport, newWpReport, progressOf } from './gpmCalc';
 import { ganttOf } from './gantt';
 import { type Act, createNote, deleteNote, notesOf, type NoteUndo, restoreNotes, titleOf, updateNote } from './notes';
 import { editProject, editRoles, projectById, rolesOf } from './projects';
@@ -31,7 +31,7 @@ const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 // ---------------------------------------------------------------- Feldkatalog
 
 /** Darstellung eines Felds; `long` = mehrzeilig, `lines` = eine Zeile je Eintrag. */
-export type FieldKind = 'text' | 'long' | 'lines' | 'number' | 'money' | 'pct' | 'date' | 'choice' | 'bool' | 'person' | 'goal' | 'phase';
+export type FieldKind = 'text' | 'long' | 'lines' | 'number' | 'money' | 'pct' | 'date' | 'choice' | 'bool' | 'person' | 'goal' | 'phase' | 'role';
 export interface FieldSpec {
   key: string;
   label: string;
@@ -67,6 +67,24 @@ export const RULE_SOURCE_LABEL = { law: 'Gesetz/Verordnung', norm: 'Norm/Standar
 export const RULE_STATE_LABEL = { open: 'offen', met: 'erfüllt', na: 'nicht zutreffend' } as const;
 export const MTA_TREND_LABEL = { earlier: 'früher', same: 'gleich', later: 'später' } as const;
 export const REPORT_LIGHT_LABEL = { green: 'grün – im Plan', yellow: 'gelb – Abweichung, beherrschbar', red: 'rot – Eingriff nötig' } as const;
+export const ACTION_STATE_LABEL = { open: 'offen', doing: 'in Arbeit', done: 'erledigt' } as const;
+/** F-234 (V137): Teamrollen nach Belbin in der Reihenfolge von Abb. 16 – handlungs-, wissens-, kommunikationsorientiert. */
+export const BELBIN_LABEL = { pf: 'Perfektionist', um: 'Umsetzer', ma: 'Macher', er: 'Erfinder', sp: 'Spezialist', be: 'Beobachter', ws: 'Weichensteller', ta: 'Teamarbeiter', ko: 'Koordinator' } as const;
+export const BELBIN_GROUP = { pf: 'act', um: 'act', ma: 'act', er: 'know', sp: 'know', be: 'know', ws: 'talk', ta: 'talk', ko: 'talk' } as const;
+const BELBIN_HELP = {
+  pf: 'handlungsorientiert: sorgfältig, findet Fehler, vollendet',
+  um: 'handlungsorientiert: diszipliniert, setzt Pläne in Taten um',
+  ma: 'handlungsorientiert: dynamisch, treibt an, hat Mut zu Hindernissen',
+  er: 'wissensorientiert: kreativ, bringt neue Ideen, löst schwierige Probleme',
+  sp: 'wissensorientiert: Fachwissen, engagiert sich für sein Gebiet',
+  be: 'wissensorientiert: nüchtern, strategisch, wägt alle Möglichkeiten ab',
+  ws: 'kommunikationsorientiert: begeistert, knüpft Kontakte, erkundet Möglichkeiten',
+  ta: 'kommunikationsorientiert: kooperativ, hört zu, verhindert Reibung',
+  ko: 'kommunikationsorientiert: klärt Ziele, delegiert, fördert Entscheidungen',
+} as const;
+/** F-234 (V137): Quadranten der Eisenhower-Matrix (wichtig/dringend). */
+export const EISENHOWER_LABEL = { do: 'erledigen (wichtig und dringend)', plan: 'planen (wichtig, nicht dringend)', delegate: 'delegieren (dringend, nicht wichtig)', drop: 'liegen lassen (weder noch)' } as const;
+export const quadrantOf = (important?: boolean, urgent?: boolean): keyof typeof EISENHOWER_LABEL => (important ? (urgent ? 'do' : 'plan') : urgent ? 'delegate' : 'drop');
 export const PROGRESS_METHOD_LABEL = { zero: '0/100', half: '50/50', twenty: '20/80', effort: 'aufwandsproportional', steps: 'Meilensteine/Teilschritte', estimate: 'Schätzung' } as const;
 
 export const FIELDS: Record<FormSource, readonly FieldSpec[]> = {
@@ -204,6 +222,11 @@ export const FIELDS: Record<FormSource, readonly FieldSpec[]> = {
     { key: 'tasks', label: 'Aufgaben', kind: 'long', gpm: true, help: 'AKV: Was die Rolle im Projekt tut' },
     { key: 'powers', label: 'Kompetenzen/Befugnisse', kind: 'long', gpm: true, help: 'AKV: Was die Rolle entscheiden und freigeben darf' },
     { key: 'duty', label: 'Verantwortung', kind: 'long', gpm: true, help: 'AKV: Wofür die Rolle geradesteht' },
+    // V137 (Enrico 13:15, Abb. 7): Hierarchie, Stabsstellen und externe Rollen
+    { key: 'parent', label: 'Übergeordnete Rolle', kind: 'role', help: 'Rolle, an die diese Rolle berichtet (Organigramm)' },
+    { key: 'kind', label: 'Art', kind: 'choice', options: [{ v: 'staff', label: 'Stabsstelle' }, { v: 'external', label: 'extern (Dienstleister)' }], help: 'leer = Linie im Projektteam; Stabsstelle = berät neben der Linie; extern = unter der Abgrenzung der Organisation' },
+    { key: 'link', label: 'Verbindung nach oben', kind: 'choice', options: [{ v: 'full', label: 'fachliche und disziplinarische Weisung' }, { v: 'tech', label: 'fachliche Weisung' }, { v: 'contract', label: 'Vertrag' }], help: 'Linienart im Organigramm wie in der Legende' },
+    { key: 'org', label: 'Firma', kind: 'text', help: 'Bei externen Rollen: Firma; gleiche Firma steht im Organigramm untereinander' },
   ],
   // ---------------------------------------------------------------- Stufe 2 (V113)
   accept: [
@@ -329,6 +352,87 @@ export const FIELDS: Record<FormSource, readonly FieldSpec[]> = {
     { key: 'owner', label: 'Verantwortlich', kind: 'person' },
     { key: 'state', label: 'Stand', kind: 'choice', options: opts(RULE_STATES, RULE_STATE_LABEL) },
   ],
+  // ---------------------------------------------------------------- F-234 (V137): AP-Statusbericht, Persönliche Kompetenzen, Anlagen
+  wpReports: [
+    { key: 'task', label: 'Arbeitspaket', kind: 'text', readonly: true },
+    { key: 'date', label: 'Stichtag', kind: 'date', gpm: true },
+    { key: 'from', label: 'Berichtszeitraum von', kind: 'date' },
+    { key: 'to', label: 'bis', kind: 'date' },
+    { key: 'light', label: 'Status (Ampel)', kind: 'choice', options: opts(REPORT_LIGHTS, REPORT_LIGHT_LABEL), gpm: true },
+    { key: 'progress', label: 'Ist-Fortschrittsgrad (%)', kind: 'pct', gpm: true, help: 'Beim Anlegen nach der Fortschrittsmessung des Arbeitspakets gerechnet' },
+    { key: 'planStart', label: 'Plan-Start', kind: 'date', readonly: true, help: 'aus dem Basisplan (sonst heutiger Plan)' },
+    { key: 'planEnd', label: 'Plan-Ende', kind: 'date', readonly: true, help: 'aus dem Basisplan (sonst heutiger Plan)' },
+    { key: 'sollStart', label: 'Soll-Start', kind: 'date', readonly: true, help: 'heutiger Plan aus dem Gantt am Stichtag' },
+    { key: 'sollEnd', label: 'Soll-Ende', kind: 'date', readonly: true, help: 'heutiger Plan aus dem Gantt am Stichtag' },
+    { key: 'actStart', label: 'Ist-Start', kind: 'date' },
+    { key: 'actEnd', label: 'Ist-Ende', kind: 'date' },
+    { key: 'planHours', label: 'Aufwand Plan (Ph)', kind: 'number', readonly: true },
+    { key: 'sollHours', label: 'Aufwand Soll (Ph)', kind: 'number', readonly: true },
+    { key: 'actHours', label: 'Aufwand Ist (Ph)', kind: 'number', readonly: true },
+    { key: 'restHours', label: 'Aufwand Rest (Ph)', kind: 'number', readonly: true, help: 'Soll − Ist' },
+    { key: 'planCost', label: 'Kosten Plan (€)', kind: 'money', readonly: true },
+    { key: 'sollCost', label: 'Kosten Soll (€)', kind: 'money', readonly: true },
+    { key: 'actCost', label: 'Kosten Ist (€)', kind: 'money', readonly: true },
+    { key: 'restCost', label: 'Kosten Rest (€)', kind: 'money', readonly: true, help: 'Soll − Ist' },
+    { key: 'done', label: 'Aktuelle Aktivitäten', kind: 'long', gpm: true },
+    { key: 'measures', label: 'Notwendige Steuerungsmaßnahmen', kind: 'long', gpm: true },
+    { key: 'place', label: 'Ort', kind: 'text', help: 'Ort der Unterschrift, z. B. Hamburg' },
+  ],
+  teamRoles: [
+    { key: 'person', label: 'Teammitglied', kind: 'person', gpm: true },
+    { key: 'date', label: 'Datum der Bestimmung', kind: 'date' },
+    ...BELBIN.map((k): FieldSpec => ({ key: k, label: BELBIN_LABEL[k], kind: 'number', help: `${BELBIN_HELP[k]} – Punkte aus dem Belbin-Test` })),
+    { key: 'text', label: 'Reflexion der eigenen Teamrolle', kind: 'long', gpm: true, help: 'ICB4 4.4.1: Was die Rollen für die Arbeit im Projekt bedeuten, welche Schwächen wer ausgleicht' },
+  ],
+  eisenhower: [
+    { key: 'code', label: 'PSP-Code', kind: 'text', readonly: true },
+    { key: 'title', label: 'Aufgabe', kind: 'text', readonly: true },
+    { key: 'important', label: 'wichtig', kind: 'bool', help: 'Wie im Notizen-Modus: trägt zu den Zielen bei' },
+    { key: 'urgent', label: 'dringend', kind: 'bool', help: 'Wie im Notizen-Modus: hat einen nahen Termin' },
+    { key: 'quadrant', label: 'Quadrant', kind: 'choice', readonly: true, options: opts(['do', 'plan', 'delegate', 'drop'] as const, EISENHOWER_LABEL) },
+  ],
+  messages: [
+    { key: 'topic', label: 'Anlass', kind: 'text', gpm: true, help: 'Gespräch bzw. Situation, z. B. Meinungsverschiedenheit über eine Anschaffung' },
+    { key: 'date', label: 'Datum', kind: 'date' },
+    { key: 'sender', label: 'Sender', kind: 'text', gpm: true },
+    { key: 'receiver', label: 'Empfänger', kind: 'text', gpm: true },
+    { key: 'message', label: 'Nachricht', kind: 'long', gpm: true, help: 'Was gesagt wurde (Mitte des Quadrats)' },
+    { key: 'reaction', label: 'Reaktion', kind: 'long', help: 'Was der Empfänger geantwortet hat' },
+    { key: 'sFact', label: 'Sachebene – Sender', kind: 'long', help: 'Worüber ich informiere' },
+    { key: 'rFact', label: 'Sachebene – Empfänger', kind: 'long' },
+    { key: 'sSelf', label: 'Selbstkundgabe – Sender', kind: 'long', help: 'Was ich von mir zeige oder verberge' },
+    { key: 'rSelf', label: 'Selbstkundgabe – Empfänger', kind: 'long' },
+    { key: 'sRel', label: 'Beziehungsebene – Sender', kind: 'long', help: 'Wie wir zueinander stehen' },
+    { key: 'rRel', label: 'Beziehungsebene – Empfänger', kind: 'long' },
+    { key: 'sAppeal', label: 'Appellseite – Sender', kind: 'long', help: 'Wozu ich dich veranlassen will' },
+    { key: 'rAppeal', label: 'Appellseite – Empfänger', kind: 'long' },
+    { key: 'result', label: 'Folge und Lösung', kind: 'long', gpm: true, help: 'Wie das Gespräch gelöst wurde und was es für das Projekt bedeutete' },
+  ],
+  moderations: [
+    { key: 'occasion', label: 'Anlass', kind: 'text', gpm: true, help: 'z. B. Kick-off, Workshop, Abstimmung' },
+    { key: 'date', label: 'Datum', kind: 'date' },
+    { key: 'technique', label: 'Moderationstechnik', kind: 'text', gpm: true, help: 'z. B. Brainstorming, Brainwriting, Kartenabfrage, Metaplan, Mindmap, Kanban-Board' },
+    { key: 'participants', label: 'Teilnehmende', kind: 'text' },
+    { key: 'goal', label: 'Ziel', kind: 'long' },
+    { key: 'result', label: 'Ergebnis', kind: 'long', gpm: true },
+  ],
+  actions: [
+    { key: 'code', label: 'Nr.', kind: 'text' },
+    { key: 'title', label: 'Maßnahme', kind: 'text', gpm: true },
+    { key: 'activity', label: 'Tätigkeit', kind: 'long' },
+    { key: 'owner', label: 'Verantwortlich', kind: 'person', gpm: true },
+    { key: 'assign', label: 'Zuordnung', kind: 'text', help: 'Arbeitspaket, Besprechung oder Thema' },
+    { key: 'due', label: 'Termin', kind: 'date', gpm: true },
+    { key: 'state', label: 'Stand', kind: 'choice', options: opts(ACTION_STATES, ACTION_STATE_LABEL) },
+    { key: 'note', label: 'Bemerkung', kind: 'long' },
+  ],
+  annexes: [
+    { key: 'code', label: 'Nr.', kind: 'text' },
+    { key: 'title', label: 'Anlage', kind: 'text', gpm: true },
+    { key: 'form', label: 'Kapitel als Anlage', kind: 'choice', options: [], help: 'Ein Kapitel dieser Vorlage, das im Bericht als Anlage eingereiht wird (z. B. Zentraltabelle der Kosten)' },
+    { key: 'place', label: 'Datei bzw. Link', kind: 'text', help: 'Ablageort, Dateiname oder Adresse' },
+    { key: 'text', label: 'Beschreibung', kind: 'long' },
+  ],
   close: [
     { key: 'date', label: 'Abschlussdatum', kind: 'date', gpm: true },
     { key: 'result', label: 'Ergebnis', kind: 'long', gpm: true, help: 'Was erreicht und übergeben wurde' },
@@ -373,7 +477,7 @@ export const fieldSpec = (src: FormSource, key: string): FieldSpec | undefined =
 
 const cols = (src: FormSource, keys?: string[]): FormColumn[] => (keys ?? FIELDS[src].map((f) => f.key)).map((key) => ({ key }));
 export const GPM_D_ID = 'gpm-d';
-const FIGURES: NonNullable<FormDef['figure']>[] = ['goalTree', 'org', 'phasePlan', 'psp', 'gantt', 'load'];
+const FIGURES: NonNullable<FormDef['figure']>[] = ['goalTree', 'org', 'phasePlan', 'psp', 'gantt', 'load', 'wpReport', 'belbin', 'eisenhower', 'square'];
 /** G3: nach GPM-Leitfaden Z01D Rev. 09, Kapitel wie im Report; dazu ICB4-Ergänzungen der Stufe 1 (G11). */
 export const GPM_D: FormTemplate = {
   id: GPM_D_ID,
@@ -411,11 +515,23 @@ export const GPM_D: FormTemplate = {
     { id: 'ev', chapter: '11', name: 'Earned Value (Fertigstellungswert)', source: 'ev', layout: 'table', columns: cols('ev'), stage: 2, icb: '4.5.7' },
     { id: 'procure', chapter: '11', name: 'Beschaffung', source: 'procure', layout: 'table', columns: cols('procure'), stage: 1, icb: '4.5.9' },
     { id: 'reports', chapter: '12', name: 'Statusbericht', source: 'reports', layout: 'record', columns: cols('reports'), stage: 2, icb: '4.5.10' },
+    // F-234 (V137, D5): AP-Statusbericht wie Abb. 15 – Blatt oben, Felder darunter
+    { id: 'wpReports', chapter: '12.1', name: 'AP-Statusbericht', source: 'wpReports', layout: 'record', figure: 'wpReport', columns: cols('wpReports'), stage: 2, icb: '4.5.10' },
     { id: 'changes', chapter: '13', name: 'Veränderung', source: 'changes', layout: 'table', columns: cols('changes'), stage: 2, icb: '4.5.13' },
     { id: 'close', chapter: '14', name: 'Projektabschluss', source: 'close', layout: 'fields', columns: cols('close'), stage: 2, icb: '4.5.10' },
     { id: 'lessons', chapter: '14', name: 'Lessons Learned', source: 'lessons', layout: 'table', columns: cols('lessons'), stage: 2, icb: '4.5.10' },
+    // F-234 (V137, D6): Kapitelgruppe „Persönliche Kompetenzen“ (ICB4 4.4) wie Kap. 13–15 im Report, D7: Anlagen
+    { id: 'teamRoles', chapter: '15.1', name: 'Teamrollen nach Belbin', source: 'teamRoles', layout: 'record', figure: 'belbin', columns: cols('teamRoles'), stage: 2, icb: '4.4.1' },
+    { id: 'eisenhower', chapter: '15.2', name: 'Eisenhower-Matrix', source: 'eisenhower', layout: 'table', figure: 'eisenhower', columns: cols('eisenhower'), stage: 2, icb: '4.4.1' },
+    { id: 'messages', chapter: '15.3', name: 'Nachrichtenquadrat', source: 'messages', layout: 'record', figure: 'square', columns: cols('messages'), stage: 2, icb: '4.4.3' },
+    { id: 'moderations', chapter: '15.4', name: 'Moderationstechniken', source: 'moderations', layout: 'table', columns: cols('moderations'), stage: 2, icb: '4.4.8' },
+    { id: 'actions', chapter: '15.5', name: 'Maßnahmenplan', source: 'actions', layout: 'table', columns: cols('actions'), stage: 2, icb: '4.4.8 · 4.5.10' },
+    { id: 'annexes', chapter: '16', name: 'Anlagen', source: 'annexes', layout: 'table', columns: cols('annexes'), stage: 2 },
   ],
 };
+
+// D7: Auswahl „Kapitel als Anlage“ = Formulare der Vorlage (ohne die Anlagen selbst)
+(FIELDS.annexes.find((f) => f.key === 'form') as { options?: { v: string; label: string }[] }).options = GPM_D.forms.filter((f) => f.id !== 'annexes').map((f) => ({ v: f.id, label: `${f.chapter} ${f.name}` }));
 
 export const templatesOf = (ws: Workspace): FormTemplate[] => [GPM_D, ...(ws.formTemplates ?? [])];
 export const templateOf = (ws: Workspace, p: Project | undefined): FormTemplate => templatesOf(ws).find((t) => t.id === p?.forms?.template) ?? GPM_D;
@@ -557,7 +673,24 @@ export function rowsOf(ws: Workspace, pid: string, form: FormDef): FormRow[] {
     case 'lessons':
     case 'changes':
     case 'rules':
+    case 'teamRoles':
+    case 'messages':
+    case 'moderations':
+    case 'actions':
+    case 'annexes':
       return (p[form.source] ?? []).map((x) => ({ id: x.id }));
+    case 'wpReports': {
+      // nach Arbeitspaket (PSP-Reihenfolge), je Arbeitspaket der neueste zuerst
+      const order = new Map(taskRows(ws, pid).map((t, i) => [t.id, i]));
+      return [...(p.wpReports ?? [])]
+        .sort((a, b) => (order.get(a.wp) ?? 1e9) - (order.get(b.wp) ?? 1e9) || (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+        .map((x) => ({ id: x.id, note: x.wp }));
+    }
+    case 'eisenhower':
+      return taskRows(ws, pid)
+        .filter((t) => !t.milestone && !t.summary)
+        .filter((t) => { const n = noteOf(ws, t.id); return !!n && n.state !== 'done' && n.state !== 'archived'; })
+        .map((t) => ({ id: t.id, note: t.id, depth: t.depth }));
     case 'close':
       return [{ id: pid }];
     case 'mta':
@@ -670,7 +803,33 @@ export function cellValue(ws: Workspace, pid: string, form: FormDef, rowId: stri
     case 'lessons':
     case 'changes':
     case 'rules':
+    case 'teamRoles':
+    case 'messages':
+    case 'moderations':
+    case 'actions':
+    case 'annexes':
       return ((p[form.source] ?? []) as unknown as Record<string, CellValue>[]).find((x) => x.id === rowId)?.[key];
+    case 'wpReports': {
+      const r = (p.wpReports ?? []).find((x) => x.id === rowId);
+      if (!r) return undefined;
+      if (key === 'task') {
+        const n = noteOf(ws, r.wp);
+        return `${taskRows(ws, pid).find((t) => t.id === r.wp)?.code ?? ''} ${n ? titleOf(n) : '(entfallen)'}`.trim();
+      }
+      if (key === 'restHours') return r.sollHours !== undefined ? Math.round(((r.sollHours ?? 0) - (r.actHours ?? 0)) * 100) / 100 : undefined;
+      if (key === 'restCost') return r.sollCost !== undefined ? Math.round(((r.sollCost ?? 0) - (r.actCost ?? 0)) * 100) / 100 : undefined;
+      return (r as unknown as Record<string, CellValue>)[key];
+    }
+    case 'eisenhower': {
+      const n = noteOf(ws, rowId);
+      if (!n) return undefined;
+      if (key === 'code') return taskRows(ws, pid).find((t) => t.id === rowId)?.code;
+      if (key === 'title') return titleOf(n);
+      if (key === 'important') return !!n.important;
+      if (key === 'urgent') return !!n.urgent;
+      if (key === 'quadrant') return quadrantOf(n.important, n.urgent);
+      return undefined;
+    }
     case 'close':
       return key === 'archived' ? !!p.close?.archived : (p.close as Record<string, CellValue> | undefined)?.[key];
     case 'mta': {
@@ -812,6 +971,7 @@ export function setCell(ws: Workspace, pid: string, form: FormDef, rowId: string
     case 'roles':
       if (key === 'name') return typeof val === 'string' ? editRoles(ws, pid, { kind: 'name', role: rowId, name: val }) : ws;
       if (key === 'tasks' || key === 'powers' || key === 'duty') return editRoles(ws, pid, { kind: 'akv', role: rowId, key, text: (val as string | null) ?? undefined });
+      if (key === 'parent' || key === 'kind' || key === 'link' || key === 'org') return editRoles(ws, pid, { kind: 'set', role: rowId, key, value: (val as string | null) ?? undefined });
       return editRoles(ws, pid, { kind: 'person', role: rowId, person: (val as string | null) ?? undefined });
     case 'accept': {
       const { note, i } = splitCheck(rowId);
@@ -834,7 +994,16 @@ export function setCell(ws: Workspace, pid: string, form: FormDef, rowId: string
     case 'lessons':
     case 'changes':
     case 'rules':
+    case 'wpReports':
+    case 'teamRoles':
+    case 'messages':
+    case 'moderations':
+    case 'actions':
+    case 'annexes':
       return editItem(ws, pid, form.source, rowId, { [key]: val }, now);
+    case 'eisenhower':
+      if (key === 'important' || key === 'urgent') return updateNote(ws, rowId, { [key]: val === true }, act);
+      return ws;
     case 'close':
       return editClose(ws, pid, { [key]: val }, now);
     case 'wp':
@@ -855,9 +1024,9 @@ export function setCell(ws: Workspace, pid: string, form: FormDef, rowId: string
 
 // ---------------------------------------------------------------- Zeilen anlegen, löschen, verschieben
 
-const LIST: Partial<Record<FormSource, GpmList>> = { goals: 'goals', conflicts: 'conflicts', stakeholders: 'stakeholders', phases: 'phases', comms: 'comms', reports: 'reports', docs: 'docs', checks: 'checks', lessons: 'lessons', changes: 'changes', rules: 'rules' };
+const LIST: Partial<Record<FormSource, GpmList>> = { goals: 'goals', conflicts: 'conflicts', stakeholders: 'stakeholders', phases: 'phases', comms: 'comms', reports: 'reports', docs: 'docs', checks: 'checks', lessons: 'lessons', changes: 'changes', rules: 'rules', wpReports: 'wpReports', teamRoles: 'teamRoles', messages: 'messages', moderations: 'moderations', actions: 'actions', annexes: 'annexes' };
 /** V115: gerechnete Formulare ohne eigene Zeilen. */
-const COMPUTED: readonly FormSource[] = ['persons', 'costs', 'ev', 'mta'];
+const COMPUTED: readonly FormSource[] = ['persons', 'costs', 'ev', 'mta', 'eisenhower'];
 /** Kann das Formular Zeilen anlegen? (Ressourcen entstehen über Einsätze; Einsätze brauchen Vorgang und Person.) */
 
 /** V133 (F-232 P9): breite Tabellen (mehr als 7 Spalten) stehen im Querformat – im Bericht (Seite „wide“) und auf dem Blatt. */
@@ -871,19 +1040,21 @@ export const canAddRow = (form: FormDef): boolean => (form.layout === 'table' ||
 /** Kann man Zeilen von Hand verschieben? (nur Listen am Projekt) */
 /** V115: Zeilen löschen – nicht bei gerechneten Formularen (Earned Value, Kosten) und Ressourcen. */
 export const canRemoveRow = (form: FormDef): boolean => form.layout === 'table' && !COMPUTED.includes(form.source);
-export const canMoveRow = (form: FormDef): boolean => !!LIST[form.source] && form.source !== 'reports' && form.layout === 'table';
+export const canMoveRow = (form: FormDef): boolean => !!LIST[form.source] && form.source !== 'reports' && form.source !== 'wpReports' && form.layout === 'table';
 
 /** G4: Zeile anlegen; Einsatz braucht `init.task` und `init.person`, Zielkonflikt nimmt sonst die ersten zwei Ziele. */
-export function addRow(ws: Workspace, pid: string, form: FormDef, act: Act & { id: string; at?: number; init?: { task?: string; person?: string; a?: string; b?: string } }): { ws: Workspace; id: string } | null {
+export function addRow(ws: Workspace, pid: string, form: FormDef, act: Act & { id: string; at?: number; init?: { task?: string; person?: string; a?: string; b?: string; parent?: string; rkind?: 'staff' | 'external' } }): { ws: Workspace; id: string } | null {
   const p = projectById(ws, pid);
   if (!p || !canAddRow(form)) return null;
   const now = act.now ?? Date.now();
   const kinds = form.filter?.split(',');
   switch (form.source) {
     case 'goals': {
-      const kind = (kinds?.[0] ?? 'perf') as 'perf' | 'social' | 'non';
-      const code = nextCode((p.goals ?? []).map((g) => g.code), kind === 'perf' ? 'L' : kind === 'social' ? 'S' : 'N');
-      const out = addItem(ws, pid, 'goals', { id: act.id, code, text: kind === 'non' ? 'Neues Nicht-Ziel' : 'Neues Ziel', kind }, act.at, now);
+      // V137 (Bearbeiten im Blatt): Unterziel – Art und Code vom Oberziel (L1 → L1.n)
+      const up = act.init?.parent ? (p.goals ?? []).find((g) => g.id === act.init!.parent) : undefined;
+      const kind = (up?.kind ?? kinds?.[0] ?? 'perf') as 'perf' | 'social' | 'non';
+      const code = up?.code ? nextCode((p.goals ?? []).map((g) => g.code), `${up.code}.`) : nextCode((p.goals ?? []).map((g) => g.code), kind === 'perf' ? 'L' : kind === 'social' ? 'S' : 'N');
+      const out = addItem(ws, pid, 'goals', { id: act.id, code, text: kind === 'non' ? 'Neues Nicht-Ziel' : up ? 'Neues Unterziel' : 'Neues Ziel', kind, ...(up ? { parent: up.id, level: up.level } : {}) }, act.at, now);
       return out === ws ? null : { ws: out, id: act.id };
     }
     case 'conflicts': {
@@ -907,8 +1078,11 @@ export function addRow(ws: Workspace, pid: string, form: FormDef, act: Act & { i
       return addSteer(ws, pid, 'risk', { title: form.filter === 'chance' ? 'Neue Chance' : 'Neues Risiko', ...(form.filter === 'chance' ? { risk: { chance: true } } : {}) }, { ...act, id: act.id } as Act);
     case 'milestones':
       return createNote(ws, { title: 'Neuer Meilenstein', project: pid, milestone: true }, { now, by: act.by, id: act.id });
-    case 'tasks':
-      return createNote(ws, { title: 'Neues Arbeitspaket', project: pid }, { now, by: act.by, id: act.id });
+    case 'tasks': {
+      // V137 (Bearbeiten im Blatt): unter einem Vorgang anlegen
+      const up = act.init?.parent ? noteOf(ws, act.init.parent) : undefined;
+      return createNote(ws, { title: 'Neues Arbeitspaket', project: pid, ...(up && up.project === pid ? { parent: up.id } : {}) }, { now, by: act.by, id: act.id });
+    }
     case 'procure':
       return createNote(ws, { title: 'Neue Beschaffung', project: pid, type: 'procurement' }, { now, by: act.by, id: act.id });
     case 'uses': {
@@ -920,7 +1094,7 @@ export function addRow(ws: Workspace, pid: string, form: FormDef, act: Act & { i
       return out === ws ? null : { ws: out, id: `${n.id}|${who}` };
     }
     case 'roles': {
-      const out = editRoles(ws, pid, { kind: 'add', name: 'Neue Rolle', rid: act.id });
+      const out = editRoles(ws, pid, { kind: 'add', name: act.init?.rkind === 'staff' ? 'Neue Stabsstelle' : act.init?.rkind === 'external' ? 'Neue externe Rolle' : 'Neue Rolle', rid: act.id, parent: act.init?.parent, rkind: act.init?.rkind });
       return out === ws ? null : { ws: out, id: act.id };
     }
     case 'accept': {
@@ -963,6 +1137,38 @@ export function addRow(ws: Workspace, pid: string, form: FormDef, act: Act & { i
     }
     case 'wp':
       return createNote(ws, { title: 'Neues Arbeitspaket', project: pid }, { now, by: act.by, id: act.id });
+    case 'wpReports': {
+      // an das gewählte Arbeitspaket, sonst an das erste laufende (sonst das erste)
+      const rows = taskRows(ws, pid).filter((t) => !t.milestone && !t.summary);
+      const t = (act.init?.task && rows.find((r) => r.id === act.init!.task)) || rows.find((r) => noteOf(ws, r.id)?.state === 'doing') || rows[0];
+      if (!t) return null;
+      const day = new Date(now).toISOString().slice(0, 10);
+      const rep = newWpReport(ws, pid, act.id, t.id, day);
+      if (!rep) return null;
+      const out = addItem(ws, pid, 'wpReports', rep, act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
+    case 'teamRoles': {
+      const who = act.init?.person ?? rolesOf(p).find((r) => r.id === 'lead')?.person;
+      const out = addItem(ws, pid, 'teamRoles', { id: act.id, ...(who ? { person: who } : {}) }, act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
+    case 'messages': {
+      const out = addItem(ws, pid, 'messages', { id: act.id, topic: 'Neues Gespräch' }, act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
+    case 'moderations': {
+      const out = addItem(ws, pid, 'moderations', { id: act.id, occasion: 'Neuer Anlass' }, act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
+    case 'actions': {
+      const out = addItem(ws, pid, 'actions', { id: act.id, code: nextCode((p.actions ?? []).map((x) => x.code ?? ''), 'M-'), title: 'Neue Maßnahme', state: 'open' }, act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
+    case 'annexes': {
+      const out = addItem(ws, pid, 'annexes', { id: act.id, code: `Anlage ${(p.annexes?.length ?? 0) + 1}`, title: 'Neue Anlage' }, act.at, now);
+      return out === ws ? null : { ws: out, id: act.id };
+    }
     default:
       return null;
   }
@@ -1349,7 +1555,7 @@ export function parseFormTemplates(v: unknown): FormTemplate[] {
         name: typeof f.name === 'string' && f.name.trim() ? f.name.trim().slice(0, 80) : 'Formular',
         source: f.source as FormSource,
         layout: f.layout === 'fields' || f.layout === 'record' || f.layout === 'chart' || f.layout === 'portfolio' || f.layout === 'figure' ? f.layout : 'table',
-        ...(f.layout === 'figure' && typeof f.figure === 'string' && FIGURES.includes(f.figure as NonNullable<FormDef['figure']>) ? { figure: f.figure as NonNullable<FormDef['figure']> } : {}),
+        ...(typeof f.figure === 'string' && FIGURES.includes(f.figure as NonNullable<FormDef['figure']>) ? { figure: f.figure as NonNullable<FormDef['figure']> } : {}),
         columns,
         ...(typeof f.filter === 'string' && f.filter ? { filter: f.filter } : {}),
         ...(typeof f.stage === 'number' ? { stage: f.stage } : {}),
@@ -1368,7 +1574,9 @@ export function parseFormTemplates(v: unknown): FormTemplate[] {
 /** Alle Änderungen der Formulare als eine Action (`{ type: 'form', op }` in useWorkspace). */
 export type FormOp =
   | { op: 'cell'; pid: string; form: FormDef; row: string; key: string; value: CellValue; at: number; by?: string }
-  | { op: 'add'; pid: string; form: FormDef; id: string; at: number; by?: string; init?: { task?: string; person?: string; a?: string; b?: string } }
+  | { op: 'add'; pid: string; form: FormDef; id: string; at: number; by?: string; init?: { task?: string; person?: string; a?: string; b?: string; parent?: string; rkind?: 'staff' | 'external' } }
+  | { op: 'figMove'; pid: string; fig: string; key: string; dx: number; dy: number; at: number }
+  | { op: 'figReset'; pid: string; fig: string; at: number }
   | { op: 'remove'; pid: string; form: FormDef; row: string; at: number }
   | { op: 'undoRow'; undo: RowUndo; at: number }
   | { op: 'move'; pid: string; form: FormDef; row: string; by: number; at: number }
@@ -1382,8 +1590,34 @@ export type FormOp =
   | { op: 'removeTemplate'; id: string }
   | { op: 'undoTemplate'; template: FormTemplate; index: number; projects: string[]; at: number };
 
+/** F-234 D3 (V137): Kasten einer Grafik von Hand verschieben (Versatz zur errechneten Lage; 0/0 = zurück). */
+export function setFigOffset(ws: Workspace, pid: string, fig: string, key: string, dx: number, dy: number, now = Date.now()): Workspace {
+  const p = projectById(ws, pid);
+  if (!p || !/^[a-zA-Z]{1,20}$/.test(fig) || !key) return ws;
+  const all = JSON.parse(JSON.stringify(p.figLayout ?? {})) as NonNullable<Project['figLayout']>;
+  const m = all[fig] ?? {};
+  const x = Math.max(-3000, Math.min(3000, Math.round(dx)));
+  const y = Math.max(-3000, Math.min(3000, Math.round(dy)));
+  if (x || y) m[key] = { dx: x, dy: y };
+  else delete m[key];
+  if (Object.keys(m).length) all[fig] = m;
+  else delete all[fig];
+  return editProject(ws, pid, { figLayout: Object.keys(all).length ? all : undefined }, now);
+}
+export function resetFigLayout(ws: Workspace, pid: string, fig: string, now = Date.now()): Workspace {
+  const p = projectById(ws, pid);
+  if (!p?.figLayout?.[fig]) return ws;
+  const all = { ...p.figLayout };
+  delete all[fig];
+  return editProject(ws, pid, { figLayout: Object.keys(all).length ? all : undefined }, now);
+}
+
 export function applyForm(ws: Workspace, o: FormOp): Workspace {
   switch (o.op) {
+    case 'figMove':
+      return setFigOffset(ws, o.pid, o.fig, o.key, o.dx, o.dy, o.at);
+    case 'figReset':
+      return resetFigLayout(ws, o.pid, o.fig, o.at);
     case 'cell':
       return setCell(ws, o.pid, o.form, o.row, o.key, o.value, { now: o.at, by: o.by });
     case 'add':

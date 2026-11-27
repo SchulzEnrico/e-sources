@@ -218,6 +218,66 @@ for (const nr of [11, 12, 13, 15, 16, 17, 19, 20, 22, 23, 24, 25, 26, 29, 30, 31
 export const hasSampleProject = (ws: Workspace): boolean => (ws.projects ?? []).some((p) => p.id === SAMPLE_PROJECT);
 
 /** Beispielprojekt anlegen (nichts, wenn es schon da ist). */
+// ---------------------------------------------------------------- F-234 (V137): Kap. 12.1, 13–15 und Anlagen aus dem Report
+
+/** Abb. 17: Eisenhower-Matrix am Tag der Schlüsselübergabe – wichtig/dringend an den Arbeitspaketen (wie im Notizen-Modus). */
+const EISEN: Record<number, { important?: true; urgent?: true }> = {
+  4: { important: true, urgent: true }, // Abgleich: Machbarkeit der Grobplanung mit Terminen
+  10: { important: true, urgent: true }, // Schadensdokumentation, genaue Aufmaße der Halle
+  12: { important: true }, // Termine vereinbaren: DL Umbau
+  13: { important: true }, // Termine vereinbaren: Elektriker
+  11: { urgent: true }, // akut notwendige Reparaturen (Notdienste) – delegieren
+};
+const extras = (): Pick<Project, 'wpReports' | 'teamRoles' | 'messages' | 'moderations' | 'actions' | 'annexes'> => ({
+  // Abb. 15: AP-Statusbericht zum 17.05. für CG-1.6.4 (Berichtszeitraum 18./19. KW)
+  wpReports: [
+    {
+      id: 'cg-wr1', wp: noteId(31), date: shift('2021-05-17'), from: shift('2021-05-03'), to: shift('2021-05-16'), light: 'green', progress: 67,
+      planStart: shift('2021-04-16'), planEnd: shift('2021-06-18'), sollEnd: shift('2021-06-18'), actStart: shift('2021-04-16'),
+      planHours: 295, sollHours: 295, actHours: 198, planCost: 10320, sollCost: 10320, actCost: 6920,
+      done: 'Die Grundeinstellungen der Lackieranlage zum Luftmassendurchsatz und der Heizleistung sind vorgenommen. Weitestgehend sind die Testlackierungen durchgeführt und man geht in die Feinabstimmung des verwendeten Lackmaterials. Die Prozessschritte inkl. der abrechnungsrelevanten Textvorlagen sind definiert und werden aktuell zu Prozessketten zusammengesetzt. Die Textvorlagen sind in das ERP-System implementiert und durchlaufen eine Testphase auf Funktionsprüfung.',
+      measures: 'Keine', place: 'Hamburg',
+    },
+  ],
+  // Abb. 16: Teamrollen nach Belbin für den PL
+  teamRoles: [
+    {
+      id: 'cg-tr1', person: ME_ID, pf: 3, um: 13, ma: 11, er: 6, sp: 5, be: 10, ws: 13, ta: 3, ko: 6,
+      text: 'In der Anfangsphase unterstützt mich meine Beobachterrolle dabei, strategisch alle Möglichkeiten zu erfassen. Sie wird durch ausreichenden Erfindergeist ergänzt, um Grobplanungen und erste Einschätzungen zielgerichtet vorzunehmen.\nDie Rolle als Weichensteller zeigt sich erfahrungsgemäß enthusiastisch-kommunikativ, vor allem in der Detailplanung und Beauftragung.\nIn der Phase des Umbaus und der Inbetriebnahme wirkt die recht ausgeglichene Aufteilung zwischen Macher und Umsetzer motivierend auf das Projektteam und alle Beteiligten.\nAuffällige Schwächen durch die geringe Ausprägung von Teamarbeiter und Perfektionist gleichen das Projektbüro und der Lackiermeister aus.',
+    },
+  ],
+  // Abb. 18: Nachrichtenquadrat zum Gespräch vom 27.01.
+  messages: [
+    {
+      id: 'cg-nq1', topic: 'Meinungsverschiedenheit über die anzuschaffenden Lackieranlagen', date: shift('2021-01-27'), sender: 'Hr. Kabel (Gebietsleitung)', receiver: 'Hr. Schulz (Projektleitung)',
+      message: 'Wir bestellen günstigere Lackieranlagen.', reaction: 'Dann schaffen wir später das Auftragsvolumen nicht.',
+      sFact: 'Wir müssen bei den Lackieranlagen noch etwas in der Planung ändern.', rFact: 'Das würde bedeuten, dass 75 % der Planungen von vorne begonnen werden müssen (inkl. aller Beteiligten Fachmeinungen).',
+      sSelf: 'Ich mache das schon länger als du, und in Essen haben wir auch eine von den günstigeren verbaut.', rSelf: 'Waren wieder die Batterien im Taschenrechner alle, wa? Ich habe es 10-mal durchgerechnet. Wir müssen das Geld für die Lackieranlagen ausgeben. Außer du findest in 2 Tagen eine günstigere mit gleichen Leistungsmerkmalen und Lieferbedingungen.',
+      sRel: 'Die teuren von Fuchs, die du verbauen lassen willst, brauchen wir nicht. Ich weiß, das geht auch günstiger.', rRel: 'Meiner Weitsicht und meinen Fähigkeiten bei der Planung wird nicht vertraut.',
+      sAppeal: 'Die Anlagen und Maschinen sind die einzigen Einsparpotenziale, die wir besitzen.', rAppeal: 'Du kannst ja jetzt nicht 50 Tsd. € sparen und heute den Grundstein für ein tiefrotes Dauerrisiko im späteren Tagesgeschäft legen. Dass es in den 4 Jahren Vertragslaufzeit ständig zu Vertragsstrafen kommt, weil die Arbeiten nicht schnell genug in vereinbarter Menge und Qualität geleistet werden können. Das kostet dich 10-mal so viel, wenn es ungünstig läuft.',
+      result: 'Hr. Schulz teilte Hr. Kabel alle technischen Anforderungen und Termine mit, die er für die Anschaffung einer anderen Lackieranlage benötigen würde, mit Frist bis zum Ende der Detailplanung. So konnte Hr. Kabel seine Wünsche noch einbringen; das Vorankommen im Projekt und die Einhaltung aller Projektziele blieben gesichert. Die temporäre Auswirkung auf das Stakeholder-Portfolio zeigt Anlage 5.',
+    },
+  ],
+  // Kap. 15.1 und Anlage 2
+  moderations: [
+    { id: 'cg-mo1', occasion: 'Kick-off-Meeting zum Projektstart', date: shift('2020-12-01'), technique: 'Brainstorming und Brainwriting kombiniert: Mindmap live in der Software (angelehnt an Kartenabfrage und Metaplan), eigene Legende mit Big Points, Epic Points und Red Line', participants: 'Auftraggeber Hr. Meier, PL Hr. Schulz, Projektassistenz (Mindmap), Lackiermeister der Zentrale per Telefonkonferenz', goal: 'Die „NeedfulThings“ im Projekt sammeln, größte Risiken (Epic Points) und Grundvoraussetzungen (Big Points) grob einschätzen, technisch beeinflussten roten Pfad (Red Line) zeigen.', result: 'Alle Big Points logisch verbunden, drei Epic Points festgelegt (Fokus und Risiken im Blick); die Mindmap dient als schnelle Übersicht, zur Einarbeitung des Lackiermeisters und als Anstoß für die weitere Detaillierung.' },
+    { id: 'cg-mo2', occasion: 'Laufende Abwicklung des Projekts', date: shift('2020-12-01'), technique: 'Kanban-Board (Trello) angelehnt an Maßnahmen-, Protokoll- und Metaplan-Technik; QR-Codes auf den AP-Formularen führen zur Arbeitskarte', participants: 'Projektteam, Auftraggeber, Projektbüro, später der Lackiermeister', goal: 'Kommunikationsschnittstellen zentralisieren, Zugriff auf den Fortschritt auch zwischen den 14-täglichen Statusberichten, schnelle Einarbeitung von Beteiligten, die nicht vor Ort oder später dazukommen.', result: 'Das gesamte Projekt ist im Board abgebildet und dokumentiert; der ökonomische Nutzen wird im Projektabschluss mit Projektassistenz und Controlling bewertet (siehe Anlage 2–4).' },
+  ],
+  actions: [
+    { id: 'cg-ma1', code: 'M-1', title: 'Anforderungen und Termine an die Gebietsleitung', activity: 'Alle technischen Anforderungen und Termine für eine andere Lackieranlage an Hr. Kabel geben', owner: ME_ID, assign: 'Nachrichtenquadrat 27.01. / Änderung „Günstigere Lackieranlagen“', due: shift('2021-02-26'), state: 'done', note: 'Frist bis zum Ende der Detailplanung (M2)' },
+    { id: 'cg-ma2', code: 'M-2', title: 'Epic Points im Blick behalten', activity: 'Die drei Epic Points aus dem Kick-off bei jeder Statusbesprechung prüfen', owner: ME_ID, assign: 'Kick-off / Risikomanagement CG-1.1.4', due: shift('2021-06-30'), state: 'doing' },
+    { id: 'cg-ma3', code: 'M-3', title: 'QR-Codes auf die AP-Formulare', activity: 'Arbeitspaketbeschreibungen und AP-Statusberichte mit dem QR-Code der Trello-Arbeitskarte versehen', owner: personId('PA'), assign: 'Moderation Kanban-Board', due: shift('2021-01-15'), state: 'done' },
+    { id: 'cg-ma4', code: 'M-4', title: 'Nutzen des Kanban-Verfahrens bewerten', activity: 'Ökonomischen Nutzen im Projektabschluss mit Projektassistenz und Controlling analysieren; bei Erfolg ins PM-Handbuch der FIT aufnehmen', owner: ME_ID, assign: 'Projektabschluss CG-1.1.6', due: shift('2021-06-30'), state: 'open' },
+  ],
+  annexes: [
+    { id: 'cg-an1', code: 'Anlage 1', title: 'Zentraltabelle der Kostenplanung / Kostenganglinie / Kostensummenlinie', form: 'costs' },
+    { id: 'cg-an2', code: 'Anlage 2', title: 'Weitere Moderationstechniken', form: 'moderations' },
+    { id: 'cg-an3', code: 'Anlage 3', title: 'Auszug aus der Online-Arbeitskarte in Trello', form: 'wp', place: 'Trello-Karte CG-1.6.4 Prozesse festlegen' },
+    { id: 'cg-an4', code: 'Anlage 4', title: 'Implementierte Trello-Weblinks in der Projektmanagement-Software', place: 'Vorgangsliste mit Weblink je Arbeitspaket (MS Project)' },
+    { id: 'cg-an5', code: 'Anlage 5', title: 'Momentaufnahme Stakeholdermanagement vom 27.01.', form: 'shPortfolio', text: 'Hr. Kabel (SH-IN 02) wechselte kurz vor Ende der Detailplanung temporär von den partizipativen Promotoren zu den diskursiven Opponenten; nach der Intervention der PL abgewendet.' },
+  ],
+});
+
 export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
   if (hasSampleProject(ws)) return ws;
   let next = ensureMe(ws);
@@ -286,11 +346,23 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
     // V108 (Tab. 7): Instanzen – kein Lenkungsausschuss, Änderungen entscheidet der Auftraggeber
     comms: COMMS,
     lessons: LESSONS,
+    ...extras(),
+    // V137 (Abb. 7): Hierarchie mit Stabsstelle QMB, fachlicher Weisung der PL und externen Dienstleistern unter der Abgrenzung
     roles: [
-      { id: 'lead', name: 'Projektleitung', person: ME_ID },
-      { id: 'client', name: 'Auftraggeber', person: CLIENT },
-      { id: 'office', name: 'Projektbüro (PA)', person: personId('PA') },
-      { id: 'pma', name: 'Projektmitarbeiter (Lackiermeister/in)', person: personId('LM') },
+      { id: 'client', name: 'Auftraggeber (Geschäftsführung)', person: CLIENT },
+      { id: 'qmb', name: 'QMB', person: personId('PA'), parent: 'client', kind: 'staff', link: 'tech' },
+      { id: 'lead', name: 'Projektleitung', person: ME_ID, parent: 'client', link: 'full' },
+      { id: 'gl', name: 'Gebietsleitung', person: personId('GL'), parent: 'client', link: 'full' },
+      { id: 'lb', name: 'Leitung Buchhaltung', person: personId('LB'), parent: 'client', link: 'full' },
+      { id: 'office', name: 'Projektbüro (PA)', person: personId('PA'), parent: 'lead', link: 'tech' },
+      { id: 'pma', name: 'Werkstattleitung (Lackiermeister/in)', person: personId('LM'), parent: 'gl', link: 'full' },
+      { id: 'ex1', name: 'Hr. Thomsen – Vertrieb', org: 'Fuchs LA', parent: 'lead', kind: 'external', link: 'contract' },
+      { id: 'ex2', name: 'Hr. Baum – TL Aufbau', org: 'Fuchs LA', parent: 'ex1', kind: 'external', link: 'full' },
+      { id: 'ex3', name: 'Fr. Holz – Vertrieb', org: 'Glasklar', parent: 'lead', kind: 'external', link: 'contract' },
+      { id: 'ex4', name: 'Hr. Talib – Anwendungstechniker', org: 'Glasklar', parent: 'ex3', kind: 'external', link: 'tech' },
+      { id: 'ex5', name: 'Hr. Medel – Geschäftsführung', org: 'Elekto.de', parent: 'lead', kind: 'external', link: 'contract' },
+      { id: 'ex6', name: 'Hr. Kurz – TL Montage', org: 'Elekto.de', parent: 'ex5', kind: 'external', link: 'full' },
+      { id: 'ex7', name: 'Hr. Licher – Monteur', org: 'Die Klempner', parent: 'lead', kind: 'external', link: 'contract' },
     ],
     state: 'planned',
     created: now,
@@ -317,6 +389,7 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
       ...(r.who ? { assignee: personId(r.who) } : {}),
       ...(r.results ? { results: r.results } : {}),
       ...(PHASE_OF[r.nr] ? { phase: PHASE_OF[r.nr] } : {}),
+      ...(EISEN[r.nr] ?? {}),
       // V109 (F-226, G7): CG-1.6.4 mit vier Ressourcen (Abb. 11): 10 × 51 + 25 × 30 + 80 × 39 + 180 × 33 = 10.320 €
       ...(r.nr === 31 ? { use: [{ person: ME_ID, hours: 10, cost: 10 * PL_RATE }, { person: personId('PA'), hours: 25 }, { person: personId('LB'), hours: 80 }, { person: personId('LM'), hours: 180 }] } : {}),
     };

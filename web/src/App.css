@@ -10451,3 +10451,32 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
 .nw__zoom { display: inline-flex; align-items: center; gap: 6px; }
 .nw__box:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 2px; }
 .nw__box:focus:not(:focus-visible) { outline: none; }
+
+/* V137 (Enrico 12:59): Grafiken am Ort bearbeiten – Kästen anklickbar, ziehbar (D3), Felder darunter */
+.pjf__fig { position: relative; }
+.pjf__svg.is-editable .fg-edit { cursor: pointer; outline: none; }
+.pjf__svg.is-editable .fg-edit:hover rect,
+.pjf__svg.is-editable .fg-edit:focus-visible rect { stroke: #d0021b; stroke-width: 2; }
+.pjf__fig.is-goalTree .pjf__svg.is-editable .fg-edit,
+.pjf__fig.is-psp .pjf__svg.is-editable .fg-edit,
+.pjf__fig.is-org .pjf__svg.is-editable .fg-edit { cursor: grab; }
+.pjf__svg .fg-edit.is-drag { cursor: grabbing; opacity: 0.85; }
+.pjf__figbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; justify-content: space-between; margin: 0 0 10px; }
+/* V137 (Enrico 13:17 „Die Buttons müssen besser aufgeteilt sein“): Rad links, Knöpfe rechts, alle auf Höhe der Radmitte und klein */
+.pjf__figbar .pjf__figwho { margin: 0; }
+.pjf__figbar .pjf__figacts2 { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.pjf__figbar .help__run { font-size: 12px; padding: 4px 12px; min-height: 0; line-height: 1.4; }
+.pjf__figedit { position: absolute; z-index: 30; width: 340px; max-width: calc(100% - 8px); padding: 10px; border-radius: 8px; background: #f3f3f3; color: #1b1b1b; font-size: 12px; }
+.pjf__figedit .pjf__kv th { width: 36%; }
+.pjf__figedit .fbq__label { margin: 0 0 6px; font-weight: 600; }
+.pjf__figacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+/* Kapitel-Rad steht vorn (V137): fester Platz, damit es beim Drehen nicht springt */
+.pjf .dc__top .pjf__chapter { order: -1; }
+
+/* V137 (Enrico 13:06 „Richte den Button besser zur Überschrift aus … Überschriften viel größer, bessere Orientierung“):
+   Überschrift neben dem Rad groß und auf Höhe der Radmitte (Beschriftung des Rads steht darüber) */
+.pjf .dc__top { align-items: flex-end; }
+.pjf .dc__top > .dc__head { font-size: 24px; line-height: 1.2; font-weight: 700; padding-bottom: 0; }
+.pjf .dc__top > :not(.pjf__chapter):not(.dc__head) { margin-bottom: 0; }
+.pj__table tr.is-sel .pj__namecell > .pc__name { font-size: 24px; font-weight: 700; vertical-align: bottom; margin-bottom: 3px; position: relative; top: 8px; }
+.pj__table tr.is-sel .pj__namecell > .pc__name .pj__prio { font-size: 13px; }

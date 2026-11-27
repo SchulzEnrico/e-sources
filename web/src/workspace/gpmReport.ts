@@ -31,6 +31,7 @@ export function displayValue(ws: Workspace, p: Project, col: Fk.FormCol, v: Fk.C
     return g ? `${g.code ? `${g.code} ` : ''}${g.text.split('\n')[0]}` : String(v);
   }
   if (col.kind === 'phase') return p.phases?.find((x) => x.id === v)?.name ?? String(v);
+  if (col.kind === 'role') return p.roles?.find((x) => x.id === v)?.name ?? String(v);
   return String(v);
 }
 
@@ -286,7 +287,7 @@ export function shSvg(dots: PortfolioDot[], col: SvgColors, w = 680, h = 400): s
   for (const [qx, qy, rgb, name] of quad) {
     parts.push(`<rect x="${qx}" y="${qy}" width="${iw / 2}" height="${ih / 2}" fill="rgb(${rgb})" fill-opacity="0.07"/>`);
     const right = qx > pad.l;
-    parts.push(`<text x="${right ? qx + iw / 2 - 6 : qx + 6}" y="${qy + ih / 2 - 6}" text-anchor="${right ? 'end' : 'start'}" font-size="10" font-style="italic" fill="rgb(${rgb})">${name}</text>`);
+    parts.push(`<text x="${right ? qx + iw / 2 - 6 : qx + 6}" y="${qy > pad.t ? qy + 14 : qy + ih / 2 - 6}" text-anchor="${right ? 'end' : 'start'}" font-size="10" font-style="italic" fill="rgb(${rgb})">${name}</text>`);
   }
   parts.push(`<rect x="${pad.l}" y="${pad.t}" width="${iw}" height="${ih}" fill="none" stroke="${col.line}"/>`);
   parts.push(`<line x1="${x(0)}" y1="${pad.t}" x2="${x(0)}" y2="${pad.t + ih}" stroke="${col.line}"/>`);
@@ -319,7 +320,8 @@ export function shSvg(dots: PortfolioDot[], col: SvgColors, w = 680, h = 400): s
     const r = 3.5 + (d.conflict ?? 1) * 1.5;
     const c = d.side === 'ex' ? ext : col.dot;
     parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}" fill-opacity="0.35" stroke="${c}" stroke-width="1.2"><title>${esc(`${d.code ? `${d.code} ` : ''}${d.name}: Einstellung ${d.attitude}, Macht ${d.power}${d.conflict ? `, Konfliktpotenzial ${d.conflict}` : ''}`)}</title></circle>`);
-    parts.push(`<text x="${cx + r + 3}" y="${cy + 3.5}" font-size="10" fill="${col.ink}" stroke="#fff" stroke-width="3" stroke-opacity="0.85" paint-order="stroke">${lab(d)}</text>`);
+    // V137 (Enrico 13:10 „Linksbündige Anordnung“): Namen einer Gruppe beginnen alle an derselben Stelle (größter Kreis + Abstand)
+    parts.push(`<text x="${cx + 12}" y="${cy + 3.5}" font-size="10" fill="${col.ink}" stroke="#fff" stroke-width="3" stroke-opacity="0.85" paint-order="stroke">${lab(d)}</text>`);
   }
   const open = dots.filter((d) => d.attitude === undefined || d.power === undefined).length;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(`Stakeholder-Portfolio: ${dots.length - open} Stakeholder eingeordnet${open ? `, ${open} ohne Einstellung oder Macht` : ''}`)}">${parts.join('')}</svg>`;
@@ -385,6 +387,12 @@ table.kv th { width: 34%; } .empty { color: #777; font-style: italic; } .cover {
   for (const f of tpl.forms) out.push(`<li><a href="#f-${esc(f.id)}">${esc(`${f.chapter} ${f.name}`)}</a></li>`);
   out.push(`</ol></div>`);
   for (const f of tpl.forms) out.push(formSection(ws, p, f));
+  // F-234 D7 (V137): Kapitel als Anlage einreihen (z. B. Zentraltabelle der Kosten)
+  for (const a of p.annexes ?? []) {
+    const f = a.form ? tpl.forms.find((x) => x.id === a.form) : undefined;
+    if (!f) continue;
+    out.push(formSection(ws, p, f).replace(/<h2>[\s\S]*?<\/h2>/, `<h2>${esc(`${a.code ? `${a.code}: ` : ''}${a.title}`)} <span class="icb">${esc(`${f.chapter} ${f.name}`)}</span></h2>`).replace(/id="f-[^"]*"/, `id="a-${esc(a.id)}"`));
+  }
   out.push(`</body></html>`);
   return out.join('\n');
 }
@@ -409,10 +417,24 @@ function formSection(ws: Workspace, p: Project, f: FormDef): string {
     if (!shown.length) out.push(`<p class="empty">${f.source === 'wp' && rows.length ? `Noch keine Arbeitspaketbeschreibung ausgefüllt (${rows.length} Arbeitspakete, siehe Kapitel 8).` : 'Keine Einträge.'}</p>`);
     else if (shown.length < rows.length) out.push(`<p class="meta">${shown.length} von ${rows.length} Arbeitspaketen beschrieben.</p>`);
     for (const r of shown) {
-      const title = [val(r.id, cols.find((c) => c.key === 'code') ?? cols[0]), val(r.id, cols.find((c) => c.key === 'title') ?? cols[0])].filter(Boolean).join(' ');
-      out.push(`<h3>${esc(title)}</h3><table class="kv"><tbody>${cols.filter((c) => c.key !== 'code' && c.key !== 'title').map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r.id, c))}</td></tr>`).join('')}</tbody></table>`);
+      const title =
+        f.source === 'wpReports' ? `${val(r.id, cols.find((c) => c.key === 'task')!)} – ${val(r.id, cols.find((c) => c.key === 'date')!)}`
+        : f.source === 'teamRoles' ? val(r.id, cols.find((c) => c.key === 'person') ?? cols[0])
+        : f.source === 'messages' ? val(r.id, cols.find((c) => c.key === 'topic') ?? cols[0])
+        : [val(r.id, cols.find((c) => c.key === 'code') ?? cols[0]), val(r.id, cols.find((c) => c.key === 'title') ?? cols[0])].filter(Boolean).join(' ');
+      out.push(`<h3>${esc(title)}</h3>`);
+      // F-234 (V137): Blatt wie im Report (AP-Statusbericht, Teamrollen, Nachrichtenquadrat) vor den Feldern
+      if (f.figure) {
+        const svg = figureSvg(ws, p.id, f.figure, { row: r.id });
+        if (svg) out.push(`<figure>${svg}<figcaption class="meta">Abbildung: ${esc(`${f.name} – ${title}`)}</figcaption></figure>`);
+      }
+      out.push(`<table class="kv"><tbody>${cols.filter((c) => c.key !== 'code' && c.key !== 'title').map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r.id, c))}</td></tr>`).join('')}</tbody></table>`);
     }
   } else {
+    if (f.figure) {
+      const svg = figureSvg(ws, p.id, f.figure);
+      if (svg) out.push(`<figure>${svg}<figcaption class="meta">Abbildung: ${esc(f.name)}</figcaption></figure>`);
+    }
     if (f.layout === 'chart' || f.layout === 'portfolio' || f.source === 'ev') {
       const svg = formSvg(ws, p.id, f, PRINT_COLORS);
       if (svg) out.push(`<figure>${svg}</figure>`);

@@ -186,6 +186,132 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
   const [size, setSize] = usePaperSize(say);
   const wide = Fk.isWideForm(form, cols.length);
   const isCharter = form.source === 'charter' && form.layout === 'fields';
+  // V137 (Enrico 12:59 „Alle Ansichten … müssen auch in ihrer Ansicht bearbeitbar sein“): Kästen der Grafik am Ort bearbeiten und verschieben (D3)
+  const [figEdit, setFigEdit] = useState<{ key: string; x: number; y: number } | null>(null);
+  const figRef = useRef<HTMLElement>(null);
+  const drag = useRef<{ key: string; el: SVGGElement; sx: number; sy: number; k: number; moved: boolean; dx0: number; dy0: number } | null>(null);
+  const skipClick = useRef(false);
+  useEffect(() => setFigEdit(null), [form.id, p.id]);
+  const figKind = form.figure;
+  const movable = figKind === 'goalTree' || figKind === 'psp' || figKind === 'org';
+  const offNow = (key: string) => (figKind ? p.figLayout?.[figKind]?.[key] : undefined) ?? { dx: 0, dy: 0 };
+  const openFig = (el: Element) => {
+    const key = el.getAttribute('data-edit');
+    const host = figRef.current;
+    if (!key || !host) return;
+    const b = el.getBoundingClientRect();
+    const h = host.getBoundingClientRect();
+    setFigEdit({ key, x: Math.max(0, Math.min(b.left - h.left, h.width - 340)), y: b.bottom - h.top + 6 });
+  };
+  const focusBox = (key: string) => window.setTimeout(() => figRef.current?.querySelector<SVGGElement>(`[data-edit="${CSS.escape(key)}"]`)?.focus(), 0);
+  const moveBox = (key: string, dx: number, dy: number) => {
+    if (!figKind) return;
+    run({ op: 'figMove', pid: p.id, fig: figKind, key, dx, dy, at: Date.now() });
+    say(T.figMoved);
+  };
+  const figHandlers = {
+    onClick: (e: React.MouseEvent) => {
+      if (skipClick.current) return void (skipClick.current = false);
+      const el = (e.target as Element).closest('[data-edit]');
+      if (el) openFig(el);
+    },
+    onKeyDown: (e: React.KeyboardEvent) => {
+      const el = (e.target as Element).closest('[data-edit]');
+      if (!el) return;
+      const key = el.getAttribute('data-edit')!;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openFig(el);
+      } else if (movable && e.altKey && e.key.startsWith('Arrow')) {
+        e.preventDefault();
+        const o = offNow(key);
+        const st = e.shiftKey ? 40 : 10;
+        moveBox(key, o.dx + (e.key === 'ArrowLeft' ? -st : e.key === 'ArrowRight' ? st : 0), o.dy + (e.key === 'ArrowUp' ? -st : e.key === 'ArrowDown' ? st : 0));
+        focusBox(key);
+      }
+    },
+    onPointerDown: (e: React.PointerEvent) => {
+      if (!movable || e.button !== 0) return;
+      const el = (e.target as Element).closest('[data-edit]') as SVGGElement | null;
+      const svg = el?.ownerSVGElement;
+      if (!el || !svg) return;
+      const k = svg.viewBox.baseVal.width / svg.getBoundingClientRect().width || 1;
+      const key = el.getAttribute('data-edit')!;
+      const o = offNow(key);
+      drag.current = { key, el, sx: e.clientX, sy: e.clientY, k, moved: false, dx0: o.dx, dy0: o.dy };
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const d = drag.current;
+      if (!d) return;
+      const mx = e.clientX - d.sx;
+      const my = e.clientY - d.sy;
+      if (!d.moved && Math.hypot(mx, my) < 4) return;
+      if (!d.moved) (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+      d.moved = true;
+      d.el.setAttribute('transform', `translate(${mx * d.k} ${my * d.k})`);
+      d.el.classList.add('is-drag');
+    },
+    onPointerUp: (e: React.PointerEvent) => {
+      const d = drag.current;
+      drag.current = null;
+      if (!d?.moved) return;
+      skipClick.current = true;
+      window.setTimeout(() => (skipClick.current = false), 60);
+      d.el.removeAttribute('transform');
+      d.el.classList.remove('is-drag');
+      moveBox(d.key, d.dx0 + (e.clientX - d.sx) * d.k, d.dy0 + (e.clientY - d.sy) * d.k);
+    },
+  };
+  const figureBlock = () => {
+    const people = form.figure === 'load' ? loadPersons(ws, p.id) : [];
+    const who = people.some((x) => x.id === loadWho) ? loadWho : loadDefault(ws, p.id);
+    const svg = figureSvg(ws, p.id, form.figure, { person: who, row: recRow?.id });
+    const target = form.figure ? FIGURE_VIEW[form.figure] : undefined;
+    const editable = !!svg && svg.includes('data-edit=');
+    return (
+      <figure className={`pjf__figure pjf__fig is-${form.figure}`} ref={figRef}>
+        {(people.length > 1 || (target && openView) || (movable && p.figLayout?.[form.figure!])) && (
+          <div className="pjf__figbar">
+            {people.length > 1 && (
+              <span className="layouts__label pj__wheel pjf__figwho">
+                <span aria-hidden="true">{T.figWho}</span>
+                <ModeWheel label={T.figWho} value={who} onChange={(id) => (setLoadWho(id), say(people.find((x) => x.id === id)?.name ?? ''))} options={people.map((x) => ({ id: x.id, name: x.name, hint: `${x.total.toLocaleString('de-DE')} h` }))} />
+              </span>
+            )}
+            <span className="pjf__figacts2">
+              {movable && p.figLayout?.[form.figure!] && (
+                <button type="button" className="help__run" onClick={() => (run({ op: 'figReset', pid: p.id, fig: form.figure!, at: Date.now() }), tell(T.figResetDone))}>
+                  {T.figReset}
+                </button>
+              )}
+              {target && openView && (
+                <button type="button" className="help__run" title={T.figOpen(T.figView[target])} onClick={() => openView(target)}>
+                  {T.figView2(T.figView[target])}
+                </button>
+              )}
+            </span>
+          </div>
+        )}
+        {svg ? (
+          target && openView && !editable ? (
+            <button type="button" className="pjf__figbtn" title={T.figOpen(T.figView[target])} aria-label={T.figOpen(T.figView[target])} onClick={() => openView(target)}>
+              <span className="pjf__svg" dangerouslySetInnerHTML={{ __html: svg }} />
+            </button>
+          ) : (
+            <div className={`pjf__svg${editable ? ' is-editable' : ''}`} dangerouslySetInnerHTML={{ __html: svg }} {...(editable ? figHandlers : {})} />
+          )
+        ) : (
+          <p className="lc__muted">{T.figNone[form.figure ?? 'goalTree']}</p>
+        )}
+        {figEdit && editable && (
+          <FigEditor key={figEdit.key} edit={figEdit} ws={ws} p={p} tpl={tpl} run={run} tell={tell} say={say} by={by}
+            onOpen={(key) => window.setTimeout(() => { const el = figRef.current?.querySelector(`[data-edit="${CSS.escape(key)}"]`); if (el) openFig(el); }, 30)}
+            onClose={(back) => (setFigEdit(null), back && focusBox(figEdit.key))} />
+        )}
+        {svg && <figcaption className="help__text">{T.figCaption[form.figure ?? 'goalTree']}{editable ? ` ${T.figEditHint}` : target && openView ? ` ${T.figOpenHint(T.figView[target])}` : ''}</figcaption>}
+      </figure>
+    );
+  };
   /** Feldliste wie im Report: zweispaltige Tabelle Bezeichnung | Wert */
   const kv = (rowId: string, list: Fk.FormCol[]) => (
     <table className="paper__table pjf__kv">
@@ -213,7 +339,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
   return (
     <section className="dc pjs pjf" aria-labelledby={`${base}-head`}>
       <header className={`dc__top${topOvf.cls}`} ref={topRef}>
-        <h4 id={`${base}-head`} className="dc__head">{T.head(p.name)}</h4>
+        {/* V137 (Enrico 13:00 „Der Kapitel Scroll Button verspringt immer … muss nach ganz links“): Kapitel-Rad vorn, damit es beim Drehen nicht wandert */}
         <span className="layouts__label pj__wheel pjf__chapter">
           <span aria-hidden="true">{T.chapter}</span>
           <ModeWheel
@@ -224,6 +350,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
             options={tpl.forms.map((f) => ({ id: f.id, name: `${f.chapter} ${f.name}`, hint: [f.icb ? `ICB4 ${f.icb}` : '', f.stage ? `Stufe ${f.stage}` : ''].filter(Boolean).join(' · ') }))}
           />
         </span>
+        <h4 id={`${base}-head`} className="dc__head">{T.head(p.name)}</h4>
         {templates.length > 1 && (
           <span className="layouts__label pj__wheel">
             <span aria-hidden="true">{T.template}</span>
@@ -235,7 +362,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
             />
           </span>
         )}
-        {Fk.canAddRow(form) && form.source !== 'uses' && form.source !== 'accept' && (
+        {Fk.canAddRow(form) && form.source !== 'uses' && form.source !== 'accept' && form.source !== 'wpReports' && (
           <button type="button" className="help__run pjf__addrow" title={T.addRowHint} onClick={() => add()}>
             <Icon name="plus" size={13} className="icon icon--inline" /> {T.addRow}
           </button>
@@ -292,6 +419,20 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
             </select>
           </label>
           <button type="submit" className="fbq__save" disabled={!useTask || !usePerson}>{T.usesAdd}</button>
+        </form>
+      )}
+      {form.source === 'wpReports' && (
+        <form className="dc__new" aria-label={T.wpReportAdd} onSubmit={(e) => (e.preventDefault(), add(acceptTask ? { task: acceptTask } : undefined))}>
+          <label>
+            <span className="fbq__label">{T.wpReportAt}</span>
+            <select value={acceptTask} onChange={(e) => setAcceptTask(e.target.value)}>
+              <option value="">{T.none}</option>
+              {tasks.map((t, i) => (
+                <option key={t.id} value={t.id}>{String(Fk.cellValue(ws, p.id, taskForm, t.id, 'code') ?? '')} {String(Fk.cellValue(ws, p.id, taskForm, t.id, 'title') ?? i + 1)}</option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="fbq__save" disabled={!tasks.length}>{T.wpReportAdd}</button>
         </form>
       )}
       {form.source === 'accept' && (
@@ -373,34 +514,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
           </figcaption>
         </figure>
       )}
-      {form.layout === 'figure' && (() => {
-        const people = form.figure === 'load' ? loadPersons(ws, p.id) : [];
-        const who = people.some((x) => x.id === loadWho) ? loadWho : loadDefault(ws, p.id);
-        const svg = figureSvg(ws, p.id, form.figure, { person: who });
-        const target = form.figure ? FIGURE_VIEW[form.figure] : undefined;
-        return (
-          <figure className={`pjf__figure pjf__fig is-${form.figure}`}>
-            {people.length > 1 && (
-              <span className="layouts__label pj__wheel pjf__figwho">
-                <span aria-hidden="true">{T.figWho}</span>
-                <ModeWheel label={T.figWho} value={who} onChange={(id) => (setLoadWho(id), say(people.find((x) => x.id === id)?.name ?? ''))} options={people.map((x) => ({ id: x.id, name: x.name, hint: `${x.total.toLocaleString('de-DE')} h` }))} />
-              </span>
-            )}
-            {svg ? (
-              target && openView ? (
-                <button type="button" className="pjf__figbtn" title={T.figOpen(T.figView[target])} aria-label={T.figOpen(T.figView[target])} onClick={() => openView(target)}>
-                  <span className="pjf__svg" dangerouslySetInnerHTML={{ __html: svg }} />
-                </button>
-              ) : (
-                <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: svg }} />
-              )
-            ) : (
-              <p className="lc__muted">{T.figNone[form.figure ?? 'goalTree']}</p>
-            )}
-            {svg && <figcaption className="help__text">{T.figCaption[form.figure ?? 'goalTree']}{target && openView ? ` ${T.figOpenHint(T.figView[target])}` : ''}</figcaption>}
-          </figure>
-        );
-      })()}
+      {form.figure && form.layout !== 'record' && figureBlock()}
       <div ref={body} className="pjf__body">
         {form.layout === 'figure' ? null : form.layout === 'record' ? (
           !recRow ? (
@@ -418,6 +532,10 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
                       <option key={r.id} value={r.id}>
                         {form.source === 'reports'
                           ? `${Rp.displayValue(ws, p, { key: 'date', label: '', kind: 'date' }, Fk.cellValue(ws, p.id, form, r.id, 'date'))}`
+                          : form.source === 'wpReports'
+                          ? `${String(Fk.cellValue(ws, p.id, form, r.id, 'task') ?? '')} – ${Rp.displayValue(ws, p, { key: 'date', label: '', kind: 'date' }, Fk.cellValue(ws, p.id, form, r.id, 'date'))}`
+                          : form.source === 'teamRoles'
+                          ? `${Ps.personById(ws, String(Fk.cellValue(ws, p.id, form, r.id, 'person') ?? ''))?.name ?? `${i + 1}`}`
                           : `${'  '.repeat(r.depth ?? 0)}${String(Fk.cellValue(ws, p.id, form, r.id, 'code') ?? '')} ${rowLabel(r.id, i)}`}
                       </option>
                     ))}
@@ -432,6 +550,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
                 </button>
               </div>
               {form.source === 'reports' && <p className="help__text">{T.reportFrozen}</p>}
+              {form.figure && figureBlock()}
               <div className="pjf__fields is-kv" data-row={recRow.id} key={recRow.id}>
                 {kv(recRow.id, cols)}
               </div>
@@ -527,6 +646,92 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
   );
 }
 
+/** V137: Felder je Kasten im Blatt (Kurzfassung des Formulars dahinter). */
+const FIG_FIELDS: Record<string, string[]> = {
+  charter: ['name', 'no', 'goal'],
+  goals: ['code', 'text', 'measure', 'level', 'owner'],
+  nongoals: ['code', 'text', 'consequence'],
+  tasks: ['title', 'assignee', 'phase', 'hours', 'cost'],
+  roles: ['name', 'person', 'parent', 'kind', 'link', 'org'],
+};
+
+/**
+ * V137 (Enrico 12:59): Bearbeiten in der Grafik – Felder des Kastens am Ort (unter dem Kasten), dazu „Unterpunkt anlegen“
+ * und Löschen mit Rückgängig. Esc schließt und gibt den Fokus an den Kasten zurück (NF-03), Meldungen im Fenster (F-214).
+ */
+function FigEditor({ edit, ws, p, tpl, run, tell, say, by, onOpen, onClose }: { edit: { key: string; x: number; y: number }; ws: Workspace; p: Project; tpl: ReturnType<typeof Fk.templateOf>; run: (o: Fk.FormOp) => void; tell: (t: string, undo?: () => void) => void; say: (t: string) => void; by?: string; onOpen: (key: string) => void; onClose: (back: boolean) => void }) {
+  const i = edit.key.indexOf(':');
+  const fid = edit.key.slice(0, i);
+  const row = edit.key.slice(i + 1);
+  const form = tpl.forms.find((f) => f.id === fid) ?? Fk.GPM_D.forms.find((f) => f.id === fid);
+  const box = useRef<HTMLDivElement>(null);
+  const [note, setNote] = useState('');
+  useEffect(() => {
+    window.setTimeout(() => box.current?.querySelector<HTMLElement>('input:not([type=checkbox]), textarea, select')?.focus(), 0);
+  }, []);
+  if (!form) return null;
+  const keys = FIG_FIELDS[fid] ?? [];
+  const cols = Fk.columnsOf(p, form).filter((c) => keys.includes(c.key));
+  const rows = Fk.rowsOf(ws, p.id, form);
+  if (fid !== 'charter' && !rows.some((r) => r.id === row)) return null;
+  const set = (r: string, key: string, value: Fk.CellValue) => (run({ op: 'cell', pid: p.id, form, row: r, key, value, at: Date.now(), by }), setNote(T.figSaved));
+  const name = String(Fk.cellValue(ws, p.id, form, row, cols[0]?.key === 'code' ? (cols[1]?.key ?? '') : (cols[0]?.key ?? '')) ?? '');
+  const child = (rkind?: 'staff' | 'external') => {
+    const id = newId();
+    const init = { parent: row, ...(rkind ? { rkind } : {}) };
+    const r = Fk.addRow(ws, p.id, form, { id, now: Date.now(), by, init });
+    if (!r) return;
+    run({ op: 'add', pid: p.id, form, id, at: Date.now(), by, init });
+    tell(T.added, () => run({ op: 'remove', pid: p.id, form, row: r.id, at: Date.now() }));
+    onOpen(`${fid}:${r.id}`);
+  };
+  const remove = () => {
+    const r = Fk.removeRow(ws, p.id, form, row, Date.now());
+    if (!r) return;
+    run({ op: 'remove', pid: p.id, form, row, at: Date.now() });
+    tell(T.removed(name || row), () => run({ op: 'undoRow', undo: r.undo, at: Date.now() }));
+    onClose(false);
+  };
+  return (
+    <div
+      ref={box}
+      className="pjf__figedit sunken"
+      role="dialog"
+      aria-label={T.figEditTitle(name || form.name)}
+      style={{ left: edit.x, top: edit.y }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') (e.preventDefault(), e.stopPropagation(), onClose(true));
+      }}
+    >
+      <p className="fbq__label">{T.figEditTitle(`${form.chapter} ${form.name}`)}</p>
+      <table className="paper__table pjf__kv">
+        <tbody>
+          {cols.map((c) => (
+            <tr key={c.key}>
+              <th scope="row">{c.label}</th>
+              <td className={`pjf__cell is-${c.kind}`}>
+                <Cell ws={ws} p={p} form={form} rowId={fid === 'charter' ? p.id : row} col={c} miss={false} label={`${c.label} – ${name}`} onSet={set} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {note && <p className="sheet__msg" role="status">{note}</p>}
+      <div className="pjf__figacts">
+        {T.figChild[fid] && <button type="button" className="help__run" onClick={() => child()}><Icon name="plus" size={12} className="icon icon--inline" /> {T.figChild[fid]}</button>}
+        {fid === 'roles' && (
+          <>
+            <button type="button" className="help__run" onClick={() => child('staff')}><Icon name="plus" size={12} className="icon icon--inline" /> {T.figStaff}</button>
+            <button type="button" className="help__run" onClick={() => child('external')}><Icon name="plus" size={12} className="icon icon--inline" /> {T.figExternal}</button>
+          </>
+        )}
+        {fid !== 'charter' && <button type="button" className="help__run" onClick={remove}><Icon name="trash" size={12} className="icon icon--inline" /> {T.remove}</button>}
+        <button type="button" className="help__run" onClick={() => (onClose(true), say(T.figClose))}>{T.figClose}</button>
+      </div>
+    </div>
+  );
+}
+
 /** Eine Zelle: Eingabe je nach Art; übernimmt bei Enter bzw. beim Verlassen, Esc verwirft. */
 function Cell({ ws, p, form, rowId, col, miss, label, onSet }: { ws: Workspace; p: Project; form: FormDef; rowId: string; col: Fk.FormCol; miss: boolean; label: string; onSet: (row: string, key: string, v: Fk.CellValue) => void }) {
   const v = Fk.cellValue(ws, p.id, form, rowId, col.key);
@@ -556,12 +761,12 @@ function Cell({ ws, p, form, rowId, col, miss, label, onSet }: { ws: Workspace; 
   };
   const common = { 'aria-label': label, 'aria-invalid': miss || undefined, 'aria-required': col.required || undefined } as const;
   if (col.readonly) {
-    const text = v === undefined || v === '' ? T.none : col.kind === 'money' ? `${fmtNum(v, 'money')} €` : col.kind === 'date' && typeof v === 'string' ? dmy(v) : typeof v === 'number' ? `${fmtNum(v, col.kind, col.digits)}${col.kind === 'pct' ? ' %' : ''}` : String(v);
+    const text = v === undefined || v === '' ? T.none : col.kind === 'money' ? `${fmtNum(v, 'money')} €` : col.kind === 'date' && typeof v === 'string' ? dmy(v) : typeof v === 'number' ? `${fmtNum(v, col.kind, col.digits)}${col.kind === 'pct' ? ' %' : ''}` : col.options?.find((o) => o.v === v)?.label ?? String(v);
     return <span className="pjf__ro" aria-label={`${label}: ${text}`}>{text}</span>;
   }
   if (col.kind === 'bool')
     return <input type="checkbox" {...common} checked={v === true} onChange={(e) => onSet(rowId, col.key, e.target.checked)} />;
-  if (col.kind === 'choice' || col.kind === 'person' || col.kind === 'goal' || col.kind === 'phase') {
+  if (col.kind === 'choice' || col.kind === 'person' || col.kind === 'goal' || col.kind === 'phase' || col.kind === 'role') {
     const options =
       col.kind === 'choice'
         ? (col.options ?? [])
@@ -569,7 +774,9 @@ function Cell({ ws, p, form, rowId, col, miss, label, onSet }: { ws: Workspace; 
           ? Ps.personList(ws).map((x) => ({ v: x.id, label: x.name }))
           : col.kind === 'goal'
             ? (p.goals ?? []).filter((g) => g.id !== rowId).map((g) => ({ v: g.id, label: `${g.code ? `${g.code} ` : ''}${g.text.split('\n')[0].slice(0, 50)}` }))
-            : (p.phases ?? []).map((x) => ({ v: x.id, label: x.name }));
+            : col.kind === 'role'
+              ? (p.roles ?? []).filter((r) => r.id !== rowId).map((r) => ({ v: r.id, label: r.name }))
+              : (p.phases ?? []).map((x) => ({ v: x.id, label: x.name }));
     const cur = typeof v === 'string' ? v : '';
     return (
       <select {...common} value={cur} onChange={(e) => onSet(rowId, col.key, e.target.value)}>

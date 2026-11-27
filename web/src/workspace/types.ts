@@ -979,6 +979,15 @@ export interface Project {
   changes?: ChangeItem[];
   rules?: RuleItem[];
   close?: ProjectClose;
+  /** F-234 (V137): AP-Statusberichte (D5), Teamrollen nach Belbin, Nachrichtenquadrat, Moderation, Maßnahmenplan, Anlagen (D6/D7). */
+  wpReports?: WpReport[];
+  teamRoles?: TeamRole[];
+  messages?: MessageItem[];
+  moderations?: ModerationItem[];
+  actions?: ActionItem[];
+  annexes?: AnnexItem[];
+  /** F-234 D3 (V137): von Hand verschobene Kästen je Grafik (Zielhierarchie, Organigramm) – Kasten-Id › Versatz in px. */
+  figLayout?: Record<string, Record<string, { dx: number; dy: number }>>;
   /** V118 (F-230 F6): eigener Arbeitskalender des Projekts (auch leer = ohne Feiertage); fehlt = der gemeinsame. */
   calendar?: WorkCalendar;
   /** V118 (F-230 Option C): was eine importierte Datei trägt, E-Sources aber nicht kennt – geht beim Export unverändert zurück. */
@@ -1019,6 +1028,11 @@ export interface ProjectRole {
   name: string;
   /** Person-Id */
   person?: string;
+  /** V137 (Enrico 13:15): Hierarchie wie Abb. 7 – übergeordnete Rolle, Art (Linie, Stabsstelle, extern), Verbindung nach oben, Firma */
+  parent?: string;
+  kind?: 'staff' | 'external';
+  link?: 'full' | 'tech' | 'contract';
+  org?: string;
   /** F-226 Stufe 2 (V113, L10): AKV – Aufgaben, Kompetenzen/Befugnisse, Verantwortung. */
   tasks?: string;
   powers?: string;
@@ -1159,6 +1173,109 @@ export interface StatusReport {
   note?: string;
   /** V115 (MTA): Ende der Meilensteine laut Gantt am Stichtag, je Notiz-Id */
   ms?: Record<string, string>;
+}
+
+/** F-234 (V137, D5): AP-Statusbericht wie Abb. 15 im Report – je Arbeitspaket, Werte beim Anlegen eingefroren. */
+export interface WpReport {
+  id: string;
+  /** Arbeitspaket (Notiz-Id) */
+  wp: string;
+  /** Stichtag JJJJ-MM-TT */
+  date: string;
+  from?: string;
+  to?: string;
+  light?: 'green' | 'yellow' | 'red';
+  /** Ist-Fortschrittsgrad in % */
+  progress?: number;
+  /** Plan = Basisplan, Soll = heutiger Plan (Gantt), Ist = von Hand */
+  planStart?: string;
+  planEnd?: string;
+  sollStart?: string;
+  sollEnd?: string;
+  actStart?: string;
+  actEnd?: string;
+  planHours?: number;
+  sollHours?: number;
+  actHours?: number;
+  planCost?: number;
+  sollCost?: number;
+  actCost?: number;
+  /** Aktuelle Aktivitäten, notwendige Steuerungsmaßnahmen, Ort */
+  done?: string;
+  measures?: string;
+  place?: string;
+}
+/** F-234 (V137, D6, ICB4 4.4.1): Teamrollen nach Belbin – Punkte je Rolle (Selbsteinschätzung). */
+export interface TeamRole {
+  id: string;
+  person?: string;
+  date?: string;
+  /** Perfektionist, Umsetzer, Macher (handlungsorientiert) · Erfinder, Spezialist, Beobachter (wissensorientiert) · Weichensteller, Teamarbeiter, Koordinator (kommunikationsorientiert) */
+  pf?: number;
+  um?: number;
+  ma?: number;
+  er?: number;
+  sp?: number;
+  be?: number;
+  ws?: number;
+  ta?: number;
+  ko?: number;
+  /** Reflexion */
+  text?: string;
+}
+/** F-234 (V137, D6, ICB4 4.4.3): Nachrichtenquadrat nach Schulz von Thun – je Ebene was der Sender meint und der Empfänger hört. */
+export interface MessageItem {
+  id: string;
+  topic: string;
+  date?: string;
+  sender?: string;
+  receiver?: string;
+  message?: string;
+  reaction?: string;
+  sFact?: string;
+  rFact?: string;
+  sSelf?: string;
+  rSelf?: string;
+  sRel?: string;
+  rRel?: string;
+  sAppeal?: string;
+  rAppeal?: string;
+  /** Folge bzw. Lösung */
+  result?: string;
+}
+/** F-234 (V137, D6, ICB4 4.4.8): eingesetzte Moderationstechnik mit Anlass. */
+export interface ModerationItem {
+  id: string;
+  occasion: string;
+  date?: string;
+  technique?: string;
+  participants?: string;
+  goal?: string;
+  result?: string;
+}
+/** F-234 (V137, D6): Zeile im Maßnahmenplan. */
+export interface ActionItem {
+  id: string;
+  code?: string;
+  title: string;
+  activity?: string;
+  owner?: string;
+  /** Zuordnung: Arbeitspaket, Moderation, Thema */
+  assign?: string;
+  due?: string;
+  state?: 'open' | 'doing' | 'done';
+  note?: string;
+}
+/** F-234 (V137, D7): Anlage – Datei bzw. Link oder ein Kapitel, das als Anlage eingereiht wird. */
+export interface AnnexItem {
+  id: string;
+  code?: string;
+  title: string;
+  /** Formular-Id aus der Vorlage (Kapitel als Anlage) */
+  form?: string;
+  /** Datei, Ablageort oder Link */
+  place?: string;
+  text?: string;
 }
 
 /** F-206 Schritt 10 (V100, K5): Soll eines Vorgangs im Basisplan. */
@@ -1487,7 +1604,7 @@ export interface FormFieldDef {
   required?: boolean;
 }
 /** F-226: Woher ein Formular seine Zeilen nimmt. */
-export type FormSource = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'risks' | 'phases' | 'milestones' | 'tasks' | 'uses' | 'persons' | 'procure' | 'roles' | 'accept' | 'comms' | 'reports' | 'wp' | 'costs' | 'ev' | 'mta' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'close';
+export type FormSource = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'risks' | 'phases' | 'milestones' | 'tasks' | 'uses' | 'persons' | 'procure' | 'roles' | 'accept' | 'comms' | 'reports' | 'wp' | 'costs' | 'ev' | 'mta' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'close' | 'wpReports' | 'teamRoles' | 'eisenhower' | 'messages' | 'moderations' | 'actions' | 'annexes';
 /** F-226: Spalte bzw. Feld eines Formulars – eingebautes Feld (`key`) oder eigenes (`custom:<id>`). */
 export interface FormColumn {
   key: string;
@@ -1504,7 +1621,7 @@ export interface FormDef {
   /** Tabelle (Zeilen) oder Feldliste (ein Objekt); V113: `record` = Feldliste je Zeile (Auswahl-Rad), `chart` = Ganglinie, `portfolio` = Grafik */
   layout: 'table' | 'fields' | 'record' | 'chart' | 'portfolio' | 'figure';
   /** F-234 (V135): Grafik eines Kapitel-Blatts mit Layout `figure` (gpmFigures.ts) */
-  figure?: 'goalTree' | 'org' | 'phasePlan' | 'psp' | 'gantt' | 'load';
+  figure?: 'goalTree' | 'org' | 'phasePlan' | 'psp' | 'gantt' | 'load' | 'wpReport' | 'belbin' | 'eisenhower' | 'square';
   columns: FormColumn[];
   /** Zeilen-Filter, z. B. Ziel-Art `non` */
   filter?: string;

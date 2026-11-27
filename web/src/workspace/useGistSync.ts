@@ -9,6 +9,9 @@ import { WORKSPACE_KEY, keepDeviceFields, loadSyncMeta, parseWorkspace, storeImp
 import { deviceLabel } from './transfer';
 import type { Workspace } from './types';
 import type { Action } from './useWorkspace';
+import * as Wt from './watch';
+import { switchOf } from './ruleSet';
+import { WATCH_TEXT } from './terms';
 
 export interface GistState {
   status: 'off' | 'idle' | 'busy' | 'error';
@@ -95,6 +98,7 @@ export function useGistSync(ws: Workspace, dispatch: Dispatch<Action>) {
             }
           }
           const next = keepDeviceFields(remote!.workspace, wsRef.current); // Bildschirm-Einstellung bleibt die dieses Geräts
+          collectNews(wsRef.current, next); // V132 (F-231 K10d): Neuigkeiten aus dem Unterschied
           storeImported(next);
           dispatch({ type: 'replace', ws: next });
           saveGist({ ...c, seen: remote!.savedAt, syncedAt: Date.now() });
@@ -149,4 +153,25 @@ export function useGistSync(ws: Workspace, dispatch: Dispatch<Action>) {
     const t = setTimeout(() => void syncNow(), QUIET);
     return () => clearTimeout(t);
   }, [ws]);
+}
+
+/** V132 (F-231 K10d, B8): Neuigkeiten aus dem Abgleich ablegen und – nach Schalter A8 – als Mitteilung des Systems zeigen. */
+export function collectNews(before: Workspace, after: Workspace): Wt.NewsItem[] {
+  try {
+    const fresh = Wt.newsOf(before, after);
+    if (!fresh.length) return [];
+    Wt.saveNews(Wt.mergeNews(Wt.loadNews(), fresh));
+    if (switchOf(after, 'newsSystem') === 'on' && typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+      const first = fresh[0];
+      const body = fresh.length === 1 ? `${WATCH_TEXT.kind[first.kind](first.by)}: ${first.title}` : `${fresh.length} × – ${fresh.slice(0, 3).map((x) => x.title).join(', ')}`;
+      try {
+        new Notification(WATCH_TEXT.systemTitle, { body, tag: 'esource-news' });
+      } catch {
+        /* z. B. iOS ohne App auf dem Startbildschirm */
+      }
+    }
+    return fresh;
+  } catch {
+    return [];
+  }
 }

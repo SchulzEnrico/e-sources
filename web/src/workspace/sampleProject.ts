@@ -201,7 +201,7 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
     psp: { prefix: 'CG-1.', style: 'num' },
     // V109 (F-226): Steckbrief-Texte nur noch für Fließtext; Felder, Ziele, Stakeholder und Phasen stehen in den Formularen
     brief: {
-      goal: 'Oberziel: Errichtung und Inbetriebnahme einer neuen Betriebsstätte der FIT GmbH.\nHauptziel: Umbau und Inbetriebnahme einer angemieteten Kfz-Werkstatt im Hamburger Umland zur Lackiererei mit zwei Lackieranlagen; neue Prozesse erarbeiten und einführen; 15 Mitarbeiter einstellen.',
+      goal: 'Errichtung und Inbetriebnahme einer neuen Betriebsstätte',
       approach: 'PSP funktionsorientiert gegliedert, weil Teilaufgaben und Ergebnisse technologisch aufeinander aufbauen; Teilaufgaben wurden mit den Dienstleistern um bauseitige Leistungen und gesetzliche Vorgaben ergänzt. Aufwand per Analogieschätzung, ergänzt durch Mehrfachbefragung von Team und Dienstleistern. Kick-off mit Brainstorming/Brainwriting als MindMap: Big Points, drei Epic Points (Lackiermeister, Unbedenklichkeitsbescheinigung, Abnahme BSSF), Red Line. Alle Arbeitspakete zusätzlich als Arbeitskarten in Trello.',
       org: ORG_TEXT,
     },
@@ -224,6 +224,15 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
       releaseAg: shift('2020-12-14'),
       model: 'classic',
       tailoring: 'Klassisch in fünf überlappenden Phasen über 7 Monate (Tab. 9).',
+      // V132 (F-232): Zeilen aus Abbildung 3 des Reports
+      main: 'Umbau und Inbetriebnahme einer angemieteten KFZ Werkstatt in eine Lackiererei. Erarbeitung und Implementierung neuer Prozesse und das Einstellen von 15 Mitarbeitern.',
+      team: 'Organisationsteam: Hr. Meier (GF); Hr. Kabel (GL); Fr. Mikitta (QMB); Fr. Stanczak (LB); n.N. Lackiermeister/in (L.Meister)',
+      steering: 'n/v',
+      vendors: 'Hr. Thomsen-Fuchs Lackieranlagen GmbH; Hr. Talib-Glasklar GmbH; Hr. Medel-Elektro.de; Hr. Licher-Die Klempner',
+      others: 'Hr. Drewens-Hamburger Mobile GmbH; Fr. Stenzel-ImmoWorld GmbH; Hr. Klar-Bezirksschornsteinfeger (BSSF)',
+      signAg: 'A. Meier',
+      signPl: 'Enrico Schulz',
+      fixed: [noteId(32), noteId(33)],
     },
     goals: GOALS,
     conflicts: [

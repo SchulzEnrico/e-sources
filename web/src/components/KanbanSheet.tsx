@@ -47,6 +47,8 @@ import * as RR from '../workspace/ruleRun';
 import * as RK from '../workspace/ruleKit';
 import { RuleKit } from './RuleKit';
 import { ButtonBar, CardButtons } from './CardButtons';
+import * as Wt from '../workspace/watch';
+import { WATCH_TEXT as WT } from '../workspace/terms';
 import { BTN_TEXT } from '../workspace/terms';
 
 export const COL_STATE_ICON: Record<ColState, IconName> = { open: 'todo', doing: 'play', review: 'show', done: 'check' };
@@ -380,6 +382,15 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setMirroring(n.id));
     // V130 (K10b): B = Karten-Knopf drücken, Umschalt+B = Board-Knopf (Ziffer 1–9 in der Leiste)
     if ((e.key === 'b' || e.key === 'B') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setPressing(e.shiftKey ? { kind: 'board', note: n.id } : { kind: 'card', note: n.id }));
+    // V132 (K10d): W = Karte beobachten an/aus (wie Trello)
+    if ((e.key === 'w' || e.key === 'W') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      const on = !Wt.isWatching(ws, { kind: 'card', note: n.id });
+      dispatch({ type: 'watch', target: { kind: 'card', note: n.id }, on });
+      const text = on ? WT.onCard(title(n)) : WT.offCard(title(n));
+      say(text);
+      return void notice({ text, undo: () => dispatch({ type: 'watch', target: { kind: 'card', note: n.id }, on: !on }) });
+    }
     if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), archive(n, nearOf(n.id, c.id)));
     // V125 (K8): S = abstimmen bzw. Stimme zurückziehen (nur wenn Abstimmen im Board an ist)
     if ((e.key === 's' || e.key === 'S') && v.votes && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -542,6 +553,12 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
                 </span>
               )}
               <MirrorSign ws={ws} v={v} n={n} />
+              {Wt.isWatching(ws, { kind: 'card', note: n.id }) && (
+                <span className="sign watch__sign" title={WT.cardHint}>
+                  <Icon name="show" size={11} />
+                  <span className="sr-only">{WT.sign}</span>
+                </span>
+              )}
               <Signs ws={ws} n={n} />
               {/* V125 (K8): eigene Felder vorn auf der Karte, Stimmen */}
               <FieldChips v={v} n={n} />
@@ -797,6 +814,14 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
                 {folded.length > 0 && (
                   <Item icon="unfold" onClick={() => (close(), setFolded([]), colSay(c, CLT.allDone), focusAdd(c.id))}>{CLT.all}</Item>
                 )}
+                {/* V132 (K10d): Spalte beobachten */}
+                <Item icon={Wt.isWatching(ws, { kind: 'col', view: sheetId, col: c.id }) ? 'hide' : 'show'} hint={WT.colHint} onClick={() => {
+                  close();
+                  const on = !Wt.isWatching(ws, { kind: 'col', view: sheetId, col: c.id });
+                  dispatch({ type: 'watch', target: { kind: 'col', view: sheetId, col: c.id }, on });
+                  colSay(c, on ? WT.onCol(c.name) : WT.offCol(c.name), () => dispatch({ type: 'watch', target: { kind: 'col', view: sheetId, col: c.id }, on: !on }));
+                  focusAdd(c.id);
+                }}>{Wt.isWatching(ws, { kind: 'col', view: sheetId, col: c.id }) ? WT.colOff : WT.colOn}</Item>
                 <Item icon="rename" onClick={() => (close(), setColEdit(c.id))}>{K.colRename}</Item>
                 <Item
                   icon="copy"
@@ -916,6 +941,12 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
             <h3 className="kcol__name" title={K.colNameHint} onDoubleClick={() => setColEdit(c.id)}>
               {c.name}
             </h3>
+          )}
+          {Wt.isWatching(ws, { kind: 'col', view: sheetId, col: c.id }) && (
+            <span className="sign watch__sign" title={WT.colHint}>
+              <Icon name="show" size={11} />
+              <span className="sr-only">{WT.sign}</span>
+            </span>
           )}
           <span className="sign kcol__state" title={`${K.meaning}: ${Sh.COL_STATE_NAME[st]} – ${K.meaningHint}`}>
             <Icon name={COL_STATE_ICON[st]} size={11} />
@@ -1201,6 +1232,11 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
           <button type="button" ref={rulesBtn} className="kcol__add kcol__arch" aria-expanded={rulesOpen} title={KIT_TEXT.menuHint} onClick={() => setRulesOpen(!rulesOpen)}>
             <Icon name="rules" size={13} /> {KIT_TEXT.menu} ({RK.rulesFor(RK.kitOf(ws), sheetId).filter((r) => r.on).length})
           </button>
+          {/* V132 (K10d): Board beobachten */}
+          <label className="kcol__add kcol__arch kcov__board" title={WT.boardHint}>
+            <input type="checkbox" checked={Wt.isWatching(ws, { kind: 'board', view: sheetId })} onChange={(e) => (dispatch({ type: 'watch', target: { kind: 'board', view: sheetId }, on: e.target.checked }), say(e.target.checked ? WT.onBoard(v.name) : WT.offBoard(v.name)))} />{' '}
+            <Icon name="show" size={13} /> {WT.watch}
+          </label>
           <label className="kcol__add kcol__arch kcov__board" title={VOTE_TEXT.boardHint}>
             <input type="checkbox" checked={!!v.votes} onChange={(e) => (dispatch({ type: 'boardVotes', view: sheetId, on: e.target.checked }), say(e.target.checked ? VOTE_TEXT.boardOn : VOTE_TEXT.boardOff))} />{' '}
             <Icon name="vote" size={13} /> {VOTE_TEXT.board}
@@ -1254,6 +1290,13 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
               </button>
               <button type="button" className="help__run" title={KM_T.archiveHint} onClick={() => (setCard(null), archive(cardNote, nearOf(cardNote.id, Sh.colOf(v, cardNote.id)?.id ?? '')))}>
                 <Icon name="archive" size={12} className="icon icon--inline" /> {KM_T.archive}
+              </button>
+              <button type="button" className="help__run" aria-pressed={Wt.isWatching(ws, { kind: 'card', note: cardNote.id })} title={WT.cardHint} onClick={() => {
+                const on = !Wt.isWatching(ws, { kind: 'card', note: cardNote.id });
+                dispatch({ type: 'watch', target: { kind: 'card', note: cardNote.id }, on });
+                say(on ? WT.onCard(title(cardNote)) : WT.offCard(title(cardNote)));
+              }}>
+                <Icon name="show" size={12} className="icon icon--inline" /> {Wt.isWatching(ws, { kind: 'card', note: cardNote.id }) ? WT.watching : WT.watch}
               </button>
               <button type="button" className="help__run" aria-pressed={!!cardNote.template} title={KM_T.tplHint} onClick={() => toggleTpl(cardNote)}>
                 <Icon name={cardNote.template ? 'check' : 'copy'} size={12} className="icon icon--inline" /> {KM_T.tpl}

@@ -69,6 +69,8 @@ const prepareTexts = (n: PrepareNames): Pr.PrepareTexts => ({
 import * as Rk from './risks';
 import * as Fk from './formKit';
 import * as Sp from './sampleProject';
+import * as Gp from './gpm';
+import * as Wt from './watch';
 import * as FL from './focusLoad';
 import * as St from './stage';
 import { type RuleUndo, deleteRule, restoreRule, setRuleOn, setSiteCategory } from './rules';
@@ -406,6 +408,10 @@ export type Action =
   | { type: 'optionRemove'; view: string; field: string; option: string }
   | { type: 'fieldValue'; view: string; field: string; id: string; value: unknown; by?: string }
   | { type: 'vote'; id: string; person: string }
+  /** V132 (F-232): Steckbrief-Blatt – Felder des Projektauftrags; '' bzw. null löscht. */
+  | { type: 'charterEdit'; id: string; patch: Record<string, unknown> }
+  /** V132 (F-231 K10d): Beobachten an/aus. */
+  | { type: 'watch'; target: Wt.WatchTarget; on: boolean }
   | { type: 'boardVotes'; view: string; on: boolean }
   /* V122 (F-231 K7): Kommentare = Spur-Einträge mit Text */
   | { type: 'commentAdd'; id: string; text: string; cid: string; by?: string }
@@ -821,6 +827,10 @@ function step(ws: Workspace, a: Action): Workspace {
       const def = CFd.fieldById(No.viewById(ws, a.view), a.field);
       return def ? CFd.setFieldValue(ws, a.id, def, a.value, { by: a.by }) : ws;
     }
+    case 'charterEdit':
+      return Gp.editCharter(ws, a.id, a.patch);
+    case 'watch':
+      return Wt.setWatch(ws, a.target, a.on);
     case 'vote':
       return CFd.toggleVote(ws, a.id, a.person);
     case 'boardVotes':

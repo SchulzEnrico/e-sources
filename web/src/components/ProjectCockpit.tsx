@@ -11,16 +11,14 @@ import type { Action } from '../workspace/useWorkspace';
 import type { Project, Workspace } from '../workspace/types';
 import * as Pj from '../workspace/projects';
 import { hoursText } from '../workspace/focusLoad';
-import { dayOf, isFinished, titleOf } from '../workspace/notes';
 import { casesOf } from '../workspace/cases';
-import { DIALOG_TEXT, NOTE_TEXT, PROJECTS_TEXT as T, TERMS } from '../workspace/terms';
+import { DIALOG_TEXT, PROJECTS_TEXT as T, TERMS } from '../workspace/terms';
 import { noticeLater } from '../workspace/flash';
 import { newCountOf } from '../workspace/feedback';
 import { requestTour, tourAutoStart } from '../workspace/tour';
 import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
 import { ArrangedWheel } from './ArrangedWheel';
-import { openNote } from './SourceChips';
 import { ProjectPsp } from './ProjectPsp';
 import { ProjectNetwork } from './ProjectNetwork';
 import { ProjectResources } from './ProjectResources';
@@ -38,18 +36,16 @@ import { PROJECT_FEEDBACK_TEXT, PSP_TEXT } from '../workspace/terms';
 import * as Ps from '../workspace/persons';
 import * as Dp from '../workspace/deskProject';
 import { DESK_PROJECT_TEXT as DPT } from '../workspace/terms';
+import { SAMPLE_TEXT, PAPER_TEXT } from '../workspace/terms';
+import { ProjectSheet } from './ProjectSheet';
+import { hasSampleProject, SAMPLE_PROJECT } from '../workspace/sampleProject';
 import { ACCENTS } from '../workspace/look';
 import { DeskProjectBar } from './DeskProject';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 /** 2026-12-21 → 21.12.2026 */
 const dmy = (day: string) => `${day.slice(8, 10)}.${day.slice(5, 7)}.${day.slice(0, 4)}`;
-const num = (v: string): number | undefined => {
-  const x = Number(v.replace(/\./g, '').replace(',', '.').replace(/€/g, '').trim());
-  return v.trim() === '' || !Number.isFinite(x) || x < 0 ? undefined : Math.round(x * 100) / 100;
-};
 const euro = (n: number) => `${n.toLocaleString('de-DE', { maximumFractionDigits: 2 })} €`;
-const TASKS_SHOWN = 12;
 
 /** V100 (J2): Ansicht rechts neben der Projektliste – je Gerät gemerkt; weitere (Gantt …) folgen. */
 type ProjectView = 'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback';
@@ -101,6 +97,8 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [asking, setAsking] = useState(false);
+  /** V132 (Enrico): Projekt wählen und wechseln im Feld „Name“ – Liste klappt dort auf. */
+  const [picking, setPicking] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [undo, setUndo] = useState<{ text: string; u: Pj.ProjectUndo } | null>(null);
@@ -141,6 +139,13 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
   const later = (f: () => void) => window.setTimeout(f, 0);
   const focusRow = (id: string) => later(() => rows.current.get(id)?.focus());
   useEffect(() => {
+    if (!picking) return;
+    later(() => document.querySelector<HTMLElement>('.pj__pick [aria-selected="true"]')?.focus());
+    const away = (e: MouseEvent) => !(e.target as Element)?.closest?.('.pj__namecell') && setPicking(false);
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [picking]);
+  useEffect(() => {
     if (!note) return;
     const t = noticeLater(() => setNote(''));
     return () => window.clearTimeout(t);
@@ -155,6 +160,12 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
   const similar = newName.trim() ? Pj.similarProjects(ws, newName) : [];
 
   const openAdd = (parent = '') => (setAdding(true), setNewParent(parent), setError(''));
+  const addSample = () => {
+    dispatch({ type: 'sampleProject', on: true });
+    setSel(SAMPLE_PROJECT);
+    tell(SAMPLE_TEXT.addedHere);
+    focusRow(SAMPLE_PROJECT);
+  };
   const create = () => {
     const name = newName.trim();
     if (!name) return;
@@ -233,6 +244,12 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
           <button type="button" className="help__run pj__tour" title={T.tourHint} aria-label={T.tourHint} onClick={() => requestTour('projects')}>
             <Icon name="tour" size={13} className="icon icon--inline" /> {T.tour}
           </button>
+          {/* V132: Beispielprojekt aus Enricos ICB4-Report sichtbar in der Projektliste (vorher nur im ⚙) */}
+          {!hasSampleProject(ws) && (
+            <button type="button" className="help__run pj__sample" title={SAMPLE_TEXT.hint} onClick={addSample}>
+              <Icon name="project" size={13} className="icon icon--inline" /> {SAMPLE_TEXT.short}
+            </button>
+          )}
           <button type="button" id="pj-add" className="help__run" aria-expanded={adding} disabled={full} title={full ? T.full(Pj.PROJECTS_MAX) : T.addHint} onClick={() => (adding ? setAdding(false) : openAdd())}>
             <Icon name="plus" size={13} className="icon icon--inline" /> {T.add}
           </button>
@@ -286,6 +303,13 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
       {!shown ? (
         <div className="pj__empty">
           <p className="lc__muted">{T.empty}</p>
+          {!hasSampleProject(ws) && (
+            <p>
+              <button type="button" className="help__run lc__primary" title={SAMPLE_TEXT.hint} onClick={addSample}>
+                <Icon name="project" size={13} className="icon icon--inline" /> {SAMPLE_TEXT.add}
+              </button>
+            </p>
+          )}
           {undo && <UndoLine undo={undo} dispatch={dispatch} say={say} onBack={(id) => (setSel(id), setUndo(null), focusRow(id))} />}
         </div>
       ) : (
@@ -309,6 +333,8 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
                 {rowsAll.map((r, i) => {
                   const p = r.project;
                   const on = p.id === shown.id;
+                  // V132 (Enrico): nur das gewählte Projekt als Zeile; die anderen wählt man im Feld „Name“
+                  if (!on) return null;
                   return (
                     <tr key={p.id} className={`${on ? 'is-sel' : ''}${p.state === 'done' || p.state === 'stopped' ? ' is-closed' : ''}`}>
                       <th scope="row" style={{ '--depth': r.depth } as CSSProperties} className="pj__namecell">
@@ -351,15 +377,51 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
                             aria-pressed={on}
                             aria-level={r.depth + 1}
                             tabIndex={on ? 0 : -1}
-                            title={T.rowKeys}
-                            onClick={() => (setSel(p.id), setAsking(false), setError(''))}
+                            title={`${T.namePickHint} · ${T.rowKeys}`}
+                            aria-haspopup="listbox"
+                            aria-expanded={picking}
+                            onClick={() => (setPicking(!picking), setAsking(false), setError(''))}
                             onDoubleClick={() => later(() => infoRef.current?.querySelector<HTMLElement>('input, select, textarea')?.focus())}
                             onKeyDown={(e) => onRowKey(e, i)}
                           >
                             {r.depth > 0 && <span className="pj__branch" aria-hidden="true">└</span>}
                             <span>{p.name}</span>
                             {p.priority !== undefined && p.priority <= 2 && <span className="pj__prio" title={`${T.priority}: ${T.priorityName(p.priority)}`}>P{p.priority}</span>}
+                            {list.length > 1 && <span className="pj__pickcount" aria-hidden="true">{T.namePickCount(list.length)} ▾</span>}
                           </button>
+                        )}
+                        {picking && (
+                          <ul className="pj__pick" role="listbox" aria-label={T.namePickLabel}>
+                            {rowsAll.map((x) => (
+                              <li key={x.project.id} role="none">
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected={x.project.id === shown.id}
+                                  data-pick={x.project.id}
+                                  className="pj__pickopt"
+                                  style={{ '--depth': x.depth } as CSSProperties}
+                                  onClick={() => (setSel(x.project.id), setPicking(false), say(T.namePicked(x.project.name)), focusRow(x.project.id))}
+                                  onKeyDown={(e) => {
+                                    const all = [...(e.currentTarget.closest('ul')?.querySelectorAll<HTMLElement>('[data-pick]') ?? [])];
+                                    const k = all.indexOf(e.currentTarget);
+                                    const to = e.key === 'ArrowDown' ? all[k + 1] : e.key === 'ArrowUp' ? all[k - 1] : e.key === 'Home' ? all[0] : e.key === 'End' ? all[all.length - 1] : undefined;
+                                    if (to) return e.preventDefault(), to.focus();
+                                    if (e.key === 'Escape' || e.key === 'Tab') {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setPicking(false);
+                                      focusRow(shown.id);
+                                    }
+                                  }}
+                                >
+                                  {x.depth > 0 && <span className="pj__branch" aria-hidden="true">└</span>}
+                                  <span>{x.project.name}</span>
+                                  <span className={`pj__state is-${x.project.state ?? 'idea'}`}>{T.state[x.project.state ?? 'idea']}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
                         )}
                       </th>
                       <td><span className={`pj__state is-${p.state ?? 'idea'}`} title={T.stateHint[p.state ?? 'idea']}>{T.state[p.state ?? 'idea']}</span></td>
@@ -458,7 +520,6 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, o
     dispatch({ type: 'projectEdit', id: p.id, patch });
     say(text);
   };
-  const [budget, setBudget] = useState(p.budget !== undefined ? String(p.budget).replace('.', ',') : '');
   const [limit, setLimit] = useState(p.taskLimit !== undefined ? String(p.taskLimit) : '');
   const [brief, setBrief] = useState({ goal: p.brief?.goal ?? '', approach: p.brief?.approach ?? '', org: p.brief?.org ?? '' });
   const state = p.state ?? 'idea';
@@ -467,14 +528,11 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, o
   const cases = casesOf(ws);
   // Übergeordnetes Projekt: nur solche, die keinen Kreis ergeben
   const parents = Pj.projectRows(ws).filter((r) => r.project.id !== p.id && !Pj.parentLoops(ws, p.id, r.project.id));
-  const tasks = Pj.tasksOfProject(ws, p.id);
-  const openTasks = [...tasks].sort((a, b) => Number(isFinished(a.state)) - Number(isFinished(b.state)) || (a.due ?? '9999').localeCompare(b.due ?? '9999'));
   const derivedNow = (row.derived.start || row.derived.end) && (!p.start || !p.end);
   const saveBrief = (k: 'goal' | 'approach' | 'org') => {
     const v = brief[k].trim();
     if (v !== (p.brief?.[k] ?? '')) edit({ brief: { [k]: v } }, `${T[k]}: ${T.saved}`);
   };
-  const today = dayOf();
 
   return (
     <section ref={boxRef} className="pc__info pj__info" aria-labelledby="pj-info-head">
@@ -518,6 +576,15 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, o
         {gaps.length ? T.gaps(gaps.map((g) => T.gapName[g]).join(', ')) : T.complete}
       </p>
 
+      <p className="pc__load pj__stand">
+          <b>{PAPER_TEXT.stand}:</b>{' '}
+          {T.figuresLine(row.done, row.tasks, row.progress, hoursText(row.effort), row.milestones)}
+          {row.late > 0 && <b className="pj__late"> · {T.lateLabel(row.late)}</b>}
+          {p.budget !== undefined && <> · {T.budget.replace(' (Euro)', '')}: {euro(p.budget)}</>}
+        </p>
+      {/* V132 (F-232 P4): alles, was nicht im Report steht, in der zuklappbaren Leiste „Verwaltung“ */}
+      <details className="pj__admin">
+        <summary title={PAPER_TEXT.adminHint}>{PAPER_TEXT.admin}</summary>
       <fieldset className="pc__set">
         <legend>{T.general}</legend>
         <div className="layouts__label pj__wheel" title={explain(TERMS.projectState)}>
@@ -589,32 +656,7 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, o
         </div>
       </fieldset>
 
-      <fieldset className="pc__set">
-        <legend>{T.dates}</legend>
-        <label className="layouts__label">
-          {T.start}
-          <input type="date" value={p.start ?? ''} aria-invalid={clash} aria-describedby={clash ? 'pj-clash' : undefined} onChange={(e) => edit({ start: e.target.value || undefined })} />
-        </label>
-        <label className="layouts__label">
-          {T.end}
-          <input type="date" value={p.end ?? ''} min={p.start} aria-invalid={clash} aria-describedby={clash ? 'pj-clash' : undefined} onChange={(e) => edit({ end: e.target.value || undefined })} />
-        </label>
-        <label className="layouts__label">
-          {T.budget}
-          <input
-            inputMode="decimal"
-            value={budget}
-            placeholder={T.budgetNone}
-            onChange={(e) => setBudget(e.target.value)}
-            onBlur={() => {
-              const x = num(budget);
-              if (x !== p.budget) edit({ budget: x });
-              setBudget(x === undefined ? '' : String(x).replace('.', ','));
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-          />
-        </label>
-        {clash && <p id="pj-clash" className="layouts__error" role="alert">{T.clash}</p>}
+      {clash && <p id="pj-clash" className="layouts__error" role="alert">{T.clash}</p>}
         {derivedNow && (
           <p className="pj__derived-line" title={explain(TERMS.projectDerived)}>
             {T.derivedFrom(row.start ? dmy(row.start) : undefined, row.end ? dmy(row.end) : undefined)}{' '}
@@ -628,13 +670,10 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, o
             </button>
           </p>
         )}
-      </fieldset>
-
       <ProjectCalendar ws={ws} pid={p.id} dispatch={dispatch} />
-
       <fieldset className="pc__set pj__brief" title={explain(TERMS.projectBrief)}>
         <legend>{T.brief}</legend>
-        {(['goal', 'approach', 'org'] as const).map((k) => (
+        {(['approach', 'org'] as const).map((k) => (
           <label key={k} className="layouts__label pj__text">
             {T[k]}
             <textarea
@@ -649,40 +688,10 @@ function ProjectBrief({ ws, p, row, dispatch, say, boxRef, onRename, onRemove, o
           </label>
         ))}
       </fieldset>
-
       <ProjectRoles ws={ws} p={p} dispatch={dispatch} say={say} />
-
-      <fieldset className="pc__set">
-        <legend>{T.figures}</legend>
-        <p className="pc__load">
-          {T.figuresLine(row.done, row.tasks, row.progress, hoursText(row.effort), row.milestones)}
-          {row.late > 0 && <b className="pj__late"> · {T.lateLabel(row.late)}</b>}
-          {p.budget !== undefined && <> · {T.budget.replace(' (Euro)', '')}: {euro(p.budget)}</>}
-        </p>
-      </fieldset>
-
-      <fieldset className="pc__set" title={explain(TERMS.projectTask)}>
-        <legend>{T.tasksHead}</legend>
-        {!tasks.length && <p className="lc__muted">{T.tasksNone}</p>}
-        <ul className="pc__list pj__tasks">
-          {openTasks.slice(0, TASKS_SHOWN).map((n) => {
-            const fin = isFinished(n.state);
-            const late = !fin && !!n.due && n.due < today;
-            const t = titleOf(n) || NOTE_TEXT.untitled;
-            return (
-              <li key={n.id} className={fin ? 'is-past' : undefined}>
-                <button type="button" className="fc__task" title={T.openTask(t)} onClick={() => openNote(n.id)}>
-                  {n.milestone && <span className="pj__mile" aria-label="Meilenstein" title="Meilenstein">◆</span>}
-                  <span>{t}</span>
-                </button>
-                <span className="lc__muted">{NOTE_TEXT.states[n.state] ?? n.state}</span>
-                {n.due && <span className={late ? 'pj__late' : 'lc__muted'}>{dmy(n.due)}</span>}
-              </li>
-            );
-          })}
-        </ul>
-        {tasks.length > TASKS_SHOWN && <p className="lc__muted">{T.tasksMore(tasks.length - TASKS_SHOWN)}</p>}
-      </fieldset>
+      </details>
+      {/* V132 (F-232): Steckbrief als Blatt wie Abbildung 3 im Report */}
+      <ProjectSheet ws={ws} p={p} dispatch={dispatch} say={say} />
     </section>
   );
 }

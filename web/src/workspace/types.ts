@@ -714,6 +714,8 @@ export interface Note {
   after?: NoteLink[];
   /** Spur, älteste zuerst, höchstens TRAIL_MAX. */
   trail: NoteEvent[];
+  /** V132 (F-231 K10d, B8): wer die Karte beobachtet (Profilnamen, ohne Namen „ich“) – watch.ts. */
+  watch?: string[];
   category?: string;
   tags?: string[];
   origin?: NoteOrigin;
@@ -819,6 +821,8 @@ export interface NoteColumn {
   archivedFrom?: number;
   /** V126 (F-231 K11): Spaltenfarbe – eine der zehn Trello-Listenfarben (`COL_COLORS`); fehlt = ohne. */
   color?: string;
+  /** V132 (F-231 K10d, B8): wer die Spalte beobachtet (Profilnamen, ohne Namen „ich“) – watch.ts. */
+  watch?: string[];
 }
 
 /** V86 (K2): Bedeutung einer Kanban-Spalte. */
@@ -841,6 +845,8 @@ export interface NoteView {
   id: string;
   kind: NoteViewKind;
   name: string;
+  /** V132 (F-231 K10d, B8): wer das Board beobachtet (Profilnamen, ohne Namen „ich“) – watch.ts. */
+  watch?: string[];
   category?: string;
   /** Reihenfolge (Notizblock, To-do, Eisenhower – das Feld der Matrix ergibt sich aus wichtig/dringend). */
   ids: string[];
@@ -1392,6 +1398,15 @@ export interface ProjectCharter {
   model?: 'classic' | 'agile' | 'hybrid';
   tailoring?: string;
   complexity?: number;
+  /** V132 (F-232, Abbildung 3 im Report): Hauptziele/Kurzbeschreibung, Projektbeteiligte, Unterschriften (Namen), fixierte Meilensteine (Notiz-Ids). */
+  main?: string;
+  team?: string;
+  steering?: string;
+  vendors?: string;
+  others?: string;
+  signAg?: string;
+  signPl?: string;
+  fixed?: string[];
 }
 
 export type GoalKind = 'perf' | 'social' | 'non';

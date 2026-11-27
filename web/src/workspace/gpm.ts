@@ -66,7 +66,7 @@ export const USE_MAX = 20;
 
 // ---------------------------------------------------------------- Lesen (Speicher)
 
-const CHARTER_TEXT = ['no', 'kind', 'client', 'clientAddress', 'benefit', 'benefitMeasure', 'businessCase', 'reporting', 'special', 'success', 'tailoring'] as const;
+const CHARTER_TEXT = ['no', 'kind', 'client', 'clientAddress', 'benefit', 'benefitMeasure', 'businessCase', 'reporting', 'special', 'success', 'tailoring', 'main', 'team', 'steering', 'vendors', 'others', 'signAg', 'signPl'] as const;
 const CHARTER_MONEY = ['ownEffort', 'extEffort', 'costPm', 'costStaff', 'costMaterial', 'reserve'] as const;
 
 export function sanitizeCharter(v: unknown): ProjectCharter | undefined {
@@ -79,6 +79,11 @@ export function sanitizeCharter(v: unknown): ProjectCharter | undefined {
   out.complexity = int(v.complexity, 1, 5);
   if (isDay(v.releasePl)) out.releasePl = v.releasePl;
   if (isDay(v.releaseAg)) out.releaseAg = v.releaseAg;
+  // V132 (F-232 P6): fixierte Meilensteine
+  if (Array.isArray(v.fixed)) {
+    const f = [...new Set(v.fixed.filter((x): x is string => typeof x === 'string' && !!x))].slice(0, 20);
+    if (f.length) out.fixed = f;
+  }
   tidy(out);
   return Object.keys(out).length ? out : undefined;
 }

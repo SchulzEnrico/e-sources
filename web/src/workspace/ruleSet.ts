@@ -38,6 +38,8 @@ export const SWITCHES = {
   remindSound: ['on', 'off'],
   /** A8 Erinnerung: Systemmitteilung (nur nach Erlaubnis des Browsers). */
   remindSystem: ['on', 'off'], // V92: Werk „an“ = heutiges Verhalten (zeigt nur nach Erlaubnis)
+  /** V132 (F-231 K10d, B8): Neuigkeiten (Beobachten, Erwähnungen) auch als Mitteilung des Systems. */
+  newsSystem: ['on', 'off'],
   /** A9 Gleiche Source ein zweites Mal öffnen. */
   sameSource: ['newTab', 'jump', 'ask'],
 } as const;
@@ -60,12 +62,13 @@ export const SWITCH_GROUP: Record<SwitchId, RuleGroup> = {
   emptySheet: 'notes',
   remindSound: 'display',
   remindSystem: 'display',
+  newsSystem: 'display',
   sameSource: 'portals',
 };
 
 /** Nummer im Doc (A1–A9) – für Spur und Hilfe. */
 export const SWITCH_NO: Record<SwitchId, string> = {
-  notice: 'A1', wip: 'A2', lock: 'A3', review: 'A4', fold: 'A5', newPad: 'A6', emptySheet: 'A7', remindSound: 'A8', remindSystem: 'A8', sameSource: 'A9',
+  notice: 'A1', wip: 'A2', lock: 'A3', review: 'A4', fold: 'A5', newPad: 'A6', emptySheet: 'A7', remindSound: 'A8', remindSystem: 'A8', newsSystem: 'A8', sameSource: 'A9',
 };
 
 // ---------------------------------------------------------------- W1–W4 Wenn-dann-Regeln

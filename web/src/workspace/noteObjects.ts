@@ -30,6 +30,7 @@ import { parseCheckGpm, parsePersonGpm, parseProcure, parseProjectGpm, parseResu
 import { parseProjectForms } from './formKit';
 import { cleanCover } from './covers';
 import { cleanFieldValues, cleanVotes } from './cardFields';
+import { cleanWatch } from './watch';
 import { parseForeign } from './foreign';
 import { parseCalendar } from './calendar';
 
@@ -113,6 +114,9 @@ export function parseNoteExtras(v: Record<string, unknown>): Partial<Note> {
   if (fields) out.fields = fields;
   const votes = cleanVotes(v.votes);
   if (votes) out.votes = votes;
+  // V132 (F-231 K10d): Beobachter der Karte
+  const watch = cleanWatch(v.watch);
+  if (watch) out.watch = watch;
   if (typeof v.project === 'string' && v.project) out.project = v.project;
   if (typeof v.assignee === 'string' && v.assignee) out.assignee = v.assignee;
   const effort = parsePlanActual(v.effort);

@@ -30,6 +30,7 @@ import * as ND from './noteDoc';
 import { parseNoteExtras, parseSheetExtras, parseWip } from './noteObjects';
 import { cleanFieldDefs } from './cardFields';
 import { parseColColor } from './columnLook';
+import { cleanWatch } from './watch';
 import { cleanMirrors } from './mirrors';
 
 /** Höchstens so viele Notizen je Ansicht (Unter-Notizen zählen nicht). */
@@ -925,7 +926,8 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
         .map((c) => {
           const wip = parseWip(c.wip);
           const color = parseColColor(c.color);
-          return { id: c.id as string, name: typeof c.name === 'string' && c.name.trim() ? c.name : 'Spalte', ids: clean(c.ids, used), ...(wip ? { wip } : {}), ...(COL_STATES.includes(c.state as ColState) ? { state: c.state as ColState } : {}), ...(color ? { color } : {}) };
+          const watch = cleanWatch(c.watch); // V132 (K10d)
+          return { id: c.id as string, name: typeof c.name === 'string' && c.name.trim() ? c.name : 'Spalte', ids: clean(c.ids, used), ...(wip ? { wip } : {}), ...(COL_STATES.includes(c.state as ColState) ? { state: c.state as ColState } : {}), ...(color ? { color } : {}), ...(watch ? { watch } : {}) };
         });
       view.cols = cols.length ? cols : [{ id: `${raw.id}-1`, name: KANBAN_START[0], ids: [] }];
       // V121 (K3): archivierte Spalten
@@ -961,6 +963,8 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
       const fields = cleanFieldDefs(raw.fields);
       if (fields) view.fields = fields;
       if (raw.votes === true) view.votes = true;
+      const watch = cleanWatch(raw.watch); // V132 (K10d): Beobachter des Boards
+      if (watch) view.watch = watch;
       // V127 (F-231 K9): Spiegel nur, wenn die Karte auf dem Board liegt
       const mirrors = cleanMirrors(raw.mirrors, new Set(idsIn(view)));
       if (mirrors) view.mirrors = mirrors;

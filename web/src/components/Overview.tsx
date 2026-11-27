@@ -21,6 +21,7 @@ import { PersonCockpit } from './PersonCockpit';
 import { FeedbackCockpit } from './FeedbackCockpit';
 import { Decisions } from './ProjectDecisions';
 import { FocusCockpit } from './FocusCockpit';
+import { NewsBell } from './NewsBell';
 import { Icon } from './Icon';
 import { useOverflow } from './Overflow';
 import { OVERFLOW_TEXT } from '../workspace/terms';
@@ -290,7 +291,7 @@ export function Overview(p: OverviewProps) {
   const filterRef = useRef<HTMLInputElement>(null);
   // V112 F-228 Stufe 2: Cockpit-Kopf mit Überlauf – Name, Rad, Filter und Schließen bleiben, der Rest schwebt über „»“
   const headRef = useRef<HTMLDivElement>(null);
-  const headOvf = useOverflow(headRef, { label: OVERFLOW_TEXT.cockpitHead, keep: '.overview__name, .overview__mode, .awheel, .overview__x, .radar__filter' });
+  const headOvf = useOverflow(headRef, { label: OVERFLOW_TEXT.cockpitHead, keep: '.overview__name, .overview__mode, .awheel, .overview__x, .radar__filter, .news' });
   /** F-151: Panel-Zeile (oder ganze Area per Kachel) wird gerade gezogen. */
   const [drag, setDrag] = useState<{ name: string; whole: boolean; x: number; y: number; over: string | null; target: MoveTarget | null; dock: Dock | null } | null>(null);
   /** F-153: Kante wird gerade gezogen (Griffe ausblenden, außer dem gezogenen). */
@@ -1012,6 +1013,8 @@ export function Overview(p: OverviewProps) {
               ]}
             />
           )}
+          {/* V132 (F-231 K10d, B8): Glocke „Neuigkeiten“ im Cockpit-Kopf */}
+          <NewsBell ws={p.ws} say={setSaid} onOpen={() => p.onDismiss()} />
           {p.onTour && (
             <button type="button" className="overview__tour overview__restart" onClick={feedback && p.onFeedbackTour ? () => p.onFeedbackTour!(false) : p.onTour} title={feedback && p.onFeedbackTour ? 'Kurze Einführung ins Feedback' : 'Kurze Einführung ins Cockpit'} aria-label={feedback && p.onFeedbackTour ? 'Tour „Feedback“ starten' : 'Tour durch das Cockpit starten'}>
               <Icon name="tour" />

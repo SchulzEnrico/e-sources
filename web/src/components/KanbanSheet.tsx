@@ -21,7 +21,9 @@ import { ArchivePanel, CopyBar } from './KanbanMore';
 import { FilterButton, FilterPanel, TagChips, TagPanel } from './KanbanTags';
 import * as CF from '../workspace/cardFilter';
 import * as Tg from '../workspace/tags';
-import { KVIEW_TEXT, STATS_TEXT, TAG_TEXT } from '../workspace/terms';
+import { COVER_TEXT, KVIEW_TEXT, STATS_TEXT, TAG_TEXT } from '../workspace/terms';
+import * as Cv from '../workspace/covers';
+import { CoverBack, CoverTop } from './CardCover';
 import { KanbanCalendar, KanbanTable } from './KanbanViews';
 import { KanbanTimeline } from './KanbanTimeline';
 import { KanbanStats } from './KanbanStats';
@@ -395,6 +397,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     const needsOk = n.state === 'review' && (colState === 'done' || colState === 'review');
     return (
       <li key={n.id} data-cardli={n.id} className={`kcard${fin ? ' is-done' : ''}${dim ? ' is-dim' : ''}${lifted ? ' is-lifted' : ''}${pk.mark(n)}`}>
+        <CoverBack c={Cv.coverShown(v, n)} />
         {pk.picker(n, () => focusCard(n.id))}
         <div className="kcard__top">
           <button
@@ -442,6 +445,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
               onPointerDown={(e) => startPointer(e, n, c)}
               onContextMenu={(e) => liftRef.current && e.preventDefault()}
             >
+              <CoverTop c={Cv.coverShown(v, n)} />
               <TagChips ws={ws} v={v} n={n} />
               <span className="kcard__title">{t}</span>
               {n.template && (
@@ -938,6 +942,15 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
           <button type="button" ref={tagsBtn} className="kcol__add kcol__arch" aria-expanded={tagsOpen} title={TAG_TEXT.manageHint} onClick={() => setTagsOpen(!tagsOpen)}>
             <Icon name="tag" size={13} /> {TAG_TEXT.manage(Tg.boardTags(ws, sheetId).filter((t) => t.count).length)}
           </button>
+          {/* V124 (K6): Titelbilder in diesem Board zeigen (Trello „Karten-Cover“) */}
+          <label className="kcol__add kcol__arch kcov__board" title={COVER_TEXT.boardHint}>
+            <input
+              type="checkbox"
+              checked={!v?.noCovers}
+              onChange={(e) => (dispatch({ type: 'boardCovers', view: sheetId, show: e.target.checked }), say(e.target.checked ? COVER_TEXT.boardOn : COVER_TEXT.boardOff))}
+            />{' '}
+            <Icon name="image" size={13} /> {COVER_TEXT.board}
+          </label>
         </div>
       </div>
       {ghostNote && ghost && (

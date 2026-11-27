@@ -658,6 +658,14 @@ export interface NoteAttachment {
   mime?: string;
 }
 
+/** V124 (F-231 K6): Titelbild einer Karte. Entweder `color` (Trello-Farbe, ohne Stufe) oder `img` (Schlüssel im
+ *  Bildspeicher des Geräts, wie `es-img:`); `size: 'full'` = ganzflächig, fehlt = klein (Trello „normal“). */
+export interface NoteCover {
+  color?: string;
+  img?: string;
+  size?: 'full';
+}
+
 /** F-206: Wie eine Notiz entstand (wie BookmarkOrigin). */
 export interface NoteOrigin {
   via: 'hand' | 'quick' | 'voice' | 'slot' | 'import';
@@ -706,6 +714,8 @@ export interface Note {
   dueTime?: string;
   /** V121 (F-231 K1): Kartenvorlage (wie Trello „Card template“) – „+ Karte aus Vorlage“ kopiert sie. */
   template?: true;
+  /** V124 (F-231 K6): Titelbild wie Trello „Cover“ – Farbe oder Bild, klein oder ganzflächig (covers.ts). */
+  cover?: NoteCover;
   /** V65: Art nach ICB4 (M1). */
   type?: NoteType;
   /** F-225 P8 (V107, R2): Angaben als Risiko (nur bei `type: 'risk'`). */
@@ -813,6 +823,8 @@ export interface NoteView {
   archivedCols?: NoteColumn[];
   /** V122 (F-231 K4, T4): in diesem Board ausgeblendete Tags (klein geschrieben) – die gemeinsame Liste bleibt, nur die Karten zeigen sie hier nicht. */
   hiddenTags?: string[];
+  /** V124 (F-231 K6): Titelbilder in diesem Board nicht zeigen (Trello `prefs.cardCovers: false`); die Karten behalten sie. */
+  noCovers?: true;
   /** Regel „Abnahme nötig“: erledigt → „in Prüfung“, bis bestätigt. */
   review?: boolean;
   /** V65 (Sheet): Besitzer. */

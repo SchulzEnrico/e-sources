@@ -28,6 +28,7 @@ import { ModeWheel } from './ModeWheel';
 import { CardChecklists } from './CardChecklists';
 import { CardTags } from './KanbanTags';
 import { CardComments } from './CardComments';
+import { CardCover } from './CardCover';
 import { Icon } from './Icon';
 
 export type SheetCmd = { k: 'home' | 'new' | 'go' | 'search'; n: number; id?: string };
@@ -251,6 +252,8 @@ export function CardWindow(props: { ws: Workspace; dispatch: Dispatch<Action>; n
         {/* V121 (F-231 K2): mehrere benannte Checklisten wie bei Trello */}
         {/* V122 (F-231 K4): Tags mit Farbe */}
         <CardTags ws={ws} dispatch={dispatch} noteId={noteId} sheetId={props.sheetId} say={props.say} />
+        {/* V124 (F-231 K6): Titelbild wie Trello „Cover“ */}
+        <CardCover ws={ws} dispatch={dispatch} noteId={noteId} say={props.say} />
         <CardChecklists ws={ws} dispatch={dispatch} noteId={noteId} sheetId={props.sheetId} say={props.say} />
         <div className="cardwin__note">
           <NoteTab ws={ws} noteId={noteId} dispatch={dispatch} sheet={props.sheetId} draft={{ onClose: props.onClose, say: props.say, notice, shown }} />

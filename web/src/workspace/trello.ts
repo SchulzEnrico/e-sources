@@ -22,6 +22,7 @@ import { colStateOf } from './sheets';
 import { calendarFor, withCalendar } from './calendar';
 import { FOREIGN_TEXT_MAX } from './foreign';
 import { colorOf, isTagColor, setTagColor } from './tags';
+import { coverFromTrello, coverSig, coverToTrello } from './covers';
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -180,7 +181,7 @@ export function trelloNameClashes(ws: Workspace, text: string): string[] {
 }
 
 /** Felder einer Karte, die E-Sources selbst liest bzw. beim Export neu schreibt */
-const OWN_CARD = ['name', 'desc', 'closed', 'idBoard', 'idLabels', 'labels', 'idMembers', 'due', 'start', 'dueComplete', 'idChecklists', 'checklists', 'eSources'] as const;
+const OWN_CARD = ['name', 'desc', 'closed', 'idBoard', 'idLabels', 'labels', 'idMembers', 'due', 'start', 'dueComplete', 'idChecklists', 'checklists', 'cover', 'eSources'] as const;
 /** Felder des Boards, die E-Sources selbst liest bzw. beim Export neu schreibt (lists, labels, members bleiben roh) */
 const OWN_BOARD = ['name', 'cards', 'checklists', 'actions', 'eSources'] as const;
 
@@ -189,7 +190,7 @@ interface CardOwn {
   v: 1;
   id: string;
   note: Partial<Note>;
-  sent: { name: string; desc: string; due: string | null; start: string | null; list: string; closed: boolean; done: boolean; labels: string[]; members: string[] };
+  sent: { name: string; desc: string; due: string | null; start: string | null; list: string; closed: boolean; done: boolean; labels: string[]; members: string[]; cover?: string };
 }
 
 /**
@@ -362,11 +363,16 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
     const tags = same('labels', labelIds) ? (base.tags ?? []) : tagsIn.filter((t) => t !== MILESTONE_LABEL || !base.milestone);
     const milestone = base.milestone ?? (tagsIn.includes(MILESTONE_LABEL) ? true : undefined);
     const members = memberIds.map((id) => personOf.get(id)!);
+    // V124 (F-231 K6): Cover → Titelbild (Farbe/Größe); Bild-Cover reist roh mit (`_cover`)
+    const rawCover = isObj(c.cover) ? (c.cover as Obj) : null;
+    const cvIn = coverFromTrello(rawCover);
+    const cover = sent && 'cover' in sent && same('cover', coverSig(rawCover)) ? base.cover : cvIn.cover;
     const useOwn = same('members', Array.isArray(c.idMembers) ? (c.idMembers as unknown[]).map(str) : []) && (base.use || base.assignee);
 
     const rest = omit(c, OWN_CARD);
     if (c.due) rest._due = c.due;
     if (c.start) rest._start = c.start;
+    if (cvIn.keep && rawCover) rest._cover = rawCover;
     if (fullName.length > TITLE_MAX) rest._name = fullName;
     if (cls.length) rest.cl = cls;
     const cm = comments.get(cid);
@@ -389,6 +395,7 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
         ...(notBefore ? { notBefore } : {}),
         tags: tags.length ? tags : undefined,
         ...(milestone ? { milestone: true } : {}),
+        ...(cover ? { cover } : {}),
         ...(useOwn ? {} : members.length ? { assignee: members[0], use: members.map((p) => ({ person: p })) } : {}),
         ...(bag ? { foreign: bag } : {}),
       },
@@ -399,6 +406,7 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
     if (!due || !dueTime) delete fresh.dueTime;
     if (!notBefore) delete fresh.notBefore;
     if (!fresh.tags) delete fresh.tags;
+    if (!cover) delete fresh.cover;
     // V122 (F-231 K7): Trello-Kommentare werden Kommentare der Notiz (Id der Aktion in `ref`, roh weiter in foreign)
     if (cm?.length) {
       const evs = cm
@@ -443,7 +451,7 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
       }
       return out;
     }),
-    noteViews: viewsOf(ws).map((x) => (x.id === v.id ? { ...x, cols, ...(archCols.length ? { archivedCols: archCols } : {}), ids: [], owner: { kind: 'project', id: pid } } : x)),
+    noteViews: viewsOf(ws).map((x) => (x.id === v.id ? { ...x, cols, ...(archCols.length ? { archivedCols: archCols } : {}), ids: [], owner: { kind: 'project', id: pid }, ...(isObj(b.prefs) && (b.prefs as Obj).cardCovers === false ? { noCovers: true as const } : {}) } : x)),
   };
 
   // Projekt: Beschreibung → Ziel; Board-Felder roh mitführen (Listen, Labels, Mitglieder mit Ids und pos)
@@ -666,6 +674,10 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
     const _due = str(base._due);
     const _start = str(base._start);
     const _name = str(base._name);
+    // Importe vor V124 haben das Cover noch roh in `cover`
+    const _cover = isObj(base._cover) ? (base._cover as Obj) : isObj(base.cover) ? (base.cover as Obj) : undefined;
+    delete base._cover;
+    delete base.cover;
     delete base.cl;
     delete base.comments;
     delete base._due;
@@ -734,7 +746,8 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
     const list = posByList.get(idList) ?? [];
     list.push(typeof base.pos === 'number' ? base.pos : undefined);
     posByList.set(idList, list);
-    const sent: CardOwn['sent'] = { name, desc: split.desc, due, start, list: idList, closed, done, labels: idLabels, members: idMembers };
+    const cover = coverToTrello(n.cover, _cover);
+    const sent: CardOwn['sent'] = { name, desc: split.desc, due, start, list: idList, closed, done, labels: idLabels, members: idMembers, cover: coverSig(cover) };
     outCards.push({
       ...base,
       id,
@@ -749,6 +762,7 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
       idLabels,
       idMembers,
       idChecklists,
+      cover,
       eSources: { v: 1, id: n.id, note: ownNote(n), sent } satisfies CardOwn,
     });
   }
@@ -773,6 +787,9 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
     closed: false,
     idBoard: undefined,
     labels,
+    // V124 (F-231 K6): Board-Schalter „Titelbilder zeigen“
+    // (nur wenn Trello den Schalter schon kannte oder wir ausblenden – sonst bleiben die Einstellungen unverändert)
+    ...(view?.noCovers || (isObj(F.prefs) && 'cardCovers' in (F.prefs as Obj)) ? { prefs: { ...(isObj(F.prefs) ? (F.prefs as Obj) : {}), cardCovers: !view?.noCovers } } : {}),
     lists: ls.map((l) => l.raw),
     cards: outCards,
     checklists: outCl,

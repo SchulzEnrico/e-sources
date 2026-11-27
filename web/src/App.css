@@ -9943,3 +9943,35 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 .kcm__ment { font-size: 11px; }
 .kcm__acts { display: flex; gap: 6px; }
 .kcm__ev { font-size: 11.5px; opacity: 0.85; padding: 0 6px; }
+
+/* V124 (F-231 K6): Titelbild der Karte (Trello „Cover“) – klein über dem Titel, ganzflächig als Ebene hinter der Karte */
+.kcover { flex: 0 0 100%; display: block; border-radius: 5px; margin: 0 0 4px; overflow: hidden; pointer-events: none; }
+.kcover--color { height: 26px; }
+.kcover--img img { display: block; width: 100%; max-height: 140px; object-fit: cover; }
+.kcback { position: absolute; inset: 0; border-radius: inherit; z-index: 0; pointer-events: none; background-size: cover; background-position: center; }
+.kcback--img::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.72)); }
+.kcard:has(> .kcback) > :not(.kcback) { z-index: 1; } /* Flex-Kinder: z-index ohne position (Auswahl-Häkchen bleibt absolut) */
+.kcard:has(> .kcback--img) { min-height: 120px; justify-content: flex-end; }
+.kcard:has(> .kcback) .kcard__title { font-weight: 600; color: #16181d; }
+.kcard:has(> .kcback.is-dark) .kcard__title, .kcard:has(> .kcback.is-dark) .kcard__subs, .kcard:has(> .kcback.is-dark) .sign { color: #fff; }
+.kcard:has(> .kcback--img) .kcard__title { text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
+.kcard:has(> .kcback:not(.is-dark)) .kcard__subs, .kcard:has(> .kcback:not(.is-dark)) .sign { color: #16181d; }
+.cardwin__cover .kcov__pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.kcov__opt { position: relative; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 5px; border: 1px solid rgba(var(--tint), 0.25); }
+.kcov__opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.kcov__opt:has(input:focus-visible) { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 2px; }
+.kcov__opt.is-on { box-shadow: 0 0 0 2px rgb(var(--accent-rgb)); }
+.kcov__none { padding: 2px 8px; font-size: 12px; height: 22px; }
+.kcov__sw { width: 26px; height: 22px; color: #fff; }
+.kcov__sw .icon { display: inline-block; filter: drop-shadow(0 0 1px #000); }
+.kcov__img { width: 40px; height: 28px; overflow: hidden; background: rgba(var(--lo), 0.4); }
+.kcov__img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.kcov__img .icon { display: inline-block; }
+.kcov__cap { font-size: 11px; opacity: 0.75; margin-left: 6px; }
+.kcov__up { font-size: 12px; display: inline-flex; align-items: center; gap: 3px; }
+.kcov__up .icon { display: inline-block; }
+.kcov__hint { font-size: 12px; margin: 4px 0 0; }
+.kcov__size { margin-top: 6px; }
+.kcov__board { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
+.kcov__board .icon { display: inline-block; }
+@media (forced-colors: active) { .kcov__opt.is-on { outline: 2px solid Highlight; } .kcover, .kcback { forced-color-adjust: none; } }

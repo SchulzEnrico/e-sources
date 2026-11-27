@@ -171,7 +171,7 @@ export function createNote(ws: Workspace, init: NoteInit = {}, act: Act & { id?:
 
 /** Felder, die sich frei ändern lassen (Zustand, Eltern und Vorgänger haben eigene Funktionen). */
 export type NotePatch = Partial<
-  Pick<Note, 'title' | 'text' | 'category' | 'tags' | 'important' | 'urgent' | 'notBefore' | 'due' | 'dueTime' | 'waitReason' | 'attach' | 'delegated' | 'remind' | 'place' | 'origin' | 'assignee' | 'effort'>
+  Pick<Note, 'title' | 'text' | 'category' | 'tags' | 'important' | 'urgent' | 'notBefore' | 'due' | 'dueTime' | 'waitReason' | 'attach' | 'delegated' | 'remind' | 'place' | 'origin' | 'assignee' | 'effort' | 'cover'>
 >;
 
 /** Notiz ändern; `undefined` im Patch entfernt das Feld. */
@@ -1354,6 +1354,8 @@ export function imageRefs(ws: Workspace): Set<string> {
     const d = n.draft?.fields.text;
     if (typeof d === 'string') for (const r of ND.imgRefs(d)) out.add(r);
   }
+  // V124 (F-231 K6): Titelbilder
+  for (const n of notesOf(ws)) if (n.cover?.img) out.add(n.cover.img);
   // F-221 (FB7): Bilder an Feedback-Meldungen
   for (const f of ws.feedback ?? []) for (const p of f.pics ?? []) out.add(p);
   return out;

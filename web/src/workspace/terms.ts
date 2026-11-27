@@ -29,6 +29,7 @@ export const TERMS = {
   feedback: 'Feedback = Rückmeldung an die Entwicklung von E-Sources: ein Fehler, ein Wunsch, eine Frage oder Lob. Wird in der App gesammelt (Cockpit „Feedback“) und lässt sich als Datei weitergeben',
   gantt: 'Gantt = Balkenplan wie in MS Project bzw. iTaskX: links die Vorgänge als Tabelle, rechts jeder Vorgang als Balken auf der Zeitachse; Pfeile zeigen, was auf was folgt',
   kanbanTimeline: 'Zeitleiste = jede Karte als Balken von „nicht beginnen vor“ (Start) bis „fällig“ auf einer Zeitachse, wie Trello „Zeitleiste“ – ein kleiner Gantt für das Board',
+  cardCover: 'Titelbild = Farbe oder Bild oben auf einer Karte (klein) oder über die ganze Karte (ganzflächig), wie Trello „Cover“ – macht Karten auf einen Blick erkennbar',
   workItemAge: 'Alter einer Karte (Work Item Age) = wie viele Tage eine noch offene Karte schon besteht; nach dem Kanban Guide ein Zeichen, wo Arbeit hängen bleibt',
   criticalPath: 'Kritischer Pfad = die Kette von Vorgängen ohne Puffer – verzögert sich einer davon, verschiebt sich das Projektende; im Gantt rot',
   totalFloat: 'Puffer = wie viele Arbeitstage sich ein Vorgang verschieben darf, ohne dass sich das Projektende verschiebt (Gesamtpuffer nach ICB4)',
@@ -1901,6 +1902,38 @@ export const TAG_TEXT = {
   created: (t: string) => `Tag „${t}“ angelegt`,
   none: 'Noch keine Tags – an einer Karte (Kartenfenster) oder hier mit „Neuer Tag“ anlegen.',
   close: 'Schließen',
+};
+
+/** V124 (F-231 K6): Titelbild der Karte (Trello „Cover“) */
+export const COVER_TEXT = {
+  head: 'Titelbild',
+  of: (t: string) => `Titelbild von „${t}“`,
+  pick: 'Titelbild wählen',
+  none: 'Ohne',
+  noneHint: 'Kein Titelbild',
+  colors: 'Farbe',
+  pics: 'Bild aus der Karte',
+  picsNone: 'Die Karte hat noch kein Bild – „Bild hochladen …“ oder im Text ein Bild einfügen.',
+  pic: (alt: string, i: number) => (alt ? `Bild „${alt}“` : `Bild ${i}`),
+  upload: 'Bild hochladen …',
+  uploadHint: 'Ein Bild nur als Titelbild (steht nicht im Text der Karte). Es liegt wie alle Bilder nur auf diesem Gerät.',
+  uploadFail: 'Das Bild ließ sich nicht lesen – bitte JPG, PNG oder WebP wählen.',
+  size: 'Größe',
+  sizeLabel: 'Größe des Titelbilds',
+  small: 'Klein',
+  smallHint: 'Klein: Farbstreifen bzw. Bild über dem Titel (Trello „normal“)',
+  full: 'Ganzflächig',
+  fullHint: 'Ganzflächig: Farbe bzw. Bild füllt die ganze Karte, der Titel steht darauf (Trello „full“)',
+  set: (what: string) => `Titelbild: ${what}`,
+  removed: 'Titelbild entfernt',
+  sized: (full: boolean) => `Titelbild ${full ? 'ganzflächig' : 'klein'}`,
+  colorName: (c: string) => `Farbe ${c}`,
+  picName: 'Bild',
+  missing: 'Das Bild liegt auf einem anderen Gerät (Bilder werden nicht abgeglichen) – hier zeigt die Karte kein Titelbild.',
+  board: 'Titelbilder zeigen',
+  boardHint: 'Titelbilder der Karten in diesem Board zeigen (wie Trello „Karten-Cover“). Ausgeschaltet behalten die Karten ihre Titelbilder, das Board zeigt sie nur nicht.',
+  boardOff: 'Titelbilder in diesem Board ausgeblendet',
+  boardOn: 'Titelbilder in diesem Board sichtbar',
 };
 
 export const FILTER_TEXT = {

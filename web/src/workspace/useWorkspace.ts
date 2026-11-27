@@ -39,6 +39,7 @@ import * as Dp from './deskProject';
 import * as Cal from './calendar';
 import * as BT from './boardTemplates';
 import * as Tg from './tags';
+import * as Cv from './covers';
 import * as Cm from './comments';
 import * as KM from './kanbanMore';
 import * as Sh from './sheets';
@@ -361,6 +362,9 @@ export type Action =
   | { type: 'tagRemoveIn'; view: string; tag: string }
   | { type: 'tagHide'; view: string; tag: string; hide: boolean }
   | { type: 'noteTags'; id: string; tags: string[]; by?: string }
+  /* V124 (F-231 K6): Titelbild der Karte, Board-Schalter „Titelbilder zeigen“ */
+  | { type: 'noteCover'; id: string; cover?: import('./types').NoteCover; by?: string }
+  | { type: 'boardCovers'; view: string; show: boolean }
   /* V122 (F-231 K7): Kommentare = Spur-Einträge mit Text */
   | { type: 'commentAdd'; id: string; text: string; cid: string; by?: string }
   | { type: 'commentEdit'; id: string; cid: string; text: string }
@@ -734,6 +738,10 @@ function step(ws: Workspace, a: Action): Workspace {
       const tags = Tg.normalizeTags(ws, a.tags);
       return No.updateNote(ws, a.id, { tags: tags.length ? tags : undefined }, { by: a.by });
     }
+    case 'noteCover':
+      return Cv.setCover(ws, a.id, a.cover, { by: a.by });
+    case 'boardCovers':
+      return { ...ws, noteViews: (ws.noteViews ?? []).map((v) => (v.id !== a.view ? v : a.show ? (({ noCovers: _n, ...r }) => (void _n, r))(v) : { ...v, noCovers: true as const })) };
     case 'cardFromTpl':
       return KM.cardFromTemplate(ws, a.tpl, a.view, a.col, { by: a.by, id: a.id, top: a.top })?.ws ?? ws;
     case 'quadSet':

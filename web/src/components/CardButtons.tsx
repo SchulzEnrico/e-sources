@@ -150,7 +150,7 @@ export function CardButtons(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     const r = RR.runOf(ws);
     if (!r || !r.token || r.token !== mine.current || RR.isClaimed(r)) return;
     RR.claimRun(r);
-    const text = [KIT_TEXT.ran(r.names, r.cards, !!r.cut), ...r.texts].join(' ');
+    const text = [KIT_TEXT.ran(r.names, r.cards, !!r.cut, r.made, r.late), ...r.texts].join(' ');
     notice({ text, undo: () => dispatch({ type: 'exchange', ws: r.before }) });
     say(text);
   }, [ws]); // eslint-disable-line react-hooks/exhaustive-deps

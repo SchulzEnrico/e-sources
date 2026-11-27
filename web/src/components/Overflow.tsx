@@ -129,7 +129,15 @@ export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: s
     const ro = new ResizeObserver(later);
     ro.observe(el);
     if (el.parentElement) ro.observe(el.parentElement);
-    const mo = new MutationObserver(() => ((spillNeed.current = 0), later()));
+    // V131 (Enrico: „flackert wie verrückt“): Änderungen am Knopf „»“ selbst (Zähler) zählen nicht als neuer Inhalt –
+    // sonst löst der Zähler eine Messung aus, die vergessene Überlauf-Breite kippt die Leiste zurück, der Zähler
+    // ändert sich wieder … (Endlosschleife an der Kante zwischen „passt“ und „passt nicht“)
+    const mine = (n: Node) => !!(n instanceof Element ? n : n.parentElement)?.closest('.ovf__knob, .ovf-ph');
+    const mo = new MutationObserver((list) => {
+      if (list.every((m) => mine(m.target))) return;
+      spillNeed.current = 0;
+      later();
+    });
     mo.observe(el, { childList: true, subtree: true, characterData: true });
     window.addEventListener('resize', later);
     return () => (ro.disconnect(), mo.disconnect(), window.removeEventListener('resize', later), cancelAnimationFrame(raf));
@@ -162,35 +170,50 @@ export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: s
     const lifted: HTMLElement[] = [];
     for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
       const c = getComputedStyle(a);
-      const ctx = c.zIndex !== 'auto' && c.position !== 'static';
+      // V131 (Enrico, Bildschirmaufnahme: Leiste des rechten Pads rutschte teils hinter das mittlere Pad): jeder
+      // positionierte Vorfahr wird angehoben – nicht nur die, die schon eine Ebene (z-index) haben; so liegt die ganze
+      // Kette bis zur Seite über den Nachbarn, egal welche Ebene sie sonst haben
+      const ctx = c.position !== 'static';
       if (c.containerType !== 'normal' || (c.contain && c.contain !== 'none') || ctx) (a.classList.add('ovf-lift'), ctx && a.classList.add('ovf-top'), lifted.push(a));
     }
     // V111 (Enrico: „Es läuft auch aus dem Bildschirmrand“): die echte Breite der offenen Leiste zählt (Reiter zeigen
     // dort ihre volle Breite); zu breit für den Bildschirm → senkrecht, sonst so weit nach links, dass sie ganz passt
-    el.style.setProperty('--ovf-x', `${r.left}px`);
-    el.style.setProperty('--ovf-y', `${r.top}px`);
     if (b.under) el.style.setProperty('--ovf-under', b.under);
-    if (opts.drop) {
-      // Reiter klappen senkrecht unter sich auf – nichts in der Leiste verschiebt sich
-      const h = el.getBoundingClientRect();
-      const dx = Math.max(EDGE, Math.min(r.left, window.innerWidth - h.width - EDGE));
-      el.style.setProperty('--ovf-x', `${dx}px`);
-      el.style.setProperty('--ovf-y', `${r.bottom + 2}px`);
-    } else {
-    const w = el.getBoundingClientRect().width;
-    if (!vertical && Math.max(el.scrollWidth, need.current) > window.innerWidth - 2 * EDGE) setVertical(true);
-    // V111 (Enrico: „Die neue Leiste verspringt so immer, wenn die Tabs von links kommen“): „»“ bleibt unter dem Zeiger –
-    // was vorher versteckt war, baut sich nach links auf; nur der Bildschirmrand schiebt sie zurück
-    const kNow = knobRef.current?.getBoundingClientRect().left;
-    const shift = !vertical && b.knob !== undefined && kNow !== undefined ? b.knob - kNow : 0;
-    const x = Math.max(EDGE, Math.min(r.left + shift, window.innerWidth - w - EDGE));
-    el.style.setProperty('--ovf-x', `${x}px`);
-    }
+    // V131 (Enrico: schwebende Kopfleiste eines Pads rechts erschien ganz links): Lage in zwei Schritten – erst an die
+    // alte Stelle legen und messen, wo sie wirklich liegt (ein Vorfahr mit transform/filter verschiebt den Bezugsrahmen
+    // von position: fixed), dann mit der echten Breite und dem Versatz einpassen; einmal sofort, einmal im nächsten
+    // Bild (Breite steht erst nach dem Umbruch der Reiter und Räder fest)
+    const place = () => {
+      el.style.setProperty('--ovf-x', `${r.left}px`);
+      el.style.setProperty('--ovf-y', `${opts.drop ? r.bottom + 2 : r.top}px`);
+      const box = el.getBoundingClientRect();
+      const ox = box.left - r.left;
+      const oy = box.top - (opts.drop ? r.bottom + 2 : r.top);
+      const w = box.width;
+      let x: number;
+      if (opts.drop) {
+        // Reiter klappen senkrecht unter sich auf – nichts in der Leiste verschiebt sich
+        x = Math.max(EDGE, Math.min(r.left, window.innerWidth - w - EDGE));
+      } else {
+        if (!vertical && Math.max(el.scrollWidth, need.current) > window.innerWidth - 2 * EDGE) setVertical(true);
+        // V111 (Enrico: „Die neue Leiste verspringt so immer, wenn die Tabs von links kommen“): „»“ bleibt unter dem
+        // Zeiger – was vorher versteckt war, baut sich nach links auf; nur der Bildschirmrand schiebt sie zurück
+        const kNow = knobRef.current?.getBoundingClientRect().left;
+        const shift = !vertical && b.knob !== undefined && kNow !== undefined ? b.knob - kNow : 0;
+        // gemessen an der Stelle mit Versatz – Ziel in Bildschirmpunkten ist r.left + shift + ox
+        x = Math.max(EDGE, Math.min(r.left + shift + ox, window.innerWidth - w - EDGE));
+      }
+      el.style.setProperty('--ovf-x', `${x - ox}px`);
+      el.style.setProperty('--ovf-y', `${(opts.drop ? r.bottom + 2 : r.top) - oy}px`);
+    };
+    place();
+    const again = requestAnimationFrame(place);
     // V111 (Enrico: „ein Hovereffekt, der Menü und Pad umkreist … alle nichtaktiven Pads abgedunkelt“): Pad bzw.
     // Portal der Leiste leuchtet mit, alle anderen treten zurück – nur solange der Zeiger auf der Leiste liegt (CSS :hover)
     const owner = el.closest<HTMLElement>('.pad, .win');
     owner?.classList.add('ovf-owner');
     return () => {
+      cancelAnimationFrame(again);
       p.remove();
       if (ph.current === p) ph.current = null;
       for (const a of lifted) a.classList.remove('ovf-lift', 'ovf-top');
@@ -202,7 +225,8 @@ export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: s
   useEffect(() => {
     const el = ref.current;
     if (!open || !el) return;
-    const busy = () => el.matches(':focus-within') || !!el.querySelector('[aria-expanded="true"], .is-tour-target');
+    // V131: ein Menü aus der Leiste (z. B. „+ Sheet“, ⋮) hält sie offen – sonst verschwindet sein Knopf und das Menü verliert seinen Platz
+    const busy = () => el.matches(':focus-within') || !!el.querySelector('[aria-expanded="true"], [data-menu-open], .is-tour-target');
     const leave = () => {
       window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => !busy() && setOpen(false), CLOSE_MS);

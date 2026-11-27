@@ -88,9 +88,19 @@ export interface RuleSet {
   rules?: KitRule[];
   /** V130 (F-231 K10b): Karten- und Board-Knöpfe (ruleKit.ts) – gleicher Wortschatz wie die Aktionen der Regeln. */
   buttons?: KitButton[];
+  /**
+   * V131 (F-231 K10c, B6): Stand der Uhr-Regeln (ruleTime.ts) – je Regel die zuletzt ausgeführte Wiederholung
+   * („2026-11-30T09:00“), je Fälligkeits-Regel und Karte („Regel|Karte“) der Termin, zu dem sie lief. Abgeglichen,
+   * damit ein zweites Gerät dieselbe Wiederholung nicht noch einmal ausführt.
+   */
+  ran?: Record<string, string>;
 }
 
 export const ruleSetOf = (ws: Workspace): RuleSet => ws.ruleSet ?? {};
+/** V131 (K10c): höchstens so viele Einträge in `ran` (alte werden beim Schreiben aufgeräumt). */
+export const RAN_MAX = 5000;
+/** V131 (K10c): Stand der Uhr-Regeln ersetzen (leer = Feld weg). */
+export const withRan = (ws: Workspace, ran: Record<string, string>): Workspace => withSet(ws, { ...ruleSetOf(ws), ran });
 
 /** Wert eines Schalters (Werk = erste Wahl). */
 export function switchOf<K extends SwitchId>(ws: Workspace, id: K): SwitchValue<K> {
@@ -105,6 +115,7 @@ const withSet = (ws: Workspace, rs: RuleSet): Workspace => {
   if (rs.when?.length && !rs.rules) clean.when = rs.when;
   if (rs.rules) clean.rules = rs.rules;
   if (rs.buttons?.length) clean.buttons = rs.buttons;
+  if (rs.ran && Object.keys(rs.ran).length) clean.ran = rs.ran;
   const { ruleSet: _o, ...rest } = ws;
   return Object.keys(clean).length ? { ...rest, ruleSet: clean } : rest;
 };
@@ -141,6 +152,11 @@ export function parseRuleSet(v: unknown): RuleSet | undefined {
       if (all && typeof x === 'string' && all.includes(x) && x !== all[0]) sw[k as SwitchId] = x;
     }
     if (Object.keys(sw).length) out.sw = sw;
+  }
+  if (r.ran && typeof r.ran === 'object' && !Array.isArray(r.ran)) {
+    const ran: Record<string, string> = {};
+    for (const [k, x] of Object.entries(r.ran as Record<string, unknown>).slice(0, RAN_MAX)) if (typeof x === 'string' && k.length <= 140 && x.length <= 40) ran[k] = x;
+    if (Object.keys(ran).length) out.ran = ran;
   }
   const buttons = parseButtons(r.buttons);
   if (buttons) out.buttons = buttons;

@@ -148,7 +148,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     if (!r || RR.isClaimed(r)) return;
     if (r.view ? r.view !== sheetId : !(r.note && v && No.idsIn(v).includes(r.note))) return;
     RR.claimRun(r);
-    const text = [KIT_TEXT.ran(r.names, r.cards, !!r.cut), ...r.texts].join(' ');
+    const text = [KIT_TEXT.ran(r.names, r.cards, !!r.cut, r.made, r.late), ...r.texts].join(' ');
     notice({ text, undo: () => dispatch({ type: 'exchange', ws: r.before }) });
     say(text);
   }, [ws]); // eslint-disable-line react-hooks/exhaustive-deps

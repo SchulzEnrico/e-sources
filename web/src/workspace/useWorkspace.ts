@@ -35,6 +35,7 @@ import * as NL from './notesLayouts';
 import * as RS from './ruleSet';
 import * as RK from './ruleKit';
 import * as RR from './ruleRun';
+import * as RT from './ruleTime';
 import type { BoardTemplate, ColState, FocusView, NoteState, NoteView, NoteViewKind, PadPlace, Person, Project, ProjectBaseline, SourceLink, SourceSpot } from './types';
 import * as Bl from './baseline';
 import * as Wo from './wheelOrder';
@@ -173,7 +174,7 @@ export type Action =
   // F-218 (V92): Schalter A1–A9 und Wenn-dann-Regeln W1–W4
   | { type: 'ruleSwitch'; id: RS.SwitchId; value: string }
   | { type: 'ruleWhen'; id: RS.WhenRule; on: boolean }
-  | { type: 'ruleSweep'; now?: number }
+  | { type: 'ruleSweep'; now?: number; checks?: boolean; timed?: boolean }
   // V129 (F-231 K10a): Regel-Baukasten
   | { type: 'kitSave'; rule: RK.KitRule }
   | { type: 'kitOn'; id: string; on: boolean }
@@ -1054,11 +1055,16 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'ruleWhen':
       return RS.setWhen(ws, a.id, a.on);
     case 'ruleSweep':
-      return RR.runCheck(ws, a.now).ws;
-    case 'kitSave':
-      return RK.saveRule(ws, a.rule);
-    case 'kitOn':
-      return RK.setOn(ws, a.id, a.on);
+      return RR.runCheck(ws, a.now, { checks: a.checks, timed: a.timed }).ws;
+    case 'kitSave': {
+      // V131 (K10c): Zeitplan-/Fälligkeits-Regeln nach dem Speichern scharf stellen (nur Termine ab jetzt)
+      const old = RK.kitOf(ws).find((r) => r.id === a.rule.id);
+      return RT.armIfNeeded(RK.saveRule(ws, a.rule), old, a.rule.id, Date.now());
+    }
+    case 'kitOn': {
+      const old = RK.kitOf(ws).find((r) => r.id === a.id);
+      return RT.armIfNeeded(RK.setOn(ws, a.id, a.on), old, a.id, Date.now());
+    }
     case 'kitCopy':
       return RK.copyRule(ws, a.id, a.newId);
     case 'kitRemove':

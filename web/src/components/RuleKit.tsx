@@ -14,6 +14,7 @@ import * as Ps from '../workspace/persons';
 import * as CFd from '../workspace/cardFields';
 import { allTags } from '../workspace/tags';
 import * as RK from '../workspace/ruleKit';
+import * as RT from '../workspace/ruleTime';
 import { buttonScope, buttonSentence, scopeText, sentenceOf } from '../workspace/ruleText';
 import { BTN_TEXT as BT, KIT_TEXT as T } from '../workspace/terms';
 import type { Workspace } from '../workspace/types';
@@ -29,6 +30,14 @@ interface Props {
   board?: string;
 }
 
+/** V131 (K10c): „Nächster Termin: Mo 30.11.2026, 09:00 Uhr“ hinter dem Satz einer Zeitplan-Regel. */
+const nextText = (r: RK.KitRule) => {
+  const o = RT.nextOccurrence(r.when, Date.now());
+  if (!o) return null;
+  const d = new Date(o.at);
+  const when = `${d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}${r.when.b ? `, ${r.when.b} Uhr` : ''}`;
+  return <span className="rkit__next"> {T.next(when)}</span>;
+};
 const newId = () => `rk-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const stop = (e: KeyboardEvent, run: () => void) => {
   if (e.key !== 'Escape') return;
@@ -162,6 +171,7 @@ export function RuleKit(p: Props) {
         </div>
         <p id={tid} className="rules__text">
           {sentenceOf(ws, r)}
+          {r.on && RK.isSchedule(r.when.k) && nextText(r)}
         </p>
         {msgAt === r.id && <NoticeLine shown={shown} />}
       </li>
@@ -177,6 +187,7 @@ export function RuleKit(p: Props) {
         <div><dt>{T.when}</dt><dd>{T.termWhen}</dd></div>
         <div><dt>{T.if}</dt><dd>{T.termIf}</dd></div>
         <div><dt>{T.then}</dt><dd>{T.termThen}</dd></div>
+        <div><dt>{T.termTimeHead}</dt><dd>{T.termTime} {T.termRecur}.</dd></div>
       </dl>
       <div className="rkit__bar">
         <button type="button" className="help__run rkit__add" onClick={startNew} disabled={!!edit} title={own >= RK.RULES_MAX ? T.full(RK.RULES_MAX) : T.addHint}>
@@ -330,6 +341,7 @@ function RuleEditor<D extends Draft>(p: { ws: Workspace; rule: D; isNew: boolean
   const fields = [...new Set(scopeViews.flatMap((v) => CFd.fieldsOf(v).map((f) => f.name)))];
   const tags = allTags(ws);
   const persons = Ps.personList(ws).filter((x) => !x.me);
+  const tpls = No.notesOf(ws).filter((n) => n.template && n.state !== 'archived');
   const set = (patch: Partial<Draft>) => (setErr(''), onChange({ ...r, ...patch }));
 
   const trySave = () => {
@@ -344,7 +356,7 @@ function RuleEditor<D extends Draft>(p: { ws: Workspace; rule: D; isNew: boolean
     const common = { 'aria-label': label, title: label };
     switch (kind) {
       case 'col':
-        return <input {...common} className="rkit__in" list={`${uid}-cols`} value={value ?? ''} placeholder={opt ? T.anyCol : T.colPh} onChange={(e) => put(e.target.value)} />;
+        return <input {...common} className="rkit__in" list={`${uid}-cols`} value={value ?? ''} placeholder={opt ? (label.includes(T.tplCol) ? T.tplCol : T.anyCol) : T.colPh} onChange={(e) => put(e.target.value)} />;
       case 'tag':
         return <input {...common} className="rkit__in" list={`${uid}-tags`} value={value ?? ''} placeholder={opt ? T.anyTag : T.tagPh} onChange={(e) => put(e.target.value)} />;
       case 'text':
@@ -394,26 +406,75 @@ function RuleEditor<D extends Draft>(p: { ws: Workspace; rule: D; isNew: boolean
             {RK.POS_CHOICES.map((x) => <option key={x} value={x}>{T.pos[x]}</option>)}
           </select>
         );
+      // V131 (K10c): Uhrzeit, Kartenvorlage, vor/nach, Tage/Stunden
+      case 'time':
+        return <input {...common} type="time" className="rkit__in rkit__in--time" value={value ?? ''} aria-label={`${label} – ${T.timeLabel}`} title={T.timeLabel} onChange={(e) => put(e.target.value)} />;
+      case 'tpl':
+        return tpls.length ? (
+          <select {...common} value={value ?? ''} onChange={(e) => put(e.target.value)}>
+            <option value="">{T.pickTpl}</option>
+            {tpls.map((n) => <option key={n.id} value={n.id}>{No.titleOf(n)}</option>)}
+          </select>
+        ) : (
+          <span className="rkit__none">{T.noTpl}</span>
+        );
+      case 'rel':
+        return (
+          <select {...common} value={value ?? 'before'} onChange={(e) => put(e.target.value)}>
+            {RK.REL_CHOICES.map((x) => <option key={x} value={x}>{T.rel[x]}</option>)}
+          </select>
+        );
+      case 'unit':
+        return (
+          <select {...common} value={value ?? 'd'} onChange={(e) => put(e.target.value)}>
+            {RK.UNIT_CHOICES.map((x) => <option key={x} value={x}>{T.unit[x]}</option>)}
+          </select>
+        );
       default:
         return null;
     }
   };
 
   /** Baustein mit Art-Auswahl und Lücken. */
-  const part = <K extends string>(x: RK.Part<K>, kinds: readonly K[], specs: Record<K, { a?: RK.ArgKind; b?: RK.ArgKind; n?: 'days'; opt?: true; not?: true }>, labels: Record<string, string>, put: (v: RK.Part<K>) => void, what: string, cond = false) => {
+  const part = <K extends string>(x: RK.Part<K>, kinds: readonly K[], specs: Record<K, RK.Spec>, labels: Record<string, string>, put: (v: RK.Part<K>) => void, what: string, cond = false) => {
     const s = specs[x.k];
+    // V131 (K10c): Zahl je Art – Tage, Wochentag, Tag im Monat, Anzahl
+    const num = () => {
+      if (s.n === 'wday')
+        return (
+          <select aria-label={`${what}: ${T.wdayLabel}`} title={T.wdayLabel} value={x.n ?? 1} onChange={(e) => put({ ...x, n: Number(e.target.value) })}>
+            {T.wdays.map((d, i) => <option key={d} value={i + 1}>{d}</option>)}
+          </select>
+        );
+      const [lab, min, max] = s.n === 'mday' ? [T.mdayLabel, 1, 31] : s.n === 'num' ? [T.numLabel, 0, 3650] : [T.daysLabel, -365, 3650];
+      return (
+        <label className="rkit__days">
+          {s.n === 'mday' && `${lab} `}
+          <input type="number" className="rkit__num" value={x.n ?? 0} min={min} max={max} aria-label={`${what}: ${lab}`} onChange={(e) => put({ ...x, n: Math.max(min, Math.min(max, Number(e.target.value) || 0)) })} /> {s.n === 'days' ? T.daysLabel : s.n === 'mday' ? '.' : ''}
+        </label>
+      );
+    };
+    // Fälligkeit liest sich „[2] [Tage] [vor] „fällig““ – Reihenfolge der Lücken wie im Satz
+    if (x.k === 'dueNear')
+      return (
+        <>
+          <select aria-label={what} title={what} value={x.k} onChange={(e) => put(RK.blank(e.target.value as K, specs[e.target.value as K]))}>
+            {kinds.map((k) => <option key={k} value={k}>{labels[k] ?? k}</option>)}
+          </select>
+          {num()}
+          {arg('unit', x.b, (v) => put({ ...x, b: v }), `${what}: ${T.unit[x.b ?? 'd']}`, false)}
+          {arg('rel', x.a, (v) => put({ ...x, a: v }), `${what}: vor oder nach`, false)}
+          <span className="rkit__word">„fällig“</span>
+        </>
+      );
     return (
       <>
         <select aria-label={what} title={what} value={x.k} onChange={(e) => put(RK.blank(e.target.value as K, specs[e.target.value as K]))}>
           {kinds.map((k) => <option key={k} value={k}>{labels[k] ?? k}</option>)}
         </select>
         {s.a && arg(s.a, x.a, (v) => put({ ...x, a: v }), `${what}: ${labels[x.k]}`, !!s.opt, cond)}
-        {s.b && arg(s.b, x.b, (v) => put({ ...x, b: v }), `${what}: ${labels[x.k]} – ${s.b === 'pos' ? 'oben oder unten' : 'Wert'}`, false, cond)}
-        {s.n && (
-          <label className="rkit__days">
-            <input type="number" className="rkit__num" value={x.n ?? 0} min={-365} max={3650} aria-label={`${what}: ${T.daysLabel}`} onChange={(e) => put({ ...x, n: Number(e.target.value) || 0 })} /> {T.daysLabel}
-          </label>
-        )}
+        {s.n && num()}
+        {s.b && arg(s.b, x.b, (v) => put({ ...x, b: v }), `${what}: ${labels[x.k]} – ${s.b === 'pos' ? 'oben oder unten' : s.b === 'time' ? T.timeLabel : s.b === 'col' ? T.tplCol : 'Wert'}`, s.b === 'col', cond)}
         {s.not && (
           <label className="rkit__not" title={T.notHint}>
             <input type="checkbox" checked={!!x.not} onChange={() => put(x.not ? (({ not: _n, ...o }) => o as RK.Part<K>)(x) : { ...x, not: true })} /> {T.not}
@@ -473,6 +534,11 @@ function RuleEditor<D extends Draft>(p: { ws: Workspace; rule: D; isNew: boolean
           <span className="rkit__word" title={T.termWhen}>{T.when}</span>
           {part(r.when, RK.TRIG_KINDS, RK.TRIGS, T.trig, (x) => set({ when: x }), 'Auslöser')}
         </div>
+      )}
+      {!p.button && RK.isTimed(r.when.k) && (
+        <p className="rules__note rkit__hint">
+          {T.termTime} {RK.isSchedule(r.when.k) ? `${T.termRecur}. ${T.schedIfHint}` : ''} {T.sinceArmed}
+        </p>
       )}
       {!p.button && r.ifs.map((c, i) => (
         <div key={`if${i}`} className="rkit__line rkit__step">

@@ -270,6 +270,9 @@ export function Menu(props: {
       const b = (btn.current ?? ref.current)?.getBoundingClientRect();
       const ul = list.current;
       if (!b || !ul) return;
+      // V131 (Enrico: „Die Menüs öffnen sich alle oben links“): ist der Knopf gerade nicht zu sehen (z. B. eine
+      // aufgeklappte Leiste klappt wieder zu), hat er keine Lage – dann bleibt das Menü, wo es ist
+      if (!b.width && !b.height) return;
       const gap = 8;
       const below = window.innerHeight - b.bottom - gap;
       const above = b.top - gap;
@@ -348,7 +351,7 @@ export function Menu(props: {
     f();
   };
   return (
-    <div className={`menu${props.wrapClass ? ` ${props.wrapClass}` : ''}`} ref={ref}>
+    <div className={`menu${props.wrapClass ? ` ${props.wrapClass}` : ''}`} ref={ref} data-menu-open={open ? '' : undefined}>
       {props.control ? props.control(() => setOpen((v) => !v), open) : <button
         ref={btn}
         className={props.className}

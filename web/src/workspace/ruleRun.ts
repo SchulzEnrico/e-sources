@@ -19,8 +19,9 @@ import * as Ps from './persons';
 import * as Cm from './comments';
 import * as CFd from './cardFields';
 import { fold } from './tags';
-import { allChecked, checkAll, checksOf, doneAt } from './ruleSet';
-import { type Act, CHAIN_MAX, type Cond, type KitButton, type KitRule, type TrigKind, buttonLabel, kitOf, ruleLabel } from './ruleKit';
+import { allChecked, checkAll, checksOf, doneAt, ruleSetOf, withRan } from './ruleSet';
+import { type Act, CHAIN_MAX, type Cond, type KitButton, type KitRule, type TrigKind, buttonLabel, isSchedule, isTimed, kitOf, ruleLabel } from './ruleKit';
+import * as RT from './ruleTime';
 import type { CardFieldDef, Note, NoteView, Workspace } from './types';
 
 /** Ein Ereignis aus dem Unterschied zweier Stände. */
@@ -52,6 +53,9 @@ export interface RuleRun {
   cut?: true;
   /** V130 (K10b): Kennung eines Knopfdrucks – das Bauteil, das gedrückt hat, meldet am Ort. */
   token?: string;
+  /** V131 (K10c): angelegte wiederkehrende Karten, davon nachgeholt (Termin vor heute). */
+  made?: number;
+  late?: number;
 }
 
 const RUNS = new WeakMap<Workspace, RuleRun>();
@@ -221,8 +225,8 @@ function holds(ws: Workspace, r: KitRule, c: Cond, n: Note, ev: RuleEvent | unde
 
 const dmy = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`;
 /** Platzhalter in Texten: {heute}, {titel}. */
-export const fill = (text: string, n: Note | undefined, now: number) =>
-  text.replace(/\{heute\}/gi, dmy(No.dayOf(now))).replace(/\{titel\}/gi, n ? No.titleOf(n) : '');
+export const fillText = (text: string, n: Note | undefined, now: number, day = No.dayOf(now)) =>
+  text.replace(/\{heute\}/gi, dmy(day)).replace(/\{titel\}/gi, n ? No.titleOf(n) : '');
 
 /** Wert aus dem Text der Regel passend zum Feldtyp. */
 function valueFor(d: CardFieldDef, raw: string): unknown {
@@ -239,11 +243,13 @@ function valueFor(d: CardFieldDef, raw: string): unknown {
 
 const uncheck = (text: string) => text.replace(/^(\s*[-*] \[)(x|X)(\] )/gm, '$1 $3');
 
-function act(ws: Workspace, r: KitRule, x: Act, noteId: string, ev: RuleEvent | undefined, now: number, texts: string[], label = ruleLabel(r)): Workspace {
+function act(ws: Workspace, r: KitRule, x: Act, noteId: string, ev: RuleEvent | undefined, now: number, texts: string[], label = ruleLabel(r), day?: string): Workspace {
   const by = { by: label, now };
   const n = No.noteById(ws, noteId);
   if (!n) return ws;
-  const today = No.dayOf(now);
+  // V131 (K10c): bei Zeitplan-Regeln rechnen Termine und {heute} ab dem Tag der Wiederholung (auch beim Nachholen)
+  const today = day ?? No.dayOf(now);
+  const fill = (t: string, m: Note | undefined, at: number) => fillText(t, m, at, today);
   const boards = () => boardsFor(ws, r, noteId, ev);
   switch (x.k) {
     case 'toCol': {
@@ -359,17 +365,69 @@ function act(ws: Workspace, r: KitRule, x: Act, noteId: string, ev: RuleEvent | 
       if (t) texts.push(t);
       return ws;
     }
+    case 'fromTpl':
+      return ws; // läuft in runActs (wechselt die Karte für die folgenden Aktionen)
   }
 }
 
+/** V131 (K10c): Zusatz für eine Folge von Aktionen – Tag der Wiederholung, feste Kennung, Zähler angelegter Karten. */
+interface ActOpts {
+  day?: string;
+  /** Feste Kennung für „Karte aus Vorlage“ (B6: Regel + Termin). */
+  idBase?: string;
+  made?: { n: number; view?: string };
+}
+
+/**
+ * „Karte aus Vorlage“ (B5): Kopie der Kartenvorlage auf dem Board der Karte (bzw. dem Board der Regel, sonst dem
+ * Board der Vorlage) in der Spalte `b` (leer = erste). Gibt es die feste Kennung schon (zweites Gerät, Abgleich),
+ * wird nichts angelegt.
+ */
+function fromTpl(ws: Workspace, r: KitRule, x: Act, cur: string | undefined, ev: RuleEvent | undefined, now: number, label: string, id?: string): { ws: Workspace; id: string; view: string } | null {
+  const tpl = x.a ? No.noteById(ws, x.a) : undefined;
+  if (!tpl?.template || tpl.state === 'archived') return null;
+  if (id && No.noteById(ws, id)) return null;
+  const home = kanbans(ws).find((v) => No.idsIn(v).includes(tpl.id));
+  const viewId = ev?.view ?? (cur ? boardsFor(ws, r, cur, ev)[0]?.id : undefined) ?? r.board ?? home?.id ?? kanbans(ws)[0]?.id;
+  const v = viewId ? No.viewById(ws, viewId) : undefined;
+  if (!v || v.kind !== 'kanban' || !v.cols?.length) return null;
+  const col = (x.b?.trim() && v.cols.find((c) => fold(c.name) === fold(x.b!))) || v.cols[0];
+  const res = KM.cardFromTemplate(ws, tpl.id, v.id, col.id, { by: label, now, ...(id ? { id } : {}) });
+  return res ? { ...res, view: v.id } : null;
+}
+
+/** Aktionen der Reihe nach; nach „Karte aus Vorlage“ gelten die folgenden für die neue Karte (wie Trello Butler). */
+function runActs(ws: Workspace, r: KitRule, acts: readonly Act[], subject: string | undefined, ev: RuleEvent | undefined, now: number, texts: string[], label: string, o: ActOpts = {}): Workspace {
+  let out = ws;
+  let cur = subject;
+  let curEv = ev;
+  let k = 0;
+  for (const x of acts) {
+    if (x.k === 'fromTpl') {
+      const id = o.idBase ? `${o.idBase}${k ? `~${k + 1}` : ''}` : undefined;
+      k++;
+      const res = fromTpl(out, r, x, cur, curEv, now, label, id);
+      if (!res) {
+        cur = undefined; // nichts angelegt (Vorlage fehlt oder schon da) – die folgenden Aktionen haben keine Karte
+        continue;
+      }
+      out = res.ws;
+      cur = res.id;
+      curEv = { k: 'created', note: res.id, view: res.view };
+      if (o.made) (o.made.n++, (o.made.view ??= res.view));
+      continue;
+    }
+    if (cur) out = act(out, r, x, cur, curEv, now, texts, label, o.day);
+  }
+  return out;
+}
+
 /** Regel auf eine Karte anwenden, wenn ihre Bedingungen gelten. */
-function runOn(ws: Workspace, r: KitRule, noteId: string, ev: RuleEvent | undefined, now: number, texts: string[]): Workspace {
+function runOn(ws: Workspace, r: KitRule, noteId: string, ev: RuleEvent | undefined, now: number, texts: string[], o: ActOpts = {}): Workspace {
   const n = No.noteById(ws, noteId);
   if (!n || n.template) return ws; // Kartenvorlagen (K1) bleiben unberührt
   if (!r.ifs.every((c) => holds(ws, r, c, n, ev, now))) return ws;
-  let out = ws;
-  for (const x of r.then) out = act(out, r, x, noteId, ev, now, texts);
-  return out;
+  return runActs(ws, r, r.then, noteId, ev, now, texts, ruleLabel(r), o);
 }
 
 const changedCards = (a: Workspace, b: Workspace) => {
@@ -388,7 +446,7 @@ const changedCards = (a: Workspace, b: Workspace) => {
  */
 export function applyRules(prev: Workspace, next: Workspace, now = Date.now()): Workspace {
   if (prev.notes === next.notes && prev.noteViews === next.noteViews) return next;
-  const rules = kitOf(next).filter((r) => r.on && r.then.length && r.when.k !== 'check');
+  const rules = kitOf(next).filter((r) => r.on && r.then.length && r.when.k !== 'check' && !isTimed(r.when.k));
   if (!rules.length) return next;
   return chain(next, eventsOf(prev, next), rules, now, next);
 }
@@ -427,16 +485,90 @@ function chain(start: Workspace, first: RuleEvent[], rules: KitRule[], now: numb
   return out;
 }
 
+/** Karten im Geltungsbereich einer Regel (Board bzw. alle Kanbans), ohne Vorlagen und Archiviertes. */
+function cardsIn(ws: Workspace, r: KitRule): string[] {
+  const views = r.board ? kanbans(ws).filter((v) => v.id === r.board) : kanbans(ws);
+  const ids = [...new Set(views.flatMap((v) => No.idsIn(v)))];
+  return ids.filter((id) => {
+    const n = No.noteById(ws, id);
+    return !!n && !n.template && n.state !== 'archived';
+  });
+}
+
 /**
- * Regeln mit Auslöser „regelmäßig“ (beim Start und stündlich, z. B. W3, W4) über alle Karten im Geltungsbereich;
- * was sie ändern, darf weitere Regeln auslösen (Stufe 2 und 3). Gibt den neuen Stand und den Bericht zurück.
+ * V131 (K10c, B5/B6): Regeln nach der Uhr. Zeitplan: ist seit dem letzten Lauf (`ruleSet.ran`) eine Wiederholung
+ * fällig geworden, läuft die Regel einmal – auch wenn mehrere verpasst wurden (nur die letzte). Aktionen vor einer
+ * „Karte aus Vorlage“ gelten für jede Karte im Geltungsbereich, auf die die Bedingungen passen; ab „Karte aus
+ * Vorlage“ für die neue Karte (feste Kennung Regel~Termin). Fälligkeit: je Karte einmal je Termin „fällig“.
  */
-export function runCheck(ws: Workspace, now = Date.now()): { ws: Workspace; run?: RuleRun } {
+function runTimed(ws: Workspace, now: number, names: string[], texts: string[], made: { n: number; late: number; view?: string }): Workspace {
+  const rules = kitOf(ws).filter((r) => r.on && r.then.length && isTimed(r.when.k));
+  if (!rules.length) return ws;
+  const old = ruleSetOf(ws).ran ?? {};
+  const ran = { ...old };
+  const today = No.dayOf(now);
+  let out = ws;
+  for (const r of rules) {
+    const was = out;
+    const said = texts.length;
+    if (isSchedule(r.when.k)) {
+      const occ = RT.lastOccurrence(r.when, now);
+      if (!occ) continue;
+      const last = ran[r.id];
+      if (last === undefined) {
+        ran[r.id] = occ.stamp; // nie scharf gestellt (z. B. ältere Datei) – erst ab jetzt
+        continue;
+      }
+      if (occ.stamp <= last) continue;
+      ran[r.id] = occ.stamp;
+      const k = r.then.findIndex((x) => x.k === 'fromTpl');
+      const pre = k < 0 ? r.then : r.then.slice(0, k);
+      if (pre.length) {
+        for (const id of cardsIn(out, r)) {
+          const n = No.noteById(out, id);
+          if (n && r.ifs.every((c) => holds(out, r, c, n, undefined, now))) out = runActs(out, r, pre, id, undefined, now, texts, ruleLabel(r), { day: occ.day });
+        }
+      }
+      if (k >= 0) {
+        const before = made.n;
+        out = runActs(out, r, r.then.slice(k), undefined, undefined, now, texts, ruleLabel(r), { day: occ.day, idBase: RT.recurId(r.id, occ.stamp), made });
+        if (made.n > before && occ.day < today) made.late += made.n - before;
+      }
+    } else {
+      const since = ran[r.id];
+      if (since === undefined) {
+        ran[r.id] = RT.stampAt(now);
+        continue;
+      }
+      const from = RT.momentOfStamp(since);
+      for (const id of cardsIn(out, r)) {
+        const n = No.noteById(out, id);
+        const at = n ? RT.dueMoment(r.when, n) : null;
+        if (!n || at === null || at > now || at <= from) continue;
+        const key = RT.ranKey(r.id, id);
+        const ds = RT.dueStamp(n);
+        if (ran[key] === ds) continue;
+        ran[key] = ds;
+        out = runOn(out, r, id, undefined, now, texts);
+      }
+    }
+    if (out !== was || texts.length > said) names.push(ruleLabel(r));
+  }
+  return JSON.stringify(ran) === JSON.stringify(old) ? out : withRan(out, RT.pruneRan(out, ran));
+}
+
+/**
+ * Regeln mit Auslöser „regelmäßig“ (beim Start und stündlich, z. B. W3, W4) über alle Karten im Geltungsbereich,
+ * dazu (V131, K10c) Zeitplan- und Fälligkeits-Regeln; was sie ändern, darf weitere Regeln auslösen (Stufe 2 und 3).
+ * Gibt den neuen Stand und den Bericht zurück. Ohne Bericht, aber mit neuem Stand: nur der Stand der Uhr-Regeln
+ * (`ruleSet.ran`) hat sich geändert – speichern, nichts melden.
+ */
+export function runCheck(ws: Workspace, now = Date.now(), opts: { checks?: boolean; timed?: boolean } = {}): { ws: Workspace; run?: RuleRun } {
   const all = kitOf(ws).filter((r) => r.on && r.then.length);
-  const checks = all.filter((r) => r.when.k === 'check');
-  if (!checks.length) return { ws };
+  const checks = opts.checks === false ? [] : all.filter((r) => r.when.k === 'check');
   const names: string[] = [];
   const texts: string[] = [];
+  const made = { n: 0, late: 0 } as { n: number; late: number; view?: string };
   let out = ws;
   for (const r of checks) {
     const was = out;
@@ -446,10 +578,13 @@ export function runCheck(ws: Workspace, now = Date.now()): { ws: Workspace; run?
     for (const id of scope) out = runOn(out, r, id, undefined, now, texts);
     if (out !== was || texts.length > said) names.push(ruleLabel(r));
   }
+  if (opts.timed !== false) out = runTimed(out, now, names, texts, made);
   if (out === ws && !texts.length) return { ws };
-  const rest = all.filter((r) => r.when.k !== 'check');
+  if (!names.length) return { ws: out };
+  const rest = all.filter((r) => r.when.k !== 'check' && !isTimed(r.when.k));
   const end = rest.length ? chain(out, eventsOf(ws, out), rest, now, ws, names, texts, 1) : out;
-  if (!RUNS.get(end)) RUNS.set(end, { before: ws, names, cards: changedCards(ws, end), texts, depth: 1 });
+  const base = RUNS.get(end) ?? { before: ws, names, cards: changedCards(ws, end), texts, depth: 1 };
+  RUNS.set(end, { ...base, ...(made.n ? { made: made.n, late: made.late, view: made.view } : {}) });
   return { ws: end, run: RUNS.get(end) };
 }
 
@@ -480,11 +615,11 @@ export function pressButton(ws: Workspace, b: Pick<KitButton, 'id' | 'name' | 't
     const n = No.noteById(out, id);
     if (!n || n.template) continue; // Kartenvorlagen (K1) bleiben unberührt
     const ev: RuleEvent = { k: 'check', note: id, view };
-    for (const x of b.then) out = act(out, pseudo, x, id, ev, now, texts, label);
+    out = runActs(out, pseudo, b.then, id, ev, now, texts, label);
   }
   if (out === ws && !texts.length) return ws;
   const names = [label];
-  const rest = kitOf(out).filter((r) => r.on && r.then.length && r.when.k !== 'check');
+  const rest = kitOf(out).filter((r) => r.on && r.then.length && r.when.k !== 'check' && !isTimed(r.when.k));
   const end = rest.length && out !== ws ? chain(out, eventsOf(ws, out), rest, now, ws, names, texts, 1) : out;
   const run: RuleRun = { ...(RUNS.get(end) ?? { before: ws, names, cards: changedCards(ws, end), texts, depth: 1 }), view, note: ids[0], ...(token ? { token } : {}) };
   if (end === ws) {

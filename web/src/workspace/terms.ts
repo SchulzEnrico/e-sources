@@ -34,6 +34,7 @@ export const TERMS = {
   colColor: 'Spaltenfarbe = Farbe einer Spalte (wie Trello „Listenfarbe“), z. B. Grün für „Erledigt“ – nur zur Orientierung, die Bedeutung der Spalte legt „Bedeutung“ fest',
   cardMirror: 'Spiegelkarte = dieselbe Karte zusätzlich auf einem anderen Board (wie Trello „Karte spiegeln“). Änderungen gelten überall; erledigt setzt man im Heimat-Board, dem Board, auf dem die Karte zuerst lag',
   ruleKit: 'Regel „Wenn … dann …“ = ein Satz aus Bausteinen wie bei Trello Butler: Auslöser (was passieren muss), Bedingungen (was zusätzlich stimmen muss) und Aktionen (was dann geschieht); gilt für ein Board oder alle Kanbans, läuft von selbst und lässt sich am Ort rückgängig machen',
+  kitSchedule: 'Zeitplan = Regel nach der Uhr (jeden Tag, Arbeitstag, Wochentag, Monatstag); Fälligkeit = Regel n Tage oder Stunden vor bzw. nach „fällig“; wiederkehrende Karte = je Termin eine neue Karte aus einer Kartenvorlage; verpasste Termine holt E-Sources beim Start einmal nach',
   kitButtons: 'Knopf = ein Name plus eine Folge von Aktionen (wie bei den Regeln), die erst auf Klick laufen; Karten-Knöpfe wirken auf eine Karte (Kartenfenster, Taste B), Board-Knöpfe auf alle sichtbaren Karten oder eine Spalte (oben im Board); ein Druck lässt sich am Ort rückgängig machen',
   sheetStar: 'Stern = ein Sheet als häufig gebraucht markieren (wie Trello „Board markieren“). Sheets mit Stern stehen unter „+ Sheet“ › „Mit Stern …“ zum schnellen Öffnen und in den Listen zum Verschieben, Kopieren und Spiegeln vorn',
   cardVote: 'Abstimmen = jede Person gibt einer Karte eine Stimme (wie Trello „Voting“); die Zahl der Stimmen zeigt, was dem Team am wichtigsten ist',
@@ -3812,6 +3813,7 @@ export const STAR_TEXT = {
 /** V129 (F-231 K10a): Regel-Baukasten „Wenn … und … dann …“ (ruleKit.ts, ruleRun.ts, components/RuleKit.tsx). */
 const q = (s?: string) => `„${s ?? ''}“`;
 const days = (n = 0) => (Math.abs(n) === 1 ? `${n} Tag` : `${n} Tagen`);
+const WDAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const plus = (n = 0) => (n === 0 ? 'heute' : n > 0 ? `heute + ${n === 1 ? '1 Tag' : `${n} Tage`}` : `heute − ${-n === 1 ? '1 Tag' : `${-n} Tage`}`);
 export const KIT_TEXT = {
   head: 'Wenn … und … dann …',
@@ -3893,6 +3895,8 @@ export const KIT_TEXT = {
     assignSet: 'Zuständiger wird gesetzt', assignDel: 'Zuständiger wird entfernt', dueSet: '„fällig“ wird gesetzt oder geändert',
     checksDone: 'Checkliste wird fertig', checkTick: 'Punkt der Checkliste wird abgehakt', comment: 'Kommentar wird geschrieben',
     field: 'Feld wird geändert', check: 'regelmäßig (beim Start und stündlich)',
+    daily: 'Zeitplan: jeden Tag', workdays: 'Zeitplan: an Arbeitstagen', weekly: 'Zeitplan: jede Woche am …', monthly: 'Zeitplan: jeden Monat am …',
+    dueNear: 'Fälligkeit: vor oder nach „fällig“',
   } as Record<string, string>,
   cond: {
     inCol: 'liegt in Spalte …', onBoard: 'liegt auf Board …', state: 'ist offen / erledigt', hasTag: 'hat Tag …', assignee: 'Zuständiger ist …',
@@ -3905,6 +3909,7 @@ export const KIT_TEXT = {
     assign: 'Zuständigen setzen', unassign: 'Zuständigen entfernen', dueSet: '„fällig“ setzen', dueShift: '„fällig“ verschieben', dueDel: '„fällig“ entfernen',
     notBefore: '„nicht vor“ setzen', checkAll: 'Checkliste abhaken', uncheckAll: 'Haken entfernen', comment: 'Kommentar schreiben', fieldSet: 'Feld setzen',
     fieldClear: 'Feld leeren', titlePre: 'Text vor den Titel', titleSuf: 'Text an den Titel', urgentSet: 'als dringend markieren', urgentDel: '„dringend“ entfernen', notice: 'Meldung zeigen',
+    fromTpl: 'Karte aus Vorlage anlegen',
   } as Record<string, string>,
   /** Satzteile (nach „Wenn“, „und“, „dann“). */
   trigSay: (k: string, a: string | undefined, who: string): string =>
@@ -3926,6 +3931,46 @@ export const KIT_TEXT = {
       field: `das Feld ${q(a)} geändert wird`,
       check: 'die regelmäßige Prüfung läuft (beim Start und stündlich)',
     })[k] ?? k,
+  /** V131 (K10c): Zeitplan als Satzanfang („Jeden Montag um 09:00 Uhr“) – `n` Wochentag/Tag, `b` Uhrzeit. */
+  schedSay: (k: string, n: number | undefined, time: string | undefined): string => {
+    const at = time ? ` um ${time} Uhr` : '';
+    switch (k) {
+      case 'daily':
+        return `Jeden Tag${at}`;
+      case 'workdays':
+        return `An jedem Arbeitstag${at} (Mo–Fr ohne Feiertage und freie Tage)`;
+      case 'weekly':
+        return `Jeden ${WDAYS[(n ?? 1) - 1] ?? '?'}${at}`;
+      default:
+        return `Am ${n ?? 1}. jedes Monats${at}${(n ?? 1) > 28 ? ' (in kürzeren Monaten am letzten Tag)' : ''}`;
+    }
+  },
+  /** V131 (K10c): Fälligkeit („eine Karte in 2 Tagen fällig wird“). */
+  dueSay: (rel: string | undefined, n: number | undefined, unit: string | undefined): string => {
+    const amount = (x: number) => (unit === 'h' ? (x === 1 ? '1 Stunde' : `${x} Stunden`) : x === 1 ? '1 Tag' : `${x} Tagen`);
+    const since = (x: number) => (unit === 'h' ? (x === 1 ? 'einer Stunde' : `${x} Stunden`) : x === 1 ? 'einem Tag' : `${x} Tagen`);
+    if (!n) return rel === 'after' ? 'eine Karte überfällig wird' : 'eine Karte fällig wird';
+    return rel === 'after' ? `eine Karte seit ${since(n)} überfällig ist` : `eine Karte in ${amount(n)} fällig wird`;
+  },
+  /** Satz einer Zeitplan-Regel mit Bedingungen: „…: für jede Karte, bei der gilt: …“. */
+  forEach: (ifs: string) => `für jede Karte, für die gilt: ${ifs} –`,
+  newCard: 'bei der neuen Karte',
+  wdays: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
+  wdayLabel: 'Wochentag',
+  mdayLabel: 'Tag im Monat',
+  timeLabel: 'Uhrzeit (leer = beim ersten Lauf des Tages)',
+  numLabel: 'Anzahl',
+  rel: { before: 'vor', after: 'nach' } as Record<string, string>,
+  unit: { d: 'Tage', h: 'Stunden' } as Record<string, string>,
+  pickTpl: 'Kartenvorlage wählen',
+  noTpl: '(noch keine Kartenvorlage – an einer Karte „Als Kartenvorlage“ wählen)',
+  tplCol: 'Spalte (leer = erste)',
+  next: (when: string) => `Nächster Termin: ${when}`,
+  sinceArmed: 'Zählt ab dem Speichern – Termine davor holt die Regel nicht nach.',
+  termTimeHead: 'Zeitplan',
+  termTime: 'Zeitplan und Fälligkeit = Auslöser nach der Uhr: E-Sources prüft beim Start und alle 5 Minuten. War die App zu, holt sie je Regel die letzte verpasste Wiederholung einmal nach.',
+  termRecur: 'Wiederkehrende Karte = „Karte aus Vorlage anlegen“ in einer Zeitplan-Regel: je Termin eine neue Karte (wie MS Project „periodischer Vorgang“); die Aktionen danach gelten für die neue Karte',
+  schedIfHint: 'Bei Zeitplan-Regeln gelten Bedingungen und die Aktionen vor „Karte aus Vorlage“ für jede passende Karte im Geltungsbereich.',
   condSay: (k: string, a: string | undefined, b: string | undefined, n: number | undefined, not: boolean, who: string, board: string): string => {
     const nt = not ? ' nicht' : '';
     return (
@@ -3975,15 +4020,20 @@ export const KIT_TEXT = {
       urgentSet: 'als dringend markieren',
       urgentDel: '„dringend“ entfernen',
       notice: `die Meldung ${q(a)} zeigen`,
+      fromTpl: `eine Karte aus der Vorlage ${q(board)} ${b?.trim() ? `in der Spalte ${q(b)}` : 'in der ersten Spalte'} anlegen`,
     })[k] ?? k,
   /** Meldung am Ort nach einem Lauf. */
-  ran: (names: string[], cards: number, cut: boolean) => {
+  ran: (names: string[], cards: number, cut: boolean, made = 0, late = 0) => {
     const short = (xs: string[]) => xs.map((x) => x.replace(/^Regel /, '')).join(', ');
     // V130 (K10b): ein Knopf vorn, dann die Regeln, die er ausgelöst hat
     const who = names[0]?.startsWith('Knopf') && names.length > 1
       ? `${names[0]} (+ ${names.length === 2 ? 'Regel' : `${names.length - 1} Regeln`} ${short(names.slice(1))})`
       : names.length === 1 ? names[0] : `${names.length} Regeln (${short(names)})`;
-    return `${who}: ${cards === 0 ? 'keine Karte' : cards === 1 ? '1 Karte' : `${cards} Karten`} geändert${cut ? ' – Kette nach 3 Stufen beendet' : ''}.`;
+    // V131 (K10c): wiederkehrende Karten zuerst („2 wiederkehrende Karten angelegt (1 nachgeholt)“)
+    const rec = made ? `${made === 1 ? '1 wiederkehrende Karte' : `${made} wiederkehrende Karten`} angelegt${late ? ` (${late} nachgeholt)` : ''}` : '';
+    const rest = cards - made;
+    if (rec && rest <= 0) return `${who}: ${rec}${cut ? ' – Kette nach 3 Stufen beendet' : ''}.`;
+    return `${who}: ${rec ? `${rec}, ` : ''}${rest === 0 && !rec ? 'keine Karte' : rest === 1 ? '1 Karte' : `${rest} Karten`} geändert${cut ? ' – Kette nach 3 Stufen beendet' : ''}.`;
   },
   menu: 'Automatisierung',
   menuHint: 'Regeln „Wenn … dann …“ dieses Boards anlegen und ein- oder ausschalten (wie Trello Butler)',

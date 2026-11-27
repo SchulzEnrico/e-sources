@@ -956,7 +956,6 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
             </MenuPages>
           )}
         </Menu>
-        {headOvf.knob}
         {full && (
           <button
             type="button"
@@ -969,6 +968,9 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
             <Icon name={full.on ? 'minimize' : 'maximize'} size={14} />
           </button>
         )}
+        {/* V131 (Enrico: „der Schalter verspringt, weil neben dem X der Maximieren-Knopf auftaucht“): „»“ steht direkt
+            vor ✕ – rechts von ihm ist aufgeklappt wie zugeklappt nur ✕, so bleibt er unter dem Zeiger */}
+        {headOvf.knob}
         {dock ? (
           <button type="button" data-ovf-keep="" className="pad__close" onClick={dock.onFold} title={DOCK_TEXT.foldTitle} aria-label={DOCK_TEXT.fold}>
             <Icon name="dockFold" size={14} />

@@ -24,16 +24,20 @@ const TEXT_MAX = 500;
 const NAME_MAX = 80;
 
 /** Art der Lücke im Satz (bestimmt das Eingabefeld). */
-export type ArgKind = 'col' | 'board' | 'tag' | 'person' | 'field' | 'text' | 'days' | 'sort' | 'state' | 'pos' | 'value';
+export type ArgKind = 'col' | 'board' | 'tag' | 'person' | 'field' | 'text' | 'days' | 'sort' | 'state' | 'pos' | 'value' | 'time' | 'tpl' | 'rel' | 'unit';
+/** V131 (K10c): Art der Zahl `n` – Tage (±), Wochentag 1–7 (Mo–So), Tag im Monat 1–31, Anzahl ≥ 0. */
+export type NumKind = 'days' | 'wday' | 'mday' | 'num';
 
 export type TrigKind =
   | 'colIn' | 'colOut' | 'created' | 'arrive' | 'done' | 'reopen' | 'tagAdd' | 'tagDel' | 'assignSet' | 'assignDel'
-  | 'dueSet' | 'checksDone' | 'checkTick' | 'comment' | 'field' | 'check';
+  | 'dueSet' | 'checksDone' | 'checkTick' | 'comment' | 'field' | 'check'
+  // V131 (K10c): Zeitplan (Kalender-Befehle) und Fälligkeit
+  | 'daily' | 'workdays' | 'weekly' | 'monthly' | 'dueNear';
 export type CondKind = 'inCol' | 'onBoard' | 'state' | 'hasTag' | 'assignee' | 'dueIn' | 'overdue' | 'noDue' | 'checks' | 'field' | 'titleHas' | 'doneSince' | 'urgent';
 export type ActKind =
   | 'toCol' | 'nextCol' | 'sortCol' | 'toBoard' | 'copyBoard' | 'mirrorBoard' | 'setDone' | 'reopen' | 'archive'
   | 'tagAdd' | 'tagDel' | 'assign' | 'unassign' | 'dueSet' | 'dueShift' | 'dueDel' | 'notBefore' | 'checkAll' | 'uncheckAll'
-  | 'comment' | 'fieldSet' | 'fieldClear' | 'titlePre' | 'titleSuf' | 'urgentSet' | 'urgentDel' | 'notice';
+  | 'comment' | 'fieldSet' | 'fieldClear' | 'titlePre' | 'titleSuf' | 'urgentSet' | 'urgentDel' | 'notice' | 'fromTpl';
 
 /** Ein Baustein: Art plus bis zu zwei Angaben (`a` Text/Id, `b` zweite Angabe) bzw. Zahl `n`; `not` = verneint. */
 export interface Part<K extends string> { k: K; a?: string; b?: string; n?: number; not?: true }
@@ -62,7 +66,7 @@ export interface KitRule {
 }
 
 /** Angaben je Baustein: welche Lücken er hat. `opt` = Angabe darf leer sein (Auslöser: „beliebige“). */
-interface Spec { a?: ArgKind; b?: ArgKind; n?: 'days'; opt?: true; not?: true; anyBoard?: true }
+export interface Spec { a?: ArgKind; b?: ArgKind; n?: NumKind; opt?: true; not?: true; anyBoard?: true }
 
 export const TRIGS: Record<TrigKind, Spec> = {
   colIn: { a: 'col', opt: true },
@@ -81,7 +85,20 @@ export const TRIGS: Record<TrigKind, Spec> = {
   comment: { a: 'text', opt: true },
   field: { a: 'field' },
   check: {},
+  // V131 (K10c): `b` = Uhrzeit „HH:MM“ (leer = beim ersten Lauf des Tages), `n` = Wochentag bzw. Tag im Monat
+  daily: { b: 'time' },
+  workdays: { b: 'time' },
+  weekly: { n: 'wday', b: 'time' },
+  monthly: { n: 'mday', b: 'time' },
+  // `a` = vor | nach, `n` = Anzahl, `b` = Tage | Stunden
+  dueNear: { a: 'rel', n: 'num', b: 'unit' },
 };
+/** V131 (K10c): Auslöser nach der Uhr – laufen nicht bei Änderungen, sondern über `runCheck` (ruleTime.ts). */
+export const SCHEDULE_TRIGS: readonly TrigKind[] = ['daily', 'workdays', 'weekly', 'monthly'];
+export const isSchedule = (k: TrigKind) => SCHEDULE_TRIGS.includes(k);
+export const isTimed = (k: TrigKind) => k === 'dueNear' || isSchedule(k);
+export const REL_CHOICES = ['before', 'after'] as const;
+export const UNIT_CHOICES = ['d', 'h'] as const;
 export const TRIG_KINDS = Object.keys(TRIGS) as TrigKind[];
 
 export const CONDS: Record<CondKind, Spec> = {
@@ -129,6 +146,9 @@ export const ACTS: Record<ActKind, Spec> = {
   urgentSet: {},
   urgentDel: {},
   notice: { a: 'text' },
+  // V131 (K10c, B5): Karte aus Vorlage anlegen (`a` = Id der Kartenvorlage, `b` = Spalte, leer = erste) – die
+  // folgenden Aktionen gelten für die neue Karte (wie Trello Butler „create a card …“)
+  fromTpl: { a: 'tpl', b: 'col' },
 };
 export const ACT_KINDS = Object.keys(ACTS) as ActKind[];
 
@@ -199,6 +219,10 @@ function partOk(s: Spec | undefined, p: Part<string>): boolean {
   if (s.a && !s.opt && !p.a?.trim()) return false;
   if (s.b === 'pos' && p.b && !(POS_CHOICES as readonly string[]).includes(p.b)) return false;
   if (s.n && (typeof p.n !== 'number' || !Number.isFinite(p.n))) return false;
+  if (s.n === 'wday' && (p.n! < 1 || p.n! > 7)) return false;
+  if (s.n === 'mday' && (p.n! < 1 || p.n! > 31)) return false;
+  if (s.n === 'num' && p.n! < 0) return false;
+  if (s.b === 'time' && p.b && !/^([01]\d|2[0-3]):[0-5]\d$/.test(p.b)) return false;
   return true;
 }
 
@@ -210,6 +234,8 @@ export function blank<K extends string>(k: K, spec: Spec): Part<K> {
   if (spec.a === 'person' && !spec.opt) p.a = 'me';
   if (spec.b === 'pos') p.b = 'bottom';
   if (spec.n) p.n = k === 'doneSince' ? 30 : k === 'dueShift' ? 7 : 1;
+  if (spec.a === 'rel') p.a = 'before';
+  if (spec.b === 'unit') p.b = 'd';
   return p;
 }
 
@@ -300,7 +326,13 @@ function cleanPart<K extends string>(raw: unknown, specs: Record<K, Spec>): Part
   const b = str(r.b);
   if (s.a && a !== undefined) p.a = a;
   if (s.b && b !== undefined) p.b = b;
-  if (s.n && typeof r.n === 'number' && Number.isFinite(r.n)) p.n = Math.max(-3650, Math.min(3650, Math.round(r.n)));
+  if (s.n && typeof r.n === 'number' && Number.isFinite(r.n)) {
+    const [lo, hi] = s.n === 'wday' ? [1, 7] : s.n === 'mday' ? [1, 31] : s.n === 'num' ? [0, 3650] : [-3650, 3650];
+    p.n = Math.max(lo, Math.min(hi, Math.round(r.n)));
+  }
+  if (s.b === 'time' && p.b && !/^([01]\d|2[0-3]):[0-5]\d$/.test(p.b)) delete p.b;
+  if (s.a === 'rel' && p.a !== 'after') p.a = 'before';
+  if (s.b === 'unit' && p.b !== 'h') p.b = 'd';
   if (s.not && r.not === true) p.not = true;
   return p;
 }

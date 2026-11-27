@@ -4995,7 +4995,7 @@ export default function App(props: { sent?: string }) {
   useEffect(() => {
     const r = runOf(ws);
     if (!r || isClaimed(r)) return;
-    flash({ text: [KIT_TEXT.ran(r.names, r.cards, !!r.cut), ...r.texts].join(' '), ms: 6000, action: { label: KIT_TEXT.undo, run: () => dispatch({ type: 'exchange', ws: r.before }) } });
+    flash({ text: [KIT_TEXT.ran(r.names, r.cards, !!r.cut, r.made, r.late), ...r.texts].join(' '), ms: 6000, action: { label: KIT_TEXT.undo, run: () => dispatch({ type: 'exchange', ws: r.before }) } });
   }, [ws, dispatch]);
   // F-218 A1 (V92): Dauer der Meldungen am Ort für alle Bauteile
   setNoticeMs(noticeMs(ws));
@@ -5005,15 +5005,18 @@ export default function App(props: { sent?: string }) {
   useLayoutEffect(() => setWheelSource(ws.wheels, (wheel, prefs) => dispatch({ type: 'wheelPrefs', wheel, prefs })), [ws.wheels, dispatch]);
   // F-218 W3/W4 (V92) / F-231 K10a (V129): Regeln „regelmäßig“ (z. B. altes Erledigtes archivieren, Fälliges dringend) –
   // 30 s nach dem Start (Abgleich durch), dann stündlich; Meldung mit „Rückgängig“ für die ganze Kette
+  // V131 (K10c): Zeitplan- und Fälligkeits-Regeln alle 5 Minuten; beim ersten Lauf werden verpasste Termine nachgeholt
   useEffect(() => {
-    const run = () => {
+    const run = (checks: boolean, timed: boolean) => {
       const w = wsNow.current;
-      // Meldung mit „Rückgängig“ kommt über den Bericht des Laufs (Effekt oben)
-      if (runCheck(w).run) dispatch({ type: 'ruleSweep', now: Date.now() });
+      const now = Date.now();
+      // Meldung mit „Rückgängig“ kommt über den Bericht des Laufs (Effekt oben); ohne Bericht nur der Stand der Uhr-Regeln
+      if (runCheck(w, now, { checks, timed }).ws !== w) dispatch({ type: 'ruleSweep', now, checks, timed });
     };
-    const first = window.setTimeout(run, 30000);
-    const every = window.setInterval(run, 3600000);
-    return () => (window.clearTimeout(first), window.clearInterval(every));
+    const first = window.setTimeout(() => run(true, true), 30000);
+    const every = window.setInterval(() => run(true, false), 3600000);
+    const timed = window.setInterval(() => run(false, true), 300000);
+    return () => (window.clearTimeout(first), window.clearInterval(every), window.clearInterval(timed));
   }, [dispatch]);
   const [desk, setDesk] = useState<{ win: string; switched: boolean; said: string; focus?: string }>(() => ({ win: winFromSearch(window.location.search), switched: false, said: '' }));
   const [parked, setParked] = useState(false);

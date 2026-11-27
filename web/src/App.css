@@ -10060,3 +10060,73 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 .kbtn__keys { font-size: 0.8em; opacity: 0.7; }
 .kbtn__bar .kcol__ask { margin: 0; }
 .cardwin__buttons .kmir__acts { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* V131 (F-231 K10c): Zeitplan und Fälligkeit im Regel-Editor */
+.rkit__in--time { width: 6.5em; }
+.rkit__none { font-size: 0.85em; opacity: 0.75; font-style: italic; }
+.rkit__hint { margin: 0.2rem 0 0.4rem; font-size: 0.85em; }
+.rkit__next { opacity: 0.75; font-size: 0.9em; }
+/* V131 (Enrico: „Man kann keinen neuen Sheet anlegen“): Menüs und Tooltips aus einer schwebenden Leiste lagen unter
+   dem angehobenen Pad (.ovf-top 1190, schwebende Leiste 1200) – sie liegen jetzt darüber */
+.menu__list--float, .menu__list--toolbar, .tooltip { z-index: 1250; }
+/* V131 (Enrico: „Aufgeklappte Karten im Kanban und Notizen sollen so wie vorher in diesem Grau gehalten werden, wie der
+   helle Chip von Notizen“): Kartenfenster und offene Notiz im Pad tragen den Ton des gewählten Notiz-Chips
+   (.pad .nblock__item.is-on) – das Kartenfenster deckend über dem Pad-Hintergrund */
+.cardwin__box {
+  background:
+    linear-gradient(145deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0.36)),
+    linear-gradient(145deg, var(--neu-top), var(--neu-bottom));
+}
+.pad .nblock__main > .note:not(.note--view) {
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0.36));
+  border-radius: 7px;
+}
+/* V131 (Enrico: „Das auch alles“): in der offenen Notiz und im Kartenfenster auch Speicher-Leiste und Schreibfeld im
+   Chip-Ton statt schwarz – die Leiste deckend (sie bleibt unten stehen und liegt über dem Inhalt) */
+.pad .nblock__main > .note .note__actions,
+.cardwin__box .note__actions {
+  background:
+    linear-gradient(145deg, rgba(var(--accent-rgb), 0.3), rgba(var(--accent-rgb), 0.42)),
+    linear-gradient(145deg, var(--neu-top), var(--neu-bottom));
+}
+.pad .nblock__main > .note .nedit,
+.cardwin__box .nedit,
+.pad .nblock__main > .note textarea,
+.cardwin__box .note textarea {
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.16), rgba(var(--accent-rgb), 0.26)), linear-gradient(145deg, var(--well-a), var(--well-b));
+}
+/* V131 (Enrico: „Und Buttons“ · „die keine Scrollräder sind, müssen auch in Grau neumorph gehalten sein“): alle Knöpfe
+   in offener Notiz und Kartenfenster wie „Neue Notiz“ – heller Chip, erhaben (Licht oben links, Schatten unten rechts),
+   gedrückt eingesenkt; Umschalt-Räder (.mwheel) und Farbfelder bleiben, wie sie sind */
+:is(.pad .nblock__main > .note, .cardwin__box) button:not(.cardwin__x, .ovf__knob, .mwheel button, .mwheel) {
+  background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 14%, rgba(var(--hi), 0.14)), color-mix(in srgb, rgb(var(--accent-rgb)) 6%, rgba(var(--lo), 0.2)));
+  border: none;
+  border-radius: 10px;
+  box-shadow:
+    inset 2px 2px 4px rgba(var(--hi), 0.18),
+    inset -3px -3px 6px rgba(var(--lo), 0.45),
+    3px 4px 9px rgba(0, 0, 0, 0.38);
+  transition: box-shadow 0.15s ease, background 0.2s ease;
+}
+:is(.pad .nblock__main > .note, .cardwin__box) button:not(.cardwin__x, .ovf__knob, .mwheel button, .mwheel):hover:not(:disabled) {
+  filter: none;
+  background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 20%, rgba(var(--hi), 0.16)), color-mix(in srgb, rgb(var(--accent-rgb)) 9%, rgba(var(--lo), 0.18)));
+}
+:is(.pad .nblock__main > .note, .cardwin__box) button:not(.cardwin__x, .ovf__knob, .mwheel button, .mwheel):is(:active, [aria-pressed='true']) {
+  box-shadow: inset 3px 4px 8px rgba(0, 0, 0, 0.45), inset -2px -2px 4px rgba(var(--hi), 0.1);
+}
+:is(.pad .nblock__main > .note, .cardwin__box) .remind__chip { background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 14%, rgba(var(--hi), 0.14)), color-mix(in srgb, rgb(var(--accent-rgb)) 6%, rgba(var(--lo), 0.2))); }
+@media (forced-colors: active) {
+  :is(.pad .nblock__main > .note, .cardwin__box) button { box-shadow: none; border: 1px solid ButtonText; }
+}
+/* V131 (Enrico: „grau und rund“): ✕ des Kartenfensters als runder grauer Neumorph-Knopf wie die übrigen */
+.cardwin__box .cardwin__x {
+  /* „Kreisrund“: feste Maße gegen allgemeine Knopf-Regeln (min-height, padding) */
+  flex: none !important; box-sizing: border-box !important; width: 34px !important; height: 34px !important; min-width: 34px !important; min-height: 34px !important; max-width: 34px !important; max-height: 34px !important; aspect-ratio: 1 / 1; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center; align-self: center;
+  border: none !important; border-radius: 50% !important;
+  background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 14%, rgba(var(--hi), 0.14)), color-mix(in srgb, rgb(var(--accent-rgb)) 6%, rgba(var(--lo), 0.2)));
+  box-shadow: inset 2px 2px 4px rgba(var(--hi), 0.18), inset -3px -3px 6px rgba(var(--lo), 0.45), 3px 4px 9px rgba(0, 0, 0, 0.38);
+}
+.cardwin__box .cardwin__x:hover { filter: none; background: linear-gradient(145deg, color-mix(in srgb, rgb(var(--accent-rgb)) 20%, rgba(var(--hi), 0.16)), color-mix(in srgb, rgb(var(--accent-rgb)) 9%, rgba(var(--lo), 0.18))); }
+.cardwin__box .cardwin__x:active { box-shadow: inset 3px 4px 8px rgba(0, 0, 0, 0.45), inset -2px -2px 4px rgba(var(--hi), 0.1); }
+@media (forced-colors: active) { .cardwin__box .cardwin__x { box-shadow: none; border: 1px solid ButtonText; } }

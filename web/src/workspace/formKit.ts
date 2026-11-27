@@ -499,7 +499,7 @@ export const GPM_D: FormTemplate = {
     { id: 'accept', chapter: '3.1', name: 'Abnahmekriterien', source: 'accept', layout: 'table', columns: cols('accept'), stage: 2, icb: '4.5.3 · 4.5.6' },
     { id: 'stakeholders', chapter: '4', name: 'Stakeholderanalyse', source: 'stakeholders', layout: 'table', columns: cols('stakeholders'), stage: 1, icb: '4.5.12 · 4.3.4' },
     { id: 'envPortfolio', chapter: '4', name: 'Umfeld-Portfolio', source: 'stakeholders', layout: 'portfolio', columns: cols('stakeholders', ['code', 'name', 'side', 'area']), filter: 'env', stage: 2, icb: '4.5.12' },
-    { id: 'shPortfolio', chapter: '4', name: 'Stakeholder-Portfolio', source: 'stakeholders', layout: 'portfolio', columns: cols('stakeholders', ['code', 'name', 'attitude', 'power', 'conflict']), filter: 'sh', stage: 2, icb: '4.5.12 · 4.3.4' },
+    { id: 'shPortfolio', chapter: '4', name: 'Stakeholder-Portfolio', source: 'stakeholders', layout: 'portfolio', columns: cols('stakeholders', ['code', 'name', 'side', 'attitude', 'power', 'conflict']), filter: 'sh', stage: 2, icb: '4.5.12 · 4.3.4' },
     { id: 'risks', chapter: '5', name: 'Chancen und Risiken', source: 'risks', layout: 'table', columns: cols('risks'), stage: 1, icb: '4.5.11' },
     { id: 'org', chapter: '6.1', name: 'Projektorganisation (Organigramm)', source: 'roles', layout: 'figure', figure: 'org', columns: [], stage: 1, icb: '4.5.5 · 4.3.2' },
     { id: 'roles', chapter: '6.2', name: 'Projektorganisation (AKV)', source: 'roles', layout: 'table', columns: cols('roles'), stage: 1, icb: '4.5.5 · 4.3.2' },

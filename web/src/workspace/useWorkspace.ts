@@ -69,6 +69,7 @@ const prepareTexts = (n: PrepareNames): Pr.PrepareTexts => ({
 });
 import * as Rk from './risks';
 import * as Fk from './formKit';
+import * as In from './inbox';
 import * as Sm from './samples';
 import * as Gp from './gpm';
 import * as Wt from './watch';
@@ -357,7 +358,12 @@ export type Action =
   | { type: 'padRestore'; undo: Pd.PadUndo }
   | { type: 'padRestoreSheet'; undo: Pd.SheetUndo }
   | { type: 'padRenameSheet'; sheet: string; name: string }
-  | { type: 'padNote'; id: string; sheet: string; note: string; by?: string }
+  | { type: 'padNote'; id: string; sheet: string; note: string; by?: string; inbox?: boolean }
+  // V141 (F-231 K14): Eingang
+  | { type: 'inboxCapture'; text: string; note: string; by?: string }
+  | { type: 'inboxDrop'; note: string }
+  | { type: 'inboxToProject'; note: string; project: string; by?: string }
+  | { type: 'inboxFromProject'; note: string; project?: string; by?: string }
   // F-206 Schritt 7 (V86): To-do, Kanban, Eisenhower
   | { type: 'sheetDone'; note: string; here?: string; by?: string }
   | { type: 'sheetAdd'; view: string; title: string; note: string; col?: string; index?: number; by?: string }
@@ -442,6 +448,9 @@ export type Action =
   | { type: 'tplDelete'; id: string }
   | { type: 'tplRestore'; undo: BT.TemplateUndo };
 
+/** V140 (F-237 H8) + V141 (K14 I2): beim Laden, Abgleich, Import – Matrizen und Eingang ergänzen. */
+const ensureAll = (w: Workspace): Workspace => In.ensureInbox(Fk.ensureMatrices(Sm.dropRetiredSamples(w)));
+
 /**
  * F-206 Schritt 3: Note/Sheet in einem Pad öffnen bzw. neu anlegen und öffnen (P3). Aufrufer und
  * Reducer rechnen mit denselben Ids, damit die Oberfläche weiß, welches Pad und Sheet entsteht.
@@ -470,7 +479,7 @@ export const idSeq = (ids: readonly string[]) => {
 };
 
 /** F-206 Schritt 8 (V94, P6): Aktionen, die eine Notiz neu anlegen – sie bekommt „ich“ als zuständig. */
-const NEW_NOTE = new Set<Action['type']>(['padOpen', 'newNote', 'tabNote', 'noteForPage', 'sheetAdd', 'padNote', 'checkToTask', 'pspAdd']);
+const NEW_NOTE = new Set<Action['type']>(['padOpen', 'newNote', 'tabNote', 'noteForPage', 'sheetAdd', 'padNote', 'checkToTask', 'pspAdd', 'inboxCapture']);
 
 /** V129 (K10a): Aktionen, nach denen keine Regeln laufen (Abgleich, Rückgängig, Regeln selbst ändern). */
 const NO_RULES = new Set<Action['type']>(['remote', 'replace', 'exchange', 'layoutUndo', 'sheetRestore', 'noteUndoDiscard', 'tplRestore', 'ruleSweep', 'kitSave', 'kitOn', 'kitCopy', 'kitRemove', 'kitRestore', 'kitReset', 'kitMove', 'btnSave', 'btnCopy', 'btnRemove', 'btnRestore', 'btnMove', 'btnPress', 'ruleWhen', 'ruleSwitch']);
@@ -522,7 +531,8 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'newNote': {
       const made = a.kind === 'note' ? No.createNote(ws, {}, { by: a.by }) : No.createView(ws, a.kind, '');
       const r = No.openNoteIn(made.ws, a.panel, a.kind === 'note' ? { note: made.id } : { view: made.id });
-      return r.result === 'opened' ? r.ws : ws;
+      // V141 (K14 I3): „Neue Notiz“ im Portal liegt zusätzlich zum Tab im Eingang
+      return r.result === 'opened' ? (a.kind === 'note' ? In.toInbox(r.ws, made.id, { by: a.by }) : r.ws) : ws;
     }
     case 'tabLeave':
       return No.leaveTab(ws, a.id, a.tab);
@@ -555,9 +565,11 @@ function step(ws: Workspace, a: Action): Workspace {
           ? No.createNote(ws, {}, { by: a.by, ...(a.noteId ? { id: a.noteId } : {}) })
           : No.createView(ws, a.kind, '', a.noteId ? { id: a.noteId } : {});
       const key = a.kind === 'note' ? 'note' : 'view';
+      // V141 (K14 I3): neue Notiz im leeren Tab liegt zusätzlich im Eingang
+      const base = a.kind === 'note' ? In.toInbox(made.ws, made.id, { by: a.by }) : made.ws;
       return {
-        ...made.ws,
-        panels: made.ws.panels.map((p) => (p.id === a.id ? { ...p, tabs: p.tabs.map((x) => (x.id === a.tab ? { ...x, [key]: made.id } : x)) } : p)),
+        ...base,
+        panels: base.panels.map((p) => (p.id === a.id ? { ...p, tabs: p.tabs.map((x) => (x.id === a.tab ? { ...x, [key]: made.id } : x)) } : p)),
       };
     }
     case 'noteEdit': {
@@ -625,7 +637,7 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'calOwn':
       return Cal.setOwnCalendar(ws, a.project, a.on);
     case 'exchange':
-      return Fk.ensureMatrices(a.ws); // V140 (F-237 H8)
+      return ensureAll(a.ws); // V140 (F-237 H8)
     case 'taskPreds': {
       const r = Gt.setPreds(ws, a.project, a.id, a.links);
       return r.ok ? r.ws : ws;
@@ -683,11 +695,11 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'fbAskEase':
       return Fb.setAskEase(ws, a.on);
     case 'liveProject':
-      return Fk.ensureMatrices(Lv.refreshLiveProject(ws, a.at ?? Date.now()));
+      return ensureAll(Lv.refreshLiveProject(ws, a.at ?? Date.now()));
     case 'liveCopy': {
       // F-235 (V136): Besucher der Demo legen eine eigene, bearbeitbare Kopie an
       const r = Lv.copyLiveProject(ws, a.at ?? Date.now());
-      return Fk.ensureMatrices(r.ws);
+      return ensureAll(r.ws);
     }
     case 'sampleProject':
       // V134 (F-233): Beispiel nach Kennung (ohne = ColorGentlemen wie bisher)
@@ -941,8 +953,19 @@ function step(ws: Workspace, a: Action): Workspace {
       // F-213: neue Note im Pad ist Entwurf, bis sie gespeichert wird
       const made = No.createNote(ws, { unsaved: true }, { by: a.by, id: a.note });
       const r = No.placeNote(made.ws, a.note, { view: a.sheet });
-      return r.ok ? Pd.raisePad(r.ws, a.id) : ws;
+      // V141 (K14 I3): Dock-Notiz (Knopf im Pad) landet zusätzlich im Eingang
+      return r.ok ? Pd.raisePad(a.inbox && a.sheet !== In.INBOX_ID ? In.toInbox(r.ws, a.note, { by: a.by }) : r.ws, a.id) : ws;
     }
+    case 'inboxCapture':
+      return In.captureToInbox(ws, a.text, { id: a.note, by: a.by })?.ws ?? ws;
+    case 'inboxDrop': {
+      // Rückgängig nach dem Gedankenparkplatz: Notiz wieder ganz weg
+      return No.deleteNote(ws, a.note)?.ws ?? ws;
+    }
+    case 'inboxToProject':
+      return In.inboxToProject(ws, a.note, a.project, { by: a.by });
+    case 'inboxFromProject':
+      return In.undoInboxToProject(ws, a.note, a.project, { by: a.by });
     case 'padOpen':
       return padOpenResult(ws, { desk: a.desk, ref: a.ref, ids: a.ids }).ws;
     case 'padCreate':
@@ -1166,7 +1189,7 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'restoreTints':
       return restoreTints(ws, a.snap);
     case 'replace':
-      return Fk.ensureMatrices(a.ws); // V140 (F-237 H8): ältere Dateien bekommen ihre Matrix wie Abb. 17
+      return ensureAll(a.ws); // V140 (F-237 H8): ältere Dateien bekommen ihre Matrix wie Abb. 17
     case 'remote':
       return a.ws;
     case 'toWindow':
@@ -1201,7 +1224,7 @@ function step(ws: Workspace, a: Action): Workspace {
  * neue Stand wird übernommen, ohne ihn zurückzuschreiben. Es gilt die letzte Änderung.
  */
 export function useWorkspace() {
-  const [ws, raw] = useReducer(reducer, undefined, () => Fk.ensureMatrices(loadWorkspace()));
+  const [ws, raw] = useReducer(reducer, undefined, () => ensureAll(loadWorkspace()));
   const remote = useRef<Workspace | null>(null);
   // V111: Rückgängig für Anordnungen (Strg/⌘+Z) – vor jeder Anordnungs-Aktion den Stand merken
   const wsRef = useRef(ws);

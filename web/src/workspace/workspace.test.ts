@@ -30,7 +30,6 @@ import * as Pj from './projects';
 import * as Sc from './schedule';
 import * as Psp from './psp';
 import * as Sp from './sampleProject';
-import * as Sl from './sampleLogistics';
 import * as Sm from './samples';
 import * as Gt from './gantt';
 import * as Fb from './feedback';
@@ -6314,43 +6313,16 @@ describe('F-206 Schritt 10 PSP (V100, K6)', () => {
   });
 });
 
-describe('F-233 zweites Beispielprojekt Logistik-Center (V134)', () => {
-  const base = (): Workspace => ({ ...W.defaultWorkspace(), notes: [] }) as Workspace;
-  it('legt FUTURE-P.ROOF mit 39 Vorgängen, Zahlen aus den Zentraltabellen und Vorgängern an', () => {
-    const ws = Sl.addLogisticsProject(base(), 5);
-    expect(Sl.hasLogisticsProject(ws)).toBe(true);
-    expect(Sl.shiftFp('2022-02-01')).toBe('2027-01-26');
-    expect(Pj.tasksOfProject(ws, Sl.LOGISTICS_PROJECT)).toHaveLength(39);
-    const p = ws.projects!.find((x) => x.id === Sl.LOGISTICS_PROJECT)!;
-    expect(p.charter!.ownEffort).toBe(2998);
-    expect(p.stakeholders!.filter((s) => s.area === 'fact')).toHaveLength(10);
-    expect(p.comms).toHaveLength(10);
-    expect(p.roles!.every((r) => r.tasks && r.powers && r.duty)).toBe(true);
-    const rows = Psp.pspRows(Psp.pspTree(ws, Sl.LOGISTICS_PROJECT));
-    expect(rows.find((r) => r.id === 'fp-39')!.code).toBe('FP-1.5.2');
-    // Anlage 1: Summe 2.998 Ph über alle Arbeitspakete
-    const hours = Pj.tasksOfProject(ws, Sl.LOGISTICS_PROJECT).flatMap((n) => n.use ?? []).reduce((a, u) => a + (u.hours ?? 0), 0);
-    expect(hours).toBe(2998);
-    expect(ws.notes!.find((n) => n.id === 'fp-29')!.after!.map((x) => x.id)).toEqual(['fp-28', 'fp-27', 'fp-26', 'fp-25']);
-    expect(ws.notes!.find((n) => n.id === 'fp-25')!.cost!.plan).toBe(19518000);
-    expect(ws.notes!.find((n) => n.id === 'fp-39')).toMatchObject({ notBefore: '2027-04-19', due: '2027-06-22', assignee: 'pn-fp-lm' });
-    expect(JSON.stringify(ws)).not.toMatch(/Milva/);
-    expect(Sl.addLogisticsProject(ws)).toBe(ws);
-  });
-  it('rechnet den Balkenplan wie im Report (Abb. 11) und entfernt nur das eigene Beispiel', () => {
-    const both = Sm.toggleSample(Sm.toggleSample(base(), 'cg', true), 'fp', true);
-    expect(Sm.hasSample(both, 'cg') && Sm.hasSample(both, 'fp')).toBe(true);
-    const g = Gt.ganttOf(both, Sl.LOGISTICS_PROJECT, '2026-11-25');
-    expect(g.start).toBe('2027-01-26');
-    expect(g.loops).toEqual([]);
-    expect(['fp-3', 'fp-11', 'fp-24', 'fp-5', 'fp-25', 'fp-26', 'fp-27', 'fp-28', 'fp-29', 'fp-8', 'fp-16', 'fp-10'].filter((id) => !g.critical.includes(id))).toEqual([]);
-    expect(g.end).toBe('2027-08-25');
-    expect(g.critical).toEqual(['fp-3', 'fp-11', 'fp-24', 'fp-5', 'fp-25', 'fp-26', 'fp-27', 'fp-28', 'fp-29', 'fp-8', 'fp-16', 'fp-10']);
-    const gone = Sm.toggleSample(both, 'fp', false);
-    expect(Sm.hasSample(gone, 'fp')).toBe(false);
-    expect(Pj.tasksOfProject(gone, Sp.SAMPLE_PROJECT)).toHaveLength(39);
-    expect((gone.persons ?? []).some((x) => x.id.startsWith('pn-fp-'))).toBe(false);
-    expect(gone.notes!.some((n) => n.id.startsWith('fp-'))).toBe(false);
+describe('V141 FUTURE-P.ROOF entfernt', () => {
+  it('ein noch vorhandenes Logistik-Beispiel fällt beim Laden weg, ColorGentlemen bleibt', () => {
+    let ws = Sm.toggleSample({ ...W.defaultWorkspace(), notes: [] } as Workspace, 'cg', true);
+    ws = { ...ws, projects: [...(ws.projects ?? []), { id: 'pj-fp', name: 'FUTURE-P.ROOF', created: 1, changed: 1 } as never], notes: [...(ws.notes ?? []), { id: 'fp-1', title: 'x', text: '', state: 'open', project: 'pj-fp', trail: [], created: 1, changed: 1 } as never] };
+    const out = Sm.dropRetiredSamples(ws);
+    expect((out.projects ?? []).some((p) => p.id === 'pj-fp')).toBe(false);
+    expect(out.notes!.some((n) => n.id.startsWith('fp-'))).toBe(false);
+    expect(Sm.hasSample(out, 'cg')).toBe(true);
+    expect(Sm.dropRetiredSamples(out)).toBe(out);
+    expect(Sm.SAMPLES.map((x) => x.key)).toEqual(['cg']);
   });
 });
 

@@ -75,7 +75,7 @@ import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, setPanelSize, resetPanel, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
 import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_LAYOUT_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, sampleText, STAGE_TEXT, VIEW_TEXT } from './workspace/terms';
 import { type DeskMode, PHONE_MQ, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
-import { CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, RULE_SET_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
+import { INBOX_TEXT, CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, RULE_SET_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { browserOf, currentUa, modKey } from './workspace/browser';
@@ -111,6 +111,8 @@ import { Icon } from './components/Icon';
 import { ModeWheel } from './components/ModeWheel';
 import { SyncDialog } from './components/Sync';
 import { type Anchor as FbAnchor, FEEDBACK_EVENT, FeedbackQuick, domPlace, mainView } from './components/FeedbackQuick';
+import { ParkingLot } from './components/ParkingLot';
+import * as In from './workspace/inbox';
 import { FeedbackCard } from './components/FeedbackCard';
 import { setWheelSource } from './components/wheelPrefs';
 import { setCalendar } from './workspace/calendar';
@@ -429,6 +431,8 @@ function DeskApp(props: DeskProps) {
   /** F-156: Hilfe offen (at = Eintrag, zu dem sie springt) oder zu (null). */
   const [helpAt, setHelpAt] = useState<{ at: string | null } | null>(null);
   // F-221 (V102, FB4/FB5): Feedback „Schnell erfassen“ am Ort des Geschehens
+  // V141 (F-106, K14 I4): Gedankenparkplatz
+  const [parkOpen, setParkOpen] = useState(false);
   const [fbAt, setFbAt] = useState<{ anchor: FbAnchor | null; place: FeedbackPlace; env: FeedbackEnv; kind?: FeedbackKind } | null>(null);
   // F-221 Bau 3 (V103): Feedback ausarbeiten – Kartenfenster
   const [fbCard, setFbCard] = useState<string | null>(null);
@@ -2590,6 +2594,11 @@ function DeskApp(props: DeskProps) {
     }
     sayLive(PAD_TEXT.opened(title));
   };
+  /** V141 (K14): Eingang zeigen – wie ein Sheet aus der Suche. */
+  const openInbox = () => {
+    const v = viewById(ws, In.INBOX_ID);
+    if (v) openNoteHit({ kind: 'view', view: v });
+  };
   /** F-206 Schritt 3 (P3): Note bzw. Sheet im obersten Pad anlegen (Suche, Hilfe). */
   const newNoteHere = (kind: 'note' | NoteViewKind, tpl?: string, focus = true) => {
     const ids = [newId(), newId(), newId()];
@@ -2859,6 +2868,12 @@ function DeskApp(props: DeskProps) {
       else notify(text);
     };
     if (e.altKey && !e.metaKey && e.code === 'KeyG' && !e.repeat) return evenly();
+    // V141 (F-106, K14 I4): Alt/⌥+E öffnet überall den Gedankenparkplatz (vorher frei)
+    if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyE' && !e.repeat) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return setParkOpen(true);
+    }
     // F-221 (FB4): Alt/⌥+F öffnet Feedback am Ort (auch über offenen Fenstern, nicht über Feedback selbst)
     if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyF' && !e.repeat && !document.querySelector('dialog.fbq')) {
       e.preventDefault();
@@ -4022,8 +4037,8 @@ function DeskApp(props: DeskProps) {
         {!notesOff && (
         <Menu
           className="tb-nt"
-          icon={<span className="tb-add tb-newpad"><Icon name="notesTasks" size={15} className="icon tb-plus" /><span className="tb-label"> {NT_TEXT.name}</span>{padsAway > 0 && <span className="tb-newpad__n" aria-hidden="true">{padsAway}</span>}</span>}
-          label={`${NT_TEXT.label} – ${TERMS.pad}${padsHidden && deskPads.length ? ` – ${PAD_TEXT.hidden(deskPads.length)}` : ''}${dockSt.off && dockedAll.length ? ` – ${DOCK_TEXT.isOff(dockedAll.length)}` : ''}`}
+          icon={<span className="tb-add tb-newpad"><Icon name="notesTasks" size={15} className="icon tb-plus" /><span className="tb-label"> {NT_TEXT.name}</span>{padsAway > 0 && <span className="tb-newpad__n" aria-hidden="true">{padsAway}</span>}{In.inboxCount(ws) > 0 && <span className="tb-newpad__n tb-inbox__n" aria-hidden="true" title={INBOX_TEXT.countHint}>{In.inboxCount(ws)}</span>}</span>}
+          label={`${NT_TEXT.label}${In.inboxCount(ws) ? ` – ${INBOX_TEXT.count(In.inboxCount(ws))}` : ''} – ${TERMS.pad}${padsHidden && deskPads.length ? ` – ${PAD_TEXT.hidden(deskPads.length)}` : ''}${dockSt.off && dockedAll.length ? ` – ${DOCK_TEXT.isOff(dockedAll.length)}` : ''}`}
         >
           {(close) => (
             // V88 (BL2): „Neues Kanban-Board“ fragt „Leer · Vorlage …“
@@ -4034,6 +4049,13 @@ function DeskApp(props: DeskProps) {
                 notesMode ? notesPlan(PLAN_TEXT.pickPad, 'notes', null, newNoteAt)(close, () => go('')) : padPlan(PLAN_TEXT.pickPad, newPadAt)(close, () => go(''))
               ) : (
             <>
+              {/* V141 (K14): Eingang zeigen und Gedankenparkplatz */}
+              <Item icon="inbox" hint={INBOX_TEXT.tabTitle(In.inboxCount(ws))} onClick={() => (close(), openInbox())}>
+                {INBOX_TEXT.tab(In.inboxCount(ws))}
+              </Item>
+              <Item icon="inbox" hint={INBOX_TEXT.parkHint} onClick={() => (close(), setParkOpen(true))}>
+                {INBOX_TEXT.park} (Alt/⌥+E)
+              </Item>
               <Item icon="newPad" hint={PAD_TEXT.menuNewHint} onClick={() => (!notesMode && switchOf(ws, 'newPad') === 'plan' ? go('place') : (close(), newPad()))}>
                 {PAD_TEXT.menuNew}
               </Item>
@@ -4735,6 +4757,21 @@ function DeskApp(props: DeskProps) {
         />
       )}
       {helpAt && <Help at={helpAt.at} onClose={() => setHelpAt(null)} onRun={runHelp} />}
+      <ParkingLot
+        open={parkOpen}
+        say={sayLive}
+        onClose={() => setParkOpen(false)}
+        onPark={(text) => {
+          const id = newId();
+          const by = ws.profile?.name || undefined;
+          const r = In.captureToInbox(ws, text, { id, by });
+          if (!r) return null;
+          dispatch({ type: 'inboxCapture', text, note: id, by });
+          const n = r.ws.notes?.find((x) => x.id === id);
+          return { id, title: (n && noteTitleOf(n)) || NOTE_TEXT.untitled, count: In.inboxCount(r.ws) };
+        }}
+        onUndo={(id) => dispatch({ type: 'inboxDrop', note: id })}
+      />
       {fbAt && (
         <FeedbackQuick
           ws={ws}

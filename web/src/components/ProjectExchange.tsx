@@ -11,6 +11,7 @@ import type { Action } from '../workspace/useWorkspace';
 import type { Workspace } from '../workspace/types';
 import * as Mx from '../workspace/mspdi';
 import * as Tr from '../workspace/trello';
+import * as Tf from '../workspace/tableFiles';
 import { APP_VERSION } from '../workspace/feedback';
 import { projectById } from '../workspace/projects';
 import { EXCHANGE_TEXT as T } from '../workspace/terms';
@@ -26,8 +27,9 @@ function download(name: string, text: string, type: string) {
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
-type Kind = 'mspdi' | 'trello';
-const fileName = (s: string, kind: Kind) => `${s.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Projekt'}${kind === 'trello' ? '.trello.json' : '.xml'}`;
+type Kind = 'mspdi' | 'trello' | 'csv' | 'ics';
+const EXT: Record<Kind, string> = { mspdi: '.xml', trello: '.trello.json', csv: '.csv', ics: '.ics' };
+const fileName = (s: string, kind: Kind) => `${s.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Projekt'}${EXT[kind]}`;
 
 /** V120 (F-230 Schritt 3): Meldung eines Imports mit Rückgängig (stellt den Stand vor dem Import her – Projekt und Desk weg). */
 export type ImportMsg = { text: string; undo: () => void };
@@ -51,8 +53,10 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
     const gen = `E-Sources ${APP_VERSION}`;
     const name = fileName(p.name, kind);
     if (kind === 'trello') download(name, Tr.exportTrello(ws, pid, { generator: gen }), 'application/json');
+    else if (kind === 'csv') download(name, Tf.exportCsv(ws, pid), 'text/csv;charset=utf-8');
+    else if (kind === 'ics') download(name, Tf.exportIcs(ws, pid, { generator: gen }), 'text/calendar;charset=utf-8');
     else download(name, Mx.exportMspdi(ws, pid, { generator: gen }), 'application/xml');
-    tell(kind === 'trello' ? T.exportedTrello(name) : T.exported(name));
+    tell(kind === 'trello' ? T.exportedTrello(name) : kind === 'csv' ? T.exportedCsv(name) : kind === 'ics' ? T.exportedIcs(name) : T.exported(name));
   };
   const exportProject = (pid: string) => {
     setAsk(null);
@@ -61,6 +65,18 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
   const run = (a: Pick<Ask, 'kind' | 'text' | 'name'>, merge: string[]) => {
     setAsk(null);
     const before = ws;
+    // V141 (F-230 F7): CSV/Excel und iCal – neues Projekt, gleiche Namen = dieselbe Person
+    if (a.kind === 'csv' || a.kind === 'ics') {
+      const r = a.kind === 'csv' ? Tf.importCsv(ws, a.text, { name: a.name }) : Tf.importIcs(ws, a.text, { name: a.name });
+      if (!r.ok) return tell(T.error[r.error]);
+      dispatch({ type: 'exchange', ws: r.ws });
+      const pj = projectById(r.ws, r.project)!;
+      const said = T.importedTable(pj.name, r.tasks, r.links, r.persons, a.kind) + (r.skipped ? ` ${T.skipped(r.skipped)}` : '');
+      const undo = () => dispatch({ type: 'exchange', ws: before });
+      tell(said, undo);
+      onImported?.(r.project, pj.name, undefined, { text: said, undo });
+      return;
+    }
     if (a.kind === 'trello') {
       const r = Tr.importTrello(ws, a.text, { merge, name: a.name });
       if (!r.ok) return tell(T.error[r.error] + (r.detail ? ` (${r.detail})` : ''));
@@ -88,7 +104,8 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
     if (!f) return;
     if (/\.mpp$/i.test(f.name)) return tell(T.mpp);
     const text = await f.text();
-    const kind: Kind = /\.json$/i.test(f.name) || Tr.isTrello(text) ? 'trello' : 'mspdi';
+    const kind: Kind = Tf.isIcs(text) || /\.ics$/i.test(f.name) ? 'ics' : /\.(csv|tsv|txt)$/i.test(f.name) ? 'csv' : /\.json$/i.test(f.name) || Tr.isTrello(text) ? 'trello' : 'mspdi';
+    if (kind === 'csv' || kind === 'ics') return run({ kind, text, name: f.name }, []);
     const clashes = kind === 'trello' ? Tr.trelloNameClashes(ws, text) : Mx.mspdiNameClashes(ws, text);
     if (clashes.length) return setAsk({ kind, text, name: f.name, clashes, merge: new Set(clashes) });
     run({ kind, text, name: f.name }, []);
@@ -107,7 +124,7 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
         ref={input}
         type="file"
         hidden
-        accept=".xml,.mpp,.json,application/xml,text/xml,application/json"
+        accept=".xml,.mpp,.json,.csv,.tsv,.ics,application/xml,text/xml,application/json,text/csv,text/calendar"
         aria-label={T.import}
         onChange={(e) => {
           void onFile(e.target.files?.[0]);
@@ -123,6 +140,12 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
             </button>
             <button type="button" className={`help__run${from === 'trello' ? ' lc__primary' : ''}`} autoFocus={from === 'trello'} title={T.exportTrelloHint} onClick={() => exportAs(pick, 'trello')}>
               {T.pickTrello}
+            </button>
+            <button type="button" className="help__run" title={T.exportCsvHint} onClick={() => exportAs(pick, 'csv')}>
+              {T.pickCsv}
+            </button>
+            <button type="button" className="help__run" title={T.exportIcsHint} onClick={() => exportAs(pick, 'ics')}>
+              {T.pickIcs}
             </button>
           </span>
           <p className="lc__muted">{T.pickHint}</p>

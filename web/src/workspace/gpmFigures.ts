@@ -15,6 +15,7 @@ import { personById } from './persons';
 import { projectById, rolesOf } from './projects';
 import { titleOf, viewById } from './notes';
 import { matrixEntries, projectMatrix } from './sheets';
+import type { PortfolioDot } from './gpmCalc';
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
@@ -1067,4 +1068,105 @@ export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefin
       return squareSvg(p, o.row);
   }
   return '';
+}
+
+// ---------------------------------------------------------------- V141 (Enrico 14:58): Portfolios im Aussehen der Eisenhower-Matrix
+
+/** Rahmen wie Abb. 17: dunkle Kopfleiste mit Datum und Projekt, graues Feld mit Schatten, Kreuz aus weißer und dunkler Linie,
+ *  Achsentitel groß (senkrecht weinrot, waagerecht grau), Name der Grafik senkrecht rechts. */
+function quadFrame(p: Project, day: string, o: { x0: number; y0: number; gw: number; gh: number; cross: { x: number; y: number }; left: string; leftHi: string; leftLo: string; bottom: string; bottomLo: string; bottomHi: string; name: string }): string[] {
+  const { x0, y0, gw, gh, cross } = o;
+  const parts: string[] = [];
+  parts.push(`<rect x="${x0 + 40}" y="6" width="${2 * gw - 80}" height="40" rx="6" fill="url(#fgHead)" filter="url(#fgShadow)"/>`);
+  parts.push(`<text x="${x0 + gw}" y="33" text-anchor="middle" font-size="19" font-weight="bold" fill="#fff">${esc(`${dmy(day)} ${p.charter?.no ? `${p.name} - ${p.charter.no}` : p.name}`.slice(0, 60))}</text>`);
+  parts.push(`<rect x="${x0}" y="${y0}" width="${2 * gw}" height="${2 * gh}" rx="8" fill="url(#fgGray)" stroke="${LOOK.grayLine}" filter="url(#fgShadow)"/>`);
+  parts.push(`<line x1="${cross.x}" y1="${y0 + 8}" x2="${cross.x}" y2="${y0 + 2 * gh - 8}" stroke="#fff" stroke-width="3"/><line x1="${cross.x}" y1="${y0 + 8}" x2="${cross.x}" y2="${y0 + 2 * gh - 8}" stroke="#555" stroke-width="1"/>`);
+  parts.push(`<line x1="${x0 + 8}" y1="${cross.y}" x2="${x0 + 2 * gw - 8}" y2="${cross.y}" stroke="#fff" stroke-width="3"/><line x1="${x0 + 8}" y1="${cross.y}" x2="${x0 + 2 * gw - 8}" y2="${cross.y}" stroke="#555" stroke-width="1"/>`);
+  parts.push(`<text transform="translate(${x0 - 30} ${y0 + gh}) rotate(-90)" text-anchor="middle" font-size="22" font-weight="bold" fill="${LOOK.wine}">${esc(o.left)}</text>`);
+  parts.push(`<text transform="translate(${x0 - 8} ${y0 + gh / 2}) rotate(-90)" text-anchor="middle" font-size="10" fill="${LOOK.muted}">${esc(o.leftHi)}</text><text transform="translate(${x0 - 8} ${y0 + gh * 1.5}) rotate(-90)" text-anchor="middle" font-size="10" fill="${LOOK.muted}">${esc(o.leftLo)}</text>`);
+  parts.push(`<text x="${x0 + gw / 2}" y="${y0 + 2 * gh + 16}" text-anchor="middle" font-size="11" fill="${LOOK.muted}">${esc(o.bottomLo)}</text><text x="${x0 + gw * 1.5}" y="${y0 + 2 * gh + 16}" text-anchor="middle" font-size="11" fill="${LOOK.muted}">${esc(o.bottomHi)}</text>`);
+  parts.push(`<text x="${x0 + gw}" y="${y0 + 2 * gh + 44}" text-anchor="middle" font-size="22" font-weight="bold" fill="#9b9b9b">${esc(o.bottom)}</text>`);
+  parts.push(`<text transform="translate(${x0 + 2 * gw + 30} ${y0 + gh}) rotate(90)" text-anchor="middle" font-size="30" font-weight="bold" fill="#9b9b9b">${esc(o.name)}</text>`);
+  return parts;
+}
+const corner = (x: number, y: number, t: string, anchor: 'start' | 'end') => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="11" fill="${LOOK.muted}">${esc(t)}</text>`;
+const today = () => new Date().toISOString().slice(0, 10);
+/** V141: Liste je Feld wie Abb. 17 – `maxY` begrenzt (Gekürzt) mit „… und n weitere“; `dot` zeichnet vorn einen Kreis. */
+function fieldList(parts: string[], items: { lines: string[]; sub?: string; tone: string; title: string; dot?: { r: number; c: string } }[], x: number, y: number, maxY: number) {
+  let yy = y;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const h = (it.lines.length + (it.sub ? 1 : 0)) * 13;
+    if (yy + h > maxY) {
+      parts.push(`<text x="${x}" y="${yy}" font-size="10" fill="${LOOK.muted}">… und ${items.length - i} weitere</text>`);
+      return;
+    }
+    const tx = it.dot ? x + 20 : x;
+    parts.push(`<g><title>${esc(it.title)}</title>`);
+    if (it.dot) parts.push(`<circle cx="${x + 7}" cy="${yy - 4}" r="${it.dot.r}" fill="${it.dot.c}" fill-opacity="0.35" stroke="${it.dot.c}" stroke-width="1.2"/>`);
+    it.lines.forEach((l, j) => parts.push(`<text x="${tx}" y="${yy + j * 13}" font-size="11" font-weight="bold" fill="${it.tone}">${esc(l)}</text>`));
+    if (it.sub) parts.push(`<text x="${tx}" y="${yy + it.lines.length * 13}" font-size="10" fill="${LOOK.muted}">${esc(it.sub)}</text>`);
+    parts.push('</g>');
+    yy += h + 9;
+  }
+}
+const listHeight = (items: { lines: string[]; sub?: string }[]) => items.reduce((h, it) => h + (it.lines.length + (it.sub ? 1 : 0)) * 13 + 9, 0);
+
+/** Umfeld-Portfolio im Aussehen der Eisenhower-Matrix: intern/extern (Zeilen) × sachlich/sozial (Spalten), Einträge als
+ *  linksbündige Liste je Feld. `all` = Felder wachsen mit (Rad „Einträge“ Gekürzt · Alle wie in der Matrix). */
+export function envPortfolioSvg(p: Project, dots: PortfolioDot[], day = today(), all = false): string {
+  const x0 = 70;
+  const y0 = 60;
+  const gw = 300;
+  const item = (d: PortfolioDot, tone: string) => ({ lines: wrap(`- ${d.code ? `${d.code} ` : ''}${d.name}`, 44, 2), tone, title: d.name });
+  const field = (sd: 'in' | 'ex', a: 'fact' | 'social') => dots.filter((d) => d.side === sd && d.area === a).map((d) => item(d, sd === 'in' ? LOOK.wine : LOOK.ink));
+  const F = { inF: field('in', 'fact'), inS: field('in', 'social'), exF: field('ex', 'fact'), exS: field('ex', 'social') };
+  const gh = all ? Math.max(170, 56 + Math.max(...Object.values(F).map(listHeight))) : 170;
+  const parts = quadFrame(p, day, { x0, y0, gw, gh, cross: { x: x0 + gw, y: y0 + gh }, left: 'Herkunft', leftHi: 'intern', leftLo: 'extern', bottom: 'Beziehung', bottomLo: 'sachlich', bottomHi: 'sozial', name: 'Umfeld-Portfolio' });
+  parts.push(corner(x0 + 10, y0 + 16, 'intern · sachlich', 'start'), corner(x0 + 2 * gw - 10, y0 + 16, 'intern · sozial', 'end'), corner(x0 + 10, y0 + 2 * gh - 8, 'extern · sachlich', 'start'), corner(x0 + 2 * gw - 10, y0 + 2 * gh - 8, 'extern · sozial', 'end'));
+  fieldList(parts, F.inF, x0 + 14, y0 + 38, y0 + gh - 10);
+  fieldList(parts, F.inS, x0 + gw + 14, y0 + 38, y0 + gh - 10);
+  fieldList(parts, F.exF, x0 + 14, y0 + gh + 26, y0 + 2 * gh - 24);
+  fieldList(parts, F.exS, x0 + gw + 14, y0 + gh + 26, y0 + 2 * gh - 24);
+  const open = dots.filter((d) => !d.side || !d.area).length;
+  return svgWrap(760, y0 + 2 * gh + 60, `Umfeld-Portfolio: ${dots.length - open} Stakeholder eingeordnet${open ? `, ${open} ohne Angabe` : ''}`, parts.join(''));
+}
+
+/** Stakeholder-Portfolio im Aussehen der Eisenhower-Matrix: Einstellung −2…+2 (waagerecht) × Macht 1–3 (senkrecht).
+ *  V141 (Enrico 15:02 „Ordne die Einträge linksbündig an“): je Feld eine linksbündige Liste wie in Abb. 17 – Kreis
+ *  (Größe = Konfliktpotenzial, weinrot intern, grau extern), Code und Name, darunter Einstellung · Macht · Konflikt
+ *  (Enrico 15:02 „warum sind da 2 Kreise größer?“ – die Zahl steht jetzt dabei). `all` wie beim Umfeld-Portfolio. */
+export function shPortfolioSvg(p: Project, dots: PortfolioDot[], day = today(), all = false): string {
+  const x0 = 70;
+  const y0 = 60;
+  const gw = 300;
+  const sign = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0');
+  const placed = dots.filter((d) => d.attitude !== undefined && d.power !== undefined);
+  const item = (d: PortfolioDot) => {
+    const c = d.side === 'ex' ? '#555' : LOOK.wine;
+    return {
+      lines: wrap(`${d.code ? `${d.code} ` : ''}${d.name}`, 40, 2),
+      sub: `Einstellung ${sign(d.attitude!)} · Macht ${d.power}${d.conflict ? ` · Konflikt ${d.conflict}` : ''}`,
+      tone: d.side === 'ex' ? LOOK.ink : LOOK.wine,
+      title: `${d.code ? `${d.code} ` : ''}${d.name}, ${d.side === 'ex' ? 'extern' : 'intern'}`,
+      dot: { r: 3 + (d.conflict ?? 1) * 1.3, c },
+    };
+  };
+  // Feld: links = dagegen (< 0), rechts = neutral/dafür; oben = Macht ≥ 2
+  const field = (right: boolean, top: boolean) =>
+    placed.filter((d) => (d.attitude! >= 0) === right && (d.power! >= 2) === top).sort((a, b) => b.power! - a.power! || b.attitude! - a.attitude! || (a.code || a.name).localeCompare(b.code || b.name, 'de')).map(item);
+  const F = { lt: field(false, true), rt: field(true, true), lb: field(false, false), rb: field(true, false) };
+  const gh = all ? Math.max(170, 56 + Math.max(...Object.values(F).map(listHeight))) : 170;
+  const parts = quadFrame(p, day, { x0, y0, gw, gh, cross: { x: x0 + gw, y: y0 + gh }, left: 'Macht/Einfluss', leftHi: 'hoch (2–3)', leftLo: 'gering (1)', bottom: 'Einstellung', bottomLo: 'dagegen (−2 … −1)', bottomHi: 'dafür (0 … +2)', name: 'Stakeholder-Portfolio' });
+  parts.push(corner(x0 + 10, y0 + 16, 'Opponenten – eng steuern', 'start'), corner(x0 + 2 * gw - 10, y0 + 16, 'Promotoren – einbinden', 'end'), corner(x0 + 10, y0 + 2 * gh - 8, 'Gegner ohne Macht – beobachten', 'start'), corner(x0 + 2 * gw - 10, y0 + 2 * gh - 8, 'Unterstützer – informieren', 'end'));
+  fieldList(parts, F.lt, x0 + 14, y0 + 40, y0 + gh - 10);
+  fieldList(parts, F.rt, x0 + gw + 14, y0 + 40, y0 + gh - 10);
+  fieldList(parts, F.lb, x0 + 14, y0 + gh + 30, y0 + 2 * gh - 24);
+  fieldList(parts, F.rb, x0 + gw + 14, y0 + gh + 30, y0 + 2 * gh - 24);
+  const ly = y0 + 2 * gh + 66;
+  parts.push(`<circle cx="${x0 + 6}" cy="${ly - 4}" r="5" fill="${LOOK.wine}" fill-opacity="0.35" stroke="${LOOK.wine}"/><text x="${x0 + 16}" y="${ly}" font-size="10" fill="${LOOK.ink}">intern</text>`);
+  parts.push(`<circle cx="${x0 + 66}" cy="${ly - 4}" r="5" fill="#555" fill-opacity="0.35" stroke="#555"/><text x="${x0 + 76}" y="${ly}" font-size="10" fill="${LOOK.ink}">extern</text>`);
+  parts.push(`<text x="${x0 + 126}" y="${ly}" font-size="10" fill="${LOOK.muted}">Kreisgröße = Konfliktpotenzial (1 gering – 3 hoch)</text>`);
+  const open = dots.length - placed.length;
+  return svgWrap(760, ly + 10, `Stakeholder-Portfolio: ${placed.length} Stakeholder eingeordnet${open ? `, ${open} ohne Einstellung oder Macht` : ''}`, parts.join(''));
 }

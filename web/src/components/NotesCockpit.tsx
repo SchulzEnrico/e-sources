@@ -10,7 +10,8 @@ import type { PadPlace } from '../workspace/types';
 import { idsIn, viewById } from '../workspace/notes';
 import { windowName } from '../workspace/windows';
 import { noticeLater } from '../workspace/flash';
-import { DIALOG_TEXT, NOTES_COCKPIT_TEXT as NC, PAD_TEXT } from '../workspace/terms';
+import { INBOX_TEXT, DIALOG_TEXT, NOTES_COCKPIT_TEXT as NC, PAD_TEXT } from '../workspace/terms';
+import * as In from '../workspace/inbox';
 import type { Action } from '../workspace/useWorkspace';
 import { StarMark } from './StarMark';
 import { Icon } from './Icon';
@@ -534,6 +535,16 @@ export function NotesCockpit(p: NotesCockpitProps) {
             />
           )}
           {rows.length === 0 ? <p className="overview__empty">{q ? NC.none : NC.emptyDesk}</p> : <ul className="overview__list">{rows.map(row)}</ul>}
+          {/* V141 (K14 I6): Eingang mit Zahl offener Einträge – Klick zeigt ihn (offen im Pad: dorthin, sonst im obersten Pad) */}
+          {In.inboxOf(ws) && (
+            <section className="ncp__matrices" aria-label={INBOX_TEXT.name}>
+              <button type="button" className="ncp__matrix" aria-label={`${In.inboxOf(ws)!.name} – ${INBOX_TEXT.count(In.inboxCount(ws))}`} title={INBOX_TEXT.tabTitle(In.inboxCount(ws))} onClick={() => showMatrix(In.INBOX_ID)}>
+                <Icon name="inbox" size={13} />
+                <span className="ncp__matrixname">{In.inboxOf(ws)!.name}</span>
+                <span className={`sign${In.inboxCount(ws) ? ' sign--urg' : ''}`}>{INBOX_TEXT.count(In.inboxCount(ws))}</span>
+              </button>
+            </section>
+          )}
           {/* V87 (BC3, Enrico): Übersicht aller Matrizen mit offenen Karten je Feld */}
           {Sh.matricesOf(ws).length > 0 && (
             <section className="ncp__matrices" aria-label={NC.matrices}>

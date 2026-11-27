@@ -37,6 +37,8 @@ export const TERMS = {
   kitSchedule: 'Zeitplan = Regel nach der Uhr (jeden Tag, Arbeitstag, Wochentag, Monatstag); Fälligkeit = Regel n Tage oder Stunden vor bzw. nach „fällig“; wiederkehrende Karte = je Termin eine neue Karte aus einer Kartenvorlage; verpasste Termine holt E-Sources beim Start einmal nach',
   kitWatch: 'Beobachten = bei Änderungen anderer an dieser Karte, Spalte oder diesem Board eine Neuigkeit unter der Glocke im Cockpit-Kopf bekommen (über den Abgleich); @-Erwähnungen melden immer',
   kitButtons: 'Knopf = ein Name plus eine Folge von Aktionen (wie bei den Regeln), die erst auf Klick laufen; Karten-Knöpfe wirken auf eine Karte (Kartenfenster, Taste B), Board-Knöpfe auf alle sichtbaren Karten oder eine Spalte (oben im Board); ein Druck lässt sich am Ort rückgängig machen',
+  inbox: 'Eingang = festes To-do-Sheet für schnell Erfasstes (wie Trello „Inbox“). Gedankenparkplatz (Alt/⌥+E), Knopf im Pad und „Neue Notiz“ im Portal legen dort ab; mit Taste V sortierst du später in ein Sheet, eine Eisenhower-Matrix oder ein Projekt ein. Es gibt ihn immer genau einmal',
+  parkingLot: 'Gedankenparkplatz = kleines Eingabefeld über allem (Alt/⌥+E). Der Gedanke landet sofort im Eingang, der Fokus kehrt zur Arbeit zurück – hilft gegen Ablenkung',
   sheetStar: 'Stern = ein Sheet als häufig gebraucht markieren (wie Trello „Board markieren“). Sheets mit Stern stehen unter „+ Sheet“ › „Mit Stern …“ zum schnellen Öffnen und in den Listen zum Verschieben, Kopieren und Spiegeln vorn',
   cardVote: 'Abstimmen = jede Person gibt einer Karte eine Stimme (wie Trello „Voting“); die Zahl der Stimmen zeigt, was dem Team am wichtigsten ist',
   cardCover: 'Titelbild = Farbe oder Bild oben auf einer Karte (klein) oder über die ganze Karte (ganzflächig), wie Trello „Cover“ – macht Karten auf einen Blick erkennbar',
@@ -1463,11 +1465,11 @@ export const WHEEL_ORDER_TEXT = {
 /** V118 (F-230): Export und Import ohne Verlust (MS Project, iTaskX – MSPDI-XML). */
 export const EXCHANGE_TEXT = {
   export: 'Exportieren …',
-  exportHint: 'Projekt als Datei speichern – für MS Project/iTaskX (XML) oder Trello (JSON); das Format wählst du gleich danach am Ort',
+  exportHint: 'Projekt als Datei speichern – für MS Project/iTaskX (XML), Trello (JSON), Excel (CSV) oder Kalender (iCal); das Format wählst du gleich danach am Ort',
   exportMspdiHint: 'Projekt als XML-Datei für MS Project, iTaskX und andere Planer speichern (MSPDI) – mit Vorgängen, Terminen, Vorgängern, Ressourcen, Basisplan, Kalender und allem, was beim Import mitgeführt wurde',
   import: 'Importieren …',
   importUndone: (p: string) => `Import zurückgenommen – Projekt „${p}“ und sein Desk sind wieder weg.`,
-  importHint: 'XML-Datei aus MS Project oder iTaskX (MSPDI) bzw. JSON-Datei eines Trello-Boards als neues Projekt laden; was E-Sources nicht kennt, bleibt erhalten und geht beim Export zurück. .mpp vorher in MS Project als XML speichern',
+  importHint: 'XML-Datei aus MS Project oder iTaskX (MSPDI), JSON-Datei eines Trello-Boards, Tabelle (CSV aus Excel) oder Kalender (.ics) als neues Projekt laden; was E-Sources nicht kennt, bleibt erhalten und geht beim Export zurück. .mpp vorher in MS Project als XML speichern',
   exported: (f: string) => `„${f}“ gespeichert – in MS Project bzw. iTaskX öffnen (Datei › Öffnen, Typ XML).`,
   imported: (name: string, tasks: number, links: number, persons: number, merged: number, kept: number) =>
     `„${name}“ importiert: ${tasks} Vorgänge, ${links} Vorgänger, ${persons} neue Personen${merged ? `, ${merged} zusammengeführt` : ''}${kept ? ` · ${kept} weitere Angaben mitgeführt` : ''}.`,
@@ -1476,6 +1478,16 @@ export const EXCHANGE_TEXT = {
   exportTrelloHint: 'Projekt als Trello-Board (JSON-Datei) speichern – Spalten als Listen, Vorgänge als Karten mit Checklisten, Tags als Labels, Personen als Mitglieder; was Trello nicht kennt (Vorgänger, Dauer, Aufwand, Gliederung), steht im eigenen Abschnitt und kommt beim Import zurück',
   exportedTrello: (f: string) => `„${f}“ gespeichert – Trello liest keine Datei ein; die Datei dient zum Weitergeben, Sichern und für den Import in E-Sources (Hochladen nach Trello kommt später).`,
   exportCancelled: 'Export abgebrochen.',
+  // V141 (F-230 F7): CSV/Excel und iCal
+  pickCsv: 'Excel / Tabelle (CSV)',
+  pickIcs: 'Kalender (iCal)',
+  exportCsvHint: 'Vorgänge als Tabelle speichern (CSV mit Semikolon, öffnet direkt in Excel, Numbers, Google Sheets; MS Project liest sie über den Import-Assistenten) – Nr., PSP-Code, Name, Ebene, Dauer, Anfang, Ende, Vorgänger, Ressourcen, Arbeit, Kosten, Fortschritt. Ohne Verlust geht nur XML bzw. JSON',
+  exportIcsHint: 'Termine als Kalender speichern (.ics für Apple-, Google- und Outlook-Kalender) – ein ganztägiger Termin je Vorgang, Meilensteine mit ◆',
+  exportedCsv: (f: string) => `„${f}“ gespeichert – in Excel oder Numbers öffnen. Tabellen tragen weniger als XML: Basisplan, Kalender und Mitgeführtes fehlen.`,
+  exportedIcs: (f: string) => `„${f}“ gespeichert – im Kalender öffnen bzw. abonnieren; jeder Vorgang ist ein ganztägiger Termin.`,
+  importedTable: (name: string, tasks: number, links: number, persons: number, kind: 'csv' | 'ics') =>
+    `„${name}“ aus ${kind === 'csv' ? 'der Tabelle' : 'dem Kalender'} importiert: ${tasks} Vorgänge${links ? `, ${links} Vorgänger` : ''}${persons ? `, ${persons} neue Personen (gleiche Namen = dieselbe Person)` : ''}.`,
+  skipped: (n: number) => `${n === 1 ? '1 Zeile' : `${n} Zeilen`} ohne Namen bzw. Datum übersprungen.`,
   pickHead: 'Exportieren für …',
   pickMspdi: 'MS Project / iTaskX (XML)',
   pickTrello: 'Trello (JSON)',
@@ -1495,6 +1507,8 @@ export const EXCHANGE_TEXT = {
     json: 'Die Datei ist kein gültiges JSON.',
     notTrello: 'Das ist kein Trello-Board (JSON mit Listen und Karten).',
     empty: 'In der Datei stehen keine Vorgänge.',
+    noName: 'In der Tabelle fehlt die Spalte „Name“ (bzw. „Vorgangsname“, „Task Name“).',
+    ics: 'Das ist keine iCal-Datei (BEGIN:VCALENDAR).',
     full: 'Es gibt schon zu viele Projekte.',
   } as Record<string, string>,
   kept: (n: number, app: string) => `${n} Angaben aus ${app} mitgeführt – unverändert, gehen beim Export zurück`,
@@ -1741,6 +1755,29 @@ export const SEARCH_TEXT = {
 } as const;
 
 /** F-206 Schritt 7 (V86): To-do, Kanban, Eisenhower – Texte. */
+/** V141 (F-231 K14, F-106): Eingang und Gedankenparkplatz. */
+export const INBOX_TEXT = {
+  name: 'Eingang',
+  tab: (n: number) => (n ? `Eingang (${n})` : 'Eingang'),
+  tabTitle: (n: number) => `Eingang – hier landet schnell Erfasstes (Gedankenparkplatz Alt/⌥+E, Knopf im Pad, „Neue Notiz“ im Portal). ${n === 1 ? '1 Eintrag' : `${n} Einträge`} noch einzusortieren: Taste V auf dem Eintrag.`,
+  count: (n: number) => (n === 1 ? '1 im Eingang' : `${n} im Eingang`),
+  countHint: 'Offene Einträge im Eingang – noch nicht einsortiert',
+  empty: 'Eingang leer – alles einsortiert.',
+  emptyHint: 'Mit Alt/⌥+E (Gedankenparkplatz) landet ein Gedanke hier, ohne dass du deine Arbeit verlässt. Taste V auf einem Eintrag sortiert ihn in ein Sheet, eine Eisenhower-Matrix oder ein Projekt ein.',
+  noDelete: 'Den Eingang gibt es immer – umbenennen geht, löschen nicht.',
+  park: 'Gedankenparkplatz',
+  parkLabel: 'Gedanke für den Eingang',
+  parkHint: 'Enter legt im Eingang ab · Umschalt+Enter neue Zeile · Esc schließt. Erste Zeile = Titel.',
+  parkPlaceholder: 'Gedanke festhalten …',
+  parked: (t: string, n: number) => `„${t}“ liegt im Eingang (${n}).`,
+  parkUndone: 'Gedanke wieder entfernt.',
+  parkEmpty: 'Nichts eingegeben – Esc schließt.',
+  toProject: (p: string) => `Projekt „${p}“`,
+  projects: 'Projekte',
+  movedToProject: (t: string, p: string) => `„${t}“ ist jetzt Vorgang im Projekt „${p}“.`,
+  backFromProject: (t: string) => `„${t}“ liegt wieder im Eingang.`,
+};
+
 export const SHEET_TEXT = {
   // V88 (F/K4): V = Verschieben nach … – Ziel-Sheet wählen wie im Cockpit
   moveTo: (title: string) => `„${title}“ verschieben nach:`,
@@ -2631,7 +2668,7 @@ export const PERSONS_TEXT = {
 
 /** F-206 Schritt 10 (V99): Projekt-Modus – Projektliste und Steckbrief, aufgebaut wie Cockpit „Personen“ (NF-08). */
 /** V100: Beispielprojekt aus Enricos Projektreport (⚙). */
-/** V134 (F-233): Texte je Beispielprojekt (ColorGentlemen, Logistik-Center). */
+/** V134 (F-233): Texte je Beispielprojekt (ColorGentlemen; Logistik-Center V141 entfernt). */
 export const sampleText = (s: { name: string; tasks: number; roles: number; source: string }) => ({
   add: `Beispielprojekt „${s.name}“ anlegen`,
   remove: `Beispielprojekt „${s.name}“ entfernen`,

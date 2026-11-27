@@ -746,7 +746,7 @@ describe('F-235 (V135): Live-Projekt E-Sources', () => {
     const D = await import('./liveProjectData');
     const ids = D.LIVE_ITEMS.map((i) => i.f);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids.length).toBe(202); // 204 im Lastenheft, 2 ersetzt (⇢) fallen weg
+    expect(ids.length).toBe(202); // 205 im Lastenheft, 3 ersetzt (⇢, V141 auch F-233) fallen weg
     const st = (f: string) => D.LIVE_ITEMS.find((i) => i.f === f)?.state;
     for (const f of ['F-16', 'F-19', 'F-38', 'F-53', 'F-62', 'F-100', 'F-119', 'F-148', 'F-157', 'F-198', 'F-199']) expect(st(f)).toBe('open');
     for (const f of ['F-160', 'F-179', 'F-181', 'F-184']) expect(st(f)).toBe('done');

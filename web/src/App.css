@@ -10529,3 +10529,13 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
 .pjf__svg svg:has([data-edit$=':rAppeal']:hover, [data-edit$=':rAppeal']:focus-visible) .fg-vert[data-k='rAppeal'] { opacity: 0.25; }
 .pjf__fig.is-square .pjf__svg svg { overflow: visible; }
 .pjf__fig.is-square .pjf__svg { overflow: visible; }
+
+/* V141 (F-106, K14 I4): Gedankenparkplatz – klein, oben in der Mitte, über allem */
+.park { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 1400; width: min(520px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--panel, #1d1f24); border: 1px solid rgba(var(--accent-rgb), 0.55); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
+.park[role='status'] { padding: 0; background: none; border: 0; box-shadow: none; }
+.park__cap { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.park__field { width: 100%; box-sizing: border-box; resize: none; font: inherit; font-size: 14px; padding: 6px 8px; border-radius: 8px; }
+.park__hint { margin: 0; font-size: 11px; opacity: 0.75; }
+.park__msg { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); background: var(--panel, #1d1f24); }
+.pad__tabcount { margin-left: 4px; min-width: 16px; padding: 0 4px; border-radius: 8px; font-size: 10px; line-height: 15px; text-align: center; background: rgba(var(--accent-rgb), 0.85); color: #fff; }
+.tb-inbox__n { background: rgba(var(--accent-rgb), 0.85); color: #fff; }

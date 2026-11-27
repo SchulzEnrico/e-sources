@@ -10,7 +10,7 @@ import * as Fk from './formKit';
 import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf, projectStatus, type CostCurve, type EvCurve, type Mta, type PortfolioDot } from './gpmCalc';
 import { personById } from './persons';
 import { projectById } from './projects';
-import { figureSvg } from './gpmFigures';
+import { envPortfolioSvg, figureSvg, shPortfolioSvg } from './gpmFigures';
 import * as Sh from './sheets';
 
 export const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -339,7 +339,8 @@ export function formSvg(ws: Workspace, pid: string, form: FormDef, col: SvgColor
   if (form.source === 'mta') return mtaSvg(mtaOf(ws, pid, Fk.evDay()), mtaNames(ws, pid), col);
   if (form.source === 'ev') return evSvg(evCurve(ws, pid, Fk.evDay()), col);
   if (form.layout === 'chart') return curveSvg(costCurve(ws, pid), col);
-  if (form.layout === 'portfolio') return form.filter === 'sh' ? shSvg(portfolioOf(p), col) : envSvg(portfolioOf(p), col);
+  // V141 (Enrico 14:58): Portfolios im Aussehen der Eisenhower-Matrix
+  if (form.layout === 'portfolio' && p) return form.filter === 'sh' ? shPortfolioSvg(p, portfolioOf(p), undefined, true) : envPortfolioSvg(p, portfolioOf(p), undefined, true);
   return '';
 }
 

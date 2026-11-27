@@ -4,7 +4,8 @@
  * Entscheidungen: Claude Doc „Pads mit Notizblock und Lageplan“ (P1–P9).
  */
 import { askFeedback } from './FeedbackQuick';
-import { FEEDBACK_TEXT, KIT_TEXT } from '../workspace/terms';
+import { INBOX_TEXT, FEEDBACK_TEXT, KIT_TEXT } from '../workspace/terms';
+import * as In from '../workspace/inbox';
 import { type CSSProperties, type Dispatch, type KeyboardEvent, type PointerEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useKeyboard } from './useKeyboard';
 import type { Action } from '../workspace/useWorkspace';
@@ -759,13 +760,20 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
                 aria-controls={`pad-${pad.id}-panel`}
                 tabIndex={on ? 0 : -1}
                 className={`pad__tab${on ? ' is-on' : ''}`}
-                title={`${v.name}${i < 9 ? ` (Strg/⌘+${i + 1})` : ''} – Pfeile wechseln, Umschalt + Pfeil verschiebt den Reiter`}
+                title={`${In.isInbox(id) ? INBOX_TEXT.tabTitle(In.inboxCount(ws)) + ' ' : ''}${v.name}${i < 9 ? ` (Strg/⌘+${i + 1})` : ''} – Pfeile wechseln, Umschalt + Pfeil verschiebt den Reiter`}
                 onClick={() => show(id)}
                 onDoubleClick={() => setRenaming(true)}
                 onKeyDown={(e) => (e.key === 'Delete' ? (e.preventDefault(), closeSheet(id)) : onTabKey(e, i))}
               >
-                <Icon name={KIND_ICON[v.kind]} size={13} />
+                <Icon name={In.isInbox(id) ? 'inbox' : KIND_ICON[v.kind]} size={13} />
                 <span className="pad__tabname">{v.name}</span>
+                {/* V141 (K14 I6): offene Einträge im Eingang am Reiter */}
+                {In.isInbox(id) && In.inboxCount(ws) > 0 && (
+                  <span className="pad__tabcount" title={INBOX_TEXT.countHint}>
+                    {In.inboxCount(ws)}
+                    <span className="sr-only">, {INBOX_TEXT.count(In.inboxCount(ws))}</span>
+                  </span>
+                )}
                 {/* V128 (F-231 K12): Stern am Reiter */}
                 {v.star && (
                   <span className="pad__tabstar" title={STAR_TEXT.mark}>
@@ -1200,11 +1208,12 @@ function NoteBlock(props: {
     if (props.picked && !open) onPick(null);
   }, [props.picked, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const add = () => {
+  // V141 (K14 I3): `knob` = vom Knopf im Pad (Dock-Notiz) – die Notiz liegt zusätzlich im Eingang
+  const add = (knob = false) => {
     leave();
     const id = newId();
     freshNotes.add(id); // V75 (T5): neue Note – Tastatur darf sofort aufgehen
-    dispatch({ type: 'padNote', id: padId, sheet: sheetId, note: id, by: ws.profile?.name || undefined });
+    dispatch({ type: 'padNote', id: padId, sheet: sheetId, note: id, by: ws.profile?.name || undefined, ...(knob ? { inbox: true } : {}) });
     // F-206 Schritt 6 (V93, Q2 a): im Desk-Modus mit der Seite im aktiven Portal verknüpft – abwählbar über × am Chip
     const page = document.querySelector('.padlayer.is-notes') ? null : NS.activePage(ws);
     if (page) {
@@ -1234,7 +1243,7 @@ function NoteBlock(props: {
   useEffect(() => {
     if (!props.cmd || props.cmd.n === done.current) return;
     done.current = props.cmd.n;
-    if (props.cmd.k === 'new') return add();
+    if (props.cmd.k === 'new') return add(true);
     if (props.cmd.k === 'go') return props.cmd.id ? pick(props.cmd.id) : undefined;
     if (props.cmd.k === 'search') {
       setFind((f) => f ?? '');
@@ -1248,7 +1257,7 @@ function NoteBlock(props: {
   return (
     <div className={`nblock${open ? ' has-open' : ''}${find !== null ? ' is-finding' : ''}`}>
       <div className="nblock__side" ref={sideRef}>
-        <button type="button" className="nblock__new" onClick={add} title={explain(TERMS.note)}>
+        <button type="button" className="nblock__new" onClick={() => add()} title={explain(TERMS.note)}>
           <Icon name="plus" size={14} /> <span className="nblock__newtext">{PAD_TEXT.newNote}</span>
         </button>
         {find !== null && (

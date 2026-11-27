@@ -101,7 +101,9 @@ export function moveCard(ws: Workspace, viewId: string, noteId: string, colId: s
 
 /** V88 (F/K4 „V“): Ziele für „Verschieben nach …“ – alle anderen Sheets außer der Matrix (die ordnet nach wichtig/dringend). */
 export function moveTargets(ws: Workspace, from: string): NoteView[] {
-  return starFirst(No.viewsOf(ws).filter((v) => v.id !== from && v.kind !== 'eisenhower'));
+  // V141 (K14 I5): aus dem Eingang auch in die Eisenhower-Matrizen (die Notiz wird dort eingetragen)
+  const inbox = from === 'inbox';
+  return starFirst(No.viewsOf(ws).filter((v) => v.id !== from && (inbox || v.kind !== 'eisenhower')));
 }
 
 /**

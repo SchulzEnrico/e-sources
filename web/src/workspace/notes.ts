@@ -745,6 +745,8 @@ export interface ViewUndo {
 
 /** Ansicht löschen – die Notizen darin bleiben in der Library. */
 export function deleteView(ws: Workspace, id: string): { ws: Workspace; undo: ViewUndo } | null {
+  // V141 (K14 I2): der Eingang ist nicht löschbar
+  if (id === 'inbox') return null;
   const all = viewsOf(ws);
   const index = all.findIndex((v) => v.id === id);
   if (index < 0) return null;
@@ -1188,7 +1190,8 @@ export function openNoteIn(ws: Workspace, panelId: string, ref: NoteRef): OpenNo
  */
 export function dropIfEmpty(ws: Workspace, noteId: string | undefined, exceptTab?: string): Workspace {
   const n = noteId ? noteById(ws, noteId) : undefined;
-  if (!n || !isEmptyNote(ws, n) || viewsWith(ws, n.id).length) return ws;
+  // V141 (K14): der Eingang hält eine leere Notiz nicht fest (sie kam nur mit dem Tab dorthin)
+  if (!n || !isEmptyNote(ws, n) || viewsWith(ws, n.id).some((v) => v.id !== 'inbox')) return ws;
   if (ws.panels.some((p) => p.tabs.some((t) => t.id !== exceptTab && !t.url && t.note === n.id))) return ws;
   return deleteNote(ws, n.id)?.ws ?? ws;
 }

@@ -32,6 +32,8 @@ import { CardCover } from './CardCover';
 import { CardFields } from './CardFields';
 import { StarMark } from './StarMark';
 import { Icon } from './Icon';
+import * as In from '../workspace/inbox';
+import { INBOX_TEXT } from '../workspace/terms';
 
 export type SheetCmd = { k: 'home' | 'new' | 'go' | 'search'; n: number; id?: string };
 export type Show = 'open' | 'all';
@@ -78,7 +80,7 @@ export function MoveToBar(props: { ws: Workspace; dispatch: Dispatch<Action>; sh
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     box.current?.querySelector<HTMLElement>('button')?.focus();
-    if (!targets.length) say(SHEET_TEXT.moveNone);
+    if (!targets.length && !(In.isInbox(sheetId) && In.inboxProjects(ws).length)) say(SHEET_TEXT.moveNone);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!n) return null;
   const title = No.titleOf(No.shownNote(n)) || NOTE_TEXT.untitled;
@@ -89,6 +91,16 @@ export function MoveToBar(props: { ws: Workspace; dispatch: Dispatch<Action>; sh
     const text = SHEET_TEXT.movedTo(title, to.name);
     say(text);
     props.notice({ text, undo: () => (dispatch({ type: 'sheetMoveTo', note: noteId, from: to.id, to: sheetId, by }), say(SHEET_TEXT.moveBack(title, from))) });
+    props.onClose();
+  };
+  // V141 (K14 I5): aus dem Eingang auch ins Projekt – die Notiz wird Vorgang und verlässt den Eingang
+  const projects = In.isInbox(sheetId) ? In.inboxProjects(ws) : [];
+  const toProject = (pid: string, name: string) => {
+    const was = n.project;
+    dispatch({ type: 'inboxToProject', note: noteId, project: pid, by });
+    const text = INBOX_TEXT.movedToProject(title, name);
+    say(text);
+    props.notice({ text, undo: () => (dispatch({ type: 'inboxFromProject', note: noteId, project: was, by }), say(INBOX_TEXT.backFromProject(title))) });
     props.onClose();
   };
   const key = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -118,6 +130,12 @@ export function MoveToBar(props: { ws: Workspace; dispatch: Dispatch<Action>; sh
       ) : (
         <span className="lc__muted">{SHEET_TEXT.moveNone}</span>
       )}
+      {projects.length > 0 && <span className="sheet__move-cap">{INBOX_TEXT.projects}</span>}
+      {projects.map((pj) => (
+        <button key={pj.id} type="button" className="help__run" onClick={() => toProject(pj.id, pj.name)}>
+          <Icon name="project" size={12} className="icon icon--inline" /> {INBOX_TEXT.toProject(pj.name)}
+        </button>
+      ))}
       <button type="button" className="help__run" onClick={props.onClose}>
         {DIALOG_TEXT.cancel}
       </button>
@@ -475,7 +493,14 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
           {rows.map((r) => row(r.note, r.depth, show === 'all' && (No.isFinished(r.note.state) || r.note.state === 'review')))}
         </ul>
       ) : (
-        <p className="nblock__empty">{filter ? SHEET_TEXT.none : SHEET_TEXT.empty}</p>
+        filter || !In.isInbox(sheetId) ? (
+          <p className="nblock__empty">{filter ? SHEET_TEXT.none : SHEET_TEXT.empty}</p>
+        ) : (
+          // V141 (K14 I7): leerer Eingang mit Erklärung des Kürzels
+          <p className="nblock__empty" title={INBOX_TEXT.emptyHint}>
+            {INBOX_TEXT.empty} <span className="lc__muted">{INBOX_TEXT.emptyHint}</span>
+          </p>
+        )
       )}
       {lockMsg && (
         <p className="sheet__msg" role="status">

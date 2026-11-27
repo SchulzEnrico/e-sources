@@ -4,10 +4,10 @@
  */
 import type { Workspace } from './types';
 import * as Sp from './sampleProject';
-import * as Sl from './sampleLogistics';
 import { ensureMatrices } from './formKit';
+import { removeSampleBy } from './sampleProject';
 
-export type SampleKey = 'cg' | 'fp';
+export type SampleKey = 'cg';
 export interface SampleDef {
   key: SampleKey;
   /** Projekt-Id */
@@ -20,16 +20,13 @@ export interface SampleDef {
   source: string;
   add: (ws: Workspace, now?: number) => Workspace;
   remove: (ws: Workspace) => Workspace;
-  /** V135 (Enrico 12:16 „Wenn wir das Live-Projekt haben, kannst du Future Proof auch wieder entfernen“): nicht mehr anlegbar, ein vorhandenes lässt sich im ⚙ noch entfernen */
-  retired?: boolean;
 }
 export const SAMPLES: SampleDef[] = [
   { key: 'cg', id: Sp.SAMPLE_PROJECT, name: 'ColorGentlemen', tasks: 39, roles: 4, source: 'Projektreport ColorGentlemen (Lackiererei, IPMA ICB4 Level D)', add: Sp.addSampleProject, remove: Sp.removeSampleProject },
-  { key: 'fp', id: Sl.LOGISTICS_PROJECT, name: 'Logistik-Center', tasks: 39, roles: 6, source: 'Projektreport FUTURE-P.ROOF (Logistik-Center, IPMA ICB4 Level D)', add: Sl.addLogisticsProject, remove: Sl.removeLogisticsProject, retired: true },
 ];
 /** V135 (Enrico 12:10 „In der Demo soll ausschließlich der ColorGentlemen-Report als Beispielprojekt zu sehen sein“):
  * in der Online-Demo (gebaute Fassung) nur ColorGentlemen, beim Entwickeln (`npm run dev`) alle. */
-export const shownSamples = (dev: boolean): SampleDef[] => SAMPLES.filter((s) => !s.retired && (dev || s.key === 'cg'));
+export const shownSamples = (dev: boolean): SampleDef[] => SAMPLES.filter((s) => dev || s.key === 'cg');
 export const sampleOf = (key: SampleKey | undefined): SampleDef => SAMPLES.find((s) => s.key === key) ?? SAMPLES[0];
 export const hasSample = (ws: Workspace, key: SampleKey): boolean => (ws.projects ?? []).some((p) => p.id === sampleOf(key).id);
 /**
@@ -41,5 +38,18 @@ export function toggleSample(ws: Workspace, key: SampleKey | undefined, on: bool
   if (on) return ensureMatrices(d.add(ws));
   const out = d.remove(ws);
   const views = (out.noteViews ?? []).filter((v) => !(v.kind === 'eisenhower' && v.owner?.kind === 'project' && v.owner.id === d.id));
+  return views.length === (out.noteViews ?? []).length ? out : { ...out, noteViews: views };
+}
+
+/**
+ * V141 (Enrico 14:51 „Denk daran, dass du das Future-Proof-Projekt wieder raus nimmst“): das frühere zweite
+ * Beispiel FUTURE-P.ROOF (Logistik-Center, V134) ist ganz entfernt; ein noch vorhandenes fällt beim Laden mit
+ * seinen Vorgängen, Personen und Matrizen weg.
+ */
+export const RETIRED_FP = 'pj-fp';
+export function dropRetiredSamples(ws: Workspace): Workspace {
+  if (!(ws.projects ?? []).some((p) => p.id === RETIRED_FP)) return ws;
+  const out = removeSampleBy(ws, RETIRED_FP, 'fp-', 'pn-fp-');
+  const views = (out.noteViews ?? []).filter((v) => !(v.owner?.kind === 'project' && v.owner.id === RETIRED_FP));
   return views.length === (out.noteViews ?? []).length ? out : { ...out, noteViews: views };
 }

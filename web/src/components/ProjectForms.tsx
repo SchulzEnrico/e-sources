@@ -24,7 +24,7 @@ import * as Rp from '../workspace/gpmReport';
 import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf } from '../workspace/gpmCalc';
 import { APP_VERSION } from '../workspace/feedback';
 import { PaperSizeWheel, ProjectSheet, paperZoom, usePaperSize } from './ProjectSheet';
-import { eisenGeo, eisenMarks, eisenQuadAt, figureSvg, loadDefault, loadPersons, type EisenQuad } from '../workspace/gpmFigures';
+import { eisenGeo, eisenMarks, eisenQuadAt, envPortfolioSvg, figureSvg, loadDefault, loadPersons, shPortfolioSvg, type EisenQuad } from '../workspace/gpmFigures';
 import * as Sh from '../workspace/sheets';
 import { defaultViewName, deleteView } from '../workspace/notes';
 import { rolesOf } from '../workspace/projects';
@@ -796,7 +796,12 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
       )}
       {form.layout === 'portfolio' && (
         <figure className="pjf__figure">
-          <div className="pjf__svg is-portfolio" dangerouslySetInnerHTML={{ __html: form.filter === 'sh' ? Rp.shSvg(dots, UI_COLORS) : Rp.envSvg(dots, UI_COLORS) }} />
+          {/* V141 (Enrico 15:03): Rad „Einträge“ Gekürzt · Alle wie in der Eisenhower-Matrix (gemeinsam gemerkt) */}
+          <span className="layouts__label pj__wheel pjf__figwho">
+            <span aria-hidden="true">{T.figAll}</span>
+            <ModeWheel label={T.figAll} value={eisenAll ? 'all' : 'short'} onChange={(v) => setEisenMode(v as 'short' | 'all')} options={[{ id: 'short', name: T.figAllShort, hint: T.figAllShortHint }, { id: 'all', name: T.figAllAll, hint: T.figAllAllHint }]} />
+          </span>
+          <div className="pjf__svg is-portfolio" dangerouslySetInnerHTML={{ __html: form.filter === 'sh' ? shPortfolioSvg(p, dots, undefined, eisenAll) : envPortfolioSvg(p, dots, undefined, eisenAll) }} />
           <figcaption className="help__text">
             {T.portfolioHint[form.filter ?? 'env']}
             {dotsOpen > 0 && <> {T.portfolioOpen(dotsOpen)}</>}

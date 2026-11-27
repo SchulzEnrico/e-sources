@@ -18,6 +18,8 @@ export interface SheetPref {
   /** V123 (F-231 K13): Zeitleiste – Maßstab und Gruppen. */
   tlScale?: 'day' | 'week' | 'month';
   tlGroup?: 'col' | 'who' | 'tag';
+  /** V126 (F-231 K11): eingeklappte Spalten (Ids) – persönlich wie bei Trello, nur auf diesem Gerät. */
+  folded?: string[];
 }
 
 /** V122 (F-231 K13, T6): Ansichten desselben Kanban-Sheets über das Rad „Ansicht“. */
@@ -39,6 +41,10 @@ export function parseSheetPrefs(raw: unknown): Record<string, SheetPref> {
     if (typeof p.kview === 'string' && (KVIEWS as readonly string[]).includes(p.kview)) pref.kview = p.kview as KView;
     if (p.tlScale === 'day' || p.tlScale === 'week' || p.tlScale === 'month') pref.tlScale = p.tlScale;
     if (p.tlGroup === 'col' || p.tlGroup === 'who' || p.tlGroup === 'tag') pref.tlGroup = p.tlGroup;
+    if (Array.isArray(p.folded)) {
+      const f = [...new Set((p.folded as unknown[]).filter((x): x is string => typeof x === 'string' && !!x))].slice(0, 20);
+      if (f.length) pref.folded = f;
+    }
     if (Object.keys(pref).length) out[id] = pref;
   }
   return out;

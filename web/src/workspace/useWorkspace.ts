@@ -43,6 +43,7 @@ import * as Cv from './covers';
 import * as CFd from './cardFields';
 import * as Cm from './comments';
 import * as KM from './kanbanMore';
+import * as CL from './columnLook';
 import * as Sh from './sheets';
 import * as Ps from './persons';
 import * as Pj from './projects';
@@ -345,6 +346,8 @@ export type Action =
   | { type: 'colRemove'; view: string; col: string }
   | { type: 'colState'; view: string; col: string; state: ColState }
   | { type: 'colWip'; view: string; col: string; wip?: number }
+  /** V126 (F-231 K11): Spaltenfarbe (`undefined` = ohne). */
+  | { type: 'colColor'; view: string; col: string; color?: string }
   | { type: 'sheetReview'; view: string; on: boolean }
   | { type: 'colSort'; view: string; col: string; by: Sh.ColSort }
   | { type: 'colMoveAll'; view: string; col: string; to: string; by?: string }
@@ -700,6 +703,8 @@ function step(ws: Workspace, a: Action): Workspace {
       return Sh.setColState(ws, a.view, a.col, a.state);
     case 'colWip':
       return Sh.setWip(ws, a.view, a.col, a.wip);
+    case 'colColor':
+      return CL.setColColor(ws, a.view, a.col, a.color);
     case 'sheetReview':
       return No.updateView(ws, a.view, { review: a.on });
     case 'colSort':

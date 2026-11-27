@@ -7930,6 +7930,24 @@ h3.cases__name { font-size: 1.05em; }
 .kcol__count.is-over { opacity: 1; font-weight: 700; }
 .kcol__over { font-size: 10px; padding: 2px 5px; border-style: dashed; border-color: rgba(var(--accent-rgb), 0.8); }
 .kcol__more { width: 26px; height: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; }
+/* V126 (F-231 K11): Spaltenfarbe (oben farbiger Rand, leichter Ton) und eingeklappte Spalte als Streifen */
+.kcol.has-color { background: color-mix(in srgb, var(--kcol-color) 16%, rgba(127, 127, 127, 0.1)); box-shadow: inset 0 3px 0 var(--kcol-color), inset 0 1px 3px rgba(0, 0, 0, 0.3); }
+.kcol.has-color.is-target { box-shadow: inset 0 3px 0 var(--kcol-color), inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(var(--accent-rgb), 0.7); }
+.kcol__swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; margin-right: 6px; vertical-align: -2px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25); }
+.kcol__foldbtn { opacity: 0.7; }
+.kcol__foldbtn:hover, .kcol__foldbtn:focus-visible { opacity: 1; }
+.kcol__foldbtn[aria-disabled='true'] { opacity: 0.35; }
+.kcol--folded { flex: 0 0 40px; padding: 4px 2px; align-items: stretch; }
+.kcol__fold {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 2px; border: 0; border-radius: 8px;
+  background: transparent; color: inherit; cursor: pointer; font: inherit; min-height: 120px;
+}
+.kcol__fold:hover, .kcol__fold:focus-visible { background: rgba(127, 127, 127, 0.15); }
+.kcol__fold .kcol__count { font-size: 11px; }
+.kcol__vname { writing-mode: vertical-rl; font-size: 13px; font-weight: 600; max-height: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kcol--folded .kcol__over { padding: 1px 4px; }
+.kcol--folded .sheet__msg { writing-mode: horizontal-tb; font-size: 11px; }
+.kcol__foldbody { flex: 1; min-height: 20px; }
 .kcol__more .icon, .kcol__add .icon, .kcard__ok .icon, .mcard__act .icon { display: inline-block; }
 .kcol__body { list-style: none; margin: 0; padding: 2px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 34px; }
 .kcol__empty { font-size: 12px; opacity: 0.5; padding: 6px 4px; }

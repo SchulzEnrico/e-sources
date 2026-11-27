@@ -19,6 +19,7 @@ import { padOpenResult } from '../workspace/useWorkspace';
 import { newId } from '../workspace/workspace';
 import { COL_STATE_ICON, focusColLater } from './KanbanSheet';
 import { OpacitySlider } from './Pad';
+import { tagHex } from '../workspace/tags';
 
 /**
  * F-206 Schritt 5 (V85, N8–N10): Cockpit-Ansicht „Notizen“ – weitestgehend wie „Portale“ (NF-08).
@@ -381,6 +382,7 @@ export function NotesCockpit(p: NotesCockpitProps) {
                 <button
                   type="button"
                   className={`ncp__minicol${c.over ? ' is-over' : ''}`}
+                  style={c.color ? { boxShadow: `inset 0 3px 0 ${tagHex(c.color)}, inset 0 1px 3px rgba(0, 0, 0, 0.3)` } : undefined}
                   title={NC.miniCol(c.name, c.count, c.wip)}
                   aria-label={`${NC.miniCol(c.name, c.count, c.wip)}${c.over ? `, ${NC.over}` : ''}${c.review ? `, ${NC.review(c.review)}` : ''}`}
                   onClick={() => (p.onShowPad(pad.id, r.sheet), focusColLater(r.sheet, c.id))}

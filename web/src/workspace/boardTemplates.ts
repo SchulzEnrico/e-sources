@@ -10,6 +10,7 @@ import type { BoardTemplate, ColState, TemplateColumn, Workspace } from './types
 import * as No from './notes';
 import { colStateOf } from './sheets';
 import { newId } from './workspace';
+import { parseColColor } from './columnLook';
 
 /** Höchstens so viele eigene Vorlagen. */
 export const TEMPLATE_MAX = 40;
@@ -93,7 +94,7 @@ export function freeTemplateName(ws: Workspace, base: string): string {
 export function colsOfBoard(ws: Workspace, viewId: string): TemplateColumn[] | null {
   const v = No.viewById(ws, viewId);
   if (!v || v.kind !== 'kanban' || !v.cols?.length) return null;
-  return v.cols.map((c) => ({ name: c.name, state: colStateOf(c), ...(c.wip ? { wip: c.wip } : {}) }));
+  return v.cols.map((c) => ({ name: c.name, state: colStateOf(c), ...(c.wip ? { wip: c.wip } : {}), ...(c.color ? { color: c.color } : {}) }));
 }
 
 export type TemplateResult = { ok: true; ws: Workspace; id: string } | { ok: false; reason: 'missing' | 'full' | 'taken' };
@@ -170,7 +171,7 @@ function applyCols(ws: Workspace, viewId: string, t: BoardTemplate, make: () => 
     ...ws,
     noteViews: No.viewsOf(ws).map((v) => {
       if (v.id !== viewId) return v;
-      const out = { ...v, cols: t.cols.map((c) => ({ id: make(), name: c.name, ids: [] as string[], state: c.state, ...(c.wip ? { wip: c.wip } : {}) })) };
+      const out = { ...v, cols: t.cols.map((c) => ({ id: make(), name: c.name, ids: [] as string[], state: c.state, ...(c.wip ? { wip: c.wip } : {}), ...(c.color ? { color: c.color } : {}) })) };
       if (t.review) out.review = true;
       else delete out.review;
       return out;
@@ -200,7 +201,8 @@ function cleanCols(v: unknown): TemplateColumn[] {
       const name = typeof c.name === 'string' && c.name.trim() ? c.name.trim().slice(0, 60) : 'Spalte';
       const state = STATES.includes(c.state as ColState) ? (c.state as ColState) : colStateOf({ name });
       const wip = typeof c.wip === 'number' && Number.isFinite(c.wip) && c.wip >= 1 ? Math.floor(c.wip) : undefined;
-      return { name, state, ...(wip ? { wip } : {}) };
+      const color = parseColColor(c.color);
+      return { name, state, ...(wip ? { wip } : {}), ...(color ? { color } : {}) };
     });
 }
 

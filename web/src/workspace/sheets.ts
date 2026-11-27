@@ -443,7 +443,7 @@ export const matchesFilter = (n: Note, q: string) => !q.trim() || No.noteMatches
 
 // ---------- Abbild im Cockpit (V87, Entscheidung BC1–BC3) ----------
 
-export interface ColSummary { id: string; name: string; state: ColState; count: number; wip?: number; over: boolean; review: number }
+export interface ColSummary { id: string; name: string; state: ColState; count: number; wip?: number; over: boolean; review: number; /** V126 (K11) */ color?: string }
 
 /** BC1: Mini-Board – je Spalte Bedeutung, Zahl der Karten, WIP und wie viele auf die Abnahme warten. */
 export function boardSummary(ws: Workspace, v: NoteView): ColSummary[] {
@@ -455,6 +455,7 @@ export function boardSummary(ws: Workspace, v: NoteView): ColSummary[] {
     ...(c.wip ? { wip: c.wip } : {}),
     over: overWip(c, 0, ws),
     review: c.ids.filter((id) => No.noteById(ws, id)?.state === 'review').length,
+    ...(c.color ? { color: c.color } : {}),
   }));
 }
 

@@ -442,6 +442,8 @@ export interface TemplateColumn {
   name: string;
   state: ColState;
   wip?: number;
+  /** V126 (F-231 K11): Spaltenfarbe. */
+  color?: string;
 }
 
 /** V88 (BL1): Board-Vorlage für neue Kanban-Boards (wie Trello-Vorlagen). */
@@ -815,6 +817,8 @@ export interface NoteColumn {
   /** V121 (F-231 K3): nur in `NoteView.archivedCols` – wann archiviert und an welcher Stelle die Spalte stand. */
   archivedAt?: number;
   archivedFrom?: number;
+  /** V126 (F-231 K11): Spaltenfarbe – eine der zehn Trello-Listenfarben (`COL_COLORS`); fehlt = ohne. */
+  color?: string;
 }
 
 /** V86 (K2): Bedeutung einer Kanban-Spalte. */

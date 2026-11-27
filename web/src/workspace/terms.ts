@@ -30,6 +30,8 @@ export const TERMS = {
   gantt: 'Gantt = Balkenplan wie in MS Project bzw. iTaskX: links die Vorgänge als Tabelle, rechts jeder Vorgang als Balken auf der Zeitachse; Pfeile zeigen, was auf was folgt',
   kanbanTimeline: 'Zeitleiste = jede Karte als Balken von „nicht beginnen vor“ (Start) bis „fällig“ auf einer Zeitachse, wie Trello „Zeitleiste“ – ein kleiner Gantt für das Board',
   cardField: 'Eigenes Feld = Angabe, die ein Board selbst festlegt – Text, Zahl, Datum, Auswahl oder Häkchen (wie Trello „Custom Fields“); jede Karte des Boards bekommt dafür einen Wert, nach dem sich sortieren und filtern lässt',
+  colFold: 'Spalte einklappen = die Spalte wird zum schmalen Streifen mit Name und Zahl der Karten (wie Trello „Liste einklappen“); ihre Karten bleiben, nur der Platz wird frei. Gilt nur für dich auf diesem Gerät',
+  colColor: 'Spaltenfarbe = Farbe einer Spalte (wie Trello „Listenfarbe“), z. B. Grün für „Erledigt“ – nur zur Orientierung, die Bedeutung der Spalte legt „Bedeutung“ fest',
   cardVote: 'Abstimmen = jede Person gibt einer Karte eine Stimme (wie Trello „Voting“); die Zahl der Stimmen zeigt, was dem Team am wichtigsten ist',
   cardCover: 'Titelbild = Farbe oder Bild oben auf einer Karte (klein) oder über die ganze Karte (ganzflächig), wie Trello „Cover“ – macht Karten auf einen Blick erkennbar',
   workItemAge: 'Alter einer Karte (Work Item Age) = wie viele Tage eine noch offene Karte schon besteht; nach dem Kanban Guide ein Zeichen, wo Arbeit hängen bleibt',
@@ -2018,6 +2020,29 @@ export const VOTE_TEXT = {
   off: 'Abstimmen ist in diesem Board aus.',
 };
 
+/** V126 (F-231 K11): Spaltenfarbe und Spalte einklappen (wie Trello „Listenfarbe“, „Liste einklappen“). */
+export const COL_LOOK_TEXT = {
+  color: 'Farbe …',
+  colorHint: 'Farbe der Spalte – eine der zehn Trello-Listenfarben; hilft, Abschnitte des Ablaufs auf einen Blick zu unterscheiden.',
+  colorNow: (name: string) => `Farbe: ${name}`,
+  none: 'Ohne Farbe',
+  colored: (col: string, name: string) => `Spalte „${col}“: Farbe ${name}`,
+  uncolored: (col: string) => `Spalte „${col}“: ohne Farbe`,
+  colorLabel: (name: string) => `Farbe ${name}`,
+  fold: 'Spalte einklappen',
+  foldHint: (col: string) => `Spalte „${col}“ einklappen – sie wird zum schmalen Streifen mit Name und Zähler; nur für dich auf diesem Gerät (wie bei Trello).`,
+  unfoldHint: (col: string) => `Spalte „${col}“ ausklappen (Enter oder Klick)`,
+  folded: (col: string, n: number) => `Spalte „${col}“ eingeklappt, ${n === 1 ? '1 Karte' : `${n} Karten`}`,
+  unfolded: (col: string) => `Spalte „${col}“ ausgeklappt`,
+  lastOpen: 'Eine Spalte bleibt offen – klappe erst eine andere aus.',
+  others: 'Alle anderen einklappen',
+  othersHint: 'Nur diese Spalte bleibt offen – zum Arbeiten an einem Abschnitt ohne Ablenkung.',
+  othersDone: (col: string) => `Nur „${col}“ offen, die anderen Spalten eingeklappt`,
+  all: 'Alle Spalten ausklappen',
+  allDone: 'Alle Spalten ausgeklappt',
+  foldedLabel: (col: string, count: string) => `Spalte ${col}, eingeklappt, ${count}`,
+};
+
 export const FILTER_TEXT = {
   btn: 'Filter',
   btnN: (n: number) => `Filter (${n})`,
@@ -2201,7 +2226,7 @@ export const KANBAN_MORE_TEXT = {
   tplNone: 'Noch keine Kartenvorlage – an einer Karte „Als Kartenvorlage“ wählen.',
   fromTplDone: (tpl: string, col: string) => `Karte aus Vorlage „${tpl}“ in „${col}“ angelegt`,
   colCopy: 'Spalte kopieren',
-  colCopyHint: 'Neue Spalte rechts daneben mit Kopien aller Karten (Bedeutung und WIP-Limit kommen mit).',
+  colCopyHint: 'Neue Spalte rechts daneben mit Kopien aller Karten (Bedeutung, WIP-Limit und Farbe kommen mit).',
   colCopied: (name: string, n: number) => `Spalte „${name}“ angelegt – ${n === 1 ? '1 Karte kopiert' : `${n} Karten kopiert`}`,
   colArchive: 'Spalte archivieren',
   colArchiveHint: 'Die Spalte verschwindet samt Karten aus dem Board und steht im Archiv – von dort lässt sie sich wiederherstellen.',

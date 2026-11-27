@@ -29,6 +29,7 @@ import { TAB_MAX, newId } from './workspace';
 import * as ND from './noteDoc';
 import { parseNoteExtras, parseSheetExtras, parseWip } from './noteObjects';
 import { cleanFieldDefs } from './cardFields';
+import { parseColColor } from './columnLook';
 
 /** Höchstens so viele Notizen je Ansicht (Unter-Notizen zählen nicht). */
 export const VIEW_MAX = 200;
@@ -911,7 +912,8 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
         .slice(0, COLUMN_MAX)
         .map((c) => {
           const wip = parseWip(c.wip);
-          return { id: c.id as string, name: typeof c.name === 'string' && c.name.trim() ? c.name : 'Spalte', ids: clean(c.ids, used), ...(wip ? { wip } : {}), ...(COL_STATES.includes(c.state as ColState) ? { state: c.state as ColState } : {}) };
+          const color = parseColColor(c.color);
+          return { id: c.id as string, name: typeof c.name === 'string' && c.name.trim() ? c.name : 'Spalte', ids: clean(c.ids, used), ...(wip ? { wip } : {}), ...(COL_STATES.includes(c.state as ColState) ? { state: c.state as ColState } : {}), ...(color ? { color } : {}) };
         });
       view.cols = cols.length ? cols : [{ id: `${raw.id}-1`, name: KANBAN_START[0], ids: [] }];
       // V121 (K3): archivierte Spalten
@@ -928,6 +930,7 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
             ...(COL_STATES.includes(c.state as ColState) ? { state: c.state as ColState } : {}),
             ...(typeof c.archivedAt === 'number' ? { archivedAt: c.archivedAt } : {}),
             ...(typeof c.archivedFrom === 'number' && c.archivedFrom >= 0 ? { archivedFrom: Math.floor(c.archivedFrom) } : {}),
+            ...(parseColColor(c.color) ? { color: parseColColor(c.color) } : {}),
           };
         });
       if (arch.length) view.archivedCols = arch;

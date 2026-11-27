@@ -24,6 +24,7 @@ import { FOREIGN_TEXT_MAX } from './foreign';
 import { colorOf, isTagColor, setTagColor } from './tags';
 import { coverFromTrello, coverSig, coverToTrello } from './covers';
 import { fieldsFromTrello, fieldsToTrello, itemsToTrello, valuesFromTrello } from './cardFields';
+import { colorFromTrello, colorToTrello } from './columnLook';
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -242,7 +243,8 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
   ws = v.ws;
   const cols: NoteColumn[] = openLists.slice(0, COLUMN_MAX).map((l) => {
     const nm = str(l.name).trim() || 'Liste';
-    return { id: `tl-${str(l.id) || Math.random().toString(36).slice(2)}`, name: nm, ids: [], state: colStateOf({ name: nm }) };
+    const color = colorFromTrello(l);
+    return { id: `tl-${str(l.id) || Math.random().toString(36).slice(2)}`, name: nm, ids: [], state: colStateOf({ name: nm }), ...(color ? { color } : {}) };
   });
   // V121 (F-231 K3): archivierte Listen → archivierte Spalten (mit ihren Karten)
   const archCols: NoteColumn[] = lists
@@ -250,7 +252,8 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
     .slice(0, ARCHIVED_COL_MAX)
     .map((l, i) => {
       const nm = str(l.name).trim() || 'Liste';
-      return { id: `tl-${str(l.id) || Math.random().toString(36).slice(2)}`, name: nm, ids: [], state: colStateOf({ name: nm }), archivedAt: now, archivedFrom: COLUMN_MAX + i };
+      const color = colorFromTrello(l);
+      return { id: `tl-${str(l.id) || Math.random().toString(36).slice(2)}`, name: nm, ids: [], state: colStateOf({ name: nm }), archivedAt: now, archivedFrom: COLUMN_MAX + i, ...(color ? { color } : {}) };
     });
   const colOfList = new Map([
     ...openLists.slice(0, COLUMN_MAX).map((l, i) => [str(l.id), cols[i]] as const),
@@ -622,6 +625,8 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
   for (const l of fLists.slice().sort((a, b) => num(a.pos) - num(b.pos))) if (!used.has(str(l.id))) ls.push({ raw: { ...l }, state: colStateOf({ name: str(l.name) }) });
   const lPos = positions(ls.map((l) => (typeof l.raw.pos === 'number' ? l.raw.pos : undefined)));
   ls.forEach((l, i) => {
+    // V126 (F-231 K11): Spaltenfarbe ↔ Listenfarbe
+    colorToTrello(l.raw, l.col);
     l.raw.idBoard = boardId;
     l.raw.pos = lPos[i];
   });

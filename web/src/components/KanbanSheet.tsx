@@ -6,7 +6,7 @@
  * (Hover/Fokus) und den nächsten drei offenen Unter-Notizen. Ziehen mit Maus bzw. lange drücken auf Touch; Tastatur:
  * Leertaste nimmt auf, Pfeile bewegen, Leertaste/Enter legt ab, Esc bricht ab. WIP-Limit fragt, sperrt nicht (K3).
  */
-import { type Dispatch, type KeyboardEvent, type PointerEvent as RPointerEvent, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, type Dispatch, type KeyboardEvent, type PointerEvent as RPointerEvent, useEffect, useRef, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { ColState, Note, NoteColumn, Workspace } from '../workspace/types';
 import type { IconName } from '../workspace/icons';
@@ -26,7 +26,8 @@ import * as Cv from '../workspace/covers';
 import { CoverBack, CoverTop } from './CardCover';
 import { FieldChips, FieldPanel, VoteSign } from './CardFields';
 import * as CFd from '../workspace/cardFields';
-import { FIELD_TEXT, VOTE_TEXT } from '../workspace/terms';
+import { COL_LOOK_TEXT as CLT, FIELD_TEXT, VOTE_TEXT } from '../workspace/terms';
+import * as CL from '../workspace/columnLook';
 import { meId } from '../workspace/persons';
 import { KanbanCalendar, KanbanTable } from './KanbanViews';
 import { KanbanTimeline } from './KanbanTimeline';
@@ -100,6 +101,12 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   // V125 (K8): eigene Felder des Boards
   const [fieldsOpen, setFieldsOpen] = useState(false);
   const fieldsBtn = useRef<HTMLButtonElement>(null);
+  // V126 (F-231 K11): eingeklappte Spalten (persönlich, je Sheet und Gerät) und Meldung am Ort in der Spalte
+  const [foldedRaw, setFoldedRaw] = useState<string[]>(() => loadSheetPref(sheetId).folded ?? []);
+  const folded = CL.cleanFolded(foldedRaw, cols);
+  const setFolded = (f: string[]) => (setFoldedRaw(f), saveSheetPref(sheetId, { folded: f.length ? f : undefined }));
+  const colNote = useNotice();
+  const [colNoteAt, setColNoteAt] = useState('');
   /** Karte sichtbar nach Suche, „Nur meine“ und Kartenfilter (gilt in jeder Ansicht gleich). */
   const passes = (n: Note) => Sh.matchesFilter(No.shownNote(n), filter) && pk.pass(n) && CF.passes(ws, n, cf);
   useEffect(() => {
@@ -128,7 +135,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     const i = list.indexOf(id);
     return { col, next: list[i + 1] ?? list[i - 1] };
   };
-  const focusAdd = (col: string) => window.setTimeout(() => boardRef.current?.querySelector<HTMLElement>(`[data-add="${col}"]`)?.focus(), 0);
+  const focusAdd = (col: string) => window.setTimeout(() => boardRef.current?.querySelector<HTMLElement>(`[data-add="${col}"], [data-fold="${col}"]`)?.focus(), 0);
 
   // BC2: Fokus aus dem Cockpit in eine Spalte
   useEffect(() => {
@@ -137,7 +144,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       const col = pendingCol.col;
       pendingCol = null;
       const b = boardRef.current;
-      const el = b?.querySelector<HTMLElement>(`[data-colbody="${col}"] [data-card]`) ?? b?.querySelector<HTMLElement>(`[data-add="${col}"]`);
+      const el = b?.querySelector<HTMLElement>(`[data-colbody="${col}"] [data-card]`) ?? b?.querySelector<HTMLElement>(`[data-add="${col}"], [data-fold="${col}"]`);
       el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       el?.focus({ preventScroll: true });
     };
@@ -288,7 +295,8 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     const i = mine.indexOf(e.currentTarget);
     const side = (k: number) => {
       const list = inCol(k);
-      (list[Math.min(i, list.length - 1)] ?? boardRef.current?.querySelector<HTMLElement>(`[data-add="${colEls[k]?.dataset.colbody}"]`))?.focus();
+      const id = colEls[k]?.dataset.colbody;
+      (list[Math.min(i, list.length - 1)] ?? boardRef.current?.querySelector<HTMLElement>(`[data-add="${id}"], [data-fold="${id}"]`))?.focus();
     };
     if (e.key === 'ArrowDown') return void (e.preventDefault(), mine[i + 1]?.focus());
     if (e.key === 'ArrowUp') return void (e.preventDefault(), i > 0 ? mine[i - 1].focus() : filterRef.current?.focus());
@@ -538,6 +546,29 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   };
 
   const full = cols.length >= No.COLUMN_MAX;
+  // ---------- V126 (K11): Farbe und Einklappen ----------
+  const liveOf = (c: NoteColumn) => c.ids.filter((id) => No.noteById(ws, id)?.state !== 'archived').length;
+  const colSay = (c: NoteColumn, text: string, undo?: () => void) => {
+    setColNoteAt(c.id);
+    colNote.notice({ text, ...(undo ? { undo } : {}) });
+    say(text);
+  };
+  const setColor = (c: NoteColumn, color: CL.ColColor | undefined) => {
+    const before = c.color;
+    dispatch({ type: 'colColor', view: sheetId, col: c.id, color });
+    colSay(c, color ? CLT.colored(c.name, CL.colColorName(color)) : CLT.uncolored(c.name), () => dispatch({ type: 'colColor', view: sheetId, col: c.id, color: before }));
+    focusAdd(c.id);
+  };
+  const toggleFold = (c: NoteColumn) => {
+    const was = folded.includes(c.id);
+    if (!was && !CL.canFold(folded, c.id, cols)) return colSay(c, CLT.lastOpen);
+    setFolded(CL.toggleFolded(folded, c.id, cols));
+    say(was ? CLT.unfolded(c.name) : CLT.folded(c.name, liveOf(c)));
+    window.setTimeout(() => boardRef.current?.querySelector<HTMLElement>(was ? `[data-foldbtn="${c.id}"]` : `[data-fold="${c.id}"]`)?.focus(), 0);
+  };
+  const colStyle = (c: NoteColumn) =>
+    CL.isColColor(c.color) ? ({ '--kcol-color': CL.colHex(c.color), '--kcol-ink': CL.colInk(c.color) } as CSSProperties) : undefined;
+  const colColorLabel = (c: NoteColumn) => (CL.isColColor(c.color) ? `, ${CLT.colorLabel(CL.colColorName(c.color))}` : '');
   const colMenu = (c: NoteColumn, i: number) => (
     <Menu className="kcol__more" icon={<Icon name="more" size={15} />} label={K.menu(c.name)}>
       {(close) => (
@@ -604,6 +635,17 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
                   </>
                 );
               })()
+            ) : page === 'color' ? (
+              <>
+                <Item icon="back" onClick={() => go('')}>{K.back}</Item>
+                {CL.COL_COLORS.map((x) => (
+                  <Item key={x} checked={c.color === x} onClick={() => (close(), setColor(c, x))}>
+                    <span className="kcol__swatch" style={{ background: CL.colHex(x) }} aria-hidden="true" />
+                    {CL.colColorName(x)}
+                  </Item>
+                ))}
+                <Item icon="close" disabled={!c.color} onClick={() => (close(), setColor(c, undefined))}>{CLT.none}</Item>
+              </>
             ) : page === 'sort' ? (
               <>
                 <Item icon="back" onClick={() => go('')}>{K.back}</Item>
@@ -678,6 +720,17 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
                 <Item icon="sort" disabled={c.ids.length < 2} onClick={() => go('sort')}>{K.sort}</Item>
                 <Item icon="adjust" hint={K.wipHint} onClick={() => go('wip')}>{K.wip}</Item>
                 <Item icon={COL_STATE_ICON[Sh.colStateOf(c)]} hint={K.meaningHint} onClick={() => go('state')}>{K.state}</Item>
+                <Item icon="colors" hint={CL.isColColor(c.color) ? CLT.colorNow(CL.colColorName(c.color)) : CLT.colorHint} onClick={() => go('color')}>{CLT.color}</Item>
+                <Item icon="fold" disabled={!CL.canFold(folded, c.id, cols)} hint={CL.canFold(folded, c.id, cols) ? undefined : CLT.lastOpen} onClick={() => (close(), toggleFold(c))}>{CLT.fold}</Item>
+                <Item icon="focus" hint={CLT.othersHint} disabled={cols.length < 2 || folded.length === cols.length - 1} onClick={() => {
+                  close();
+                  setFolded(CL.foldOthers(cols, c.id));
+                  colSay(c, CLT.othersDone(c.name));
+                  focusAdd(c.id);
+                }}>{CLT.others}</Item>
+                {folded.length > 0 && (
+                  <Item icon="unfold" onClick={() => (close(), setFolded([]), colSay(c, CLT.allDone), focusAdd(c.id))}>{CLT.all}</Item>
+                )}
                 <Item icon="rename" onClick={() => (close(), setColEdit(c.id))}>{K.colRename}</Item>
                 <Item
                   icon="copy"
@@ -754,8 +807,25 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
             />
           </div>
     );
+    const tint = colStyle(c);
+    const here = colNoteAt === c.id && colNote.shown ? <NoticeLine shown={colNote.shown} /> : null;
+    // V126 (K11): eingeklappt – schmaler Streifen; liegt eine aufgenommene Karte darin, ist die Spalte offen
+    if (folded.includes(c.id) && lift?.col !== c.id) {
+      return (
+        <section key={c.id} className={`kcol kcol--folded${tint ? ' has-color' : ''}`} style={tint} aria-label={CLT.foldedLabel(c.name, K.countLabel(live, c.wip)) + colColorLabel(c)}>
+          <button type="button" className="kcol__fold" data-fold={c.id} aria-expanded={false} title={CLT.unfoldHint(c.name)} onClick={() => toggleFold(c)}>
+            <Icon name="unfold" size={13} />
+            <span className={`kcol__count${over ? ' is-over' : ''}`}>{K.count(live, c.wip)}</span>
+            {over && <span className="sign kcol__over" title={K.overHint(c.wip!)}>!</span>}
+            <span className="kcol__vname">{c.name}</span>
+            <Icon name={COL_STATE_ICON[st]} size={11} />
+          </button>
+          <div className="kcol__foldbody" data-colbody={c.id} aria-hidden="true" />
+        </section>
+      );
+    }
     return (
-      <section key={c.id} className={`kcol${lift?.col === c.id ? ' is-target' : ''}`} aria-label={`${K.col(c.name)}, ${Sh.COL_STATE_NAME[st]}, ${K.countLabel(live, c.wip)}`}>
+      <section key={c.id} className={`kcol${lift?.col === c.id ? ' is-target' : ''}${tint ? ' has-color' : ''}`} style={tint} aria-label={`${K.col(c.name)}, ${Sh.COL_STATE_NAME[st]}, ${K.countLabel(live, c.wip)}${colColorLabel(c)}`}>
         <header className="kcol__head">
           {colEdit === c.id ? (
             <input
@@ -793,8 +863,20 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
               ! {K.over}
             </span>
           )}
+          <button
+            type="button"
+            className="kcol__more kcol__foldbtn"
+            data-foldbtn={c.id}
+            aria-label={CLT.fold}
+            title={CL.canFold(folded, c.id, cols) ? CLT.foldHint(c.name) : CLT.lastOpen}
+            aria-disabled={!CL.canFold(folded, c.id, cols) || undefined}
+            onClick={() => toggleFold(c)}
+          >
+            <Icon name="fold" size={14} />
+          </button>
           {colMenu(c, i)}
         </header>
+        {here}
         {ask?.kind === 'wip' && ask.col === c.id && (
           <p className="sheet__msg kcol__ask" role="alertdialog" aria-label={ask.text}>
             {ask.text}

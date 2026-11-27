@@ -74,7 +74,7 @@ export function copyColumn(ws: Workspace, viewId: string, colId: string, name?: 
   const src = cols[i];
   const r = No.addColumn(ws, viewId, (name ?? '').trim() || copyName(src.name, cols.map((c) => c.name)), { index: i + 1, makeId: make });
   if (!r.ok) return { ok: false, reason: 'full' };
-  let next = patchView(r.ws, viewId, (x) => ({ ...x, cols: (x.cols ?? []).map((c) => (c.id === r.id ? { ...c, ...(src.state ? { state: src.state } : {}), ...(src.wip ? { wip: src.wip } : {}) } : c)) }));
+  let next = patchView(r.ws, viewId, (x) => ({ ...x, cols: (x.cols ?? []).map((c) => (c.id === r.id ? { ...c, ...(src.state ? { state: src.state } : {}), ...(src.wip ? { wip: src.wip } : {}), ...(src.color ? { color: src.color } : {}) } : c)) }));
   let cards = 0;
   for (const id of src.ids) {
     const n = No.noteById(next, id);

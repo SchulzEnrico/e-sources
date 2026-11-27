@@ -13,6 +13,7 @@ import { DIALOG_TEXT, KANBAN_MORE_TEXT as T, NOTE_TEXT, PAUSE_TEXT } from '../wo
 import { newId } from '../workspace/workspace';
 import type { Notice } from './NoteTab';
 import { KIND_ICON } from './SheetViews';
+import { StarMark } from './StarMark';
 import { Icon } from './Icon';
 
 /** Pfeile wandern zwischen den Knöpfen einer Leiste, Esc schließt. */
@@ -79,6 +80,7 @@ export function CopyBar(props: { ws: Workspace; dispatch: Dispatch<Action>; shee
       {targets.map((x) => (
         <button key={x.id} type="button" className="help__run" onClick={() => run(x)}>
           <Icon name={KIND_ICON[x.kind]} size={12} className="icon icon--inline" /> {T.copyTo(x.name)}
+          <StarMark on={x.star} />
         </button>
       ))}
       <button type="button" className="help__run" onClick={() => props.onClose()}>

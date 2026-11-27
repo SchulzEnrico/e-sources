@@ -473,7 +473,7 @@ function patchView(ws: Workspace, id: string, fn: (v: NoteView) => NoteView): Wo
   return hit ? withViews(ws, views) : ws;
 }
 
-export function updateView(ws: Workspace, id: string, patch: Partial<Pick<NoteView, 'name' | 'category' | 'review'>>): Workspace {
+export function updateView(ws: Workspace, id: string, patch: Partial<Pick<NoteView, 'name' | 'category' | 'review'>> & { star?: boolean }): Workspace {
   return patchView(ws, id, (v) => {
     const out: NoteView = { ...v };
     if (patch.name !== undefined && patch.name.trim()) out.name = patch.name.trim();
@@ -484,6 +484,11 @@ export function updateView(ws: Workspace, id: string, patch: Partial<Pick<NoteVi
     if ('review' in patch) {
       if (patch.review) out.review = true;
       else delete out.review;
+    }
+    // V128 (F-231 K12): Stern
+    if ('star' in patch) {
+      if (patch.star) out.star = true;
+      else delete out.star;
     }
     return out;
   });
@@ -944,6 +949,7 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
     } else view.ids = clean(raw.ids, used);
     if (typeof raw.category === 'string' && catIds.has(raw.category)) view.category = raw.category;
     if (raw.review === true) view.review = true;
+    if (raw.star === true) view.star = true;
     // V122 (F-231 K4): im Board ausgeblendete Tags
     if (Array.isArray(raw.hiddenTags)) {
       const hidden = [...new Set((raw.hiddenTags as unknown[]).filter((t): t is string => typeof t === 'string' && !!t.trim()).map((t) => t.trim().toLocaleLowerCase('de')))].sort();

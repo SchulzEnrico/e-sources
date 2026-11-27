@@ -13,6 +13,7 @@
  */
 import type { NoteColumn, NoteView, Workspace } from './types';
 import * as No from './notes';
+import { starFirst } from './stars';
 
 /** Spiegel-Markierungen eines Boards (Note-Ids). */
 export const mirrorsOf = (v: NoteView): string[] => (v.kind === 'kanban' ? (v.mirrors ?? []) : []);
@@ -45,7 +46,7 @@ export function homeOf(ws: Workspace, noteId: string): { view: NoteView; col?: N
 
 /** Ziele für „Spiegeln …“: andere Kanban-Boards mit Spalten, auf denen die Notiz noch nicht liegt. */
 export function mirrorTargets(ws: Workspace, from: string, noteId: string): NoteView[] {
-  return No.viewsOf(ws).filter((v) => v.id !== from && v.kind === 'kanban' && (v.cols?.length ?? 0) > 0 && !No.idsIn(v).includes(noteId));
+  return starFirst(No.viewsOf(ws).filter((v) => v.id !== from && v.kind === 'kanban' && (v.cols?.length ?? 0) > 0 && !No.idsIn(v).includes(noteId)));
 }
 
 export type MirrorResult = { ok: true; ws: Workspace } | { ok: false; reason: 'missing' | 'full' | 'already' | 'noHome' };

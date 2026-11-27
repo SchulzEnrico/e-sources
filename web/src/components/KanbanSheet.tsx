@@ -37,6 +37,7 @@ import type { KView } from '../workspace/sheetPrefs';
 import { newId } from '../workspace/workspace';
 import { CardWindow, MoveToBar, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useFoldTick, useNotice, usePersonKeys } from './SheetViews';
 import { Item, Menu, MenuPages } from './PanelFrame';
+import { StarMark } from './StarMark';
 import { Icon } from './Icon';
 import { CardMirrors, MirrorBar, MirrorSign, mirrorLabel } from './CardMirrors';
 import * as Mi from '../workspace/mirrors';
@@ -641,6 +642,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
                     }}
                   >
                     {KM_T.toSheetAll(x.name)}
+                    <StarMark on={x.star} />
                   </Item>
                 ))}
               </>

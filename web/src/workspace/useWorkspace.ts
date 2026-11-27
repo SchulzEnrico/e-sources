@@ -29,6 +29,7 @@ import * as Cs from './cases';
 import * as NS from './noteSources';
 import * as No from './notes';
 import * as Pd from './pads';
+import * as Sr from './stars';
 import * as NT from './noteTree';
 import * as NL from './notesLayouts';
 import * as RS from './ruleSet';
@@ -350,6 +351,8 @@ export type Action =
   /** V126 (F-231 K11): Spaltenfarbe (`undefined` = ohne). */
   | { type: 'colColor'; view: string; col: string; color?: string }
   | { type: 'sheetReview'; view: string; on: boolean }
+  | { type: 'sheetStar'; view: string; on: boolean }
+  | { type: 'padStarOpen'; id: string; sheet: string; ids: string[] }
   | { type: 'colSort'; view: string; col: string; by: Sh.ColSort }
   | { type: 'colMoveAll'; view: string; col: string; to: string; by?: string }
   // V121 (F-231 K3, K1)
@@ -712,6 +715,11 @@ function step(ws: Workspace, a: Action): Workspace {
       return CL.setColColor(ws, a.view, a.col, a.color);
     case 'sheetReview':
       return No.updateView(ws, a.view, { review: a.on });
+    // V128 (F-231 K12): Stern
+    case 'sheetStar':
+      return No.updateView(ws, a.view, { star: a.on });
+    case 'padStarOpen':
+      return Sr.openStarred(ws, a.id, a.sheet, idSeq(a.ids)).ws;
     case 'colSort':
       return Sh.sortCol(ws, a.view, a.col, a.by);
     case 'colMoveAll':

@@ -12,6 +12,7 @@ import { windowName } from '../workspace/windows';
 import { noticeLater } from '../workspace/flash';
 import { DIALOG_TEXT, NOTES_COCKPIT_TEXT as NC, PAD_TEXT } from '../workspace/terms';
 import type { Action } from '../workspace/useWorkspace';
+import { StarMark } from './StarMark';
 import { Icon } from './Icon';
 import * as Sh from '../workspace/sheets';
 import { padWith } from '../workspace/pads';
@@ -363,6 +364,7 @@ export function NotesCockpit(p: NotesCockpitProps) {
         >
           <span className="ncp__indent" aria-hidden="true" />
           <span className="overview__name">{name}</span>
+          <StarMark on={viewById(ws, r.sheet)?.star} />
           <span className="overview__host">{NC.notes(n)}</span>
           <span className="overview__tabs" />
           <span className="overview__back">{front && pad.sheets.length > 1 ? NC.front : ''}</span>

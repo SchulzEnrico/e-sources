@@ -13,11 +13,12 @@ import { DRAG_NOTE } from './SourceChips';
 import * as NS from '../workspace/noteSources';
 import * as No from '../workspace/notes';
 import * as Sh from '../workspace/sheets';
-import { PAD_MIN, type PadUndo, padUndoOf } from '../workspace/pads';
+import { PAD_MIN, type PadUndo, padUndoOf, padWith } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
 import { noticeLater } from '../workspace/flash';
 import { switchOf } from '../workspace/ruleSet';
-import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_MORE_TEXT, TAG_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, STAGE_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_MORE_TEXT, TAG_TEXT, KANBAN_TEXT, MATRIX_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, STAGE_TEXT, STAR_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { starredViews } from '../workspace/stars';
 import { archiveCount } from '../workspace/kanbanMore';
 import { newId } from '../workspace/workspace';
 import { type Notice, NoteTab, freshNotes } from './NoteTab';
@@ -618,6 +619,22 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
     dispatch({ type: 'padAddSheet', id: pad.id, kind, sheet: id, ...(tpl ? { tpl } : {}) });
     window.setTimeout(() => tabsRef.current?.querySelector<HTMLElement>(`[data-sheet="${id}"]`)?.focus(), 0);
   };
+  // V128 (F-231 K12): Stern setzen/entfernen (Meldung am Ort im Pad) und Sheet mit Stern öffnen
+  const toggleStar = () => {
+    if (!sheet) return;
+    const on = !sheet.star;
+    dispatch({ type: 'sheetStar', view: sheet.id, on });
+    tellHere(on ? STAR_TEXT.set(sheet.name) : STAR_TEXT.unset(sheet.name));
+  };
+  const openStar = (id: string) => {
+    const v = No.viewById(ws, id);
+    if (!v) return;
+    const there = padWith(ws, id);
+    const full = !there && pad.sheets.length >= PAD_SHEETS_MAX;
+    dispatch({ type: 'padStarOpen', id: pad.id, sheet: id, ids: [newId()] });
+    tellHere(there ? STAR_TEXT.shown(v.name) : full ? STAR_TEXT.full : STAR_TEXT.opened(v.name));
+    if (!there && !full) window.setTimeout(() => tabsRef.current?.querySelector<HTMLElement>(`[data-sheet="${id}"]`)?.focus(), 0);
+  };
   // V111 (Enrico: „In Panels sollte man auch noch unter Sheets eine Entscheidung anlegen können“): freie
   // Entscheidung anlegen und im Pad im Vollbild öffnen (E1-C) – Titel ändert man dort oben
   const addDecision = () => {
@@ -755,6 +772,13 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               >
                 <Icon name={KIND_ICON[v.kind]} size={13} />
                 <span className="pad__tabname">{v.name}</span>
+                {/* V128 (F-231 K12): Stern am Reiter */}
+                {v.star && (
+                  <span className="pad__tabstar" title={STAR_TEXT.mark}>
+                    <Icon name="star" size={10} />
+                    <span className="sr-only">, {STAR_TEXT.mark}</span>
+                  </span>
+                )}
               </button>
               <button type="button" tabIndex={-1} className="pad__tabx" title={PAD_TEXT.closeSheetTab(v.name)} aria-label={PAD_TEXT.closeSheetTab(v.name)} onClick={() => closeSheet(id)}>
                 <Icon name="close" size={10} />
@@ -805,6 +829,16 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
               {(page, go) =>
                 page === 'kanban' ? (
                   <TemplatePick ws={ws} onBack={() => go('')} onPick={(tpl) => (close(), addSheet('kanban', tpl))} />
+                ) : page === 'star' ? (
+                  // V128 (F-231 K12): Sheets mit Stern öffnen – wie Trello „Markierte Boards“
+                  <>
+                    <Item icon="back" onClick={() => go('')}>{BOARD_TPL_TEXT.back}</Item>
+                    {starredViews(ws, pad.sheets).map((v) => (
+                      <Item key={v.id} icon={KIND_ICON[v.kind]} hint={No.VIEW_BASE[v.kind]} onClick={() => (close(), openStar(v.id))}>
+                        {v.name}
+                      </Item>
+                    ))}
+                  </>
                 ) : (
                   KINDS.map((k) => (
                     <Item
@@ -823,6 +857,10 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
                   )).concat(
                     <Item key="decision" icon="sliders" hint={PAD_TEXT.addDecisionHint} onClick={() => (close(), addDecision())}>
                       {PAD_TEXT.addDecision}
+                    </Item>,
+                    // V128 (F-231 K12): „Mit Stern …“ – ohne Sterne erklärt der Eintrag, wo man einen setzt
+                    <Item key="star" icon="star" disabled={!starredViews(ws, pad.sheets).length} title={starredViews(ws, pad.sheets).length ? undefined : STAR_TEXT.none} hint={STAR_TEXT.openHint} onClick={() => go('star')}>
+                      {STAR_TEXT.open}
                     </Item>,
                   )
                 )
@@ -844,6 +882,10 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
                 }}
               >
                 {PAD_TEXT.rename}
+              </Item>
+              {/* V128 (F-231 K12): Stern wie Trello „Board markieren“ */}
+              <Item icon="star" checked={!!sheet?.star} disabled={!sheet} hint={STAR_TEXT.menuHint} onClick={() => (close(), toggleStar())}>
+                {STAR_TEXT.menu}
               </Item>
               <Item icon="close" hint={PAD_TEXT.closeSheetHint} disabled={!sheet} onClick={() => (close(), closeSheet())}>
                 {PAD_TEXT.closeSheet}

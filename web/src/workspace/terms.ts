@@ -33,6 +33,7 @@ export const TERMS = {
   colFold: 'Spalte einklappen = die Spalte wird zum schmalen Streifen mit Name und Zahl der Karten (wie Trello „Liste einklappen“); ihre Karten bleiben, nur der Platz wird frei. Gilt nur für dich auf diesem Gerät',
   colColor: 'Spaltenfarbe = Farbe einer Spalte (wie Trello „Listenfarbe“), z. B. Grün für „Erledigt“ – nur zur Orientierung, die Bedeutung der Spalte legt „Bedeutung“ fest',
   cardMirror: 'Spiegelkarte = dieselbe Karte zusätzlich auf einem anderen Board (wie Trello „Karte spiegeln“). Änderungen gelten überall; erledigt setzt man im Heimat-Board, dem Board, auf dem die Karte zuerst lag',
+  sheetStar: 'Stern = ein Sheet als häufig gebraucht markieren (wie Trello „Board markieren“). Sheets mit Stern stehen unter „+ Sheet“ › „Mit Stern …“ zum schnellen Öffnen und in den Listen zum Verschieben, Kopieren und Spiegeln vorn',
   cardVote: 'Abstimmen = jede Person gibt einer Karte eine Stimme (wie Trello „Voting“); die Zahl der Stimmen zeigt, was dem Team am wichtigsten ist',
   cardCover: 'Titelbild = Farbe oder Bild oben auf einer Karte (klein) oder über die ganze Karte (ganzflächig), wie Trello „Cover“ – macht Karten auf einen Blick erkennbar',
   workItemAge: 'Alter einer Karte (Work Item Age) = wie viele Tage eine noch offene Karte schon besteht; nach dem Kanban Guide ein Zeichen, wo Arbeit hängen bleibt',
@@ -3789,4 +3790,19 @@ export const OVERFLOW_TEXT = {
   padFoot: 'Pad-Fuß',
   stackBar: 'Stapel-Leiste',
   stackLong: 'Die Leiste schwebt in voller Länge über dem Portal, weil nicht alle Portale hineinpassen',
+};
+
+/** V128 (F-231 K12): Stern für Sheets (wie Trello „Board markieren“). */
+export const STAR_TEXT = {
+  menu: 'Mit Stern',
+  menuHint: 'Stern setzen: das Sheet steht unter „+ Sheet“ › „Mit Stern …“ und in den Listen zum Verschieben, Kopieren und Spiegeln vorn (wie Trello „Board markieren“)',
+  set: (n: string) => `„${n}“ hat jetzt einen Stern.`,
+  unset: (n: string) => `Stern von „${n}“ entfernt.`,
+  mark: 'mit Stern',
+  open: 'Mit Stern …',
+  openHint: 'Sheets mit Stern öffnen – in diesem Pad oder dort, wo sie schon offen sind',
+  none: 'Noch kein Sheet mit Stern. Im ⋮ eines Pads setzt „Mit Stern“ einen.',
+  shown: (n: string) => `„${n}“ ist schon offen – dorthin gewechselt.`,
+  opened: (n: string) => `„${n}“ geöffnet.`,
+  full: 'Dieses Pad ist voll – das Sheet öffnet in einem neuen Pad.',
 };

@@ -10,6 +10,7 @@ import * as ND from './noteDoc';
 import * as RS from './ruleSet';
 import * as CFd from './cardFields';
 import * as Mi from './mirrors';
+import { starFirst } from './stars';
 
 // ---------- Kanban: Spalte ↔ Zustand (K2) ----------
 
@@ -100,7 +101,7 @@ export function moveCard(ws: Workspace, viewId: string, noteId: string, colId: s
 
 /** V88 (F/K4 „V“): Ziele für „Verschieben nach …“ – alle anderen Sheets außer der Matrix (die ordnet nach wichtig/dringend). */
 export function moveTargets(ws: Workspace, from: string): NoteView[] {
-  return No.viewsOf(ws).filter((v) => v.id !== from && v.kind !== 'eisenhower');
+  return starFirst(No.viewsOf(ws).filter((v) => v.id !== from && v.kind !== 'eisenhower'));
 }
 
 /**

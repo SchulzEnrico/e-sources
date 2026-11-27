@@ -858,6 +858,8 @@ export interface NoteView {
   votes?: true;
   /** V127 (F-231 K9): Karten, die hier als Spiegel liegen (Heimat auf einem anderen Board, mirrors.ts). */
   mirrors?: string[];
+  /** V128 (F-231 K12): Stern wie Trello „Board markieren“ – steht in „+ Sheet“ › „Mit Stern …“ und in Ziel-Listen vorn (stars.ts). */
+  star?: true;
   /** Regel „Abnahme nötig“: erledigt → „in Prüfung“, bis bestätigt. */
   review?: boolean;
   /** V65 (Sheet): Besitzer. */

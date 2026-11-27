@@ -30,6 +30,7 @@ import { CardTags } from './KanbanTags';
 import { CardComments } from './CardComments';
 import { CardCover } from './CardCover';
 import { CardFields } from './CardFields';
+import { StarMark } from './StarMark';
 import { Icon } from './Icon';
 
 export type SheetCmd = { k: 'home' | 'new' | 'go' | 'search'; n: number; id?: string };
@@ -111,6 +112,7 @@ export function MoveToBar(props: { ws: Workspace; dispatch: Dispatch<Action>; sh
         targets.map((t) => (
           <button key={t.id} type="button" className="help__run" onClick={() => pick(t)}>
             <Icon name={KIND_ICON[t.kind]} size={12} className="icon icon--inline" /> {t.name}
+            <StarMark on={t.star} />
           </button>
         ))
       ) : (

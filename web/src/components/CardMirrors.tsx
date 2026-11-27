@@ -9,6 +9,7 @@ import * as No from '../workspace/notes';
 import * as Mi from '../workspace/mirrors';
 import { DIALOG_TEXT, MIRROR_TEXT as M, NOTE_TEXT, PAUSE_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
+import { StarMark } from './StarMark';
 import { Icon } from './Icon';
 import type { Notice } from './NoteTab';
 
@@ -71,6 +72,7 @@ export function MirrorBar(props: { ws: Workspace; dispatch: Dispatch<Action>; sh
         targets.map((x) => (
           <button key={x.id} type="button" className="help__run" onClick={() => pick(x)}>
             <Icon name="kanban" size={12} className="icon icon--inline" /> {x.name}
+            <StarMark on={x.star} />
           </button>
         ))
       ) : (

@@ -304,11 +304,11 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
           <p className="lc__muted">{T.figNone[form.figure ?? 'goalTree']}</p>
         )}
         {figEdit && editable && (
-          <FigEditor key={figEdit.key} edit={figEdit} ws={ws} p={p} tpl={tpl} run={run} tell={tell} say={say} by={by}
+          <FigEditor key={figEdit.key} edit={figEdit} fig={form.figure} ws={ws} p={p} tpl={tpl} run={run} tell={tell} say={say} by={by}
             onOpen={(key) => window.setTimeout(() => { const el = figRef.current?.querySelector(`[data-edit="${CSS.escape(key)}"]`); if (el) openFig(el); }, 30)}
             onClose={(back) => (setFigEdit(null), back && focusBox(figEdit.key))} />
         )}
-        {svg && <figcaption className="help__text">{T.figCaption[form.figure ?? 'goalTree']}{editable ? ` ${T.figEditHint}` : target && openView ? ` ${T.figOpenHint(T.figView[target])}` : ''}</figcaption>}
+        {svg && <figcaption className="help__text">{T.figCaption[form.figure ?? 'goalTree']}{editable ? ` ${movable ? T.figEditHint : T.figEditHint2}` : target && openView ? ` ${T.figOpenHint(T.figView[target])}` : ''}</figcaption>}
       </figure>
     );
   };
@@ -652,17 +652,24 @@ const FIG_FIELDS: Record<string, string[]> = {
   goals: ['code', 'text', 'measure', 'level', 'owner'],
   nongoals: ['code', 'text', 'consequence'],
   tasks: ['title', 'assignee', 'phase', 'hours', 'cost'],
+  // V138: im Balkenplan zusätzlich die Termine
+  ganttTasks: ['title', 'duration', 'notBefore', 'due', 'assignee', 'phase'],
   roles: ['name', 'person', 'parent', 'kind', 'link', 'org'],
+  // V138: Phasenplan, Balkenplan, Eisenhower (Nachrichtenquadrat und Belbin öffnen genau das angeklickte Feld)
+  phases: ['name', 'start', 'end', 'focus', 'share'],
+  milestones: ['code', 'title', 'due', 'phase'],
+  eisenhower: ['code', 'title', 'important', 'urgent', 'quadrant'],
 };
+/** V138: Formulare, deren Zeilen im Blatt nicht gelöscht werden (Eisenhower = Sicht auf die Arbeitspakete; Einzelfelder) */
+const FIG_NO_REMOVE = new Set(['eisenhower', 'messages', 'teamRoles']);
 
 /**
  * V137 (Enrico 12:59): Bearbeiten in der Grafik – Felder des Kastens am Ort (unter dem Kasten), dazu „Unterpunkt anlegen“
  * und Löschen mit Rückgängig. Esc schließt und gibt den Fokus an den Kasten zurück (NF-03), Meldungen im Fenster (F-214).
  */
-function FigEditor({ edit, ws, p, tpl, run, tell, say, by, onOpen, onClose }: { edit: { key: string; x: number; y: number }; ws: Workspace; p: Project; tpl: ReturnType<typeof Fk.templateOf>; run: (o: Fk.FormOp) => void; tell: (t: string, undo?: () => void) => void; say: (t: string) => void; by?: string; onOpen: (key: string) => void; onClose: (back: boolean) => void }) {
-  const i = edit.key.indexOf(':');
-  const fid = edit.key.slice(0, i);
-  const row = edit.key.slice(i + 1);
+function FigEditor({ edit, fig, ws, p, tpl, run, tell, say, by, onOpen, onClose }: { edit: { key: string; x: number; y: number }; fig?: string; ws: Workspace; p: Project; tpl: ReturnType<typeof Fk.templateOf>; run: (o: Fk.FormOp) => void; tell: (t: string, undo?: () => void) => void; say: (t: string) => void; by?: string; onOpen: (key: string) => void; onClose: (back: boolean) => void }) {
+  // „Formular:Zeile“ oder (V138) „Formular:Zeile:Feld“ – dann nur dieses eine Feld (Nachrichtenquadrat, Belbin)
+  const [fid, row, field] = edit.key.split(':');
   const form = tpl.forms.find((f) => f.id === fid) ?? Fk.GPM_D.forms.find((f) => f.id === fid);
   const box = useRef<HTMLDivElement>(null);
   const [note, setNote] = useState('');
@@ -670,12 +677,14 @@ function FigEditor({ edit, ws, p, tpl, run, tell, say, by, onOpen, onClose }: { 
     window.setTimeout(() => box.current?.querySelector<HTMLElement>('input:not([type=checkbox]), textarea, select')?.focus(), 0);
   }, []);
   if (!form) return null;
-  const keys = FIG_FIELDS[fid] ?? [];
-  const cols = Fk.columnsOf(p, form).filter((c) => keys.includes(c.key));
+  const keys = field ? [field] : ((fig === 'gantt' && fid === 'tasks' ? FIG_FIELDS.ganttTasks : FIG_FIELDS[fid]) ?? []);
+  // V138: auch Felder, die das Formular nicht als Spalte zeigt (z. B. Dauer im Balkenplan)
+  const all = Fk.columnsOf(p, { ...form, columns: [...form.columns, ...keys.filter((k) => !form.columns.some((c) => c.key === k)).map((key) => ({ key }))] }, true);
+  const cols = all.filter((c) => keys.includes(c.key)).sort((a, b) => keys.indexOf(a.key) - keys.indexOf(b.key));
   const rows = Fk.rowsOf(ws, p.id, form);
   if (fid !== 'charter' && !rows.some((r) => r.id === row)) return null;
   const set = (r: string, key: string, value: Fk.CellValue) => (run({ op: 'cell', pid: p.id, form, row: r, key, value, at: Date.now(), by }), setNote(T.figSaved));
-  const name = String(Fk.cellValue(ws, p.id, form, row, cols[0]?.key === 'code' ? (cols[1]?.key ?? '') : (cols[0]?.key ?? '')) ?? '');
+  const name = field ? (cols[0]?.label ?? field) : String(Fk.cellValue(ws, p.id, form, row, cols[0]?.key === 'code' ? (cols[1]?.key ?? '') : (cols[0]?.key ?? '')) ?? '');
   const child = (rkind?: 'staff' | 'external') => {
     const id = newId();
     const init = { parent: row, ...(rkind ? { rkind } : {}) };
@@ -710,7 +719,7 @@ function FigEditor({ edit, ws, p, tpl, run, tell, say, by, onOpen, onClose }: { 
             <tr key={c.key}>
               <th scope="row">{c.label}</th>
               <td className={`pjf__cell is-${c.kind}`}>
-                <Cell ws={ws} p={p} form={form} rowId={fid === 'charter' ? p.id : row} col={c} miss={false} label={`${c.label} – ${name}`} onSet={set} />
+                <Cell ws={ws} p={p} form={form} rowId={fid === 'charter' ? p.id : row} col={c} miss={false} label={field ? `${c.label} – ${form.name}` : `${c.label} – ${name}`} onSet={set} />
               </td>
             </tr>
           ))}
@@ -725,7 +734,9 @@ function FigEditor({ edit, ws, p, tpl, run, tell, say, by, onOpen, onClose }: { 
             <button type="button" className="help__run" onClick={() => child('external')}><Icon name="plus" size={12} className="icon icon--inline" /> {T.figExternal}</button>
           </>
         )}
-        {fid !== 'charter' && <button type="button" className="help__run" onClick={remove}><Icon name="trash" size={12} className="icon icon--inline" /> {T.remove}</button>}
+        {/* V138 (Enrico 13:17 „Knöpfe überall gut aufteilen“): Anlegen links, Löschen und Schließen rechts abgesetzt */}
+        <span className="pjf__figacts-end" />
+        {fid !== 'charter' && !field && !FIG_NO_REMOVE.has(fid) && <button type="button" className="help__run" onClick={remove}><Icon name="trash" size={12} className="icon icon--inline" /> {T.remove}</button>}
         <button type="button" className="help__run" onClick={() => (onClose(true), say(T.figClose))}>{T.figClose}</button>
       </div>
     </div>

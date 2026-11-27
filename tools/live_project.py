@@ -21,14 +21,17 @@ for line in src[start:].splitlines():
     if line.startswith('### '):
         group = line[4:].strip()
         continue
-    m = re.match(r'^[-*] \*\*(F-\d+)\*\* \\\[([^\]]*?)\\\]\s*(.*)$', line)
-    if not m or m.group(1) in seen:
+    # V138: Vermerk steht hinter der Nummer (\[✓ V12\]), davor (&#91;✓ V26\] **F-179**) oder fehlt ganz – ohne Vermerk zählt
+    # der Punkt als offen (vorher fielen 42 Punkte heraus). Ein Vermerk ohne Zeichen (z. B. „Kanban Stufe 1 …“) = offen.
+    m = re.match(r'^\s*[-*] (?:&#91;([^\]]*?)\\\]\s*)?\*\*(F-\d+)\*\*\s*(?:\\\[([^\]]*?)\\\])?\s*(.*)$', line)
+    if not m or m.group(2) in seen:
         continue
-    fid, note, rest = m.groups()
+    pre, fid, post, rest = m.groups()
+    note = (pre if pre is not None else post) or ''
     mark = note.strip()[:1]
     if mark == '⇢':
         continue
-    state = 'done' if mark in '✓●' else 'part' if mark == '◐' else 'open'
+    state = 'done' if mark and mark in '✓●' else 'part' if mark == '◐' else 'open'
     title = re.split(r'\s\(\d{1,2}\.\d{1,2}\.\d{4}|\. |: ', rest, maxsplit=1)[0].strip(' –-')[:90]
     chats = len(set(re.findall(r'\bV(\d{1,3})\b', line)))
     seen.add(fid)
@@ -94,4 +97,5 @@ out += [f"  {json.dumps(i, ensure_ascii=False)}," for i in items]
 out.append('];')
 out += out_changes
 (root / 'web/src/workspace/liveProjectData.ts').write_text('\n'.join(out) + '\n', encoding='utf-8')
-print(len(items), 'F-Punkte;', sum(i['state'] == 'done' for i in items), 'fertig,', sum(i['state'] == 'part' for i in items), 'teilweise,', sum(i['state'] == 'open' for i in items), 'offen;', len(changes), 'Änderungen')
+replaced = len(set(re.findall(r'\*\*(F-\d+)\*\*', src[start:]))) - len(items)
+print(len(items) + replaced, 'F-Punkte (', replaced, 'ersetzt );', sum(i['state'] == 'done' for i in items), 'fertig,', sum(i['state'] == 'part' for i in items), 'teilweise,', sum(i['state'] == 'open' for i in items), 'offen;', len(changes), 'Änderungen')

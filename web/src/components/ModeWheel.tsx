@@ -69,6 +69,8 @@ export function ModeWheel(props: {
   const el = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const settle = useRef(0);
+  /** V138: Ziel der laufenden Drehung – schnelle Tastendrücke zählen von dort weiter, statt in der Animation verloren zu gehen */
+  const aim = useRef<number | null>(null);
   const commit = useRef(0);
   const own = useRef(false); // Scrollen kam vom Anwender – nicht von außen zurückstellen
   const drag = useRef<{ y: number; top: number; moved: boolean } | null>(null);
@@ -133,6 +135,7 @@ export function ModeWheel(props: {
     commit.current = 0;
     settle.current = window.setTimeout(() => {
       settle.current = 0;
+      aim.current = null;
       let k = Math.max(0, Math.min(list.length - 1, Math.round(b.scrollTop / ROW)));
       // ringsum: unsichtbar in die mittlere Kopie zurück, damit es weiter in beide Richtungen geht
       if (wrap && (k < base || k >= base * 2)) {
@@ -157,14 +160,16 @@ export function ModeWheel(props: {
     const b = box.current;
     if (!b || props.disabled || count < 2) return;
     touch();
+    i = Math.max(0, Math.min(list.length - 1, i));
+    aim.current = i;
     b.scrollTo({ top: i * ROW, behavior: calm() ? 'auto' : 'smooth' });
   };
   /** Ziel als Modus-Nummer → Raste im Band, möglichst kurzer Weg (ringsum über die Nachbarkopie). */
-  const rollTo = (n: number, dir: number) => {
+  const rollTo = (n: number, dir: number, from = at) => {
     let i = base + (mixed && n > after ? n + 1 : n);
     if (wrap) {
-      if (dir > 0 && i < at) i += base;
-      if (dir < 0 && i > at) i -= base;
+      if (dir > 0 && i < from) i += base;
+      if (dir < 0 && i > from) i -= base;
     }
     roll(i);
   };
@@ -192,11 +197,14 @@ export function ModeWheel(props: {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     if (e.key === 'Enter' || e.key === ' ') return void (e.preventDefault(), props.onPress ? props.onPress(opt(at).id) : step(e.shiftKey));
     const back = e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'Home';
+    // V138: während das Rad noch dreht, vom Ziel aus weiterzählen (Kapitel-Rad verlor Tastendrücke)
+    const from = aim.current ?? at;
+    const cur = optIndex(from);
     const n = cur < 0 && e.key !== 'Home' && e.key !== 'End' ? (keyTurn(e.key, 0, 2, false) === null ? null : turnFrom(-1, back ? -1 : 1, count, false, after)) : keyTurn(e.key, Math.max(0, cur), count, wrap);
     if (n === null) return;
     e.preventDefault();
-    if (wrap && (e.key.startsWith('Arrow') || e.key === 'Enter' || e.key === ' ')) return roll(at + (back ? -1 : 1));
-    rollTo(n, back ? -1 : 1);
+    if (wrap && (e.key.startsWith('Arrow') || e.key === 'Enter' || e.key === ' ')) return roll(from + (back ? -1 : 1));
+    rollTo(n, back ? -1 : 1, from);
   };
   // Ziehen mit der Maus wie Wischen (Touch scrollt das Band von selbst)
   const down = (e: PointerEvent<HTMLDivElement>) => {

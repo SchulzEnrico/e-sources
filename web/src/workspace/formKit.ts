@@ -192,6 +192,10 @@ export const FIELDS: Record<FormSource, readonly FieldSpec[]> = {
     { key: 'hours', label: 'Aufwand (Ph)', kind: 'number', help: 'Von Hand; sonst Summe der Einsätze' },
     { key: 'cost', label: 'Kosten (€)', kind: 'money', help: 'Von Hand; sonst Stunden × Stundensatz der Einsätze' },
     { key: 'results', label: 'Lieferobjekte', kind: 'lines', help: 'ICB4 4.5.3: Ergebnisse des Arbeitspakets, eine Zeile je Lieferobjekt' },
+    // V138 (Balkenplan am Ort): Termine wie im Notiz-Editor – nicht in der Tabelle „8 Arbeitspakete“, aber über „Felder“ zuschaltbar
+    { key: 'duration', label: 'Dauer (Arbeitstage)', kind: 'number', help: 'Leer = aus „frühester Beginn“ bis „fällig am“, sonst 1 Tag' },
+    { key: 'notBefore', label: 'Frühester Beginn', kind: 'date', help: 'Nicht vor diesem Tag beginnen' },
+    { key: 'due', label: 'Fällig am', kind: 'date' },
   ],
   uses: [
     { key: 'task', label: 'Arbeitspaket', kind: 'text', readonly: true },
@@ -504,7 +508,7 @@ export const GPM_D: FormTemplate = {
     { id: 'milestones', chapter: '7', name: 'Meilensteine', source: 'milestones', layout: 'table', columns: cols('milestones'), stage: 1, icb: '4.5.4' },
     { id: 'mta', chapter: '7', name: 'Meilenstein-Trendanalyse', source: 'mta', layout: 'chart', columns: cols('mta'), stage: 2, icb: '4.5.4 · 4.5.10' },
     { id: 'pspChart', chapter: '8', name: 'Projektstrukturplan (PSP)', source: 'tasks', layout: 'figure', figure: 'psp', columns: [], stage: 1, icb: '4.5.3' },
-    { id: 'tasks', chapter: '8', name: 'Arbeitspakete', source: 'tasks', layout: 'table', columns: cols('tasks'), stage: 1, icb: '4.5.3 · 4.5.4' },
+    { id: 'tasks', chapter: '8', name: 'Arbeitspakete', source: 'tasks', layout: 'table', columns: cols('tasks', ['code', 'title', 'phase', 'assignee', 'hours', 'cost', 'results']), stage: 1, icb: '4.5.3 · 4.5.4' },
     { id: 'wp', chapter: '8.3', name: 'Arbeitspaketbeschreibung', source: 'wp', layout: 'record', columns: cols('wp'), stage: 2, icb: '4.5.3 · 4.5.10' },
     { id: 'ganttChart', chapter: '9', name: 'Balkenplan mit kritischem Pfad', source: 'tasks', layout: 'figure', figure: 'gantt', columns: [], stage: 1, icb: '4.5.4' },
     { id: 'checks', chapter: '9', name: 'Prüfung am Lieferobjekt', source: 'checks', layout: 'table', columns: cols('checks'), stage: 2, icb: '4.5.6' },
@@ -952,6 +956,8 @@ export function setCell(ws: Workspace, pid: string, form: FormDef, rowId: string
       }
       if (key === 'hours') return patchNote(ws, rowId, (n) => setOpt(n, 'effort', setOpt(n.effort ?? {}, 'plan', val)), now);
       if (key === 'cost') return patchNote(ws, rowId, (n) => setOpt(n, 'cost', setOpt(n.cost ?? {}, 'plan', val)), now);
+      if (key === 'notBefore') return updateNote(ws, rowId, { notBefore: (val as string | null) || undefined }, act);
+      if (key === 'duration') return patchNote(ws, rowId, (n) => (n.milestone ? n : setOpt(n, 'duration', typeof val === 'number' && val >= 1 ? Math.min(9999, Math.round(val)) : null)), now);
       return ws;
     case 'uses': {
       const { note, person } = splitRow(rowId);

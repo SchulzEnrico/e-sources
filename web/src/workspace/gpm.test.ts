@@ -742,6 +742,16 @@ describe('F-235 (V135): Live-Projekt E-Sources', () => {
     const c = Lv.liveCounts();
     expect(c.done + c.part + c.open).toBe(c.all);
   });
+  it('V138: zählt alle F-Punkte – auch ohne Stand-Vermerk (offen) und mit Vermerk vor der Nummer', async () => {
+    const D = await import('./liveProjectData');
+    const ids = D.LIVE_ITEMS.map((i) => i.f);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.length).toBe(202); // 204 im Lastenheft, 2 ersetzt (⇢) fallen weg
+    const st = (f: string) => D.LIVE_ITEMS.find((i) => i.f === f)?.state;
+    for (const f of ['F-16', 'F-19', 'F-38', 'F-53', 'F-62', 'F-100', 'F-119', 'F-148', 'F-157', 'F-198', 'F-199']) expect(st(f)).toBe('open');
+    for (const f of ['F-160', 'F-179', 'F-181', 'F-184']) expect(st(f)).toBe('done');
+    expect(st('F-104')).toBe('open');
+  });
   it('L7 (V136): Basisplan nur mit dem ursprünglichen Umfang, Dazugekommenes als genehmigte Änderungen', async () => {
     const Lv = await import('./liveProject');
     const D = await import('./liveProjectData');
@@ -836,6 +846,42 @@ describe('F-234 (V137): AP-Statusbericht, Persönliche Kompetenzen, Anlagen, Bea
     expect(rep.actHours).toBe(198);
     expect(rep.from).toBe(rep.sollStart);
     expect(rep.to).toBe('2027-05-17');
+  });
+  it('V138: auch Phasenplan, Balkenplan, Eisenhower, Nachrichtenquadrat und Belbin sind am Ort bearbeitbar', async () => {
+    const F = await import('./gpmFigures');
+    const S = await import('./sampleProject');
+    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const pid = S.SAMPLE_PROJECT;
+    const p = ws.projects!.find((x) => x.id === pid)!;
+    const keys = (svg: string) => [...svg.matchAll(/data-edit="([^"]+)"/g)].map((m) => m[1]);
+    const phase = keys(F.figureSvg(ws, pid, 'phasePlan'));
+    expect(phase.some((k) => k === `phases:${p.phases![0].id}`)).toBe(true);
+    expect(phase.some((k) => k.startsWith('milestones:'))).toBe(true);
+    const gantt = keys(F.figureSvg(ws, pid, 'gantt'));
+    expect(gantt).toContain('tasks:cg-31');
+    expect(gantt.some((k) => k.startsWith('milestones:'))).toBe(true);
+    const m = p.messages![0];
+    const sq = keys(F.figureSvg(ws, pid, 'square', { row: m.id }));
+    expect(sq).toContain(`messages:${m.id}:message`);
+    expect(sq).toContain(`messages:${m.id}:rAppeal`);
+    expect(sq.length).toBe(10);
+    const t = p.teamRoles![0];
+    expect(keys(F.figureSvg(ws, pid, 'belbin', { row: t.id })).length).toBe(9);
+    const eis = keys(F.figureSvg(ws, pid, 'eisenhower', { day: '2027-05-01' }));
+    expect(eis.length).toBeGreaterThan(0);
+    expect(eis.every((k) => k.startsWith('eisenhower:'))).toBe(true);
+    // Balkenplan: Dauer und frühester Beginn am Ort setzen
+    let w2 = Fk.applyForm(ws, { op: 'cell', pid, form: form('tasks'), row: 'cg-31', key: 'duration', value: 12, at: 9 });
+    w2 = Fk.applyForm(w2, { op: 'cell', pid, form: form('tasks'), row: 'cg-31', key: 'notBefore', value: '2027-03-01', at: 10 });
+    const n31 = w2.notes!.find((n) => n.id === 'cg-31')!;
+    expect(n31.duration).toBe(12);
+    expect(n31.notBefore).toBe('2027-03-01');
+    expect(form('tasks').columns.map((c) => c.key)).not.toContain('duration');
+    // jede Kennung zeigt auf eine vorhandene Zeile des Formulars dahinter
+    for (const k of [...phase, ...gantt, ...eis]) {
+      const [fid, row] = k.split(':');
+      expect(Fk.rowsOf(ws, pid, form(fid)).some((r) => r.id === row)).toBe(true);
+    }
   });
   it('Kästen sind bearbeitbar und von Hand verschiebbar (D3), Unterziel und Unter-Arbeitspaket am Ort', async () => {
     const F = await import('./gpmFigures');

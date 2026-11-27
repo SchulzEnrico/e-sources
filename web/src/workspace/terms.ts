@@ -3822,6 +3822,7 @@ export const FORMS_TEXT = {
   wpReportAt: 'Arbeitspaket',
   wpReportAdd: 'AP-Statusbericht anlegen',
   figEditHint: 'Klick, Enter oder Leertaste auf einen Kasten bearbeitet ihn hier auf dem Blatt; Ziehen bzw. Alt+Pfeiltasten verschiebt ihn.',
+  figEditHint2: 'Klick, Enter oder Leertaste auf einen Eintrag bearbeitet ihn hier auf dem Blatt (Tab springt von Eintrag zu Eintrag, Esc schließt).',
   figEditTitle: (what: string) => `Bearbeiten: ${what}`,
   figChild: { goals: 'Unterziel anlegen', nongoals: 'Unterziel anlegen', tasks: 'Arbeitspaket darunter anlegen', roles: 'Rolle darunter anlegen' } as Record<string, string>,
   figStaff: 'Stabsstelle anlegen',

@@ -436,6 +436,10 @@ function monthHeads(a: Axis, y: number, h: number, withYear = true): string {
   parts.push(`<line x1="${a.x0 + a.w}" y1="${y}" x2="${a.x0 + a.w}" y2="${y + h}" stroke="${LOOK.grid}" stroke-width="0.7"/>`);
   return parts.join('');
 }
+/** V138 (Enrico 12:59 „Gleiches gilt auch für alle anderen Darstellungen“): Teil einer Grafik am Ort bearbeitbar – „Formular:Zeile[:Feld]“. */
+const edg = (key: string, label: string) => ` class="fg-edit" data-edit="${esc(key)}" tabindex="0" role="button" aria-label="${esc(`Bearbeiten: ${label}`)}"`;
+/** unsichtbare Trefferfläche (für Klick und Fokus-Rahmen) */
+const hit = (x: number, y: number, w: number, h: number) => `<rect class="fg-hit" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1, w).toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" fill="#fff" fill-opacity="0"/>`;
 const diamond = (x: number, y: number, r: number, fill: string) => `<path d="M${x} ${y - r}L${x + r} ${y}L${x} ${y + r}L${x - r} ${y}Z" fill="${fill}" stroke="#3a0607" stroke-width="0.6"/>`;
 
 /** Phasenplan (Abb. 9): Phasen als Treppe über den Monaten, Meilensteine als Raute mit Kürzel und Datum, unten Projektmonate. */
@@ -456,7 +460,7 @@ export function phasePlanSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws, 
     const y = top + 10 + i * rowH;
     const x1 = a.x(b.start);
     const x2 = Math.max(x1 + 6, a.x(b.end) + (a.w / (a.d1 - a.d0)));
-    parts.push(`<g><title>${esc(`${b.name}: ${dmy(b.start)} – ${dmy(b.end)}`)}</title><rect x="${x1}" y="${y}" width="${x2 - x1}" height="${rowH - 12}" rx="3" fill="url(#fgWine)" stroke="#4a0a0b" stroke-width="0.6" filter="url(#fgShadow)"/>`);
+    parts.push(`<g${edg(`phases:${b.id}`, `Phase ${b.name}`)}><title>${esc(`${b.name}: ${dmy(b.start)} – ${dmy(b.end)}`)}</title><rect x="${x1}" y="${y}" width="${x2 - x1}" height="${rowH - 12}" rx="3" fill="url(#fgWine)" stroke="#4a0a0b" stroke-width="0.6" filter="url(#fgShadow)"/>`);
     const label = esc(b.name);
     const fits = (x2 - x1) > b.name.length * 6 + 8;
     parts.push(`<text x="${fits ? x1 + 6 : x2 + 4}" y="${y + (rowH - 12) / 2 + 3.5}" font-size="9.5" font-weight="bold" fill="${fits ? '#fff' : LOOK.wine}">${label}</text></g>`);
@@ -467,7 +471,8 @@ export function phasePlanSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws, 
   ms.forEach((m, i) => {
     const x = a.x(m.start);
     const code = (m.node.title.match(/^M\s?\d+/i)?.[0] ?? `M${i + 1}`).replace(/\s/, '');
-    parts.push(`<g><title>${esc(`${m.node.code} ${m.node.title}: ${dmy(m.start)}`)}</title>${diamond(x, mY, 6, m.critical ? LOOK.red : LOOK.orange)}<text x="${x}" y="${mY - 9}" text-anchor="middle" font-size="8.5" font-weight="bold" fill="${LOOK.ink}">${esc(code)}</text><text x="${x}" y="${mY + 16}" text-anchor="middle" font-size="7.5" fill="${LOOK.muted}">${dm(m.start)}</text></g>`);
+    const own = m.node.kind === 'task' && m.node.owner === pid;
+    parts.push(`<g${own ? edg(`milestones:${m.id}`, `Meilenstein ${m.node.title}`) : ''}><title>${esc(`${m.node.code} ${m.node.title}: ${dmy(m.start)}`)}</title>${own ? hit(x - 12, mY - 20, 24, 42) : ''}${diamond(x, mY, 6, m.critical ? LOOK.red : LOOK.orange)}<text x="${x}" y="${mY - 9}" text-anchor="middle" font-size="8.5" font-weight="bold" fill="${LOOK.ink}">${esc(code)}</text><text x="${x}" y="${mY + 16}" text-anchor="middle" font-size="7.5" fill="${LOOK.muted}">${dm(m.start)}</text></g>`);
   });
   // Projektmonate
   const pmY = top + body + 26;
@@ -506,6 +511,8 @@ export function ganttSheetSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws,
     const bold = r.node.summary ? ' font-weight="bold"' : '';
     const ind = Math.min(4, r.node.depth) * 6;
     const nameFill = r.critical && !r.node.summary ? LOOK.wine : LOOK.ink;
+    const own = r.node.kind === 'task' && r.node.owner === pid;
+    parts.push(own ? `<g${edg(`${r.node.milestone ? 'milestones' : 'tasks'}:${r.id}`, `${r.node.code} ${r.node.title}`)}>${hit(0, y, width, rowH)}` : '<g>');
     parts.push(`<text x="2" y="${y + 11}" font-size="8" fill="${LOOK.muted}">${r.nr}</text>`);
     parts.push(`<text x="${colNr + 2}" y="${y + 11}" font-size="8" fill="${LOOK.ink}"${bold}>${esc(r.node.code)}</text>`);
     parts.push(`<text x="${colNr + colCode + 2 + ind}" y="${y + 11}" font-size="8" fill="${nameFill}"${bold}><title>${esc(r.node.title)}</title>${esc(wrap(r.node.title, Math.floor((colName - ind) / 4.6), 1)[0])}</text>`);
@@ -515,6 +522,7 @@ export function ganttSheetSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws,
     if (r.node.milestone) parts.push(`<g><title>${esc(`${r.node.title}: ${dmy(r.start)}`)}</title>${diamond(x1, y + rowH / 2, 5, r.critical ? LOOK.red : LOOK.ink)}<text x="${x1 + 8}" y="${y + 11}" font-size="7.5" fill="${LOOK.ink}">${dm(r.start)}</text></g>`);
     else if (r.node.summary) parts.push(`<path d="M${x1} ${y + 4}H${x2}V${y + 11}L${x2 - 3} ${y + 8}H${x1 + 3}L${x1} ${y + 11}Z" fill="${LOOK.ink}"><title>${esc(`${r.node.title}: ${dmy(r.start)} – ${dmy(r.end)}`)}</title></path>`);
     else parts.push(`<rect x="${x1}" y="${y + 3}" width="${Math.max(2, x2 - x1)}" height="${rowH - 6}" rx="1.5" fill="${r.critical ? LOOK.red : '#9fb3c8'}" stroke="${r.critical ? '#7a0010' : '#5d738a'}" stroke-width="0.5"><title>${esc(`${r.node.title}: ${dmy(r.start)} – ${dmy(r.end)}${r.critical ? ' · kritisch' : ` · Puffer ${r.float} T`}`)}</title></rect>`);
+    parts.push('</g>');
   });
   // Pfeile: Ende/Anfang je nach Beziehung, rechtwinklig
   const day = a.w / (a.d1 - a.d0);
@@ -757,7 +765,8 @@ export function belbinSvg(ws: Workspace, p: Project, rowId: string | undefined):
   const vals = BELBIN_ORDER.map(([k]) => t[k] ?? 0);
   if (!vals.some((v) => v > 0)) return '';
   const max = Math.max(...vals, 1);
-  const rOf = (v: number) => (v > 0 ? 9 + 46 * Math.sqrt(v / max) : 6);
+  let fac = 1;
+  const rOf = (v: number) => (v > 0 ? 9 + 46 * Math.sqrt(v / max) : 6) * fac;
   const W = 780;
   const base = 196;
   const parts: string[] = [];
@@ -768,9 +777,12 @@ export function belbinSvg(ws: Workspace, p: Project, rowId: string | undefined):
     parts.push(`<circle cx="${W - 196}" cy="${22 + i * 15}" r="5" fill="${BELBIN_FILL[g]}" stroke="#333" stroke-width="1"/><text x="${W - 186}" y="${25.5 + i * 15}" font-size="8.5" fill="${LOOK.muted}">${name}</text>`),
   );
   // Kreise nebeneinander (Lücke je Gruppe)
-  const widths = vals.map((v) => 2 * rOf(v));
   const gap = 6;
-  const total = widths.reduce((a, b) => a + b, 0) + gap * (vals.length - 1) + 24;
+  const fixed = gap * (vals.length - 1) + 24;
+  const sumW = () => vals.reduce((a, v) => a + 2 * rOf(v), 0);
+  // V138: viele große Werte passen sonst nicht aufs Blatt (letzte Kreise wurden abgeschnitten) – dann alle Kreise verkleinern
+  if (sumW() + fixed > W - 60) fac = (W - 60 - fixed) / sumW();
+  const total = sumW() + fixed;
   let x = Math.max(30, (W - total) / 2);
   parts.push(`<line x1="20" y1="${base}" x2="${W - 20}" y2="${base}" stroke="#555" stroke-width="2"/>`);
   BELBIN_ORDER.forEach(([, name, g], i) => {
@@ -780,10 +792,10 @@ export function belbinSvg(ws: Workspace, p: Project, rowId: string | undefined):
     const cx = x + rr;
     const cy = base - rr;
     const big = v >= max * 0.7;
-    parts.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${BELBIN_FILL[g]}" stroke="#2b2b2b" stroke-width="2" filter="url(#fgShadow)"/>`);
+    parts.push(`<g${edg(`teamRoles:${t.id}:${BELBIN_ORDER[i][0]}`, `${name}: ${v} Punkte`)}>${hit(cx - Math.max(rr, 12), cy - rr, 2 * Math.max(rr, 12), 2 * rr + 30)}<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${BELBIN_FILL[g]}" stroke="#2b2b2b" stroke-width="2" filter="url(#fgShadow)"/>`);
     parts.push(`<text x="${cx.toFixed(1)}" y="${(cy + (rr > 14 ? 5 : 4)).toFixed(1)}" text-anchor="middle" font-size="${rr > 30 ? 15 : rr > 14 ? 12 : 9}" font-weight="bold" fill="${BELBIN_TXT[g]}">${v}</text>`);
     parts.push(`<line x1="${cx.toFixed(1)}" y1="${base + 3}" x2="${cx.toFixed(1)}" y2="${base + 26}" stroke="#555" stroke-dasharray="1.5 2.5"/>`);
-    parts.push(`<text transform="translate(${(cx + 4).toFixed(1)} ${base + 34}) rotate(-24)" text-anchor="end" font-size="${big ? 14 : v >= max * 0.4 ? 12 : 8.5}" font-weight="bold" fill="${LOOK.ink}">${name}</text>`);
+    parts.push(`<text transform="translate(${(cx + 4).toFixed(1)} ${base + 34}) rotate(-24)" text-anchor="end" font-size="${big ? 14 : v >= max * 0.4 ? 12 : 8.5}" font-weight="bold" fill="${LOOK.ink}">${name}</text></g>`);
     x += 2 * rr + gap;
   });
   const top = BELBIN_ORDER.map(([, n], i) => [n, vals[i]] as const).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, v]) => `${n} ${v}`).join(', ');
@@ -798,12 +810,12 @@ export function eisenhowerSvg(ws: Workspace, pid: string, day: string): string {
   if (!p) return '';
   const rows = pspRows(pspTree(ws, pid)).filter((n) => n.kind === 'task' && n.owner === pid && !n.milestone && !n.summary);
   const byId = new Map((ws.notes ?? []).map((n) => [n.id, n]));
-  const q: Record<'plan' | 'do' | 'drop' | 'delegate', string[]> = { plan: [], do: [], drop: [], delegate: [] };
+  const q: Record<'plan' | 'do' | 'drop' | 'delegate', { id: string; text: string }[]> = { plan: [], do: [], drop: [], delegate: [] };
   for (const r of rows) {
     const n = byId.get(r.id);
     if (!n || n.state === 'done' || n.state === 'archived' || (!n.important && !n.urgent)) continue;
     const k = n.important ? (n.urgent ? 'do' : 'plan') : 'delegate';
-    q[k].push(`${r.code ? `${r.code} ` : ''}${r.title}`);
+    q[k].push({ id: r.id, text: `${r.code ? `${r.code} ` : ''}${r.title}` });
   }
   // „liegen lassen“ nur, was ausdrücklich weder wichtig noch dringend ist, wäre unbestimmt – dort stehen offene Vorgänge ohne beide Marken nicht
   const W = 760;
@@ -820,17 +832,19 @@ export function eisenhowerSvg(ws: Workspace, pid: string, day: string): string {
   parts.push(`<line x1="${x0 + 8}" y1="${y0 + gh}" x2="${x0 + 2 * gw - 8}" y2="${y0 + gh}" stroke="#fff" stroke-width="3"/><line x1="${x0 + 8}" y1="${y0 + gh}" x2="${x0 + 2 * gw - 8}" y2="${y0 + gh}" stroke="#555" stroke-width="1"/>`);
   const corner = (x: number, y: number, t: string, anchor: 'start' | 'end') => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="11" fill="${LOOK.muted}">${t}</text>`;
   parts.push(corner(x0 + 10, y0 + 16, 'planen', 'start'), corner(x0 + 2 * gw - 10, y0 + 16, 'erledigen', 'end'), corner(x0 + 10, y0 + 2 * gh - 8, 'liegen lassen', 'start'), corner(x0 + 2 * gw - 10, y0 + 2 * gh - 8, 'delegieren', 'end'));
-  const items = (list: string[], x: number, y: number, tone: string, bold: boolean) => {
+  const items = (list: { id: string; text: string }[], x: number, y: number, tone: string, bold: boolean) => {
     const out: string[] = [];
     let yy = y;
     const maxY = y + gh - 44;
     for (let i = 0; i < list.length; i++) {
-      const lines = wrap(`- ${list[i]}`, 44, 2);
+      const lines = wrap(`- ${list[i].text}`, 44, 2);
       if (yy + lines.length * 14 > maxY) {
         out.push(`<text x="${x}" y="${yy}" font-size="10" fill="${LOOK.muted}">… und ${list.length - i} weitere</text>`);
         break;
       }
+      out.push(`<g${edg(`eisenhower:${list[i].id}`, list[i].text)}>${hit(x - 6, yy - 11, gw - 16, lines.length * 13 + 4)}`);
       lines.forEach((l, j) => out.push(`<text x="${x}" y="${yy + j * 13}" font-size="11"${bold ? ' font-weight="bold"' : ''} fill="${tone}">${esc(l)}</text>`));
+      out.push('</g>');
       yy += lines.length * 13 + 9;
     }
     return out.join('');
@@ -881,6 +895,21 @@ export function squareSvg(p: Project, rowId: string | undefined): string {
   const outerMid = (o + e) / 2;
   const sendMid = (e + s) / 2;
   const cap = (t: string | undefined, chars: number, max: number) => wrap(t || '–', chars, max);
+  // V138: jedes Feld per Klick auf seine Fläche im Quadrat am Ort bearbeiten
+  const FIELD: Record<string, [string, number, number, number, number]> = {
+    rFact: ['Sachebene – Empfänger', e, o, S - 2 * e, e - o],
+    sFact: ['Sachebene – Sender', s, e, S - 2 * s, s - e],
+    sRel: ['Beziehungsebene – Sender', s, S - s, S - 2 * s, s - e],
+    rRel: ['Beziehungsebene – Empfänger', e, S - e, S - 2 * e, e - o],
+    rSelf: ['Selbstkundgabe – Empfänger', o, e, e - o, S - 2 * e],
+    sSelf: ['Selbstkundgabe – Sender', e, s, s - e, S - 2 * s],
+    sAppeal: ['Appellseite – Sender', S - s, s, s - e, S - 2 * s],
+    rAppeal: ['Appellseite – Empfänger', S - e, e, e - o, S - 2 * e],
+    message: ['Nachricht', c, c, S - 2 * c, S / 2 - c],
+    reaction: ['Reaktion', c, S / 2, S - 2 * c, S / 2 - c],
+  };
+  for (const [k, [label, x, y, w, h]] of Object.entries(FIELD)) parts.push(`<g${edg(`messages:${m.id}:${k}`, label)}>${hit(x, y, w, h)}</g>`);
+  const fieldsAt = parts.length;
   parts.push(head(S / 2, o + 20, 'Empfänger'), lines(S / 2, outerMid + 14, cap(m.rFact, 78, 4), { bold: true, size: 12 }));
   parts.push(head(S / 2, e + 18, 'Sender'), lines(S / 2, sendMid + 14, cap(m.sFact, 54, 3), { bold: true, size: 12 }));
   parts.push(head(S / 2, S - e - 64, 'Sender'), lines(S / 2, S - sendMid + 10, cap(m.sRel, 54, 3), { bold: true, size: 12 }));
@@ -902,6 +931,8 @@ export function squareSvg(p: Project, rowId: string | undefined): string {
   parts.push(lines(S / 2, c + 34, ['Nachricht'], { size: 22, bold: true, fill: LOOK.wine }), lines(S / 2, c + 76, cap(m.message, 34, 4), { size: 14, bold: true }));
   parts.push(lines(S / 2, S / 2 + 34, ['Reaktion'], { size: 22, bold: true, fill: LOOK.wine }), lines(S / 2, S / 2 + 76, cap(m.reaction, 34, 4), { size: 14, bold: true }));
   parts.push(`<text transform="translate(${S + 62} ${S}) rotate(-90)" font-size="64" font-weight="bold" fill="#b3b3b3">Nachrichtenquadrat</text><text transform="translate(${S + 84} ${S}) rotate(-90)" font-size="18" font-weight="bold" fill="#9a9a9a">nach Schulz von Thun</text>`);
+  const hits = parts.splice(fieldsAt - Object.keys(FIELD).length, Object.keys(FIELD).length);
+  parts.push(...hits);
   return svgWrap(S + 92, S, `Nachrichtenquadrat: ${m.topic}${m.message ? ` – Nachricht „${m.message}“` : ''}`, parts.join(''));
 }
 

@@ -666,6 +666,25 @@ export interface NoteCover {
   size?: 'full';
 }
 
+/** V125 (F-231 K8): Art eines eigenen Felds wie Trello „Custom Fields“ (Trello `checkbox` = `check`). */
+export type CardFieldType = 'text' | 'number' | 'date' | 'list' | 'check';
+/** V125 (F-231 K8): Wahl eines Auswahl-Felds mit optionaler Farbe (Tag-Farben). */
+export interface CardFieldOption {
+  id: string;
+  name: string;
+  color?: string;
+}
+/** V125 (F-231 K8): eigenes Feld eines Boards; `onCard` = auf der Karte vorn zeigen (Trello `display.cardFront`). */
+export interface CardFieldDef {
+  id: string;
+  name: string;
+  type: CardFieldType;
+  options?: CardFieldOption[];
+  onCard?: true;
+}
+/** V125 (F-231 K8): Wert eines eigenen Felds – Text, Zahl, Datum (JJJJ-MM-TT), Id der Wahl bzw. `true` (angehakt). */
+export type CardFieldValue = string | number | true;
+
 /** F-206: Wie eine Notiz entstand (wie BookmarkOrigin). */
 export interface NoteOrigin {
   via: 'hand' | 'quick' | 'voice' | 'slot' | 'import';
@@ -716,6 +735,10 @@ export interface Note {
   template?: true;
   /** V124 (F-231 K6): Titelbild wie Trello „Cover“ – Farbe oder Bild, klein oder ganzflächig (covers.ts). */
   cover?: NoteCover;
+  /** V125 (F-231 K8): Werte der eigenen Felder des Boards (Feld-Id → Wert, cardFields.ts). */
+  fields?: Record<string, CardFieldValue>;
+  /** V125 (F-231 K8): Stimmen wie Trello „Votes“ – Ids der Personen, die für die Karte gestimmt haben. */
+  votes?: string[];
   /** V65: Art nach ICB4 (M1). */
   type?: NoteType;
   /** F-225 P8 (V107, R2): Angaben als Risiko (nur bei `type: 'risk'`). */
@@ -825,6 +848,10 @@ export interface NoteView {
   hiddenTags?: string[];
   /** V124 (F-231 K6): Titelbilder in diesem Board nicht zeigen (Trello `prefs.cardCovers: false`); die Karten behalten sie. */
   noCovers?: true;
+  /** V125 (F-231 K8): eigene Felder des Boards (höchstens FIELD_MAX, Trello `customFields`). */
+  fields?: CardFieldDef[];
+  /** V125 (F-231 K8): Abstimmen in diesem Board an (Trello `prefs.voting` ≠ „disabled“). */
+  votes?: true;
   /** Regel „Abnahme nötig“: erledigt → „in Prüfung“, bis bestätigt. */
   review?: boolean;
   /** V65 (Sheet): Besitzer. */

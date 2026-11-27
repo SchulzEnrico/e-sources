@@ -23,6 +23,7 @@ import { calendarFor, withCalendar } from './calendar';
 import { FOREIGN_TEXT_MAX } from './foreign';
 import { colorOf, isTagColor, setTagColor } from './tags';
 import { coverFromTrello, coverSig, coverToTrello } from './covers';
+import { fieldsFromTrello, fieldsToTrello, itemsToTrello, valuesFromTrello } from './cardFields';
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -257,6 +258,10 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
   ]);
   const stateOfList = new Map(lists.map((l) => [str(l.id), colStateOf({ name: str(l.name) })]));
 
+  // V125 (F-231 K8): eigene Felder des Boards (Trello `customFields`) und Abstimmen (`prefs.voting`)
+  const fieldDefs = fieldsFromTrello(b.customFields);
+  const voting = isObj(b.prefs) && typeof (b.prefs as Obj).voting === 'string' && (b.prefs as Obj).voting !== 'disabled';
+
   // Labels → Tags
   const tagById = new Map(arr(b.labels).map((l) => [str(l.id), tagOfLabel(l)]));
 
@@ -367,6 +372,9 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
     const rawCover = isObj(c.cover) ? (c.cover as Obj) : null;
     const cvIn = coverFromTrello(rawCover);
     const cover = sent && 'cover' in sent && same('cover', coverSig(rawCover)) ? base.cover : cvIn.cover;
+    // V125 (F-231 K8): Werte der eigenen Felder und Stimmen kommen immer aus Trello (Ids des Boards)
+    const fieldVals = valuesFromTrello(c.customFieldItems, fieldDefs);
+    const voters = [...new Set((Array.isArray(c.idMembersVoted) ? (c.idMembersVoted as unknown[]).map(str) : []).map((m) => personOf.get(m)).filter((x): x is string => !!x))];
     const useOwn = same('members', Array.isArray(c.idMembers) ? (c.idMembers as unknown[]).map(str) : []) && (base.use || base.assignee);
 
     const rest = omit(c, OWN_CARD);
@@ -396,6 +404,8 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
         tags: tags.length ? tags : undefined,
         ...(milestone ? { milestone: true } : {}),
         ...(cover ? { cover } : {}),
+        fields: fieldVals,
+        votes: voters.length ? voters : undefined,
         ...(useOwn ? {} : members.length ? { assignee: members[0], use: members.map((p) => ({ person: p })) } : {}),
         ...(bag ? { foreign: bag } : {}),
       },
@@ -407,6 +417,8 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
     if (!notBefore) delete fresh.notBefore;
     if (!fresh.tags) delete fresh.tags;
     if (!cover) delete fresh.cover;
+    if (!fieldVals) delete fresh.fields;
+    if (!voters.length) delete fresh.votes;
     // V122 (F-231 K7): Trello-Kommentare werden Kommentare der Notiz (Id der Aktion in `ref`, roh weiter in foreign)
     if (cm?.length) {
       const evs = cm
@@ -451,7 +463,7 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
       }
       return out;
     }),
-    noteViews: viewsOf(ws).map((x) => (x.id === v.id ? { ...x, cols, ...(archCols.length ? { archivedCols: archCols } : {}), ids: [], owner: { kind: 'project', id: pid }, ...(isObj(b.prefs) && (b.prefs as Obj).cardCovers === false ? { noCovers: true as const } : {}) } : x)),
+    noteViews: viewsOf(ws).map((x) => (x.id === v.id ? { ...x, cols, ...(archCols.length ? { archivedCols: archCols } : {}), ids: [], owner: { kind: 'project', id: pid }, ...(isObj(b.prefs) && (b.prefs as Obj).cardCovers === false ? { noCovers: true as const } : {}), ...(fieldDefs.length ? { fields: fieldDefs } : {}), ...(voting ? { votes: true as const } : {}) } : x)),
   };
 
   // Projekt: Beschreibung → Ziel; Board-Felder roh mitführen (Listen, Labels, Mitglieder mit Ids und pos)
@@ -660,6 +672,10 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
   }
   for (const n of cards) if (!order.includes(n)) order.push(n);
 
+  // V125 (F-231 K8): eigene Felder des Boards → `customFields` (nur, wenn Trello sie kannte oder wir welche haben)
+  const fieldDefs = view?.fields ?? [];
+  const cfOut = fieldDefs.length || Array.isArray(F.customFields) ? fieldsToTrello(fieldDefs, F.customFields, boardId, make) : undefined;
+
   const outCards: Obj[] = [];
   const outCl: Obj[] = [];
   const comments: Obj[] = [];
@@ -747,6 +763,9 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
     list.push(typeof base.pos === 'number' ? base.pos : undefined);
     posByList.set(idList, list);
     const cover = coverToTrello(n.cover, _cover);
+    // V125 (K8): Werte und Stimmen (Schlüssel nur, wenn Trello sie kannte oder die Karte welche hat)
+    const cfItems = cfOut && (n.fields || Array.isArray(base.customFieldItems)) ? itemsToTrello(n, fieldDefs, base.customFieldItems, id, cfOut.ids, make) : undefined;
+    const idVoted = n.votes?.length || Array.isArray(base.idMembersVoted) ? [...new Set((n.votes ?? []).map(memberFor).filter(Boolean) as string[])] : undefined;
     const sent: CardOwn['sent'] = { name, desc: split.desc, due, start, list: idList, closed, done, labels: idLabels, members: idMembers, cover: coverSig(cover) };
     outCards.push({
       ...base,
@@ -763,6 +782,8 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
       idMembers,
       idChecklists,
       cover,
+      ...(cfItems ? { customFieldItems: cfItems } : {}),
+      ...(idVoted ? { idMembersVoted: idVoted } : {}),
       eSources: { v: 1, id: n.id, note: ownNote(n), sent } satisfies CardOwn,
     });
   }
@@ -789,7 +810,16 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
     labels,
     // V124 (F-231 K6): Board-Schalter „Titelbilder zeigen“
     // (nur wenn Trello den Schalter schon kannte oder wir ausblenden – sonst bleiben die Einstellungen unverändert)
-    ...(view?.noCovers || (isObj(F.prefs) && 'cardCovers' in (F.prefs as Obj)) ? { prefs: { ...(isObj(F.prefs) ? (F.prefs as Obj) : {}), cardCovers: !view?.noCovers } } : {}),
+    // V125 (F-231 K8): Abstimmen (`voting` nur, wenn Trello es kannte oder wir es eingeschaltet haben)
+    ...(() => {
+      const fp = isObj(F.prefs) ? (F.prefs as Obj) : undefined;
+      const covers = view?.noCovers || (fp && 'cardCovers' in fp);
+      const votes = view?.votes || (fp && 'voting' in fp);
+      if (!covers && !votes) return {};
+      const was = fp && typeof fp.voting === 'string' && fp.voting !== 'disabled' ? fp.voting : 'members';
+      return { prefs: { ...(fp ?? {}), ...(covers ? { cardCovers: !view?.noCovers } : {}), ...(votes ? { voting: view?.votes ? was : 'disabled' } : {}) } };
+    })(),
+    ...(cfOut ? { customFields: cfOut.list } : {}),
     lists: ls.map((l) => l.raw),
     cards: outCards,
     checklists: outCl,

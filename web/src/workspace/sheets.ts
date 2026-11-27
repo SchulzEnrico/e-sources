@@ -8,6 +8,7 @@ import type { ColState, Note, NoteColumn, NoteState, NoteView, Workspace } from 
 import * as No from './notes';
 import * as ND from './noteDoc';
 import * as RS from './ruleSet';
+import * as CFd from './cardFields';
 
 // ---------- Kanban: Spalte ↔ Zustand (K2) ----------
 
@@ -145,9 +146,9 @@ export function syncBoards(ws: Workspace, noteId: string): Workspace {
 
 // ---------- Kanban: Spalten-Menü (K1, V87) ----------
 
-export type ColSort = 'due' | 'important' | 'title';
+export type ColSort = 'due' | 'important' | 'title' | 'votes' | `f:${string}`;
 export const COL_SORTS: readonly ColSort[] = ['due', 'important', 'title'];
-export const COL_SORT_NAME: Record<ColSort, string> = { due: 'Fälligkeit', important: 'Wichtigkeit', title: 'Titel (A–Z)' };
+export const COL_SORT_NAME: Record<'due' | 'important' | 'title' | 'votes', string> = { due: 'Fälligkeit', important: 'Wichtigkeit', title: 'Titel (A–Z)', votes: 'Stimmen (meiste zuerst)' };
 
 /** Spalte einmal sortieren (wie Trello „Liste sortieren nach …“): ändert die Reihenfolge der Karten dauerhaft. */
 export function sortCol(ws: Workspace, viewId: string, colId: string, by: ColSort): Workspace {
@@ -155,10 +156,17 @@ export function sortCol(ws: Workspace, viewId: string, colId: string, by: ColSor
   const col = v?.cols?.find((c) => c.id === colId);
   if (!v || !col) return ws;
   const list = col.ids.map((id) => No.noteById(ws, id)).filter((n): n is Note => !!n);
+  // V125 (F-231 K8): nach Stimmen bzw. nach einem eigenen Feld
+  const fdef = by.startsWith('f:') ? CFd.fieldById(v, by.slice(2)) : undefined;
+  if (by.startsWith('f:') && !fdef) return ws;
   const sorted =
     by === 'title'
       ? [...list].sort((a, b) => (No.titleOf(No.shownNote(a)) || '').localeCompare(No.titleOf(No.shownNote(b)) || '', 'de'))
-      : sortNotes(list, by);
+      : by === 'votes'
+        ? CFd.sortByVotes(list)
+        : fdef
+          ? CFd.sortByField(list, fdef)
+          : sortNotes(list, by as 'due' | 'important');
   const ids = [...sorted.map((n) => n.id), ...col.ids.filter((id) => !list.some((n) => n.id === id))];
   const views = No.viewsOf(ws).map((x) => (x.id !== viewId ? x : { ...x, cols: (x.cols ?? []).map((c) => (c.id === colId ? { ...c, ids } : c)) }));
   return { ...ws, noteViews: views };

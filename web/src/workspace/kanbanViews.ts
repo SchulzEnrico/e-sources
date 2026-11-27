@@ -7,12 +7,13 @@
 import type { Note, NoteColumn, NoteView, Workspace } from './types';
 import * as No from './notes';
 import { assigneeOf, personById } from './persons';
+import * as CFd from './cardFields';
 
 export interface TableRow {
   note: Note;
   col: NoteColumn;
 }
-export type TableSort = 'board' | 'title' | 'col' | 'due' | 'who' | 'state' | 'tags';
+export type TableSort = 'board' | 'title' | 'col' | 'due' | 'who' | 'state' | 'tags' | 'votes' | `f:${string}`;
 export const TABLE_SORTS: readonly TableSort[] = ['title', 'col', 'tags', 'who', 'due', 'state'];
 
 /** Karten des Boards in Board-Reihenfolge (Spalte für Spalte), ohne archivierte; `keep` filtert (Suche, Filter …). */
@@ -32,8 +33,12 @@ const STATE_ORDER: Record<string, number> = { open: 0, doing: 1, waiting: 2, rev
 export function sortRows(ws: Workspace, v: NoteView, rows: readonly TableRow[], by: TableSort, desc = false): TableRow[] {
   if (by === 'board') return desc ? [...rows].reverse() : [...rows];
   const colIx = new Map((v.cols ?? []).map((c, i) => [c.id, i]));
+  // V125 (F-231 K8): Stimmen (meiste zuerst) und eigene Felder
+  const fdef = by.startsWith('f:') ? CFd.fieldById(v, by.slice(2)) : undefined;
   const key = (r: TableRow): string | number | null => {
     const n = No.shownNote(r.note);
+    if (by === 'votes') return -(r.note.votes?.length ?? 0);
+    if (by.startsWith('f:')) return fdef ? CFd.sortKey(fdef, r.note.fields?.[fdef.id]) : null;
     if (by === 'title') return (No.titleOf(n) || '').toLocaleLowerCase('de');
     if (by === 'col') return colIx.get(r.col.id) ?? 0;
     if (by === 'due') return n.due ? `${n.due} ${n.dueTime ?? '23:59'}` : null;

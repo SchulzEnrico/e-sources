@@ -139,7 +139,7 @@ export function copyNote(ws: Workspace, id: string, keep: CopyKeep = ALL_KEEP, a
   };
   if (act.title !== undefined && !n.title && act.title.trim()) init.text = retitle(init.text ?? '', act.title.trim());
   if (act.title !== undefined && !n.title) init.title = '';
-  const same = ['category', 'important', 'urgent', 'type', 'project', 'effort', 'cost', 'milestone', 'phase', 'duration', 'results', 'accept', 'risk', 'change', 'procure', 'wp', 'cover'] as const;
+  const same = ['category', 'important', 'urgent', 'type', 'project', 'effort', 'cost', 'milestone', 'phase', 'duration', 'results', 'accept', 'risk', 'change', 'procure', 'wp', 'cover', 'fields'] as const;
   for (const k of same) if (n[k] !== undefined) (init as Record<string, unknown>)[k] = structuredCopy(n[k]);
   if (!('project' in init)) init.project = undefined;
   if (keep.tags && n.tags?.length) init.tags = [...n.tags];

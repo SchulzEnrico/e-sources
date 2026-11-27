@@ -40,6 +40,7 @@ import * as Cal from './calendar';
 import * as BT from './boardTemplates';
 import * as Tg from './tags';
 import * as Cv from './covers';
+import * as CFd from './cardFields';
 import * as Cm from './comments';
 import * as KM from './kanbanMore';
 import * as Sh from './sheets';
@@ -365,6 +366,18 @@ export type Action =
   /* V124 (F-231 K6): Titelbild der Karte, Board-Schalter „Titelbilder zeigen“ */
   | { type: 'noteCover'; id: string; cover?: import('./types').NoteCover; by?: string }
   | { type: 'boardCovers'; view: string; show: boolean }
+  // V125 (F-231 K8): eigene Felder und Abstimmen
+  | { type: 'fieldAdd'; view: string; name: string; fieldType: import('./types').CardFieldType; id?: string; onCard?: boolean }
+  | { type: 'fieldEdit'; view: string; field: string; name?: string; onCard?: boolean }
+  | { type: 'fieldMove'; view: string; field: string; dir: -1 | 1 }
+  | { type: 'fieldRemove'; view: string; field: string }
+  | { type: 'optionAdd'; view: string; field: string; name: string; color?: string; id?: string }
+  | { type: 'optionEdit'; view: string; field: string; option: string; name?: string; color?: string | null }
+  | { type: 'optionMove'; view: string; field: string; option: string; dir: -1 | 1 }
+  | { type: 'optionRemove'; view: string; field: string; option: string }
+  | { type: 'fieldValue'; view: string; field: string; id: string; value: unknown; by?: string }
+  | { type: 'vote'; id: string; person: string }
+  | { type: 'boardVotes'; view: string; on: boolean }
   /* V122 (F-231 K7): Kommentare = Spur-Einträge mit Text */
   | { type: 'commentAdd'; id: string; text: string; cid: string; by?: string }
   | { type: 'commentEdit'; id: string; cid: string; text: string }
@@ -740,6 +753,30 @@ function step(ws: Workspace, a: Action): Workspace {
     }
     case 'noteCover':
       return Cv.setCover(ws, a.id, a.cover, { by: a.by });
+    case 'fieldAdd':
+      return CFd.addField(ws, a.view, a.name, a.fieldType, { id: a.id, onCard: a.onCard })?.ws ?? ws;
+    case 'fieldEdit':
+      return CFd.updateField(ws, a.view, a.field, { name: a.name, onCard: a.onCard });
+    case 'fieldMove':
+      return CFd.moveField(ws, a.view, a.field, a.dir);
+    case 'fieldRemove':
+      return CFd.removeField(ws, a.view, a.field).ws;
+    case 'optionAdd':
+      return CFd.addOption(ws, a.view, a.field, a.name, a.color, { id: a.id })?.ws ?? ws;
+    case 'optionEdit':
+      return CFd.updateOption(ws, a.view, a.field, a.option, { name: a.name, color: a.color });
+    case 'optionMove':
+      return CFd.moveOption(ws, a.view, a.field, a.option, a.dir);
+    case 'optionRemove':
+      return CFd.removeOption(ws, a.view, a.field, a.option).ws;
+    case 'fieldValue': {
+      const def = CFd.fieldById(No.viewById(ws, a.view), a.field);
+      return def ? CFd.setFieldValue(ws, a.id, def, a.value, { by: a.by }) : ws;
+    }
+    case 'vote':
+      return CFd.toggleVote(ws, a.id, a.person);
+    case 'boardVotes':
+      return CFd.setBoardVotes(ws, a.view, a.on);
     case 'boardCovers':
       return { ...ws, noteViews: (ws.noteViews ?? []).map((v) => (v.id !== a.view ? v : a.show ? (({ noCovers: _n, ...r }) => (void _n, r))(v) : { ...v, noCovers: true as const })) };
     case 'cardFromTpl':

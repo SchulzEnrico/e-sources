@@ -24,6 +24,10 @@ import * as Tg from '../workspace/tags';
 import { COVER_TEXT, KVIEW_TEXT, STATS_TEXT, TAG_TEXT } from '../workspace/terms';
 import * as Cv from '../workspace/covers';
 import { CoverBack, CoverTop } from './CardCover';
+import { FieldChips, FieldPanel, VoteSign } from './CardFields';
+import * as CFd from '../workspace/cardFields';
+import { FIELD_TEXT, VOTE_TEXT } from '../workspace/terms';
+import { meId } from '../workspace/persons';
 import { KanbanCalendar, KanbanTable } from './KanbanViews';
 import { KanbanTimeline } from './KanbanTimeline';
 import { KanbanStats } from './KanbanStats';
@@ -93,6 +97,9 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const [tagsOpen, setTagsOpen] = useState(false);
   const filterBtn = useRef<HTMLButtonElement>(null);
   const tagsBtn = useRef<HTMLButtonElement>(null);
+  // V125 (K8): eigene Felder des Boards
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const fieldsBtn = useRef<HTMLButtonElement>(null);
   /** Karte sichtbar nach Suche, „Nur meine“ und Kartenfilter (gilt in jeder Ansicht gleich). */
   const passes = (n: Note) => Sh.matchesFilter(No.shownNote(n), filter) && pk.pass(n) && CF.passes(ws, n, cf);
   useEffect(() => {
@@ -302,6 +309,15 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     // V121 (K1): K = kopieren, C = archivieren (wie Trello)
     if ((e.key === 'k' || e.key === 'K') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setCopying(n.id));
     if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), archive(n, nearOf(n.id, c.id)));
+    // V125 (K8): S = abstimmen bzw. Stimme zurückziehen (nur wenn Abstimmen im Board an ist)
+    if ((e.key === 's' || e.key === 'S') && v.votes && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      const was = CFd.hasVoted(n, meId(ws));
+      dispatch({ type: 'vote', id: n.id, person: meId(ws) });
+      const text = was ? VOTE_TEXT.unvoted(title(n)) : VOTE_TEXT.voted(title(n));
+      say(text);
+      return void notice({ text, undo: () => dispatch({ type: 'vote', id: n.id, person: meId(ws) }) });
+    }
     if (e.key === 'F2') return void (e.preventDefault(), setEdit(n.id));
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
@@ -454,6 +470,9 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
                 </span>
               )}
               <Signs ws={ws} n={n} />
+              {/* V125 (K8): eigene Felder vorn auf der Karte, Stimmen */}
+              <FieldChips v={v} n={n} />
+              <VoteSign ws={ws} v={v} n={n} />
               <span className="sr-only">
                 , {NOTE_TEXT.states[No.stateOf(ws, n).state]}
                 {subs.length ? `, ${K.subs}: ${subs.map((s) => No.titleOf(No.shownNote(s)) || NOTE_TEXT.untitled).join(', ')}` : ''}
@@ -589,8 +608,19 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
               <>
                 <Item icon="back" onClick={() => go('')}>{K.back}</Item>
                 {Sh.COL_SORTS.map((s) => (
-                  <Item key={s} icon="sort" onClick={() => (close(), dispatch({ type: 'colSort', view: sheetId, col: c.id, by: s }), say(K.sorted(Sh.COL_SORT_NAME[s])))}>
-                    {Sh.COL_SORT_NAME[s]}
+                  <Item key={s} icon="sort" onClick={() => (close(), dispatch({ type: 'colSort', view: sheetId, col: c.id, by: s }), say(K.sorted(Sh.COL_SORT_NAME[s as 'due'])))}>
+                    {Sh.COL_SORT_NAME[s as 'due']}
+                  </Item>
+                ))}
+                {/* V125 (K8): nach Stimmen und nach eigenen Feldern */}
+                {v.votes && (
+                  <Item icon="vote" onClick={() => (close(), dispatch({ type: 'colSort', view: sheetId, col: c.id, by: 'votes' }), say(K.sorted(Sh.COL_SORT_NAME.votes)))}>
+                    {Sh.COL_SORT_NAME.votes}
+                  </Item>
+                )}
+                {CFd.fieldsOf(v).map((f) => (
+                  <Item key={f.id} icon="fields" onClick={() => (close(), dispatch({ type: 'colSort', view: sheetId, col: c.id, by: `f:${f.id}` }), say(K.sorted(FIELD_TEXT.sortBy(f.name))))}>
+                    {FIELD_TEXT.sortBy(f.name)}
                   </Item>
                 ))}
               </>
@@ -840,6 +870,7 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
           onClose={() => (setFilterOpen(false), window.setTimeout(() => filterBtn.current?.focus(), 0))}
         />
       )}
+      {fieldsOpen && <FieldPanel ws={ws} dispatch={dispatch} sheetId={sheetId} say={say} onClose={() => (setFieldsOpen(false), window.setTimeout(() => fieldsBtn.current?.focus(), 0))} />}
       {tagsOpen && <TagPanel ws={ws} dispatch={dispatch} sheetId={sheetId} say={say} onClose={() => (setTagsOpen(false), window.setTimeout(() => tagsBtn.current?.focus(), 0))} />}
       <span id={`${sheetId}-cardkeys`} className="sr-only">{K.cardKeys}</span>
       <span className="sr-only" role="status">{K.info(cols.length, No.idsIn(v).length)}</span>
@@ -950,6 +981,14 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
               onChange={(e) => (dispatch({ type: 'boardCovers', view: sheetId, show: e.target.checked }), say(e.target.checked ? COVER_TEXT.boardOn : COVER_TEXT.boardOff))}
             />{' '}
             <Icon name="image" size={13} /> {COVER_TEXT.board}
+          </label>
+          {/* V125 (K8): eigene Felder des Boards und Abstimmen (Trello „Custom Fields“, „Voting“) */}
+          <button type="button" ref={fieldsBtn} className="kcol__add kcol__arch" aria-expanded={fieldsOpen} title={FIELD_TEXT.manageHint} onClick={() => setFieldsOpen(!fieldsOpen)}>
+            <Icon name="fields" size={13} /> {FIELD_TEXT.manage(CFd.fieldsOf(v).length)}
+          </button>
+          <label className="kcol__add kcol__arch kcov__board" title={VOTE_TEXT.boardHint}>
+            <input type="checkbox" checked={!!v.votes} onChange={(e) => (dispatch({ type: 'boardVotes', view: sheetId, on: e.target.checked }), say(e.target.checked ? VOTE_TEXT.boardOn : VOTE_TEXT.boardOff))} />{' '}
+            <Icon name="vote" size={13} /> {VOTE_TEXT.board}
           </label>
         </div>
       </div>

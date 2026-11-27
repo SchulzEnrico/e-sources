@@ -13,6 +13,8 @@ import type { Note, NoteView, Workspace } from '../workspace/types';
 import * as No from '../workspace/notes';
 import * as Tg from '../workspace/tags';
 import * as CF from '../workspace/cardFilter';
+import * as CFd from '../workspace/cardFields';
+import { FIELD_TEXT } from '../workspace/terms';
 import { FILTER_TEXT as F, NOTE_TEXT, PAUSE_TEXT, TAG_TEXT as T } from '../workspace/terms';
 import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
@@ -303,9 +305,9 @@ export function FilterPanel(props: { ws: Workspace; sheetId: string; f: CF.CardF
   const n = CF.filterCount(f);
   const tags = Tg.boardTags(ws, props.sheetId);
   const persons = ws.persons ?? [];
-  const box1 = (key: 'tags' | 'due' | 'states' | 'persons', val: string, label: string, chip?: { tag: string; color?: string }) => (
+  const box1 = (key: 'tags' | 'due' | 'states' | 'persons' | 'fields', val: string, label: string, chip?: { tag: string; color?: string }) => (
     <label key={`${key}-${val}`} className="kfil__opt">
-      <input type="checkbox" checked={(f[key] as string[]).includes(val)} onChange={() => onChange(CF.toggle(f, key, val as never))} />
+      <input type="checkbox" checked={((f[key] ?? []) as string[]).includes(val)} onChange={() => onChange(CF.toggle(f, key, val as never))} />
       {chip ? <TagChip tag={chip.tag} color={chip.color} /> : label}
     </label>
   );
@@ -365,6 +367,15 @@ export function FilterPanel(props: { ws: Workspace; sheetId: string; f: CF.CardF
           {persons.map((p) => box1('persons', p.id, p.name))}
           {box1('persons', '', F.noPerson)}
         </fieldset>
+        {/* V125 (F-231 K8): eigene Felder des Boards – eine Wahl, ausgefüllt, leer, angehakt */}
+        {CFd.fieldsOf(No.viewById(ws, props.sheetId)).map((d) => (
+          <fieldset key={d.id} className="kfil__group">
+            <legend>{d.name}</legend>
+            {CFd.filterChoices(d).map((c) =>
+              box1('fields', CFd.fieldToken(d.id, c.val), c.kind === 'opt' ? (c.label ?? '') : c.kind === 'on' ? FIELD_TEXT.fOn : c.kind === 'set' ? FIELD_TEXT.fSet : FIELD_TEXT.fEmpty, c.kind === 'opt' ? { tag: c.label ?? '', color: c.color } : undefined),
+            )}
+          </fieldset>
+        ))}
       </div>
     </section>
   );

@@ -11,13 +11,14 @@
 import type { Note, NoteCover, NoteView, Workspace } from './types';
 import * as No from './notes';
 import * as ND from './noteDoc';
-import { TAG_COLORS, tagHex, tagInk } from './tags';
+import { tagHex, tagInk } from './tags';
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** Farben für Titelbilder = Grundfarben der Tags (= Trello-Cover-Farben) */
-export const COVER_COLORS = TAG_COLORS.map((c) => c.id);
+// als feste Liste (gleich TAG_COLORS): covers.ts wird beim Laden aus notes.ts gebraucht – kein Zugriff auf tags.ts beim Start (Ring-Import)
+export const COVER_COLORS: readonly string[] = ['green', 'yellow', 'orange', 'red', 'purple', 'blue', 'sky', 'lime', 'pink', 'black'];
 export const isCoverColor = (c: unknown): c is string => typeof c === 'string' && COVER_COLORS.includes(c);
 const IMG_KEY = /^[A-Za-z0-9_-]{1,80}$/;
 

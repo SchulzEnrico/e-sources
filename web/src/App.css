@@ -9975,3 +9975,25 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 .kcov__board { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
 .kcov__board .icon { display: inline-block; }
 @media (forced-colors: active) { .kcov__opt.is-on { outline: 2px solid Highlight; } .kcover, .kcback { forced-color-adjust: none; } }
+
+/* V125 (F-231 K8): eigene Felder und Abstimmen (Trello „Custom Fields“, „Voting“) */
+.kcard__fields { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+.kfld__chip { font-weight: 500; }
+.kfld__label { opacity: 0.8; margin-right: 2px; }
+.kvote__sign .icon { display: inline-block; vertical-align: -1px; }
+.kvote__sign.is-mine { background: rgba(var(--accent-rgb), 0.22); font-weight: 600; }
+.kvote { margin-bottom: 6px; }
+.kvote__btn.is-on { background: rgba(var(--accent-rgb), 0.28); font-weight: 600; }
+.kvote__who { font-size: 12px; }
+.kfld__grid { display: grid; grid-template-columns: minmax(8em, max-content) minmax(10em, 1fr); gap: 4px 10px; align-items: center; }
+.kfld__row { display: contents; }
+.kfld__name { font-size: 12px; }
+.kfld__grid input[type='text'], .kfld__grid select, .kfld__grid input[type='date'] { width: 100%; max-width: 22em; padding: 2px 6px; font: inherit; font-size: 12.5px; }
+.kfld__check { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.kfld__list li { flex-direction: column; align-items: stretch; gap: 4px; }
+.kfld__def, .kfld__opt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.kfld__opts { display: flex; flex-direction: column; gap: 4px; padding-left: 18px; }
+.kfld__color { padding: 1px 4px; font: inherit; font-size: 12px; }
+.karch__head select { padding: 2px 4px; font: inherit; font-size: 12px; }
+@media (forced-colors: active) { .kfld__color { forced-color-adjust: none; } .kvote__sign.is-mine, .kvote__btn.is-on { outline: 1px solid Highlight; } }
+.kfld__opts .ktag__add { flex: none; min-width: 0; max-width: 16em; }

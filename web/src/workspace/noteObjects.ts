@@ -28,6 +28,8 @@ import { parseFeedbackForm } from './feedback';
 import { parseChange, parseRisk } from './risks';
 import { parseCheckGpm, parsePersonGpm, parseProcure, parseProjectGpm, parseResults, parseRoleAkv, parseUses, parseWp } from './gpm';
 import { parseProjectForms } from './formKit';
+import { cleanCover } from './covers';
+import { cleanFieldValues, cleanVotes } from './cardFields';
 import { parseForeign } from './foreign';
 import { parseCalendar } from './calendar';
 
@@ -104,6 +106,13 @@ export function parseNoteExtras(v: Record<string, unknown>): Partial<Note> {
   // V121 (F-231 K5, K1): Uhrzeit zu „fällig“, Kartenvorlage
   if (typeof v.dueTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v.dueTime)) out.dueTime = v.dueTime;
   if (v.template === true) out.template = true;
+  // V124/V125 (F-231 K6, K8): Titelbild (fehlte beim Laden bis V124), eigene Felder, Stimmen
+  const cover = cleanCover(v.cover);
+  if (cover) out.cover = cover;
+  const fields = cleanFieldValues(v.fields);
+  if (fields) out.fields = fields;
+  const votes = cleanVotes(v.votes);
+  if (votes) out.votes = votes;
   if (typeof v.project === 'string' && v.project) out.project = v.project;
   if (typeof v.assignee === 'string' && v.assignee) out.assignee = v.assignee;
   const effort = parsePlanActual(v.effort);

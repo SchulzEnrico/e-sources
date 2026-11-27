@@ -17,6 +17,9 @@ import { dueKind } from '../workspace/kanbanMore';
 import { KVIEW_TEXT as T, NOTE_TEXT } from '../workspace/terms';
 import type { Notice } from './NoteTab';
 import { TagChips } from './KanbanTags';
+import { OptChip } from './CardFields';
+import * as CFd from '../workspace/cardFields';
+import { FIELD_TEXT, VOTE_TEXT } from '../workspace/terms';
 import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
 
@@ -60,21 +63,25 @@ export function KanbanTable(p: Common) {
   const setDue = useSetDue(p);
   const rows = KV.sortRows(ws, v, KV.tableRows(ws, v, p.keep), sort.by, sort.desc);
   const cols = v.cols ?? [];
+  // V125 (F-231 K8): Stimmen und eigene Felder als weitere Spalten
+  const fdefs = CFd.fieldsOf(v);
+  const labelOf = (k: SortKey): string => (k === 'votes' ? VOTE_TEXT.head : k.startsWith('f:') ? (CFd.fieldById(v, k.slice(2))?.name ?? '') : T.head[k as keyof typeof T.head]);
   const head = (k: SortKey) => {
     const on = sort.by === k;
+    const label = labelOf(k);
     const next = !on ? { by: k, desc: false } : !sort.desc ? { by: k, desc: true } : { by: 'board' as const, desc: false };
     return (
       <th key={k} scope="col" aria-sort={on ? (sort.desc ? 'descending' : 'ascending') : 'none'}>
         <button
           type="button"
           className="ktab__sort"
-          title={T.sortBy(T.head[k], on && !sort.desc)}
+          title={T.sortBy(label, on && !sort.desc)}
           onClick={() => {
             setSort(next);
-            p.say(next.by === 'board' ? T.sortOff : T.sorted(T.head[k], next.desc));
+            p.say(next.by === 'board' ? T.sortOff : T.sorted(label, next.desc));
           }}
         >
-          {T.head[k]}
+          {label}
           {on && <Icon name={sort.desc ? 'chevronDown' : 'chevronUp'} size={10} />}
         </button>
       </th>
@@ -94,6 +101,8 @@ export function KanbanTable(p: Common) {
             {head('due')}
             {head('state')}
             <th scope="col">{T.head.check}</th>
+            {v.votes && head('votes')}
+            {fdefs.map((f) => head(`f:${f.id}`))}
           </tr>
         </thead>
         <tbody>
@@ -138,6 +147,13 @@ export function KanbanTable(p: Common) {
                 </td>
                 <td>{NOTE_TEXT.states[No.stateOf(ws, n).state]}</td>
                 <td>{cl ? `${cl.done}/${cl.all}` : ''}</td>
+                {v.votes && <td>{CFd.votesOf(n).length || ''}</td>}
+                {fdefs.map((f) => {
+                  const val = n.fields?.[f.id];
+                  const col2 = f.type === 'list' ? f.options?.find((o) => o.id === val) : undefined;
+                  const txt = CFd.valueText(f, val, FIELD_TEXT.yes);
+                  return <td key={f.id}>{col2 ? <OptChip name={col2.name} color={col2.color} /> : txt}</td>;
+                })}
               </tr>
             );
           })}

@@ -28,6 +28,7 @@ import type {
 import { TAB_MAX, newId } from './workspace';
 import * as ND from './noteDoc';
 import { parseNoteExtras, parseSheetExtras, parseWip } from './noteObjects';
+import { cleanFieldDefs } from './cardFields';
 
 /** Höchstens so viele Notizen je Ansicht (Unter-Notizen zählen nicht). */
 export const VIEW_MAX = 200;
@@ -171,7 +172,7 @@ export function createNote(ws: Workspace, init: NoteInit = {}, act: Act & { id?:
 
 /** Felder, die sich frei ändern lassen (Zustand, Eltern und Vorgänger haben eigene Funktionen). */
 export type NotePatch = Partial<
-  Pick<Note, 'title' | 'text' | 'category' | 'tags' | 'important' | 'urgent' | 'notBefore' | 'due' | 'dueTime' | 'waitReason' | 'attach' | 'delegated' | 'remind' | 'place' | 'origin' | 'assignee' | 'effort' | 'cover'>
+  Pick<Note, 'title' | 'text' | 'category' | 'tags' | 'important' | 'urgent' | 'notBefore' | 'due' | 'dueTime' | 'waitReason' | 'attach' | 'delegated' | 'remind' | 'place' | 'origin' | 'assignee' | 'effort' | 'cover' | 'fields' | 'votes'>
 >;
 
 /** Notiz ändern; `undefined` im Patch entfernt das Feld. */
@@ -937,6 +938,13 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
     if (Array.isArray(raw.hiddenTags)) {
       const hidden = [...new Set((raw.hiddenTags as unknown[]).filter((t): t is string => typeof t === 'string' && !!t.trim()).map((t) => t.trim().toLocaleLowerCase('de')))].sort();
       if (hidden.length) view.hiddenTags = hidden;
+    }
+    // V124/V125 (F-231 K6, K8): Titelbilder aus (fehlte beim Laden bis V124), eigene Felder, Abstimmen
+    if (raw.noCovers === true) view.noCovers = true;
+    if (kind === 'kanban') {
+      const fields = cleanFieldDefs(raw.fields);
+      if (fields) view.fields = fields;
+      if (raw.votes === true) view.votes = true;
     }
     out.push({ ...view, ...parseSheetExtras(raw) });
   }

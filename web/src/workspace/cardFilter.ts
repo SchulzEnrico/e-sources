@@ -10,6 +10,7 @@ import * as No from './notes';
 import { assigneeOf } from './persons';
 import { dueKind } from './kanbanMore';
 import { fold } from './tags';
+import { fieldHit } from './cardFields';
 
 export type DueFilter = 'over' | 'soon' | 'week' | 'none' | 'done';
 export type StateFilter = Exclude<NoteState, 'archived'>;
@@ -22,6 +23,8 @@ export interface CardFilter {
   states: StateFilter[];
   /** Personen-Ids; '' = „ohne Zuständigen“ */
   persons: string[];
+  /** V125 (F-231 K8): eigene Felder als `Feld-Id=Wert` (fieldToken); fehlt = keine */
+  fields?: string[];
   mode: FilterMode;
 }
 
@@ -30,7 +33,7 @@ export const DUE_FILTERS: readonly DueFilter[] = ['over', 'soon', 'week', 'none'
 export const STATE_FILTERS: readonly StateFilter[] = ['open', 'doing', 'waiting', 'review', 'done'];
 
 /** Zahl der gewählten Merkmale (für „Filter (3)“). */
-export const filterCount = (f: CardFilter): number => f.tags.length + f.due.length + f.states.length + f.persons.length;
+export const filterCount = (f: CardFilter): number => f.tags.length + f.due.length + f.states.length + f.persons.length + (f.fields?.length ?? 0);
 
 const WEEK = 7 * 24 * 3600 * 1000;
 
@@ -57,13 +60,14 @@ export function passes(ws: Workspace, n: Note, f: CardFilter, now = Date.now()):
     ...f.due.map((d) => dueHit(n, d, now)),
     ...f.states.map((s) => st === s),
     ...f.persons.map((p) => who === p),
+    ...(f.fields ?? []).map((t) => fieldHit(n, t)),
   ];
   return f.mode === 'all' ? hits.every(Boolean) : hits.some(Boolean);
 }
 
 /** Ein Merkmal an- bzw. abwählen. */
-export function toggle<K extends 'tags' | 'due' | 'states' | 'persons'>(f: CardFilter, key: K, val: CardFilter[K][number]): CardFilter {
-  const list = f[key] as string[];
+export function toggle<K extends 'tags' | 'due' | 'states' | 'persons' | 'fields'>(f: CardFilter, key: K, val: NonNullable<CardFilter[K]>[number]): CardFilter {
+  const list = (f[key] ?? []) as string[];
   const v = val as string;
   return { ...f, [key]: list.includes(v) ? list.filter((x) => x !== v) : [...list, v] };
 }
@@ -78,6 +82,7 @@ export function parseCardFilter(raw: unknown): CardFilter | undefined {
     due: strs(r.due).filter((d): d is DueFilter => (DUE_FILTERS as readonly string[]).includes(d)),
     states: strs(r.states).filter((s): s is StateFilter => (STATE_FILTERS as readonly string[]).includes(s)),
     persons: strs(r.persons),
+    ...(strs(r.fields).filter((t) => t.indexOf('=') > 0).length ? { fields: strs(r.fields).filter((t) => t.indexOf('=') > 0) } : {}),
     mode: r.mode === 'all' ? 'all' : 'any',
   };
   return filterCount(f) || f.mode === 'all' ? f : undefined;

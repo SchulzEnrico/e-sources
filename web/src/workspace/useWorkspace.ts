@@ -43,6 +43,7 @@ import * as Cv from './covers';
 import * as CFd from './cardFields';
 import * as Cm from './comments';
 import * as KM from './kanbanMore';
+import * as Mi from './mirrors';
 import * as CL from './columnLook';
 import * as Sh from './sheets';
 import * as Ps from './persons';
@@ -358,6 +359,10 @@ export type Action =
   | { type: 'colToSheet'; view: string; col: string; to: string; by?: string }
   | { type: 'cardCopy'; note: string; view: string; id: string; to?: string; col?: string; index?: number; keep?: KM.CopyKeep; title?: string; asTemplate?: boolean; by?: string }
   | { type: 'cardArchive'; note: string; by?: string }
+  /** V127 (F-231 K9): Spiegelkarten – anlegen, entfernen, Heimat wechseln. */
+  | { type: 'cardMirror'; note: string; to: string; col?: string; by?: string }
+  | { type: 'cardUnmirror'; view: string; note: string; by?: string }
+  | { type: 'cardMakeHome'; view: string; note: string }
   | { type: 'cardRestore'; view: string; note: string; by?: string }
   /* V122 (F-231 K4): Tags mit Farbe – gemeinsame Liste, je Board ausblendbar */
   | { type: 'tagColor'; tag: string; color?: string }
@@ -730,6 +735,14 @@ function step(ws: Workspace, a: Action): Workspace {
       return KM.copyCard(ws, a.note, a.view, { to: a.to, col: a.col, index: a.index, keep: a.keep, title: a.title, asTemplate: a.asTemplate, by: a.by, id: a.id })?.ws ?? ws;
     case 'cardArchive':
       return KM.archiveCard(ws, a.note, { by: a.by });
+    case 'cardMirror': {
+      const r = Mi.mirrorCard(ws, a.note, a.to, { col: a.col, by: a.by, colState: Sh.colStateOf });
+      return r.ok ? r.ws : ws;
+    }
+    case 'cardUnmirror':
+      return Mi.unmirror(ws, a.view, a.note, { by: a.by });
+    case 'cardMakeHome':
+      return Mi.makeHome(ws, a.view, a.note);
     case 'cardRestore':
       return KM.restoreCard(ws, a.view, a.note, { by: a.by });
     case 'cardTemplate':

@@ -14,6 +14,7 @@ import * as Tr from '../workspace/trello';
 import { APP_VERSION } from '../workspace/feedback';
 import { projectById } from '../workspace/projects';
 import { EXCHANGE_TEXT as T } from '../workspace/terms';
+import { MIRROR_TEXT } from '../workspace/terms';
 
 function download(name: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -66,7 +67,7 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
       dispatch({ type: 'exchange', ws: r.ws });
       const pj = projectById(r.ws, r.project)!;
       const over = r.notes.find((n) => n.startsWith('listsOver:'));
-      const said = T.importedTrello(pj.name, r.cards, r.lists, r.checklists, r.persons, r.merged.length, r.kept) + (over ? ` ${T.listsOver(Number(over.split(':')[1]))}` : '');
+      const said = T.importedTrello(pj.name, r.cards, r.lists, r.checklists, r.persons, r.merged.length, r.kept) + (over ? ` ${T.listsOver(Number(over.split(':')[1]))}` : '') + mirrorSaid(r.notes);
       const undo = () => dispatch({ type: 'exchange', ws: before });
       tell(said, undo);
       // V120 (F-230 Schritt 3): Meldung samt Rückgängig geht mit auf den neuen Desk
@@ -168,4 +169,10 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
     </>
   );
   return { exportProject, pickImport: () => (setPick(null), input.current?.click()), node };
+}
+
+/** V127 (F-231 K9): Spiegelkarten in der Import-Meldung nennen. */
+function mirrorSaid(notes: string[]): string {
+  const n = (k: string) => Number(notes.find((x) => x.startsWith(`${k}:`))?.split(':')[1] ?? 0);
+  return (n('mirrors') ? ` ${MIRROR_TEXT.imported(n('mirrors'))}` : '') + (n('mirrorsOpen') ? ` ${MIRROR_TEXT.importedOpen(n('mirrorsOpen'))}` : '');
 }

@@ -25,6 +25,7 @@ import { colorOf, isTagColor, setTagColor } from './tags';
 import { coverFromTrello, coverSig, coverToTrello } from './covers';
 import { fieldsFromTrello, fieldsToTrello, itemsToTrello, valuesFromTrello } from './cardFields';
 import { colorFromTrello, colorToTrello } from './columnLook';
+import { isMirror, noteOfTrelloLink, trelloIdsOf, trelloLinkOf } from './mirrors';
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -219,7 +220,9 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
   const cardsAll = arr(b.cards);
   if (!cardsAll.length && !lists.length) return { ok: false, error: 'empty' };
   const listIdx = new Map(lists.map((l, i) => [str(l.id), i]));
-  const cards = cardsAll.slice().sort((a, c) => (listIdx.get(str(a.idList)) ?? 999) - (listIdx.get(str(c.idList)) ?? 999) || num(a.pos) - num(c.pos));
+  // V127 (F-231 K9): Spiegelkarten zuletzt – dann gibt es ihr Original schon, wenn es im selben Board liegt
+  const isMirrorCard = (c: Obj) => c.cardRole === 'mirror';
+  const cards = cardsAll.slice().sort((a, c) => Number(isMirrorCard(a)) - Number(isMirrorCard(c)) || (listIdx.get(str(a.idList)) ?? 999) - (listIdx.get(str(c.idList)) ?? 999) || num(a.pos) - num(c.pos));
 
   // Projekt; Gleichnamiges bekommt „(Import)“ (F4)
   let name = str(b.name).trim() || 'Trello-Board';
@@ -324,8 +327,24 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
 
   let checklistCount = 0;
   let cardCount = 0;
+  const mirrorIds: string[] = [];
+  let mirrorsOpen = 0;
   for (const c of cards) {
     const cid = str(c.id);
+    // V127 (F-231 K9): Spiegelkarte (Name = Adresse der Original-Karte) → dieselbe Notiz als Spiegel auf diesem Board,
+    // wenn das Original schon in E-Sources liegt (früher importiert oder im selben Board); sonst eine Karte wie bisher
+    if (isMirrorCard(c)) {
+      const link = trelloLinkOf(str(c.name));
+      const hit = link ? noteOfTrelloLink(ws, link) : undefined;
+      const col = colOfList.get(str(c.idList));
+      const taken = [...cols, ...archCols].some((x) => x.ids.includes(hit ?? ''));
+      if (hit && col && !taken && c.closed !== true) {
+        col.ids.push(hit);
+        mirrorIds.push(hit);
+        continue;
+      }
+      mirrorsOpen++;
+    }
     const co = isObj(c.eSources) ? (c.eSources as unknown as CardOwn) : undefined;
     const base = co && isObj(co.note) ? cleanOwn(co.note) : {};
     const sent = co?.sent;
@@ -466,8 +485,10 @@ export function importTrello(ws: Workspace, text: string, o: { merge?: string[];
       }
       return out;
     }),
-    noteViews: viewsOf(ws).map((x) => (x.id === v.id ? { ...x, cols, ...(archCols.length ? { archivedCols: archCols } : {}), ids: [], owner: { kind: 'project', id: pid }, ...(isObj(b.prefs) && (b.prefs as Obj).cardCovers === false ? { noCovers: true as const } : {}), ...(fieldDefs.length ? { fields: fieldDefs } : {}), ...(voting ? { votes: true as const } : {}) } : x)),
+    noteViews: viewsOf(ws).map((x) => (x.id === v.id ? { ...x, cols, ...(archCols.length ? { archivedCols: archCols } : {}), ids: [], owner: { kind: 'project', id: pid }, ...(isObj(b.prefs) && (b.prefs as Obj).cardCovers === false ? { noCovers: true as const } : {}), ...(fieldDefs.length ? { fields: fieldDefs } : {}), ...(voting ? { votes: true as const } : {}), ...(mirrorIds.length ? { mirrors: mirrorIds } : {}) } : x)),
   };
+  if (mirrorIds.length) notes.push(`mirrors:${mirrorIds.length}`);
+  if (mirrorsOpen) notes.push(`mirrorsOpen:${mirrorsOpen}`);
 
   // Projekt: Beschreibung → Ziel; Board-Felder roh mitführen (Listen, Labels, Mitglieder mit Ids und pos)
   const brest = omit(b, OWN_BOARD);
@@ -791,6 +812,23 @@ function exportCalc(ws: Workspace, pid: string, o: TrelloOptions): string {
       ...(idVoted ? { idMembersVoted: idVoted } : {}),
       eSources: { v: 1, id: n.id, note: ownNote(n), sent } satisfies CardOwn,
     });
+  }
+  // V127 (F-231 K9): Spiegel auf diesem Board (Notizen anderer Projekte) → Trello-Spiegelkarte mit der Adresse des Originals;
+  // ohne Trello-Original (nie aus Trello gekommen) kann Trello sie nicht spiegeln – sie bleibt dann weg
+  if (view) {
+    const openCols = view.cols ?? [];
+    for (const mid of view.mirrors ?? []) {
+      const n = byId.get(mid);
+      if (!n || order.includes(n) || !isMirror(ws, view, mid)) continue;
+      const url = trelloIdsOf(n).url;
+      const l = ls.find((x) => x.col && openCols.includes(x.col) && x.col.ids.includes(mid));
+      if (!url || !l) continue;
+      const idList = str(l.raw.id);
+      const list = posByList.get(idList) ?? [];
+      list.push(undefined);
+      posByList.set(idList, list);
+      outCards.push({ id: make(), name: url, desc: '', closed: false, idBoard: boardId, idList, cardRole: 'mirror', idLabels: [], idMembers: [], idChecklists: [] });
+    }
   }
   // pos je Liste
   const seen = new Map<string, number>();

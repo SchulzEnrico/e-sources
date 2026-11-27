@@ -30,6 +30,7 @@ import * as ND from './noteDoc';
 import { parseNoteExtras, parseSheetExtras, parseWip } from './noteObjects';
 import { cleanFieldDefs } from './cardFields';
 import { parseColColor } from './columnLook';
+import { cleanMirrors } from './mirrors';
 
 /** Höchstens so viele Notizen je Ansicht (Unter-Notizen zählen nicht). */
 export const VIEW_MAX = 200;
@@ -502,7 +503,13 @@ export const viewsWith = (ws: Workspace, noteId: string): NoteView[] => viewsOf(
 
 function without(v: NoteView, noteId: string): NoteView {
   const strip = (list: NoteColumn[]) => list.map((c) => (c.ids.includes(noteId) ? { ...c, ids: c.ids.filter((x) => x !== noteId) } : c));
-  if (v.kind === 'kanban') return { ...v, cols: strip(v.cols ?? []), ...(v.archivedCols ? { archivedCols: strip(v.archivedCols) } : {}) };
+  if (v.kind === 'kanban') {
+    // V127 (K9): mit der Karte geht auch ihr Spiegel-Kennzeichen
+    const mirrors = v.mirrors?.filter((x) => x !== noteId);
+    const { mirrors: _m, ...rest } = v;
+    void _m;
+    return { ...rest, cols: strip(v.cols ?? []), ...(v.archivedCols ? { archivedCols: strip(v.archivedCols) } : {}), ...(mirrors?.length ? { mirrors } : {}) };
+  }
   return v.ids.includes(noteId) ? { ...v, ids: v.ids.filter((x) => x !== noteId) } : v;
 }
 
@@ -948,6 +955,9 @@ export function parseNoteViews(v: unknown, noteIds: Set<string>, catIds: Set<str
       const fields = cleanFieldDefs(raw.fields);
       if (fields) view.fields = fields;
       if (raw.votes === true) view.votes = true;
+      // V127 (F-231 K9): Spiegel nur, wenn die Karte auf dem Board liegt
+      const mirrors = cleanMirrors(raw.mirrors, new Set(idsIn(view)));
+      if (mirrors) view.mirrors = mirrors;
     }
     out.push({ ...view, ...parseSheetExtras(raw) });
   }

@@ -7261,7 +7261,7 @@ h3.cases__name { font-size: 1.05em; }
 /* V83 (F-216): Desk | Notizen ist jetzt ein Umschalt-Rad (.mwheel.tb-mode), Gestaltung siehe unten bei .mwheel */
 /* Note Mode: Portale ruhen unsichtbar (nicht bedienbar, für Bildschirmleser weg), das Pad füllt den Desk */
 .area.is-notes > :not(.padlayer) { visibility: hidden; }
-.padlayer.is-notes .pad { border-radius: 0; }
+/* V127 (Enrico: „Warum sind die Ecken der Pads nicht mehr rund?“): Ecken bleiben auch im Notizen-Modus rund – seit V90 kachelt er mehrere Pads mit Abstand (V75 hatte die Ecken für ein einzelnes randloses Pad auf 0 gesetzt) */
 
 /* V77 (F-215 Schritt 3): Sprachnotiz – Anzeige am Ort direkt über dem Steuerknopf, Glas wie „Zuletzt genutzt“ */
 .padvoice {
@@ -10015,3 +10015,12 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 .karch__head select { padding: 2px 4px; font: inherit; font-size: 12px; }
 @media (forced-colors: active) { .kfld__color { forced-color-adjust: none; } .kvote__sign.is-mine, .kvote__btn.is-on { outline: 1px solid Highlight; } }
 .kfld__opts .ktag__add { flex: none; min-width: 0; max-width: 16em; }
+
+/* V127 (F-231 K9): Spiegelkarten – Kennzeichen auf der Karte, Abschnitt im Kartenfenster */
+.kcard__mirror { font-size: 10px; border-style: dashed; border-color: rgba(var(--accent-rgb), 0.6); }
+.kcard:has(.kcard__mirror) { border-left: 3px dashed rgba(var(--accent-rgb), 0.55); }
+.kmir__line { font-size: 12px; margin: 2px 0 4px; }
+.kmir__acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.kmir__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.kmir__list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+.kmir__list li > span { display: inline-flex; align-items: center; gap: 4px; min-width: 8em; }

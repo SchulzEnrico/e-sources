@@ -9,6 +9,7 @@ import * as No from './notes';
 import * as ND from './noteDoc';
 import * as RS from './ruleSet';
 import * as CFd from './cardFields';
+import * as Mi from './mirrors';
 
 // ---------- Kanban: Spalte ↔ Zustand (K2) ----------
 
@@ -85,9 +86,12 @@ export function moveCard(ws: Workspace, viewId: string, noteId: string, colId: s
   const col = v?.cols?.find((c) => c.id === colId);
   if (!v || !col) return { ok: false, reason: 'missing' };
   const before = colOf(v, noteId);
+  // V127 (F-231 K9): auf einem Spiegel-Board ist die Spalte nur Anordnung – der Zustand folgt dem Heimat-Board
+  const mirror = Mi.isMirror(ws, v, noteId);
   const r = No.placeNote(ws, noteId, { view: viewId, col: colId, index }, opts);
   if (!r.ok) return r;
   let next = r.ws;
+  if (mirror) return { ok: true, ws: next };
   const n = No.noteById(next, noteId);
   const want = stateFor(colStateOf(col));
   if (n && (before?.id !== colId || !matches(n.state, want))) next = No.setState(next, noteId, want, opts);
@@ -113,7 +117,10 @@ export function moveToSheet(ws: Workspace, noteId: string, from: string, to: str
   const st: ColState = n.state === 'done' || n.state === 'archived' ? 'done' : n.state === 'review' ? 'review' : n.state === 'doing' ? 'doing' : 'open';
   const col = cols.find((c) => colStateOf(c) === st) ?? (st === 'review' ? cols.find((c) => colStateOf(c) === 'done') : undefined) ?? cols[0];
   if (!col) return { ok: false, reason: 'missing' };
-  return moveCard(ws, to, noteId, col.id, undefined, { ...act, from });
+  // V127 (K9): ein Spiegel bleibt beim Verschieben in ein anderes Kanban ein Spiegel (seine Heimat bleibt)
+  const wasMirror = Mi.isMirror(ws, No.viewById(ws, from), noteId);
+  const r = moveCard(ws, to, noteId, col.id, undefined, { ...act, from });
+  return r.ok ? { ok: true, ws: Mi.carryMark(r.ws, wasMirror, to, noteId) } : r;
 }
 
 /** „in Prüfung“ zählt in einer Erledigt-Spalte als passend (Abnahme läuft). */
@@ -130,7 +137,7 @@ export function syncBoards(ws: Workspace, noteId: string): Workspace {
   if (!n) return ws;
   let next = ws;
   for (const v of No.viewsWith(ws, noteId)) {
-    if (v.kind !== 'kanban') continue;
+    if (v.kind !== 'kanban' || Mi.isMirror(ws, v, noteId)) continue; // V127 (K9): Spiegel bleiben, wo sie liegen
     const cur = colOf(v, noteId);
     if (!cur) continue;
     const cs = colStateOf(cur);
@@ -195,7 +202,8 @@ export function cardPlace(v: NoteView, noteId: string): { col: NoteColumn; pos: 
 
 /** Sheets, die über „erledigt“ bestimmen: Kanbans und Sheets mit Abnahme, auf denen die Notiz liegt. */
 export function flowsOf(ws: Workspace, noteId: string): NoteView[] {
-  return No.viewsWith(ws, noteId).filter((v) => v.kind === 'kanban' || v.review);
+  // V127 (K9): Spiegel-Boards bestimmen nicht – dort ist der Haken gesperrt, erledigt wird in der Heimat gesetzt
+  return No.viewsWith(ws, noteId).filter((v) => (v.kind === 'kanban' ? !Mi.isMirror(ws, v, noteId) : !!v.review));
 }
 
 /**

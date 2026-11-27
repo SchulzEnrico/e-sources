@@ -856,6 +856,8 @@ export interface NoteView {
   fields?: CardFieldDef[];
   /** V125 (F-231 K8): Abstimmen in diesem Board an (Trello `prefs.voting` ≠ „disabled“). */
   votes?: true;
+  /** V127 (F-231 K9): Karten, die hier als Spiegel liegen (Heimat auf einem anderen Board, mirrors.ts). */
+  mirrors?: string[];
   /** Regel „Abnahme nötig“: erledigt → „in Prüfung“, bis bestätigt. */
   review?: boolean;
   /** V65 (Sheet): Besitzer. */

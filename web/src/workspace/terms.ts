@@ -32,6 +32,7 @@ export const TERMS = {
   cardField: 'Eigenes Feld = Angabe, die ein Board selbst festlegt – Text, Zahl, Datum, Auswahl oder Häkchen (wie Trello „Custom Fields“); jede Karte des Boards bekommt dafür einen Wert, nach dem sich sortieren und filtern lässt',
   colFold: 'Spalte einklappen = die Spalte wird zum schmalen Streifen mit Name und Zahl der Karten (wie Trello „Liste einklappen“); ihre Karten bleiben, nur der Platz wird frei. Gilt nur für dich auf diesem Gerät',
   colColor: 'Spaltenfarbe = Farbe einer Spalte (wie Trello „Listenfarbe“), z. B. Grün für „Erledigt“ – nur zur Orientierung, die Bedeutung der Spalte legt „Bedeutung“ fest',
+  cardMirror: 'Spiegelkarte = dieselbe Karte zusätzlich auf einem anderen Board (wie Trello „Karte spiegeln“). Änderungen gelten überall; erledigt setzt man im Heimat-Board, dem Board, auf dem die Karte zuerst lag',
   cardVote: 'Abstimmen = jede Person gibt einer Karte eine Stimme (wie Trello „Voting“); die Zahl der Stimmen zeigt, was dem Team am wichtigsten ist',
   cardCover: 'Titelbild = Farbe oder Bild oben auf einer Karte (klein) oder über die ganze Karte (ganzflächig), wie Trello „Cover“ – macht Karten auf einen Blick erkennbar',
   workItemAge: 'Alter einer Karte (Work Item Age) = wie viele Tage eine noch offene Karte schon besteht; nach dem Kanban Guide ein Zeichen, wo Arbeit hängen bleibt',
@@ -1845,7 +1846,7 @@ export const KANBAN_TEXT = {
   at: (col: string, pos: number, of: number) => `${col}, Platz ${pos} von ${of}`,
   dropped: (t: string, col: string, pos: number, of: number) => `„${t}“ abgelegt: ${col}, Platz ${pos} von ${of}`,
   cancelled: 'Verschieben abgebrochen',
-  cardKeys: 'Enter öffnet, Leertaste nimmt auf (dann Pfeile, Leertaste legt ab, Esc bricht ab), Pfeile wandern, Strg/⌘+Enter erledigt, F2 benennt um, V verschiebt in ein anderes Sheet, K kopiert, C archiviert, S stimmt ab (wenn Abstimmen an ist), Entf nimmt aus dem Board (die Notiz bleibt). Mit Maus ziehen, auf Touch lange drücken.',
+  cardKeys: 'Enter öffnet, Leertaste nimmt auf (dann Pfeile, Leertaste legt ab, Esc bricht ab), Pfeile wandern, Strg/⌘+Enter erledigt, F2 benennt um, V verschiebt in ein anderes Sheet, K kopiert, M spiegelt auf ein anderes Board, C archiviert (bei einem Spiegel: Spiegel entfernen), S stimmt ab (wenn Abstimmen an ist), Entf nimmt aus dem Board (die Notiz bleibt). Mit Maus ziehen, auf Touch lange drücken.',
   subs: 'Nächste Unter-Notizen',
   doneCount: (n: number) => (n === 1 ? '1 erledigt' : `${n} erledigt`),
   doneToggle: 'Erledigte in dieser Spalte ein- oder ausklappen',
@@ -2041,6 +2042,35 @@ export const COL_LOOK_TEXT = {
   all: 'Alle Spalten ausklappen',
   allDone: 'Alle Spalten ausgeklappt',
   foldedLabel: (col: string, count: string) => `Spalte ${col}, eingeklappt, ${count}`,
+};
+
+/** V127 (F-231 K9): Spiegelkarten. */
+export const MIRROR_TEXT = {
+  badge: 'Spiegel',
+  badgeHint: (home: string, col: string) => `Spiegelkarte – dieselbe Notiz wie im Heimat-Board „${home}“${col ? ` (Spalte „${col}“)` : ''}. Änderungen gelten überall; erledigt setzt du dort.`,
+  label: (home: string) => `, Spiegel von Board ${home}`,
+  head: 'Spiegel',
+  mirrorTo: (t: string) => `„${t}“ spiegeln auf …`,
+  mirrorHint: 'Dieselbe Karte zusätzlich auf einem anderen Board zeigen (wie Trello „Karte spiegeln“). Sie bleibt eine Notiz: Änderungen gelten überall, erledigt setzt das Heimat-Board.',
+  none: 'Kein anderes Kanban-Board ohne diese Karte – lege erst ein Board an.',
+  mirrored: (t: string, board: string) => `„${t}“ gespiegelt auf „${board}“`,
+  btn: 'Spiegeln …',
+  homeHere: 'Heimat-Board: hier – die Spalte bestimmt den Zustand.',
+  homeIs: (board: string, col: string) => `Spiegel von „${board}“${col ? `, Spalte „${col}“` : ''} – erledigt setzt du dort.`,
+  onBoards: (n: number) => (n === 1 ? 'Gespiegelt auf 1 Board:' : `Gespiegelt auf ${n} Boards:`),
+  toHome: 'Zum Heimat-Board',
+  toBoard: (b: string) => `Zu „${b}“`,
+  makeHome: 'Hier zur Heimat machen',
+  makeHomeHint: 'Dieses Board bestimmt ab jetzt den Zustand der Karte; das bisherige Heimat-Board zeigt sie als Spiegel.',
+  madeHome: (board: string) => `„${board}“ ist jetzt das Heimat-Board`,
+  remove: 'Spiegel entfernen',
+  removeHint: 'Nur hier entfernen – die Karte bleibt im Heimat-Board und überall sonst.',
+  removeOn: (b: string) => `Spiegel auf „${b}“ entfernen`,
+  removed: (t: string, board: string) => `Spiegel „${t}“ von „${board}“ entfernt`,
+  locked: (board: string) => `Spiegelkarte – erledigt setzt du im Heimat-Board „${board}“`,
+  archiveMirror: 'Bei einer Spiegelkarte entfernt C nur den Spiegel (wie Trello) – die Karte bleibt im Heimat-Board.',
+  imported: (n: number) => (n === 1 ? '1 Spiegelkarte zeigt jetzt auf ihr Original.' : `${n} Spiegelkarten zeigen jetzt auf ihr Original.`),
+  importedOpen: (n: number) => (n === 1 ? '1 Spiegelkarte ohne Original in E-Sources kam als Karte an.' : `${n} Spiegelkarten ohne Original in E-Sources kamen als Karten an.`),
 };
 
 export const FILTER_TEXT = {

@@ -38,6 +38,9 @@ import { newId } from '../workspace/workspace';
 import { CardWindow, MoveToBar, NoticeLine, SheetHead, Signs, type SheetCmd, type Show, useFoldTick, useNotice, usePersonKeys } from './SheetViews';
 import { Item, Menu, MenuPages } from './PanelFrame';
 import { Icon } from './Icon';
+import { CardMirrors, MirrorBar, MirrorSign, mirrorLabel } from './CardMirrors';
+import * as Mi from '../workspace/mirrors';
+import { MIRROR_TEXT as MI_T } from '../workspace/terms';
 
 export const COL_STATE_ICON: Record<ColState, IconName> = { open: 'todo', doing: 'play', review: 'show', done: 'check' };
 const COL_STATES: ColState[] = ['open', 'doing', 'review', 'done'];
@@ -85,6 +88,8 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const [moving, setMoving] = useState<string | null>(null);
   // V121 (F-231 K1, K3): Kopieren-Leiste, Archiv, „oben anlegen“
   const [copying, setCopying] = useState<string | null>(null);
+  // V127 (F-231 K9): Leiste „Spiegeln auf …“ (Taste M)
+  const [mirroring, setMirroring] = useState<string | null>(null);
   const [archOpen, setArchOpen] = useState(false);
   const [addTop, setAddTop] = useState(0);
   const archBtn = useRef<HTMLButtonElement>(null);
@@ -216,6 +221,19 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   const toggleDone = (n: Note) => {
     const here = Sh.colOf(v, n.id);
     if (!here) return;
+    // V127 (K9): Spiegelkarte – erledigt setzt das Heimat-Board (Schloss A3); ist das Schloss aus, gilt der Haken der Notiz
+    if (Mi.isMirror(ws, v, n.id)) {
+      const lock = Sh.lockOf(ws, n.id, sheetId);
+      if (lock.length) {
+        const text = MI_T.locked(lock.map((b) => b.name).join('“, „'));
+        notice({ text });
+        return say(text);
+      }
+      const was = finished(n) || n.state === 'review';
+      dispatch({ type: 'sheetDone', note: n.id, here: sheetId, by });
+      if (!was) notice({ text: SHEET_TEXT.doneMsg(title(n)), undo: () => dispatch({ type: 'sheetDone', note: n.id, here: sheetId, by }) });
+      return say(was ? SHEET_TEXT.uncheck(title(n)) : SHEET_TEXT.check(title(n)));
+    }
     const fin = finished(n) || n.state === 'review';
     const to = fin ? Sh.firstCol(v, 'open') : (Sh.firstCol(v, 'done') ?? Sh.firstCol(v, 'review'));
     const back = { col: here.id, index: here.ids.indexOf(n.id) };
@@ -232,11 +250,22 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   };
   /** V121 (K1): Karte archivieren – verschwindet aus dem Board, steht im Archiv; Rückgängig am Ort. */
   const archive = (n: Note, near?: { col: string; next?: string }) => {
+    if (Mi.isMirror(ws, v, n.id)) return unmirrorHere(n, near);
     const before = ws;
     dispatch({ type: 'cardArchive', note: n.id, by });
     notice({ text: KM_T.archivedCard(title(n)), undo: () => dispatch({ type: 'exchange', ws: before }) });
     say(KM_T.archivedCard(title(n)));
     focusCard(undefined, near);
+  };
+  /** V127 (K9): Spiegel hier entfernen (C bzw. Kartenfenster) – die Karte bleibt im Heimat-Board; Rückgängig am Ort. */
+  const unmirrorHere = (n: Note, near?: { col: string; next?: string }) => {
+    const col = Sh.colOf(v, n.id);
+    const index = col ? col.ids.indexOf(n.id) : undefined;
+    dispatch({ type: 'cardUnmirror', view: sheetId, note: n.id, by });
+    const text = MI_T.removed(title(n), v.name);
+    notice({ text, undo: () => (dispatch({ type: 'cardMirror', note: n.id, to: sheetId, col: col?.id, by }), index !== undefined && col && dispatch({ type: 'cardMove', view: sheetId, note: n.id, col: col.id, index, by })) });
+    say(text);
+    focusCard(undefined, near ?? (col ? nearOf(n.id, col.id) : undefined));
   };
   const toggleTpl = (n: Note) => {
     dispatch({ type: 'cardTemplate', note: n.id, on: !n.template });
@@ -316,6 +345,8 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setMoving(n.id));
     // V121 (K1): K = kopieren, C = archivieren (wie Trello)
     if ((e.key === 'k' || e.key === 'K') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setCopying(n.id));
+    // V127 (K9): M = auf ein anderes Board spiegeln
+    if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setMirroring(n.id));
     if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), archive(n, nearOf(n.id, c.id)));
     // V125 (K8): S = abstimmen bzw. Stimme zurückziehen (nur wenn Abstimmen im Board an ist)
     if ((e.key === 's' || e.key === 'S') && v.votes && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -477,12 +508,13 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
                   <Icon name="copy" size={10} /> {KM_T.tplBadge}
                 </span>
               )}
+              <MirrorSign ws={ws} v={v} n={n} />
               <Signs ws={ws} n={n} />
               {/* V125 (K8): eigene Felder vorn auf der Karte, Stimmen */}
               <FieldChips v={v} n={n} />
               <VoteSign ws={ws} v={v} n={n} />
               <span className="sr-only">
-                , {NOTE_TEXT.states[No.stateOf(ws, n).state]}
+                {mirrorLabel(ws, v, n.id)}, {NOTE_TEXT.states[No.stateOf(ws, n).state]}
                 {subs.length ? `, ${K.subs}: ${subs.map((s) => No.titleOf(No.shownNote(s)) || NOTE_TEXT.untitled).join(', ')}` : ''}
               </span>
             </button>
@@ -959,6 +991,9 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       {moving && (
         <MoveToBar ws={ws} dispatch={dispatch} sheetId={sheetId} noteId={moving} say={say} notice={notice} onClose={() => { const id = moving; setMoving(null); focusCard(id); }} />
       )}
+      {mirroring && (
+        <MirrorBar ws={ws} dispatch={dispatch} sheetId={sheetId} noteId={mirroring} say={say} notice={notice} onClose={() => { const id = mirroring; setMirroring(null); focusCard(id); }} />
+      )}
       {copying && (
         <CopyBar
           ws={ws}
@@ -1087,6 +1122,19 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
           where={Sh.colOf(v, cardNote.id)?.name ?? v.name}
           sheetId={sheetId}
           say={say}
+          extra={
+            <CardMirrors
+              ws={ws}
+              dispatch={dispatch}
+              noteId={cardNote.id}
+              sheetId={sheetId}
+              desk={props.desk}
+              say={say}
+              onMirror={() => (setCard(null), setMirroring(cardNote.id))}
+              onUnmirrorHere={() => (setCard(null), unmirrorHere(cardNote))}
+              onClose={() => setCard(null)}
+            />
+          }
           acts={
             <>
               <button type="button" className="help__run" title={KM_T.copyHint} onClick={() => (setCard(null), setCopying(cardNote.id))}>

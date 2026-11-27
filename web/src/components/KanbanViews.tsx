@@ -17,6 +17,7 @@ import { dueKind } from '../workspace/kanbanMore';
 import { KVIEW_TEXT as T, NOTE_TEXT } from '../workspace/terms';
 import type { Notice } from './NoteTab';
 import { TagChips } from './KanbanTags';
+import { MirrorSign } from './CardMirrors';
 import { OptChip } from './CardFields';
 import * as CFd from '../workspace/cardFields';
 import { FIELD_TEXT, VOTE_TEXT } from '../workspace/terms';
@@ -118,6 +119,8 @@ export function KanbanTable(p: Common) {
                   <button type="button" className="ktab__open" data-row={n.id} title={`${t} – Enter öffnet die Karte`} onClick={() => p.onOpen(n.id)}>
                     {t}
                   </button>
+                  {/* V127 (K9): Spiegel auch in der Tabelle kennzeichnen */}
+                  <MirrorSign ws={ws} v={v} n={n} />
                 </th>
                 <td>
                   <select
@@ -233,6 +236,7 @@ export function KanbanCalendar(p: Common & { sheetId: string }) {
           onDragEnd={() => setOver(null)}
         >
           <TagChips ws={ws} v={v} n={n} />
+          <MirrorSign ws={ws} v={v} n={n} />
           <span className="kcal__title">
             {s.dueTime && <span className="kcal__time">{s.dueTime} </span>}
             {t}

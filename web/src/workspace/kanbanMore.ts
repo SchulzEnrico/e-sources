@@ -6,6 +6,7 @@
 import type { Note, NoteColumn, NoteView, Workspace } from './types';
 import * as No from './notes';
 import * as Sh from './sheets';
+import * as Mi from './mirrors';
 import { newId } from './workspace';
 
 type Act = No.Act & { makeId?: () => string };
@@ -268,6 +269,8 @@ export function restoreCard(ws: Workspace, viewId: string, noteId: string, act: 
   const v = No.viewById(ws, viewId);
   const n = No.noteById(ws, noteId);
   if (!v || !n || n.state !== 'archived') return ws;
+  // V127 (K9): aus dem Archiv eines Spiegel-Boards – Zustand wie in der Heimat neu setzen, der Spiegel bleibt liegen
+  if (Mi.isMirror(ws, v, noteId)) return Sh.syncBoards(No.setState(ws, noteId, 'open', act), noteId);
   const col = Sh.colOf(v, noteId) ?? v.cols?.[0];
   if (!col) return No.setState(ws, noteId, 'open', act);
   const r = Sh.moveCard(ws, viewId, noteId, col.id, undefined, act);

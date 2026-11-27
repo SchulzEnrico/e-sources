@@ -14,7 +14,7 @@
 import { RULE_SET_TEXT } from './terms';
 import type { Note, Workspace } from './types';
 import { dayOf, isFinished, notesOf, setState, shiftDay, updateNote } from './notes';
-import { type KitRule, kitOf, parseRules, setOn } from './ruleKit';
+import { type KitButton, type KitRule, kitOf, parseButtons, parseRules, setOn } from './ruleKit';
 
 // ---------------------------------------------------------------- A1–A9 Schalter
 
@@ -86,6 +86,8 @@ export interface RuleSet {
   when?: WhenRule[];
   /** V129 (F-231 K10a, Dateiformat 13): Regel-Baukasten – alle Regeln samt mitgelieferten W1–W4 (ruleKit.ts). */
   rules?: KitRule[];
+  /** V130 (F-231 K10b): Karten- und Board-Knöpfe (ruleKit.ts) – gleicher Wortschatz wie die Aktionen der Regeln. */
+  buttons?: KitButton[];
 }
 
 export const ruleSetOf = (ws: Workspace): RuleSet => ws.ruleSet ?? {};
@@ -102,6 +104,7 @@ const withSet = (ws: Workspace, rs: RuleSet): Workspace => {
   if (rs.sw && Object.keys(rs.sw).length) clean.sw = rs.sw;
   if (rs.when?.length && !rs.rules) clean.when = rs.when;
   if (rs.rules) clean.rules = rs.rules;
+  if (rs.buttons?.length) clean.buttons = rs.buttons;
   const { ruleSet: _o, ...rest } = ws;
   return Object.keys(clean).length ? { ...rest, ruleSet: clean } : rest;
 };
@@ -139,6 +142,8 @@ export function parseRuleSet(v: unknown): RuleSet | undefined {
     }
     if (Object.keys(sw).length) out.sw = sw;
   }
+  const buttons = parseButtons(r.buttons);
+  if (buttons) out.buttons = buttons;
   const rules = parseRules(r.rules);
   if (rules) out.rules = rules;
   else if (Array.isArray(r.when)) {

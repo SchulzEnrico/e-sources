@@ -46,6 +46,8 @@ import { KIT_TEXT } from '../workspace/terms';
 import * as RR from '../workspace/ruleRun';
 import * as RK from '../workspace/ruleKit';
 import { RuleKit } from './RuleKit';
+import { ButtonBar, CardButtons } from './CardButtons';
+import { BTN_TEXT } from '../workspace/terms';
 
 export const COL_STATE_ICON: Record<ColState, IconName> = { open: 'todo', doing: 'play', review: 'show', done: 'check' };
 const COL_STATES: ColState[] = ['open', 'doing', 'review', 'done'];
@@ -114,6 +116,15 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
   // V129 (F-231 K10a): Automatisierung – Regeln dieses Boards (⋮ › „Automatisierung“ bzw. Knopf unten)
   const [rulesOpen, setRulesOpen] = useState(false);
   const rulesBtn = useRef<HTMLButtonElement>(null);
+  // V130 (F-231 K10b): Leiste der Knöpfe – Taste B (Karten-Knöpfe), Umschalt+B bzw. „Knöpfe“ im Kopf (Board-Knöpfe)
+  const [pressing, setPressing] = useState<{ kind: RK.ButtonKind; note?: string } | null>(null);
+  const btnsBtn = useRef<HTMLButtonElement>(null);
+  /** Fokus auf „+ Karten-Knopf“ im Panel „Automatisierung“, sobald es steht (nach dem Schließen von Leiste/Kartenfenster). */
+  const focusManage = (tries = 12) => {
+    const el = document.querySelector<HTMLElement>('.rkit__panel .kbtn__add');
+    if (el) return void (el.scrollIntoView({ block: 'nearest' }), el.focus());
+    if (tries > 0) window.setTimeout(() => focusManage(tries - 1), 50);
+  };
   // V126 (F-231 K11): eingeklappte Spalten (persönlich, je Sheet und Gerät) und Meldung am Ort in der Spalte
   const [foldedRaw, setFoldedRaw] = useState<string[]>(() => loadSheetPref(sheetId).folded ?? []);
   const folded = CL.cleanFolded(foldedRaw, cols);
@@ -367,6 +378,8 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
     if ((e.key === 'k' || e.key === 'K') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setCopying(n.id));
     // V127 (K9): M = auf ein anderes Board spiegeln
     if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setMirroring(n.id));
+    // V130 (K10b): B = Karten-Knopf drücken, Umschalt+B = Board-Knopf (Ziffer 1–9 in der Leiste)
+    if ((e.key === 'b' || e.key === 'B') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), setPressing(e.shiftKey ? { kind: 'board', note: n.id } : { kind: 'card', note: n.id }));
     if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && !e.altKey) return void (e.preventDefault(), archive(n, nearOf(n.id, c.id)));
     // V125 (K8): S = abstimmen bzw. Stimme zurückziehen (nur wenn Abstimmen im Board an ist)
     if ((e.key === 's' || e.key === 'S') && v.votes && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -993,6 +1006,17 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
           onChange={(x) => setKview(x as KView)}
         />
         <FilterButton f={cf} open={filterOpen} btnRef={filterBtn} onToggle={() => setFilterOpen(!filterOpen)} />
+        {/* V130 (K10b, B7): Board-Knöpfe neben Filter */}
+        <button
+          type="button"
+          ref={btnsBtn}
+          className="help__run sheet__filterbtn"
+          aria-expanded={pressing?.kind === 'board'}
+          title={BTN_TEXT.boardBtnHint}
+          onClick={() => setPressing(pressing?.kind === 'board' ? null : { kind: 'board' })}
+        >
+          <Icon name="button" size={12} className="icon icon--inline" /> {BTN_TEXT.boardBtn(RK.buttonsFor(RK.buttonsOf(ws), sheetId, 'board').length)}
+        </button>
       </SheetHead>
       {filterOpen && (
         <FilterPanel
@@ -1028,6 +1052,38 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       <span className="sr-only" role="status">{K.info(cols.length, No.idsIn(v).length)}</span>
       {moving && (
         <MoveToBar ws={ws} dispatch={dispatch} sheetId={sheetId} noteId={moving} say={say} notice={notice} onClose={() => { const id = moving; setMoving(null); focusCard(id); }} />
+      )}
+      {pressing && (
+        <ButtonBar
+          ws={ws}
+          dispatch={dispatch}
+          sheetId={sheetId}
+          kind={pressing.kind}
+          noteId={pressing.kind === 'card' ? pressing.note : undefined}
+          cardsFor={(b) => {
+            const want = b.col ? Tg.fold(b.col) : '';
+            return cols
+              .filter((c) => !want || Tg.fold(c.name) === want)
+              .flatMap((c) => c.ids)
+              .filter((id) => {
+                const n = No.noteById(ws, id);
+                return !!n && n.state !== 'archived' && !n.template && passes(n);
+              });
+          }}
+          say={say}
+          notice={notice}
+          onManage={() => {
+            setPressing(null);
+            setRulesOpen(true);
+            focusManage();
+          }}
+          onClose={() => {
+            const was = pressing;
+            setPressing(null);
+            if (was.note) focusCard(was.note);
+            else window.setTimeout(() => btnsBtn.current?.focus(), 0);
+          }}
+        />
       )}
       {mirroring && (
         <MirrorBar ws={ws} dispatch={dispatch} sheetId={sheetId} noteId={mirroring} say={say} notice={notice} onClose={() => { const id = mirroring; setMirroring(null); focusCard(id); }} />
@@ -1175,6 +1231,20 @@ export function KanbanSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
               onMirror={() => (setCard(null), setMirroring(cardNote.id))}
               onUnmirrorHere={() => (setCard(null), unmirrorHere(cardNote))}
               onClose={() => setCard(null)}
+            />
+          }
+          extra2={
+            <CardButtons
+              ws={ws}
+              dispatch={dispatch}
+              noteId={cardNote.id}
+              sheetId={sheetId}
+              say={say}
+              onManage={() => {
+                setCard(null);
+                setRulesOpen(true);
+                focusManage();
+              }}
             />
           }
           acts={

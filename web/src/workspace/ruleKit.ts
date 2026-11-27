@@ -344,3 +344,125 @@ export function parseRules(raw: unknown): KitRule[] | undefined {
   for (const w of BUILT_INS) if (!out.some((r) => r.w === w)) out.push(builtIn(w));
   return out;
 }
+
+// ---------------------------------------------------------------- K10b Knöpfe (B7, V130)
+
+/**
+ * F-231 K10b (V130): Knöpfe wie Trello Butler – ein Knopf ist ein Name plus eine Folge von Aktionen aus demselben
+ * Wortschatz wie die Regeln (`ACTS`); nur der Auslöser ist ein Klick. Karten-Knöpfe stehen im Kartenfenster
+ * (Abschnitt „Knöpfe“, Taste B mit Ziffern 1–9), Board-Knöpfe im Sheet-Kopf neben „Filter“ und wirken auf alle
+ * sichtbaren Karten (Filter beachtet) oder eine Spalte. Gespeichert in `Workspace.ruleSet.buttons` (Dateiformat 13).
+ */
+export type ButtonKind = 'card' | 'board';
+export const BUTTONS_MAX = 60;
+/** Ab so vielen Karten fragt ein Board-Knopf am Ort nach (B7). */
+export const ASK_FROM = 10;
+
+export interface KitButton {
+  id: string;
+  name: string;
+  kind: ButtonKind;
+  /** Board (Id eines Kanbans), auf dem der Knopf steht; fehlt = alle Kanbans. */
+  board?: string;
+  /** Nur Board-Knöpfe: wirkt auf die Spalte dieses Namens; fehlt = alle sichtbaren Karten. */
+  col?: string;
+  then: Act[];
+}
+
+export const buttonsOf = (ws: Workspace): KitButton[] => ws.ruleSet?.buttons ?? [];
+/** Knöpfe einer Art auf einem Board (eigene und „alle Kanbans“); ohne `kind` alle Arten. */
+export const buttonsFor = (list: readonly KitButton[], board?: string, kind?: ButtonKind) =>
+  list.filter((b) => (!kind || b.kind === kind) && (!board || !b.board || b.board === board));
+/** Für die Spur (RG7): „Knopf · Name“. */
+export const buttonLabel = (b: Pick<KitButton, 'name'>) => `Knopf · ${b.name}`;
+
+export function withButtons(ws: Workspace, buttons: KitButton[]): Workspace {
+  const { buttons: _b, ...rest } = ws.ruleSet ?? {};
+  if (buttons.length) return { ...ws, ruleSet: { ...rest, buttons } };
+  return Object.keys(rest).length ? { ...ws, ruleSet: rest } : (({ ruleSet: _x, ...o }) => o)(ws);
+}
+
+export function newButton(id: string, kind: ButtonKind, board?: string): KitButton {
+  return { id, name: '', kind, ...(board ? { board } : {}), then: [] };
+}
+
+/** Erste fehlende Stelle (wie `missingOf`) oder null. */
+export function missingButton(b: Pick<KitButton, 'name' | 'then'>): Missing {
+  if (!b.name.trim()) return { where: 'name', what: 'arg' };
+  if (!b.then.length) return { where: 'then', what: 'none' };
+  for (let i = 0; i < b.then.length; i++) if (!partOk(ACTS[b.then[i].k], b.then[i])) return { where: 'then', i, what: 'arg' };
+  return null;
+}
+
+export function saveButton(ws: Workspace, b: KitButton): Workspace {
+  const list = buttonsOf(ws);
+  const clean = cleanButton(b);
+  if (!clean) return ws;
+  const i = list.findIndex((x) => x.id === b.id);
+  if (i < 0 && list.length >= BUTTONS_MAX) return ws;
+  return withButtons(ws, i < 0 ? [...list, clean] : list.map((x, j) => (j === i ? clean : x)));
+}
+
+export function copyButton(ws: Workspace, id: string, newId: string, suffix = ' (Kopie)'): Workspace {
+  const list = buttonsOf(ws);
+  const b = list.find((x) => x.id === id);
+  if (!b || list.length >= BUTTONS_MAX) return ws;
+  const i = list.indexOf(b);
+  const copy: KitButton = { ...structuredCloneSafe(b), id: newId, name: `${b.name}${suffix}`.slice(0, NAME_MAX) };
+  return withButtons(ws, [...list.slice(0, i + 1), copy, ...list.slice(i + 1)]);
+}
+
+export type ButtonUndo = { button: KitButton; index: number };
+export function removeButton(ws: Workspace, id: string): { ws: Workspace; undo: ButtonUndo } | null {
+  const list = buttonsOf(ws);
+  const index = list.findIndex((x) => x.id === id);
+  if (index < 0) return null;
+  return { ws: withButtons(ws, list.filter((x) => x.id !== id)), undo: { button: list[index], index } };
+}
+export function restoreButton(ws: Workspace, u: ButtonUndo): Workspace {
+  const list = buttonsOf(ws);
+  if (list.some((x) => x.id === u.button.id)) return ws;
+  return withButtons(ws, [...list.slice(0, u.index), u.button, ...list.slice(u.index)]);
+}
+/** Reihenfolge (bestimmt die Ziffern 1–9 der Taste B). Verschiebt unter den Knöpfen derselben Art. */
+export function moveButton(ws: Workspace, id: string, dir: -1 | 1): Workspace {
+  const list = [...buttonsOf(ws)];
+  const i = list.findIndex((x) => x.id === id);
+  if (i < 0) return ws;
+  let j = i + dir;
+  while (j >= 0 && j < list.length && list[j].kind !== list[i].kind) j += dir;
+  if (j < 0 || j >= list.length) return ws;
+  [list[i], list[j]] = [list[j], list[i]];
+  return withButtons(ws, list);
+}
+
+const structuredCloneSafe = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
+
+export function cleanButton(raw: unknown): KitButton | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const id = str(r.id, 60);
+  const kind: ButtonKind | undefined = r.kind === 'card' || r.kind === 'board' ? r.kind : undefined;
+  const name = (str(r.name, NAME_MAX) ?? '').trim();
+  if (!id || !kind || !name) return null;
+  const then = (Array.isArray(r.then) ? r.then : []).map((x) => cleanPart(x, ACTS)).filter((x): x is Act => !!x).slice(0, THEN_MAX);
+  const out: KitButton = { id, name, kind, then };
+  const board = str(r.board, 60);
+  if (board) out.board = board;
+  const col = kind === 'board' ? str(r.col, NAME_MAX)?.trim() : undefined;
+  if (col) out.col = col;
+  return out;
+}
+
+export function parseButtons(raw: unknown): KitButton[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const seen = new Set<string>();
+  const out: KitButton[] = [];
+  for (const x of raw.slice(0, BUTTONS_MAX)) {
+    const b = cleanButton(x);
+    if (!b || seen.has(b.id)) continue;
+    seen.add(b.id);
+    out.push(b);
+  }
+  return out.length ? out : undefined;
+}

@@ -182,6 +182,13 @@ export type Action =
   | { type: 'kitRestore'; undo: RK.RuleUndo }
   | { type: 'kitReset'; id: string }
   | { type: 'kitMove'; id: string; dir: -1 | 1 }
+  // V130 (F-231 K10b): Karten- und Board-Knöpfe
+  | { type: 'btnSave'; button: RK.KitButton }
+  | { type: 'btnCopy'; id: string; newId: string }
+  | { type: 'btnRemove'; id: string }
+  | { type: 'btnRestore'; undo: RK.ButtonUndo }
+  | { type: 'btnMove'; id: string; dir: -1 | 1 }
+  | { type: 'btnPress'; button: RK.KitButton; ids: string[]; view: string; now: number; token?: string }
   | { type: 'tintPanel'; id: string; change: Partial<Record<TintKind, string | null>> }
   | { type: 'tintSlot'; setup: ScreenSetup; area: string; change: Partial<Record<TintKind, string | null>> }
   | { type: 'clearTints'; win: string }
@@ -457,7 +464,7 @@ export const idSeq = (ids: readonly string[]) => {
 const NEW_NOTE = new Set<Action['type']>(['padOpen', 'newNote', 'tabNote', 'noteForPage', 'sheetAdd', 'padNote', 'checkToTask', 'pspAdd']);
 
 /** V129 (K10a): Aktionen, nach denen keine Regeln laufen (Abgleich, Rückgängig, Regeln selbst ändern). */
-const NO_RULES = new Set<Action['type']>(['remote', 'replace', 'exchange', 'layoutUndo', 'sheetRestore', 'noteUndoDiscard', 'tplRestore', 'ruleSweep', 'kitSave', 'kitOn', 'kitCopy', 'kitRemove', 'kitRestore', 'kitReset', 'kitMove', 'ruleWhen', 'ruleSwitch']);
+const NO_RULES = new Set<Action['type']>(['remote', 'replace', 'exchange', 'layoutUndo', 'sheetRestore', 'noteUndoDiscard', 'tplRestore', 'ruleSweep', 'kitSave', 'kitOn', 'kitCopy', 'kitRemove', 'kitRestore', 'kitReset', 'kitMove', 'btnSave', 'btnCopy', 'btnRemove', 'btnRestore', 'btnMove', 'btnPress', 'ruleWhen', 'ruleSwitch']);
 
 export function reducer(ws: Workspace, a: Action): Workspace {
   const raw = step(ws, a);
@@ -1062,6 +1069,19 @@ function step(ws: Workspace, a: Action): Workspace {
       return RK.resetBuiltIn(ws, a.id);
     case 'kitMove':
       return RK.moveRule(ws, a.id, a.dir);
+    case 'btnSave':
+      return RK.saveButton(ws, a.button);
+    case 'btnCopy':
+      return RK.copyButton(ws, a.id, a.newId);
+    case 'btnRemove':
+      return RK.removeButton(ws, a.id)?.ws ?? ws;
+    case 'btnRestore':
+      return RK.restoreButton(ws, a.undo);
+    case 'btnMove':
+      return RK.moveButton(ws, a.id, a.dir);
+    // Knopf: Aktionen + ausgelöste Regeln in einem Schritt (Kette läuft in pressButton, nicht noch einmal danach)
+    case 'btnPress':
+      return RR.pressButton(ws, a.button, a.ids, a.view, a.now, a.token);
     case 'layoutSwitch':
       return DL.switchLayout(ws, a.win, a.id);
     case 'spaceAdd':

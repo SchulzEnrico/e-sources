@@ -216,7 +216,7 @@ export function Signs({ ws, n }: { ws: Workspace; n: Note }) {
  * S1 (D, wie Trello): Notiz als Kartenfenster mittig über dem Sheet; Sheet dahinter abgedunkelt. Esc, ✕ oder
  * Klick daneben schließt, der Fokus geht zurück an die Karte (Aufrufer). Tab bleibt im Fenster.
  */
-export function CardWindow(props: { ws: Workspace; dispatch: Dispatch<Action>; noteId: string; where: string; sheetId: string; onClose: () => void; say: (t: string) => void; acts?: ReactNode; extra?: ReactNode }) {
+export function CardWindow(props: { ws: Workspace; dispatch: Dispatch<Action>; noteId: string; where: string; sheetId: string; onClose: () => void; say: (t: string) => void; acts?: ReactNode; extra?: ReactNode; extra2?: ReactNode }) {
   const { ws, dispatch, noteId } = props;
   const n = No.noteById(ws, noteId);
   const box = useRef<HTMLElement>(null);
@@ -254,6 +254,7 @@ export function CardWindow(props: { ws: Workspace; dispatch: Dispatch<Action>; n
         </header>
         {/* V127 (F-231 K9): Abschnitte des Boards vor den Karteninhalten (Spiegel) */}
         {props.extra}
+        {props.extra2}
         {/* V121 (F-231 K2): mehrere benannte Checklisten wie bei Trello */}
         {/* V122 (F-231 K4): Tags mit Farbe */}
         <CardTags ws={ws} dispatch={dispatch} noteId={noteId} sheetId={props.sheetId} say={props.say} />

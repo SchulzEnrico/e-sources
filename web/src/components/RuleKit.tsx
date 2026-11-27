@@ -4,6 +4,9 @@
  * „Auf Werk zurück“ statt Löschen). Dasselbe Bauteil steht im Cockpit „Regeln“ (Gruppe Notizen, alle Regeln) und am
  * Board ⋮ › „Automatisierung“ (`board` = gefiltert auf dieses Board und „alle Kanbans“) – gleicher Aufbau (NF-08).
  * Alles mit nativen Bedienelementen, vollständig per Tastatur (NF-03); Esc bricht das Bearbeiten ab.
+ *
+ * V130 (K10b): Abschnitt „Knöpfe“ darunter – gleiche Liste, gleicher Satz-Editor (ohne Auslöser und Bedingungen,
+ * dafür Art „Karten-/Board-Knopf“ und „Wirkt auf“), gleiche Meldungen am Ort (NF-08).
  */
 import { type Dispatch, type KeyboardEvent, useId, useRef, useState } from 'react';
 import * as No from '../workspace/notes';
@@ -11,8 +14,8 @@ import * as Ps from '../workspace/persons';
 import * as CFd from '../workspace/cardFields';
 import { allTags } from '../workspace/tags';
 import * as RK from '../workspace/ruleKit';
-import { scopeText, sentenceOf } from '../workspace/ruleText';
-import { KIT_TEXT as T } from '../workspace/terms';
+import { buttonScope, buttonSentence, scopeText, sentenceOf } from '../workspace/ruleText';
+import { BTN_TEXT as BT, KIT_TEXT as T } from '../workspace/terms';
 import type { Workspace } from '../workspace/types';
 import type { Action } from '../workspace/useWorkspace';
 import { Icon } from './Icon';
@@ -186,7 +189,130 @@ export function RuleKit(p: Props) {
       {!rules.length && !edit && <p className="rules__note">{T.none}</p>}
       <ul className="rules__list">{rules.map(row)}</ul>
       <p className="rules__note rkit__chain">{T.termChain}</p>
+      <ButtonKit ws={ws} dispatch={dispatch} say={say} board={board} />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------- K10b Knöpfe
+
+/** Entwurf im Satz-Editor: eine Regel ohne Auslöser, dazu Art und Spalte des Knopfs. */
+type Draft = RK.KitRule & { kind?: RK.ButtonKind; col?: string };
+const draftOf = (b: RK.KitButton): Draft => ({ id: b.id, no: 0, name: b.name, on: true, ...(b.board ? { board: b.board } : {}), when: { k: 'check' }, ifs: [], then: structuredClone(b.then), kind: b.kind, ...(b.col ? { col: b.col } : {}) });
+const buttonOf = (d: Draft): RK.KitButton => ({ id: d.id, name: d.name.trim(), kind: d.kind ?? 'card', ...(d.board ? { board: d.board } : {}), ...(d.kind === 'board' && d.col?.trim() ? { col: d.col.trim() } : {}), then: d.then });
+
+function ButtonKit(p: Props) {
+  const { ws, dispatch, say, board } = p;
+  const all = RK.buttonsOf(ws);
+  const list = RK.buttonsFor(all, board);
+  const [edit, setEdit] = useState<Draft | null>(null);
+  const [isNew, setIsNew] = useState(false);
+  const { notice, shown } = useNotice();
+  const [msgAt, setMsgAt] = useState('');
+  const box = useRef<HTMLDivElement>(null);
+  const focusLater = (sel: string) => window.setTimeout(() => box.current?.querySelector<HTMLElement>(sel)?.focus(), 0);
+  const tell = (at: string, text: string, undo?: () => void) => (setMsgAt(at), notice({ text, ...(undo ? { undo } : {}) }), say(text));
+  const back = (before: Workspace) => () => dispatch({ type: 'exchange', ws: before });
+  const startNew = (kind: RK.ButtonKind) => {
+    if (all.length >= RK.BUTTONS_MAX) return tell('', BT.full(RK.BUTTONS_MAX));
+    setEdit(draftOf(RK.newButton(newId().replace(/^rk-/, 'kb-'), kind, board)));
+    setIsNew(true);
+    focusLater('.rkit__edit input');
+  };
+  const done = (id?: string) => {
+    setEdit(null);
+    focusLater(id ? `[data-btn="${id}"] .rkit__editbtn` : '.kbtn__add');
+  };
+  const save = (d: Draft) => {
+    const before = ws;
+    const b = buttonOf(d);
+    dispatch({ type: 'btnSave', button: b });
+    tell(b.id, isNew ? BT.created(b.name) : BT.saved(b.name), back(before));
+    done(b.id);
+  };
+  const cardN = list.filter((b) => b.kind === 'card').length;
+  const row = (b: RK.KitButton) => {
+    if (edit?.id === b.id) return <li key={b.id}>{editor()}</li>;
+    const same = list.filter((x) => x.kind === b.kind);
+    const i = same.indexOf(b);
+    const tid = `kbtn-${b.id}`;
+    return (
+      <li key={b.id} className="rules__row" data-btn={b.id}>
+        <div className="rules__line">
+          <Icon name="button" size={12} />
+          <strong>{b.name}</strong>
+          {i < 9 && b.kind === 'card' && <span className="rules__no-tag" title={BT.barHint}>{i + 1}</span>}
+          <span className="rkit__badge" title={BT.kindHint}>{b.kind === 'card' ? BT.kindCard : BT.kindBoard}</span>
+          <span className="rkit__scope" title={T.scopeHint}>{buttonScope(ws, b)}</span>
+          <span className="grow" />
+          <button type="button" className="note__undo rkit__editbtn" onClick={() => (setEdit(draftOf(b)), setIsNew(false), focusLater('.rkit__edit input'))} aria-label={`${T.edit}: ${b.name}`}>
+            <Icon name="rename" size={11} className="icon icon--inline" /> {T.edit}
+          </button>
+          <button
+            type="button"
+            className="note__undo"
+            aria-label={`${T.copy}: ${b.name}`}
+            disabled={all.length >= RK.BUTTONS_MAX}
+            onClick={() => {
+              const before = ws;
+              const id = newId().replace(/^rk-/, 'kb-');
+              dispatch({ type: 'btnCopy', id: b.id, newId: id });
+              tell(id, BT.copied(b.name), back(before));
+              focusLater(`[data-btn="${id}"] .rkit__editbtn`);
+            }}
+          >
+            <Icon name="copy" size={11} className="icon icon--inline" /> {T.copy}
+          </button>
+          <button type="button" className="note__undo" disabled={i === 0} aria-label={T.up(b.name)} title={T.up(b.name)} onClick={() => (dispatch({ type: 'btnMove', id: b.id, dir: -1 }), say(BT.moved(b.name)), focusLater(`[data-btn="${b.id}"] .rkit__editbtn`))}>
+            <Icon name="chevronUp" size={11} />
+          </button>
+          <button type="button" className="note__undo" disabled={i === same.length - 1} aria-label={T.down(b.name)} title={T.down(b.name)} onClick={() => (dispatch({ type: 'btnMove', id: b.id, dir: 1 }), say(BT.moved(b.name)), focusLater(`[data-btn="${b.id}"] .rkit__editbtn`))}>
+            <Icon name="chevronDown" size={11} />
+          </button>
+          <button
+            type="button"
+            className="note__undo"
+            aria-label={`${T.remove}: ${b.name}`}
+            onClick={() => {
+              const res = RK.removeButton(ws, b.id);
+              if (!res) return;
+              dispatch({ type: 'btnRemove', id: b.id });
+              tell('', BT.removed(b.name), () => dispatch({ type: 'btnRestore', undo: res.undo }));
+              focusLater('.kbtn__add');
+            }}
+          >
+            <Icon name="trash" size={11} className="icon icon--inline" /> {T.remove}
+          </button>
+        </div>
+        <p id={tid} className="rules__text">{buttonSentence(ws, b)}</p>
+        {msgAt === b.id && <NoticeLine shown={shown} />}
+      </li>
+    );
+  };
+  const editor = () => (edit ? <RuleEditor ws={ws} rule={edit} isNew={isNew} button onChange={setEdit} onSave={save} onCancel={() => done(isNew ? undefined : edit.id)} /> : null);
+  return (
+    <section className="kbtn" ref={box} aria-label={BT.head}>
+      <h4 className="kbtn__head">
+        <Icon name="button" size={12} className="icon icon--inline" /> {BT.head}
+      </h4>
+      <p className="rules__note">{BT.intro}</p>
+      <dl className="rkit__terms">
+        <div><dt>{BT.head}</dt><dd>{BT.term}</dd></div>
+      </dl>
+      <div className="rkit__bar">
+        <button type="button" className="help__run kbtn__add" onClick={() => startNew('card')} disabled={!!edit} title={all.length >= RK.BUTTONS_MAX ? BT.full(RK.BUTTONS_MAX) : BT.addHint}>
+          <Icon name="plus" size={11} className="icon icon--inline" /> {BT.kindCard}
+        </button>
+        <button type="button" className="help__run" onClick={() => startNew('board')} disabled={!!edit} title={all.length >= RK.BUTTONS_MAX ? BT.full(RK.BUTTONS_MAX) : BT.addHint}>
+          <Icon name="plus" size={11} className="icon icon--inline" /> {BT.kindBoard}
+        </button>
+        <span className="rkit__count">{BT.count(cardN, list.length - cardN)}</span>
+      </div>
+      {msgAt === '' && <NoticeLine shown={shown} />}
+      {isNew && edit && editor()}
+      {!list.length && !edit && <p className="rules__note">{BT.none}</p>}
+      <ul className="rules__list">{list.map(row)}</ul>
+    </section>
   );
 }
 
@@ -194,7 +320,7 @@ export function RuleKit(p: Props) {
 
 type AnyPart = RK.Part<string>;
 
-function RuleEditor(p: { ws: Workspace; rule: RK.KitRule; isNew: boolean; onChange: (r: RK.KitRule) => void; onSave: (r: RK.KitRule) => void; onCancel: () => void }) {
+function RuleEditor<D extends Draft>(p: { ws: Workspace; rule: D; isNew: boolean; button?: true; onChange: (r: D) => void; onSave: (r: D) => void; onCancel: () => void }) {
   const { ws, rule: r, onChange } = p;
   const uid = useId();
   const [err, setErr] = useState('');
@@ -204,10 +330,10 @@ function RuleEditor(p: { ws: Workspace; rule: RK.KitRule; isNew: boolean; onChan
   const fields = [...new Set(scopeViews.flatMap((v) => CFd.fieldsOf(v).map((f) => f.name)))];
   const tags = allTags(ws);
   const persons = Ps.personList(ws).filter((x) => !x.me);
-  const set = (patch: Partial<RK.KitRule>) => (setErr(''), onChange({ ...r, ...patch }));
+  const set = (patch: Partial<Draft>) => (setErr(''), onChange({ ...r, ...patch }));
 
   const trySave = () => {
-    const m = RK.missingOf(r);
+    const m = p.button ? RK.missingButton(r) : RK.missingOf(r);
     if (!m) return p.onSave(r);
     const text = m.where === 'name' ? T.missing.name : m.where === 'when' ? T.missing.when : m.where === 'if' ? T.missing.if((m.i ?? 0) + 1) : m.what === 'none' ? T.missing.thenNone : T.missing.then((m.i ?? 0) + 1);
     setErr(text);
@@ -310,13 +436,13 @@ function RuleEditor(p: { ws: Workspace; rule: RK.KitRule; isNew: boolean; onChan
       <datalist id={`${uid}-cols`}>{cols.map((c) => <option key={c} value={c} />)}</datalist>
       <datalist id={`${uid}-tags`}>{tags.map((c) => <option key={c} value={c} />)}</datalist>
       <div className="rkit__head">
-        <strong>{T.editHead(p.isNew ? '' : r.name)}</strong>
-        <span className="rules__no-tag">{RK.ruleTag(r)}</span>
+        <strong>{p.button ? BT.editHead(p.isNew ? '' : r.name) : T.editHead(p.isNew ? '' : r.name)}</strong>
+        {!p.button && <span className="rules__no-tag">{RK.ruleTag(r)}</span>}
       </div>
       <div className="rkit__line">
         <label className="rkit__lab">
           {T.name}
-          <input className="rkit__in rkit__in--wide" value={r.name} maxLength={80} placeholder={T.namePh} onChange={(e) => set({ name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), trySave())} />
+          <input className="rkit__in rkit__in--wide" value={r.name} maxLength={80} placeholder={p.button ? BT.namePh : T.namePh} onChange={(e) => set({ name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), trySave())} />
         </label>
         <label className="rkit__lab" title={T.scopeHint}>
           {T.scopeLabel}
@@ -326,11 +452,29 @@ function RuleEditor(p: { ws: Workspace; rule: RK.KitRule; isNew: boolean; onChan
           </select>
         </label>
       </div>
-      <div className="rkit__line rkit__step">
-        <span className="rkit__word" title={T.termWhen}>{T.when}</span>
-        {part(r.when, RK.TRIG_KINDS, RK.TRIGS, T.trig, (x) => set({ when: x }), 'Auslöser')}
-      </div>
-      {r.ifs.map((c, i) => (
+      {p.button ? (
+        <div className="rkit__line">
+          <label className="rkit__lab" title={BT.kindHint}>
+            {BT.kindLabel}
+            <select value={r.kind ?? 'card'} onChange={(e) => set({ kind: e.target.value as RK.ButtonKind })}>
+              <option value="card">{BT.kindCard}</option>
+              <option value="board">{BT.kindBoard}</option>
+            </select>
+          </label>
+          {r.kind === 'board' && (
+            <label className="rkit__lab" title={BT.colHint}>
+              {BT.colLabel}
+              <input className="rkit__in" list={`${uid}-cols`} value={r.col ?? ''} placeholder={BT.colAll} onChange={(e) => set({ col: e.target.value })} />
+            </label>
+          )}
+        </div>
+      ) : (
+        <div className="rkit__line rkit__step">
+          <span className="rkit__word" title={T.termWhen}>{T.when}</span>
+          {part(r.when, RK.TRIG_KINDS, RK.TRIGS, T.trig, (x) => set({ when: x }), 'Auslöser')}
+        </div>
+      )}
+      {!p.button && r.ifs.map((c, i) => (
         <div key={`if${i}`} className="rkit__line rkit__step">
           <span className="rkit__word" title={T.termIf}>{T.if}</span>
           {part(c, RK.COND_KINDS, RK.CONDS, T.cond, (x) => putIf(i, x), `Bedingung ${i + 1}`, true)}
@@ -339,14 +483,14 @@ function RuleEditor(p: { ws: Workspace; rule: RK.KitRule; isNew: boolean; onChan
           </button>
         </div>
       ))}
-      <div className="rkit__line">
+      {!p.button && <div className="rkit__line">
         <button type="button" className="note__undo" disabled={r.ifs.length >= RK.IF_MAX} title={r.ifs.length >= RK.IF_MAX ? T.ifFull(RK.IF_MAX) : T.termIf} onClick={() => set({ ifs: [...r.ifs, RK.blank('hasTag', RK.CONDS.hasTag) as RK.Cond] })}>
           <Icon name="plus" size={11} className="icon icon--inline" /> {T.addIf}
         </button>
-      </div>
+      </div>}
       {r.then.map((a, i) => (
         <div key={`then${i}`} className="rkit__line rkit__step">
-          <span className="rkit__word" title={T.termThen}>{i === 0 ? T.then : '·'}</span>
+          <span className="rkit__word" title={T.termThen}>{i === 0 ? (p.button ? `${i + 1}.` : T.then) : p.button ? `${i + 1}.` : '·'}</span>
           {part(a, RK.ACT_KINDS, RK.ACTS, T.act, (x) => putThen(i, x), `Aktion ${i + 1}`)}
           <button type="button" className="note__undo" disabled={i === 0} aria-label={`${T.partUp} (${i + 1})`} title={T.partUp} onClick={() => swap(i, i - 1)}>
             <Icon name="chevronUp" size={11} />
@@ -365,7 +509,7 @@ function RuleEditor(p: { ws: Workspace; rule: RK.KitRule; isNew: boolean; onChan
         </button>
       </div>
       <p className="rkit__preview" aria-live="polite">
-        <span className="rkit__cap">{T.preview}:</span> {sentenceOf(ws, r)}
+        <span className="rkit__cap">{p.button ? BT.preview : T.preview}:</span> {p.button ? buttonSentence(ws, { kind: r.kind ?? 'card', col: r.col, then: r.then }) : sentenceOf(ws, r)}
       </p>
       {err && <p className="sheet__msg" role="alert">{err}</p>}
       <div className="rkit__line">

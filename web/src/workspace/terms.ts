@@ -34,6 +34,7 @@ export const TERMS = {
   colColor: 'Spaltenfarbe = Farbe einer Spalte (wie Trello „Listenfarbe“), z. B. Grün für „Erledigt“ – nur zur Orientierung, die Bedeutung der Spalte legt „Bedeutung“ fest',
   cardMirror: 'Spiegelkarte = dieselbe Karte zusätzlich auf einem anderen Board (wie Trello „Karte spiegeln“). Änderungen gelten überall; erledigt setzt man im Heimat-Board, dem Board, auf dem die Karte zuerst lag',
   ruleKit: 'Regel „Wenn … dann …“ = ein Satz aus Bausteinen wie bei Trello Butler: Auslöser (was passieren muss), Bedingungen (was zusätzlich stimmen muss) und Aktionen (was dann geschieht); gilt für ein Board oder alle Kanbans, läuft von selbst und lässt sich am Ort rückgängig machen',
+  kitButtons: 'Knopf = ein Name plus eine Folge von Aktionen (wie bei den Regeln), die erst auf Klick laufen; Karten-Knöpfe wirken auf eine Karte (Kartenfenster, Taste B), Board-Knöpfe auf alle sichtbaren Karten oder eine Spalte (oben im Board); ein Druck lässt sich am Ort rückgängig machen',
   sheetStar: 'Stern = ein Sheet als häufig gebraucht markieren (wie Trello „Board markieren“). Sheets mit Stern stehen unter „+ Sheet“ › „Mit Stern …“ zum schnellen Öffnen und in den Listen zum Verschieben, Kopieren und Spiegeln vorn',
   cardVote: 'Abstimmen = jede Person gibt einer Karte eine Stimme (wie Trello „Voting“); die Zahl der Stimmen zeigt, was dem Team am wichtigsten ist',
   cardCover: 'Titelbild = Farbe oder Bild oben auf einer Karte (klein) oder über die ganze Karte (ganzflächig), wie Trello „Cover“ – macht Karten auf einen Blick erkennbar',
@@ -1848,7 +1849,7 @@ export const KANBAN_TEXT = {
   at: (col: string, pos: number, of: number) => `${col}, Platz ${pos} von ${of}`,
   dropped: (t: string, col: string, pos: number, of: number) => `„${t}“ abgelegt: ${col}, Platz ${pos} von ${of}`,
   cancelled: 'Verschieben abgebrochen',
-  cardKeys: 'Enter öffnet, Leertaste nimmt auf (dann Pfeile, Leertaste legt ab, Esc bricht ab), Pfeile wandern, Strg/⌘+Enter erledigt, F2 benennt um, V verschiebt in ein anderes Sheet, K kopiert, M spiegelt auf ein anderes Board, C archiviert (bei einem Spiegel: Spiegel entfernen), S stimmt ab (wenn Abstimmen an ist), Entf nimmt aus dem Board (die Notiz bleibt). Mit Maus ziehen, auf Touch lange drücken.',
+  cardKeys: 'Enter öffnet, Leertaste nimmt auf (dann Pfeile, Leertaste legt ab, Esc bricht ab), Pfeile wandern, Strg/⌘+Enter erledigt, F2 benennt um, V verschiebt in ein anderes Sheet, K kopiert, M spiegelt auf ein anderes Board, B drückt einen Karten-Knopf (dann Ziffer 1–9), Umschalt+B einen Board-Knopf, C archiviert (bei einem Spiegel: Spiegel entfernen), S stimmt ab (wenn Abstimmen an ist), Entf nimmt aus dem Board (die Notiz bleibt). Mit Maus ziehen, auf Touch lange drücken.',
   subs: 'Nächste Unter-Notizen',
   doneCount: (n: number) => (n === 1 ? '1 erledigt' : `${n} erledigt`),
   doneToggle: 'Erledigte in dieser Spalte ein- oder ausklappen',
@@ -3976,12 +3977,63 @@ export const KIT_TEXT = {
       notice: `die Meldung ${q(a)} zeigen`,
     })[k] ?? k,
   /** Meldung am Ort nach einem Lauf. */
-  ran: (names: string[], cards: number, cut: boolean) =>
-    `${names.length === 1 ? names[0] : `${names.length} Regeln (${names.map((x) => x.replace(/^Regel /, '')).join(', ')})`}: ${cards === 1 ? '1 Karte' : `${cards} Karten`} geändert${cut ? ' – Kette nach 3 Stufen beendet' : ''}.`,
+  ran: (names: string[], cards: number, cut: boolean) => {
+    const short = (xs: string[]) => xs.map((x) => x.replace(/^Regel /, '')).join(', ');
+    // V130 (K10b): ein Knopf vorn, dann die Regeln, die er ausgelöst hat
+    const who = names[0]?.startsWith('Knopf') && names.length > 1
+      ? `${names[0]} (+ ${names.length === 2 ? 'Regel' : `${names.length - 1} Regeln`} ${short(names.slice(1))})`
+      : names.length === 1 ? names[0] : `${names.length} Regeln (${short(names)})`;
+    return `${who}: ${cards === 0 ? 'keine Karte' : cards === 1 ? '1 Karte' : `${cards} Karten`} geändert${cut ? ' – Kette nach 3 Stufen beendet' : ''}.`;
+  },
   menu: 'Automatisierung',
   menuHint: 'Regeln „Wenn … dann …“ dieses Boards anlegen und ein- oder ausschalten (wie Trello Butler)',
   panelHead: (board: string) => `Automatisierung · ${board}`,
   close: 'Schließen',
   undo: 'Rückgängig',
   count: (on: number, all: number) => `${on} von ${all} an`,
+};
+
+/** V130 (F-231 K10b): Karten- und Board-Knöpfe wie Trello Butler (B7). */
+export const BTN_TEXT = {
+  head: 'Knöpfe',
+  term: 'Knopf = ein Name plus eine Folge von Aktionen (wie bei den Regeln), die erst auf Klick laufen – Karten-Knöpfe auf einer Karte, Board-Knöpfe auf vielen Karten auf einmal',
+  intro: 'Knöpfe wie Trello Butler: Ein Knopf führt mehrere Aktionen auf einmal aus, aber erst, wenn du ihn drückst. Karten-Knöpfe stehen im Kartenfenster (Taste B auf einer Karte, dann Ziffer 1–9), Board-Knöpfe oben im Board neben „Filter“ (Umschalt+B) und wirken auf alle sichtbaren Karten oder eine Spalte.',
+  kindCard: 'Karten-Knopf',
+  kindBoard: 'Board-Knopf',
+  kindLabel: 'Art',
+  kindHint: 'Karten-Knopf: wirkt auf eine Karte (Kartenfenster, Taste B). Board-Knopf: wirkt auf alle sichtbaren Karten oder eine Spalte (oben im Board).',
+  colLabel: 'Wirkt auf',
+  colAll: '(alle sichtbaren Karten)',
+  colHint: 'Leer = alle Karten, die gerade sichtbar sind (Suche und Filter gelten); sonst nur die Karten der Spalte dieses Namens',
+  add: 'Neuer Knopf',
+  addHint: 'Einen Knopf anlegen: Name und Aktionen wählen',
+  full: (n: number) => `Höchstens ${n} Knöpfe.`,
+  none: 'Noch kein Knopf – „+ Karten-Knopf“ oder „+ Board-Knopf“ legt einen an.',
+  count: (card: number, board: number) => `${card} Karten-, ${board} Board-Knöpfe`,
+  namePh: 'z. B. An Abnahme',
+  preview: 'So liest sich der Knopf',
+  editHead: (name: string) => (name ? `Knopf ${q(name)} bearbeiten` : 'Neuer Knopf'),
+  sentence: (kind: 'card' | 'board', col: string | undefined, acts: string) =>
+    kind === 'card' ? `Auf Klick für diese Karte: ${acts}` : `Auf Klick für ${col ? `alle sichtbaren Karten der Spalte ${q(col)}` : 'alle sichtbaren Karten'}: ${acts}`,
+  saved: (name: string) => `Knopf ${q(name)} gespeichert.`,
+  created: (name: string) => `Knopf ${q(name)} angelegt.`,
+  copied: (name: string) => `Kopie von ${q(name)} angelegt.`,
+  removed: (name: string) => `Knopf ${q(name)} gelöscht.`,
+  moved: (name: string) => `${q(name)} verschoben – die Ziffern der Taste B folgen der Reihenfolge.`,
+  missingName: 'Bitte einen Namen eingeben.',
+  /** Leiste (Taste B bzw. Umschalt+B) */
+  barCard: (title: string) => `Knopf für ${q(title)}`,
+  barBoard: (board: string) => `Board-Knopf für ${q(board)}`,
+  barHint: 'Ziffer 1–9 oder Klick drückt den Knopf · Pfeile wählen · Esc schließt',
+  barNone: 'Hier gibt es noch keinen Knopf.',
+  manage: 'Knöpfe verwalten …',
+  manageHint: 'Knöpfe anlegen und ändern (Board › Automatisierung, Abschnitt „Knöpfe“)',
+  boardBtn: (n: number) => (n ? `Knöpfe (${n})` : 'Knöpfe'),
+  boardBtnHint: 'Board-Knöpfe: mehrere Aktionen auf einmal für alle sichtbaren Karten oder eine Spalte (Umschalt+B auf einer Karte)',
+  ask: (name: string, n: number) => `${q(name)} ändert bis zu ${n} Karten. Ausführen?`,
+  yes: 'Ausführen',
+  no: 'Abbrechen',
+  nothing: (name: string) => `Knopf ${q(name)}: nichts zu ändern.`,
+  noCards: (name: string) => `Knopf ${q(name)}: keine sichtbare Karte.`,
+  cardHint: 'Drückt den Knopf für diese Karte – „Rückgängig“ nimmt alles zurück, auch was Regeln danach getan haben',
 };

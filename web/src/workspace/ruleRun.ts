@@ -20,7 +20,7 @@ import * as Cm from './comments';
 import * as CFd from './cardFields';
 import { fold } from './tags';
 import { allChecked, checkAll, checksOf, doneAt } from './ruleSet';
-import { type Act, CHAIN_MAX, type Cond, type KitRule, type TrigKind, kitOf, ruleLabel } from './ruleKit';
+import { type Act, CHAIN_MAX, type Cond, type KitButton, type KitRule, type TrigKind, buttonLabel, kitOf, ruleLabel } from './ruleKit';
 import type { CardFieldDef, Note, NoteView, Workspace } from './types';
 
 /** Ein Ereignis aus dem Unterschied zweier Stände. */
@@ -50,6 +50,8 @@ export interface RuleRun {
   /** Tiefste Stufe (1–3); `cut` = die Kette ging tiefer und wurde abgebrochen. */
   depth: number;
   cut?: true;
+  /** V130 (K10b): Kennung eines Knopfdrucks – das Bauteil, das gedrückt hat, meldet am Ort. */
+  token?: string;
 }
 
 const RUNS = new WeakMap<Workspace, RuleRun>();
@@ -237,8 +239,8 @@ function valueFor(d: CardFieldDef, raw: string): unknown {
 
 const uncheck = (text: string) => text.replace(/^(\s*[-*] \[)(x|X)(\] )/gm, '$1 $3');
 
-function act(ws: Workspace, r: KitRule, x: Act, noteId: string, ev: RuleEvent | undefined, now: number, texts: string[]): Workspace {
-  const by = { by: ruleLabel(r), now };
+function act(ws: Workspace, r: KitRule, x: Act, noteId: string, ev: RuleEvent | undefined, now: number, texts: string[], label = ruleLabel(r)): Workspace {
+  const by = { by: label, now };
   const n = No.noteById(ws, noteId);
   if (!n) return ws;
   const today = No.dayOf(now);
@@ -249,6 +251,8 @@ function act(ws: Workspace, r: KitRule, x: Act, noteId: string, ev: RuleEvent | 
       for (const v of boards()) {
         const col = (v.cols ?? []).find((c) => fold(c.name) === fold(x.a ?? ''));
         if (!col) continue;
+        // V130: liegt schon dort (oben, wenn „oben“ gewünscht) – nichts tun
+        if (col.ids.includes(noteId) && (x.b !== 'top' || col.ids[0] === noteId)) continue;
         const res = Sh.moveCard(out, v.id, noteId, col.id, x.b === 'top' ? 0 : undefined, by);
         if (res.ok) out = res.ws;
       }
@@ -458,4 +462,37 @@ export function carryRun(from: Workspace, to: Workspace): Workspace {
   const r = RUNS.get(from);
   if (r && to !== from) RUNS.set(to, r);
   return to;
+}
+
+// ---------------------------------------------------------------- K10b Knöpfe (V130)
+
+/**
+ * Knopf drücken (B7): die Aktionen des Knopfs laufen der Reihe nach auf jeder Karte in `ids` (auf dem Board `view`),
+ * Spur „Knopf · Name“. Was sie ändern, darf Regeln auslösen (Stufe 2 und 3, wie bei „regelmäßig“). Der ganze Druck
+ * samt Kette ist ein Rückgängig-Schritt (`runOf(ws).before`). Ändert der Knopf nichts, kommt `ws` unverändert zurück.
+ */
+export function pressButton(ws: Workspace, b: Pick<KitButton, 'id' | 'name' | 'then'>, ids: readonly string[], view: string, now = Date.now(), token?: string): Workspace {
+  const pseudo: KitRule = { id: `btn-${b.id}`, no: 0, name: b.name, on: true, board: view, when: { k: 'check' }, ifs: [], then: b.then };
+  const label = buttonLabel(b);
+  const texts: string[] = [];
+  let out = ws;
+  for (const id of ids) {
+    const n = No.noteById(out, id);
+    if (!n || n.template) continue; // Kartenvorlagen (K1) bleiben unberührt
+    const ev: RuleEvent = { k: 'check', note: id, view };
+    for (const x of b.then) out = act(out, pseudo, x, id, ev, now, texts, label);
+  }
+  if (out === ws && !texts.length) return ws;
+  const names = [label];
+  const rest = kitOf(out).filter((r) => r.on && r.then.length && r.when.k !== 'check');
+  const end = rest.length && out !== ws ? chain(out, eventsOf(ws, out), rest, now, ws, names, texts, 1) : out;
+  const run: RuleRun = { ...(RUNS.get(end) ?? { before: ws, names, cards: changedCards(ws, end), texts, depth: 1 }), view, note: ids[0], ...(token ? { token } : {}) };
+  if (end === ws) {
+    // nur eine Meldung, keine Änderung: Stand bleibt, Bericht hängt an einer flachen Kopie
+    const same = { ...ws };
+    RUNS.set(same, { ...run, cards: 0 });
+    return same;
+  }
+  RUNS.set(end, run);
+  return end;
 }

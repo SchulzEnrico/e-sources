@@ -4513,6 +4513,12 @@ export const DOC_SHEET_TEXT = {
   mustOff: 'Gewichten',
   mustOffOf: (n: string) => `„${n}“ wieder gewichten statt Muss`,
   mustOffSaid: (n: string) => `„${n}“ wird wieder gewichtet – Gewicht eintragen.`,
+  // V151: Vorschlag Rest bis 100 % und Reihenfolge auf dem Blatt
+  mustOffRest: (n: string, w: string) => `„${n}“ wird wieder gewichtet – Vorschlag ${w} % (Rest bis 100 %), bei Bedarf ändern.`,
+  upOf: (n: string) => `Nach oben: ${n}`,
+  downOf: (n: string) => `Nach unten: ${n}`,
+  movedUp: (n: string) => `„${n}“ steht jetzt eine Stelle weiter oben.`,
+  movedDown: (n: string) => `„${n}“ steht jetzt eine Stelle weiter unten.`,
   optName: 'Name der Lösung',
   fbTrailHead: 'Bearbeitung und Spur',
   fbCaption: 'Formular: Problemstellung (Meldung im Projekt)',

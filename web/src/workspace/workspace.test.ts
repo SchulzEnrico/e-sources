@@ -6777,6 +6777,24 @@ describe('F-222 Werkzeug (V104): Bearbeiten, Zustand, Beispiele, Ausgabe', () =>
     expect(ed(ws, { op: 'back', prev: { ...prev, id: 'x', criteria: [] } })).toBe(ws);
     expect(ed(ws, { op: 'back', prev: { ...prev, criteria: [], locked: true } })).toBe(ws);
   });
+  it('V151 Blatt: Gewichten schlägt den Rest bis 100 % vor; Verschieben innerhalb der gewichteten Kriterien springt über Muss-Kriterien', () => {
+    let ws = base();
+    ws = ed(ws, { op: 'critWeight', c: 'c1', weight: 60 });
+    ws = ed(ws, { op: 'critMust', c: 'c2', must: true });
+    ws = ed(ws, { op: 'critWeight', c: 'c3', weight: 25 });
+    expect(Dc.restWeight(d(ws), 'c2')).toBe(15);
+    ws = ed(ws, { op: 'critWeight', c: 'c3', weight: 40 });
+    expect(Dc.restWeight(d(ws), 'c2')).toBeNull();
+    const all = d(ws).criteria;
+    const weighed = all.filter((c) => !c.must);
+    expect(Dc.stepIndex(all, weighed, 'c3', -1)).toBe(0);
+    expect(Dc.stepIndex(all, weighed, 'c1', -1)).toBe(-1);
+    expect(Dc.stepIndex(all, weighed, 'c3', 1)).toBe(-1);
+    ws = ed(ws, { op: 'critMove', c: 'c3', to: Dc.stepIndex(all, weighed, 'c3', -1) });
+    expect(d(ws).criteria.filter((c) => !c.must).map((c) => c.id)).toEqual(['c3', 'c1']);
+    ws = ed(ws, { op: 'optMove', o: 'o2', to: Dc.stepIndex(d(ws).options, d(ws).options, 'o2', -1) });
+    expect(d(ws).options.map((o) => o.id)).toEqual(['o2', 'o1']);
+  });
   it('Beispiele Wohnung und Malerbetrieb: vollständig bewertet, einer scheidet aus; Markdown und CSV', () => {
     let n = 0;
     for (const which of ['flat', 'painter'] as const) {

@@ -328,9 +328,28 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
     });
   };
   const setMust = (c: { id: string; name: string }, must: boolean) => {
-    dispatch({ type: 'dc', id: d.id, o: { op: 'critMust', c: c.id, must }, at: new Date().toISOString() });
-    tell(must ? 'musts' : `w-${c.id}`, must ? T.mustOnSaid(c.name) : T.mustOffSaid(c.name));
+    const at = new Date().toISOString();
+    dispatch({ type: 'dc', id: d.id, o: { op: 'critMust', c: c.id, must }, at });
+    // V151: beim Gewichten den Rest bis 100 % vorschlagen (nicht mehr leer)
+    const rest = must ? null : Dc.restWeight(d, c.id);
+    if (rest !== null) dispatch({ type: 'dc', id: d.id, o: { op: 'critWeight', c: c.id, weight: rest }, at });
+    tell(must ? 'musts' : `w-${c.id}`, must ? T.mustOnSaid(c.name) : rest !== null ? T.mustOffRest(c.name, de(rest)) : T.mustOffSaid(c.name));
+    if (!must) setTimeout(() => (document.querySelector(`[data-weight="${c.id}"]`) as HTMLInputElement | null)?.focus(), 60);
   };
+  // V151: Reihenfolge auch auf dem Blatt (vorher nur im Werkzeug); der Fokus bleibt auf dem Pfeil
+  const step = (k: 'crit' | 'opt', x: { id: string; name: string }, dir: -1 | 1) => {
+    const to = k === 'crit' ? Dc.stepIndex(d.criteria, weighed, x.id, dir) : Dc.stepIndex(d.options, d.options, x.id, dir);
+    if (to < 0) return;
+    dispatch({ type: 'dc', id: d.id, o: k === 'crit' ? { op: 'critMove', c: x.id, to } : { op: 'optMove', o: x.id, to }, at: new Date().toISOString() });
+    tell(k === 'crit' ? `w-${x.id}` : `o-${x.id}`, dir < 0 ? T.movedUp(x.name) : T.movedDown(x.name));
+    setTimeout(() => (document.querySelector(`[data-step="${k}-${x.id}-${dir}"]`) as HTMLButtonElement | null)?.focus(), 60);
+  };
+  const arrows = (k: 'crit' | 'opt', x: { id: string; name: string }, i: number, n: number) => (
+    <>
+      <button type="button" data-step={`${k}-${x.id}--1`} title={T.upOf(x.name)} aria-label={T.upOf(x.name)} disabled={i === 0} onClick={() => step(k, x, -1)}>↑</button>
+      <button type="button" data-step={`${k}-${x.id}-1`} title={T.downOf(x.name)} aria-label={T.downOf(x.name)} disabled={i === n - 1} onClick={() => step(k, x, 1)}>↓</button>
+    </>
+  );
   const tools = (kids: ReactNode) => <span className="paper__rowtools">{kids}</span>;
 
   return (
@@ -397,13 +416,14 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
                       </tr>
                     </thead>
                     <tbody>
-                      {weighed.map((c) => (
+                      {weighed.map((c, ci) => (
                         <tr key={c.id}>
                           <th scope="row">
                             {lock ? c.name : <NameIn id={`paper-crit-${c.id}`} label={T.critName} value={c.name} onSave={(v) => op({ op: 'critName', c: c.id, name: v }, `w-${c.id}`, T.critName)} />}
                             {!lock &&
                               tools(
                                 <>
+                                  {arrows('crit', c, ci, weighed.length)}
                                   <button type="button" title={T.mustOnOf(c.name)} aria-label={T.mustOnOf(c.name)} onClick={() => setMust(c, true)}>{T.mustOn}</button>
                                   <button type="button" title={T.removeOf(c.name)} aria-label={T.removeOf(c.name)} onClick={() => removeCrit(c)}>✕</button>
                                 </>,
@@ -415,6 +435,7 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
                               className="paper__in paper__cellin"
                               inputMode="decimal"
                               aria-label={T.weightLabel(c.name)}
+                              data-weight={c.id}
                               defaultValue={c.weight === undefined ? '' : de(c.weight)}
                               disabled={lock}
                               onBlur={(e) => {
@@ -469,12 +490,12 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
                     </tr>
                   </thead>
                   <tbody>
-                    {d.options.map((o) => {
+                    {d.options.map((o, oi) => {
                       const r = res.find((x) => x.option.id === o.id);
                       return (
                         <tr key={o.id} className={r?.out ? 'is-out' : undefined}>
                           <th scope="row">{lock ? o.name : <NameIn id={`paper-opt-${o.id}`} label={T.optName} value={o.name} onSave={(v) => op({ op: 'optName', o: o.id, name: v }, `o-${o.id}`, T.optName)} />}{r?.out ? <span className="paper__calc"> · {T.out}</span> : null}
-                            {!lock && tools(<button type="button" title={T.removeOf(o.name)} aria-label={T.removeOf(o.name)} onClick={() => removeOpt(o)}>✕</button>)}
+                            {!lock && tools(<>{arrows('opt', o, oi, d.options.length)}<button type="button" title={T.removeOf(o.name)} aria-label={T.removeOf(o.name)} onClick={() => removeOpt(o)}>✕</button></>)}
                             {m(`o-${o.id}`)}
                           </th>
                           {weighed.map((c) => {

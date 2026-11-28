@@ -10649,6 +10649,7 @@ textarea.paper__namein { display: block; box-sizing: border-box; resize: none; o
 .paper__rowtools { display: inline-flex; gap: 4px; margin-top: 2px; flex-wrap: wrap; }
 .paper__rowtools button { font: inherit; font-size: 0.72em; padding: 0 5px; line-height: 1.5; border: 1px solid #bbb; border-radius: 4px; background: #f6f6f6; color: #444; cursor: pointer; }
 .paper__rowtools button:hover, .paper__rowtools button:focus-visible { border-color: #8a1c2b; color: #8a1c2b; }
+.paper__rowtools button:disabled { opacity: 0.35; cursor: default; border-color: #bbb; color: #444; }
 .paper__list .paper__rowtools { margin-left: 6px; vertical-align: middle; }
 .paper__undo { margin-left: 4px; font-size: 0.95em; }
 @media print { .paper__rowtools, .paper__undo { display: none; } }

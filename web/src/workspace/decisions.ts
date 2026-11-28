@@ -80,6 +80,17 @@ export function normalizeWeights(criteria: readonly DecisionCriterion[]): Record
 
 /** Summe der Gewichte (Hinweis, wenn ≠ 100). */
 export const weightSum = (d: Decision): number => round1(d.criteria.reduce((s, c) => s + (c.weight ?? 0), 0));
+/** V151: Vorschlag fürs Gewicht, wenn ein Kriterium (wieder) gewichtet wird – der Rest bis 100 % aus den übrigen gewichteten Kriterien; null, wenn nichts übrig ist. */
+export const restWeight = (d: Decision, c: string): number | null => {
+  const rest = round1(100 - d.criteria.filter((x) => !x.must && x.id !== c).reduce((s, x) => s + (x.weight ?? 0), 0));
+  return rest > 0 ? Math.min(100, rest) : null;
+};
+/** V151: Ziel-Index im ganzen Feld, um einen Eintrag innerhalb einer Teilmenge (z. B. nur gewichtete Kriterien) eine Stelle zu verschieben; -1, wenn es nicht weitergeht. */
+export const stepIndex = <T extends { id: string }>(all: T[], within: T[], id: string, dir: -1 | 1): number => {
+  const i = within.findIndex((x) => x.id === id);
+  const n = within[i + dir];
+  return i < 0 || !n ? -1 : all.findIndex((x) => x.id === n.id);
+};
 
 export const scoreOf = (d: Decision, c: string, o: string): DecisionScore | undefined => d.scores?.find((s) => s.c === c && s.o === o);
 

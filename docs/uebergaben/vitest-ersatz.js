@@ -30,6 +30,7 @@ function make(v, neg) {
 }
 exports.expect = (v) => { const o = make(v, false); o.not = make(v, true); return o; };
 let ran = false;
-process.on('beforeExit', () => { if (ran) return; ran = true; let ok = 0, bad = 0;
-  for (const [n, f] of tests) { try { f(); ok++; } catch (e) { bad++; console.log('FAIL', n, '\n  ', e.message); } }
+// V147: Tests mit async/await werden abgewartet (vorher zählten sie immer grün)
+process.on('beforeExit', async () => { if (ran) return; ran = true; let ok = 0, bad = 0;
+  for (const [n, f] of tests) { try { await f(); ok++; } catch (e) { bad++; console.log('FAIL', n, '\n  ', e.message); } }
   console.log(`${ok} grün, ${bad} rot`); if (bad) process.exitCode = 1; });

@@ -2418,6 +2418,7 @@ export const KANBAN_MORE_TEXT = {
 /** F-206 Schritt 7 (V87): Eisenhower-Matrix nach Enricos Report (Abb. 17) mit Mülleimer in „ablegen“ (E1–E4). */
 export const MATRIX_TEXT = {
   matrix: (name: string) => `${name} – Eisenhower-Matrix`,
+  who: (person?: string, day?: string) => [person ? `Für ${person}` : '', day ? `Einschätzung vom ${day}` : ''].filter(Boolean).join(' · '),
   unsorted: 'Noch nicht eingeordnet',
   unsortedHint: 'Wichtig und dringend wurden hier noch nie gesetzt. Karte in ein Feld ziehen oder mit Leertaste aufnehmen und mit Pfeilen hineinlegen.',
   unsortedNone: 'Alles eingeordnet.',
@@ -2451,7 +2452,6 @@ export const MATRIX_TEXT = {
   notHere: 'Diese Notiz liegt hier, weil wichtig oder dringend gesetzt ist. Zum Entfernen in „ablegen“ und dann in den Mülleimer ziehen oder archivieren.',
   cardKeys: 'Enter öffnet, Leertaste nimmt auf (dann Pfeile zwischen den Feldern, Leertaste legt ab, Esc bricht ab), Pfeile wandern, Strg/⌘+Enter erledigt, F2 benennt um, V verschiebt in ein anderes Sheet, Entf nimmt aus der Matrix. Mit Maus ziehen, auf Touch lange drücken.',
   info: (n: number, u: number) => `${n === 1 ? '1 Karte' : `${n} Karten`}, davon ${u} noch nicht eingeordnet`,
-  exists: 'Es gibt genau eine Eisenhower-Matrix – sie ist jetzt offen.',
 };
 
 /** V88 (F-206 Schritt 7, BL1–BL3): Board-Vorlagen – Auswahl beim Anlegen, Speichern aus dem Pad, Gruppe im Cockpit „Layouts“. */
@@ -4381,7 +4381,7 @@ export const PAPER_TEXT = {
   agEx: 'AG extern/Kunde',
   agIn: 'AG intern',
   lead: 'Projektleiter/in',
-  leadHint: 'Person der Rolle „Projektleitung“ (unter „Verwaltung“ › Instanzen), sonst du',
+  leadHint: 'Person der Rolle „Projektleitung“ (unter „Verwaltung“ › Instanzen), sonst der Name unter „Freigabe“ (PL), sonst du',
   kind: 'Projektart',
   goal: 'Oberziel',
   main: 'Hauptziele/ Kurzbeschreibung Projektinhalt',
@@ -4430,6 +4430,9 @@ export const PAPER_TEXT = {
   admin: 'Verwaltung',
   adminHint: 'Zustand, Priorität, Scope, übergeordnetes Projekt, Task-Limit, Farbe, Arbeitskalender, Vorgehen, Organisation und Instanzen – steht nicht im Report',
   stand: 'Stand',
+  extras: (n: number) => `Ergänzungen nach ICB4 (4.3.1 · 4.5.1)${n ? ` · ${n} von 6 ausgefüllt` : ''}`,
+  extrasHint: 'Messgröße des Nutzens, Business Case, Vorgehensmodell, Tailoring, Komplexität und Erfolgskriterien – gehören nach ICB4 zum Projektauftrag, stehen aber nicht auf dem Blatt im Report; im Bericht als Abschnitt unter dem Steckbrief',
+  complexity: (n: number) => `${n} – ${['einfach', 'eher einfach', 'mittel', 'eher komplex', 'sehr komplex'][n - 1]}`,
 };
 
 /** V132 (F-231 K10d, B8): Beobachten und Neuigkeiten (watch.ts, NewsBell.tsx). */

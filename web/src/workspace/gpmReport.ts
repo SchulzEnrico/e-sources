@@ -9,11 +9,12 @@ import { qrSvg } from './qr';
 import { projectLinkUrl } from './projectLink';
 import type { FormDef, Project, Workspace } from './types';
 import * as Fk from './formKit';
-import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf, projectStatus, type CostCurve, type EvCurve, type Mta, type PortfolioDot } from './gpmCalc';
+import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf, projectStatus, type CostCurve, type EvCurve, type Mta } from './gpmCalc';
 import { personById } from './persons';
 import { projectById, rolesOf } from './projects';
 import { envPortfolioSvg, figureSvg, shPortfolioSvg } from './gpmFigures';
 import * as Sh from './sheets';
+import { charterView, CHARTER_EXTRAS } from './charterSheet';
 
 export const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
@@ -240,96 +241,6 @@ export function evSvg(c: EvCurve, col: SvgColors, w = 640, h = 300): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(`Earned Value am ${dm(t.day)}: EV ${eur(t.ev)}, AC ${eur(t.ac)}, BAC ${eur(c.bac)}, EAC ${eur(c.eac)}`)}">${parts.join('')}</svg>`;
 }
 
-const lab = (d: PortfolioDot) => esc(d.code || d.name.slice(0, 14));
-
-/** Umfeld-Portfolio: sachlich/sozial (Spalten) × intern/extern (Zeilen), Codes in den Feldern. */
-export function envSvg(dots: PortfolioDot[], col: SvgColors, w = 560, h = 340): string {
-  const pad = { l: 70, t: 30, r: 10, b: 10 };
-  const cw = (w - pad.l - pad.r) / 2;
-  const ch = (h - pad.t - pad.b) / 2;
-  const parts: string[] = [];
-  const cols: ['fact', 'social'] = ['fact', 'social'];
-  const rows: ['in', 'ex'] = ['in', 'ex'];
-  cols.forEach((a, ci) => parts.push(`<text x="${pad.l + ci * cw + cw / 2}" y="18" text-anchor="middle" font-size="12" font-weight="bold" fill="${col.ink}">${a === 'fact' ? 'sachlich' : 'sozial'}</text>`));
-  rows.forEach((sd, ri) => {
-    parts.push(`<text x="${pad.l - 8}" y="${pad.t + ri * ch + ch / 2}" text-anchor="end" font-size="12" font-weight="bold" fill="${col.ink}">${sd === 'in' ? 'intern' : 'extern'}</text>`);
-    cols.forEach((a, ci) => {
-      const x = pad.l + ci * cw;
-      const y = pad.t + ri * ch;
-      parts.push(`<rect x="${x}" y="${y}" width="${cw}" height="${ch}" fill="none" stroke="${col.line}"/>`);
-      const hit = dots.filter((d) => d.side === sd && d.area === a);
-      hit.forEach((d, k) => {
-        const per = Math.max(1, Math.floor((cw - 16) / 86));
-        const tx = x + 10 + (k % per) * 86;
-        const ty = y + 20 + Math.floor(k / per) * 18;
-        if (ty < y + ch - 4) parts.push(`<text x="${tx}" y="${ty}" font-size="11" fill="${col.ink}"><title>${esc(d.name)}</title>${lab(d)}</text>`);
-      });
-    });
-  });
-  const open = dots.filter((d) => !d.side || !d.area).length;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(`Umfeld-Portfolio: ${dots.length - open} Stakeholder eingeordnet${open ? `, ${open} ohne Angabe` : ''}`)}">${parts.join('')}</svg>`;
-}
-
-/** Stakeholder-Portfolio: Einstellung −2…+2 (waagerecht) × Macht/Einfluss 1–3 (senkrecht), Kreisgröße = Konfliktpotenzial.
- * V134 (Enrico 11:27 „optisch schöner“): Quadranten getönt und benannt (Opponenten/Promotoren …), intern und extern in
- * zwei Farben, Beschriftung mit hellem Rand (lesbar über Linien), Legende unten; volle Blattbreite. */
-export function shSvg(dots: PortfolioDot[], col: SvgColors, w = 680, h = 400): string {
-  const pad = { l: 54, t: 14, r: 92, b: 66 };
-  const iw = w - pad.l - pad.r;
-  const ih = h - pad.t - pad.b;
-  const x = (a: number) => pad.l + ((a + 2) / 4) * iw;
-  const y = (p: number) => pad.t + ih - ((p - 1) / 2) * ih;
-  const ext = '#3f6fa8';
-  const parts: string[] = [];
-  const quad: [number, number, string, string][] = [
-    [pad.l, pad.t, '179,38,30', 'Opponenten – kritisch, eng steuern'],
-    [x(0), pad.t, '46,125,50', 'Promotoren – einbinden'],
-    [pad.l, y(2), '191,128,0', 'Gegner ohne Macht – beobachten'],
-    [x(0), y(2), '63,111,168', 'Unterstützer – informieren'],
-  ];
-  for (const [qx, qy, rgb, name] of quad) {
-    parts.push(`<rect x="${qx}" y="${qy}" width="${iw / 2}" height="${ih / 2}" fill="rgb(${rgb})" fill-opacity="0.07"/>`);
-    const right = qx > pad.l;
-    parts.push(`<text x="${right ? qx + iw / 2 - 6 : qx + 6}" y="${qy > pad.t ? qy + 14 : qy + ih / 2 - 6}" text-anchor="${right ? 'end' : 'start'}" font-size="10" font-style="italic" fill="rgb(${rgb})">${name}</text>`);
-  }
-  parts.push(`<rect x="${pad.l}" y="${pad.t}" width="${iw}" height="${ih}" fill="none" stroke="${col.line}"/>`);
-  parts.push(`<line x1="${x(0)}" y1="${pad.t}" x2="${x(0)}" y2="${pad.t + ih}" stroke="${col.line}"/>`);
-  parts.push(`<line x1="${pad.l}" y1="${y(2)}" x2="${pad.l + iw}" y2="${y(2)}" stroke="${col.line}"/>`);
-  for (const a of [-2, -1, 0, 1, 2]) parts.push(`<text x="${x(a)}" y="${pad.t + ih + 14}" text-anchor="middle" font-size="10" fill="${col.muted}">${a > 0 ? `+${a}` : a === 0 ? '0' : `−${-a}`}</text>`);
-  for (const p of [1, 2, 3]) parts.push(`<text x="${pad.l - 6}" y="${y(p) + 4}" text-anchor="end" font-size="10" fill="${col.muted}">${p}</text>`);
-  parts.push(`<text x="${pad.l + iw / 2}" y="${pad.t + ih + 32}" text-anchor="middle" font-size="11" fill="${col.ink}">Einstellung zum Projekt (−2 dagegen · +2 dafür)</text>`);
-  parts.push(`<text x="14" y="${pad.t + ih / 2}" text-anchor="middle" font-size="11" fill="${col.ink}" transform="rotate(-90 14 ${pad.t + ih / 2})">Macht/Einfluss</text>`);
-  // Legende
-  const ly = h - 10;
-  parts.push(`<circle cx="${pad.l + 6}" cy="${ly - 4}" r="5" fill="${col.dot}" fill-opacity="0.35" stroke="${col.dot}"/><text x="${pad.l + 16}" y="${ly}" font-size="10" fill="${col.ink}">intern</text>`);
-  parts.push(`<circle cx="${pad.l + 66}" cy="${ly - 4}" r="5" fill="${ext}" fill-opacity="0.35" stroke="${ext}"/><text x="${pad.l + 76}" y="${ly}" font-size="10" fill="${col.ink}">extern</text>`);
-  parts.push(`<text x="${pad.l + 126}" y="${ly}" font-size="10" fill="${col.muted}">Kreisgröße = Konfliktpotenzial (1 gering – 3 hoch)</text>`);
-  // V113: mehrere an derselben Stelle – senkrecht gestapelt um den Punkt, Beschriftung rechts daneben (nichts überdeckt sich)
-  const at = new Map<string, PortfolioDot[]>();
-  for (const d of dots) {
-    if (d.attitude === undefined || d.power === undefined) continue;
-    const k = `${d.attitude}|${d.power}`;
-    at.set(k, [...(at.get(k) ?? []), d]);
-  }
-  const placed: { d: PortfolioDot; cx: number; cy: number }[] = [];
-  for (const group of at.values()) {
-    const step = Math.min(16, (ih / 2 - 12) / Math.max(1, group.length - 1));
-    const span = (group.length - 1) * step;
-    let top = y(group[0].power!) - span / 2;
-    top = Math.min(Math.max(top, pad.t + 9), pad.t + ih - 9 - span);
-    group.forEach((d, n) => placed.push({ d, cx: x(d.attitude!), cy: top + n * step }));
-  }
-  for (const { d, cx, cy } of placed) {
-    const r = 3.5 + (d.conflict ?? 1) * 1.5;
-    const c = d.side === 'ex' ? ext : col.dot;
-    parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}" fill-opacity="0.35" stroke="${c}" stroke-width="1.2"><title>${esc(`${d.code ? `${d.code} ` : ''}${d.name}: Einstellung ${d.attitude}, Macht ${d.power}${d.conflict ? `, Konfliktpotenzial ${d.conflict}` : ''}`)}</title></circle>`);
-    // V137 (Enrico 13:10 „Linksbündige Anordnung“): Namen einer Gruppe beginnen alle an derselben Stelle (größter Kreis + Abstand)
-    parts.push(`<text x="${cx + 12}" y="${cy + 3.5}" font-size="10" fill="${col.ink}" stroke="#fff" stroke-width="3" stroke-opacity="0.85" paint-order="stroke">${lab(d)}</text>`);
-  }
-  const open = dots.filter((d) => d.attitude === undefined || d.power === undefined).length;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(`Stakeholder-Portfolio: ${dots.length - open} Stakeholder eingeordnet${open ? `, ${open} ohne Einstellung oder Macht` : ''}`)}">${parts.join('')}</svg>`;
-}
-
 /** Grafik eines Formulars mit Layout `chart` bzw. `portfolio` (sonst ''). */
 /** Code + Titel der Meilensteine für die MTA-Beschriftung. */
 export function mtaNames(ws: Workspace, pid: string): Map<string, string> {
@@ -448,6 +359,7 @@ table.kv th { width: 34%; } .empty { color: #777; font-style: italic; } .cover {
 .sign__ink { height: 34pt; width: auto; align-self: flex-start; } .sign__name { font: 16pt "Segoe Script", "Brush Script MT", "Snell Roundhand", cursive; color: #1b2f8a; }
 table.sheethead { margin: 0; border: 2px solid #111; border-bottom: 0; } table.sheethead td.sheethead__qr { width: 80pt; padding: 3pt; background: #fff; } table.sheethead svg { display: block; width: 74pt; height: 74pt; }
 table.sheethead th { background: #8a8a8a; color: #fff; font-size: 22pt; vertical-align: middle; padding-left: 12pt; }
+table.charter > tbody > tr > th { width: 26%; } table.charter td.sub { padding: 0; } table.charter .grid { margin: 0; border: 0; } table.charter .grid th { background: #f6f6f6; font-weight: normal; } table.charter .grid.rows th { width: 34%; } td.is-strong { font-weight: bold; }
 .sign__who { font-size: 8.5pt; } .sign__line { border-top: 1px solid #999; font-size: 8pt; color: #555; padding-top: 1pt; } tr.release td { white-space: normal; } figure { margin: 6pt 0; break-inside: avoid; }
 @media screen { body { max-width: 900px; margin: 24px auto; padding: 0 16px; } .bar { position: sticky; top: 0; background: #fff; padding: 8px 0; border-bottom: 1px solid #ddd; } }
 @media print { .bar { display: none; } }
@@ -487,6 +399,49 @@ const cssText = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').rep
 /** Datumsfelder, die in der Freigabe-Zeile unter der Unterschrift stehen (nicht doppelt als eigene Zeile). */
 const SIGN_DATES = new Set(['charter:releaseAg', 'charter:releasePl', 'wp:releasePl', 'wp:releaseOwner']);
 
+/** V147 (F-232): Kapitel 2.1 im Bericht in der Anordnung von Abbildung 3 – dieselben Werte wie das Blatt
+ *  (`charterView`); eigene Felder der Vorlage vor der Freigabe, Ergänzungen nach ICB4 als Abschnitt darunter. */
+export function charterHtml(ws: Workspace, p: Project, f: FormDef, cols: Fk.FormCol[], inks?: ReadonlyMap<string, string>): string {
+  const c = p.charter ?? {};
+  const v = charterView(ws, p);
+  const shown = new Set(cols.map((x) => x.key));
+  const txt = (x?: string | number) => (x === undefined || x === null ? '' : esc(String(x)));
+  const num = (x?: number, unit = '€') => (x === undefined ? '' : `${x.toLocaleString('de-DE', { maximumFractionDigits: 2 })} ${unit}`);
+  const row = (k: string, val: string, strong = false) => `<tr><th scope="row">${esc(k)}</th><td${strong ? ' class="is-strong"' : ''}>${val}</td></tr>`;
+  const sub = (k: string, inner: string) => `<tr class="block"><th scope="row">${esc(k)}</th><td class="sub">${inner}</td></tr>`;
+  const pairs = (list: [string, string][]) => `<table class="grid rows"><tbody>${list.map(([a, b]) => `<tr><th scope="row">${esc(a)}</th><td class="is-strong">${b}</td></tr>`).join('')}</tbody></table>`;
+  const out: string[] = ['<table class="kv charter"><tbody>'];
+  out.push(row('Projekttitel', txt(p.name), true));
+  out.push(row('Projektnummer', txt(c.no), true));
+  out.push(row('AG extern/Kunde', v.clientIn ? 'n/v' : txt(v.client) || 'n/v'));
+  out.push(row('AG intern', v.clientIn ? txt(v.client) || 'n/v' : 'n/v'));
+  out.push(row('Projektleiter/in', txt(v.lead)));
+  out.push(row('Projektart', txt(c.kind)));
+  out.push(row('Oberziel', txt(p.brief?.goal)));
+  out.push(row('Hauptziele/ Kurzbeschreibung Projektinhalt', txt(c.main), true));
+  out.push(row('Angestrebter Nutzen', txt(c.benefit)));
+  const miles = v.fixed.length ? v.fixed.map((m) => esc([m.title, m.due ? dmy(m.due) : ''].filter(Boolean).join(' '))).join('<br>') : '';
+  out.push(sub('Termine', `<table class="grid"><thead><tr><th scope="col">Starttermin</th><th scope="col">Endtermin</th><th scope="col">Fixierte Meilensteine</th><th scope="col">Gesamtdauer</th></tr></thead><tbody><tr><td class="is-strong">${p.start ? dmy(p.start) : ''}</td><td class="is-strong">${p.end ? dmy(p.end) : ''}</td><td class="is-strong">${miles}</td><td class="is-strong">${v.months !== undefined ? `${v.months} ${v.months === 1 ? 'Monat' : 'Monate'}` : ''}</td></tr></tbody></table>`));
+  out.push(sub('Kapazitätsaufwand', pairs([['Eigenaufwand (ph)', num(c.ownEffort, 'Ph')], ['Fremdaufwand (€)', num(c.extEffort)]])));
+  out.push(row('Budget insgesamt', num(p.budget), true));
+  const costs: [string, string][] = [['PM-Kosten', num(c.costPm)], ['Personalkosten allg.', num(c.costStaff)], ['Sachkosten allg.', num(c.costMaterial)]];
+  if (v.costSum) costs.push(['Summe (gerechnet)', `${num(v.costSum)}${v.rest !== undefined ? ` · mit Rücklage ${num(Math.abs(v.rest))} ${v.over ? 'über' : 'unter'} Budget` : ''}`]);
+  out.push(sub('Kosten €', pairs(costs)));
+  out.push(sub('Risikorücklage €', pairs([[v.reservePct !== undefined ? `${v.reservePct.toLocaleString('de-DE')} % vom Budget` : '% vom Budget', num(c.reserve)]])));
+  out.push(sub('Projektbeteiligte', pairs([['Fachteam', txt(c.team)], ['Lenkungsausschuss', txt(c.steering)], ['Externe Dienstleister', txt(c.vendors)], ['Weitere wichtige SH', txt(c.others)]])));
+  out.push(row('Berichterstattung', txt(c.reporting)));
+  out.push(row('Mögliche Störungen/Risiken', esc(v.risks.join('; '))));
+  out.push(row('Besonderheiten', txt(c.special)));
+  // eigene Felder der Vorlage bzw. des Projekts – vor der Freigabe wie eine weitere Zeile des Blatts
+  for (const x of cols) if (x.custom) out.push(row(x.label, esc(displayValue(ws, p, x, Fk.cellValue(ws, p.id, f, p.id, x.key)))));
+  out.push(signRowHtml(reportSigns(ws, p, f), inks));
+  out.push('</tbody></table><p class="meta">Abbildung: Formular: Projektsteckbrief</p>');
+  // Ergänzungen nach ICB4 (nicht auf dem Blatt des Reports) – nur ausgefüllte Felder
+  const extras = CHARTER_EXTRAS.filter((k) => shown.has(k)).map((k) => cols.find((x) => x.key === k)!).map((x) => [x.label, displayValue(ws, p, x, Fk.cellValue(ws, p.id, f, p.id, x.key))] as const).filter(([, val]) => val);
+  if (extras.length) out.push(`<h3>Ergänzungen nach ICB4 <span class="icb">4.3.1 · 4.5.1</span></h3><table class="kv"><tbody>${extras.map(([k, val]) => `<tr><th scope="row">${esc(k)}</th><td>${esc(val)}</td></tr>`).join('')}</tbody></table>`);
+  return out.join('');
+}
+
 function formSection(ws: Workspace, p: Project, f: FormDef, inks?: ReadonlyMap<string, string>, base?: string): string {
   const cols = Fk.columnsOf(p, f);
   const rows = Fk.rowsOf(ws, p.id, f);
@@ -497,6 +452,9 @@ function formSection(ws: Workspace, p: Project, f: FormDef, inks?: ReadonlyMap<s
     // F-234: Grafik-Blatt (Zielhierarchie, Organigramm, Phasenplan, PSP, Balkenplan, Auslastung)
     const svg = figureSvg(ws, p.id, f.figure);
     out.push(svg ? `<figure>${svg}<figcaption class="meta">Abbildung: ${esc(f.name)}</figcaption></figure>` : `<p class="empty">Noch nichts zu zeichnen.</p>`);
+  } else if (f.layout === 'fields' && f.source === 'charter') {
+    // V147 (F-232): Projektsteckbrief wie Abbildung 3 im Report – Blöcke Termine, Kapazität, Kosten, Projektbeteiligte, Freigabe
+    out.push(charterHtml(ws, p, f, cols, inks));
   } else if (f.layout === 'fields') {
     const r = rows[0]?.id ?? p.id;
     out.push(`<table class="kv"><tbody>${cols.filter((c) => !SIGN_DATES.has(`${f.source}:${c.key}`)).map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r, c))}</td></tr>`).join('')}${signRowHtml(reportSigns(ws, p, f), inks)}</tbody></table>`);

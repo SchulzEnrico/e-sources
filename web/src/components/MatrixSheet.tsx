@@ -469,6 +469,8 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
           />
         </div>
       </section>
+      {/* V147 (V140 offen): für wen und wann – wie im Kopf von 15.2 (Abb. 17) */}
+      {(v.person || v.date) && <p className="matrix__who">{M.who(v.person, v.date ? v.date.split('-').reverse().join('.') : undefined)}</p>}
       <div className="matrix" role="group" aria-label={M.matrix(v.name)}>
         <div className="matrix__y" aria-hidden="true">
           <span>{M.very}</span>

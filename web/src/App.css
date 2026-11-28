@@ -10625,3 +10625,13 @@ dialog.inkdlg::backdrop { background: rgba(0, 0, 0, 0.22); }
 .paper__sign.has-ink > .paper__unit .paper__in { font-family: inherit; font-size: 0.9em; color: inherit; }
 @media print { .paper__signbtn, .paper__signink .remind__x { display: none; } }
 @media (prefers-contrast: more), (forced-colors: active) { .ink__paper, .inkn__view { background: #fff; background-image: none; border-color: #000; } }
+
+/* V147 (F-232): Ergänzungen nach ICB4 unter dem Steckbrief-Blatt – Bezeichnung über dem Feld, zwei Spalten ab 700 px */
+.paper__extras { margin-top: 12px; width: calc(210mm * var(--paper-zoom, 1)); max-width: 100%; box-sizing: border-box; }
+.paper__xgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px 16px; }
+.paper__xrow { display: grid; gap: 4px; align-content: start; }
+.paper__xlabel { font-size: 0.85em; font-weight: 600; }
+.paper__xrow .paper__in, .paper__xrow select { width: 100%; box-sizing: border-box; }
+
+/* V147: Matrix im Pad – Person und Datum wie im Kopf von 15.2 */
+.matrix__who { margin: 2px 0 6px; font-size: 0.85em; color: var(--muted); }

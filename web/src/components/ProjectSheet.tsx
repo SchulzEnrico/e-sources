@@ -9,9 +9,9 @@ import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { Note, Project, ProjectCharter, Workspace } from '../workspace/types';
 import * as Pj from '../workspace/projects';
-import * as Ps from '../workspace/persons';
-import { risksOf } from '../workspace/risks';
 import { titleOf } from '../workspace/notes';
+import { charterView, monthsBetween } from '../workspace/charterSheet';
+import * as Fk from '../workspace/formKit';
 import { noticeLater } from '../workspace/flash';
 import { INK_TEXT as T_INK, PAPER_TEXT as S } from '../workspace/terms';
 import { InkSign } from './InkChips';
@@ -60,14 +60,8 @@ const parseMoney = (v: string): number | null | undefined => {
   return Number.isFinite(x) && x >= 0 ? x : undefined;
 };
 
-/** Gesamtdauer in Monaten (gerundet, wie im Report „7 Monate“). */
-export function monthsBetween(start?: string, end?: string): number | undefined {
-  if (!start || !end || end < start) return undefined;
-  const a = new Date(`${start}T00:00:00`);
-  const b = new Date(`${end}T00:00:00`);
-  const m = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate() + 1) / 30;
-  return Math.max(0, Math.round(m));
-}
+/** V147: gemeinsam mit dem Bericht (workspace/charterSheet.ts). */
+export { monthsBetween };
 
 /** Ein Feld des Blatts: Text (ein- oder mehrzeilig), Zahl (Euro/Ph) oder Datum; speichert beim Verlassen. */
 export function Field({ label, value, kind = 'text', multi, strong, onSave, placeholder }: { label: string; value: string | number | undefined; kind?: 'text' | 'money' | 'ph' | 'date'; multi?: boolean; strong?: boolean; onSave: (v: string | number | null) => void; placeholder?: string }) {
@@ -154,18 +148,17 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
   };
   const m = (at: string) => (msg?.at === at ? <span className="paper__msg" role="status">{msg.text}</span> : null);
 
-  // Projektleiter/in: Person der Rolle „Projektleitung“, sonst „ich“
-  const lead = Pj.rolesOf(p).find((r) => r.id === 'lead');
-  const leadName = (lead?.person && Ps.personList(ws).find((x) => x.id === lead.person)?.name) || Ps.meOf(ws)?.name || '';
+  // V147: gerechnete und zusammengesetzte Werte wie im Bericht (charterView)
+  const view = charterView(ws, p);
+  const leadName = view.lead;
   const miles: Note[] = Pj.tasksOfProject(ws, p.id).filter((n) => n.milestone);
   const fixed = (c.fixed ?? []).map((id) => miles.find((m) => m.id === id)).filter((m): m is Note => !!m);
   const dueOf = (m: Note) => m.due ?? m.notBefore;
-  const months = monthsBetween(p.start, p.end);
-  const reservePct = c.reserve !== undefined && p.budget ? Math.round((c.reserve / p.budget) * 1000) / 10 : undefined;
-  // V132 (P14): Summe der Kosten und Abgleich mit dem Budget (Kosten + Rücklage ≤ Budget)
-  const costSum = (c.costPm ?? 0) + (c.costStaff ?? 0) + (c.costMaterial ?? 0);
-  const over = p.budget !== undefined && costSum + (c.reserve ?? 0) > p.budget;
-  const risks = risksOf(ws, p.id).filter((r) => r.risk?.state !== 'closed').slice(0, 6);
+  const months = view.months;
+  const reservePct = view.reservePct;
+  const costSum = view.costSum;
+  const over = view.over;
+  const risks = view.risks;
   const toggleFixed = (id: string, on: boolean) => {
     const next = on ? [...(c.fixed ?? []), id] : (c.fixed ?? []).filter((x) => x !== id);
     dispatch({ type: 'charterEdit', id: p.id, patch: { fixed: next.length ? next : null } });
@@ -332,7 +325,7 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
             </tr>
             <Row label={S.reporting} msg={m('reporting')}><Field label={S.reporting} value={c.reporting} multi onSave={charter('reporting', S.reporting)} /></Row>
             <Row label={S.risks} msg={m('risks')}>
-              <span className="paper__ro is-strong" title={S.risksHint}>{risks.length ? risks.map((r) => titleOf(r)).join('; ') : <span className="paper__muted">{S.risksNone}</span>}</span>
+              <span className="paper__ro is-strong" title={S.risksHint}>{risks.length ? risks.join('; ') : <span className="paper__muted">{S.risksNone}</span>}</span>
             </Row>
             <Row label={S.special} msg={m('special')}><Field label={S.special} value={c.special} multi onSave={charter('special', S.special)} /></Row>
             <tr className="paper__release">
@@ -364,6 +357,57 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
         </table>
         <p className="paper__caption">{S.caption}</p>
       </article>
+      <CharterExtras p={p} dispatch={dispatch} tell={tell} m={m} style={paperZoom(size)} />
     </div>
+  );
+}
+
+/** V147 (F-232, Rangfolge 1 ICB4): Ergänzungen nach ICB4 4.3.1 · 4.5.1, die nicht auf dem Blatt von Abbildung 3 stehen –
+ *  zuklappbar unter dem Blatt (wie „Verwaltung“ darüber), im Bericht als Abschnitt unter dem Steckbrief. */
+function CharterExtras({ p, dispatch, tell, m, style }: { p: Project; dispatch: (a: Action) => void; tell: (at: string, text: string) => void; m: (at: string) => React.ReactNode; style: CSSProperties }) {
+  const c: ProjectCharter = p.charter ?? {};
+  const spec = (k: string) => Fk.fieldSpec('charter', k)!;
+  const save = (k: keyof ProjectCharter) => (v: string | number | null) => {
+    dispatch({ type: 'charterEdit', id: p.id, patch: { [k]: v } });
+    tell(k, S.saved(spec(k).label));
+  };
+  const filled = (['benefitMeasure', 'businessCase', 'model', 'tailoring', 'complexity', 'success'] as const).filter((k) => c[k] !== undefined && c[k] !== '').length;
+  const text = (k: 'benefitMeasure' | 'businessCase' | 'tailoring' | 'success', multi: boolean) => (
+    <label className="paper__xrow" key={k} title={spec(k).help}>
+      <span className="paper__xlabel">{spec(k).label}</span>
+      <Field label={spec(k).label} value={c[k]} multi={multi} onSave={save(k)} />
+      {m(k)}
+    </label>
+  );
+  return (
+    <details className="pj__admin paper__extras" style={style}>
+      <summary title={S.extrasHint}>{S.extras(filled)}</summary>
+      <div className="paper__xgrid">
+        {text('benefitMeasure', false)}
+        {text('businessCase', true)}
+        <label className="paper__xrow" title={spec('model').help}>
+          <span className="paper__xlabel">{spec('model').label}</span>
+          <select value={c.model ?? ''} onChange={(e) => save('model')(e.target.value || null)}>
+            <option value="">{S.empty}</option>
+            {(Object.keys(Fk.MODEL_LABEL) as (keyof typeof Fk.MODEL_LABEL)[]).map((k) => (
+              <option key={k} value={k}>{Fk.MODEL_LABEL[k]}</option>
+            ))}
+          </select>
+          {m('model')}
+        </label>
+        {text('tailoring', true)}
+        <label className="paper__xrow" title={spec('complexity').help}>
+          <span className="paper__xlabel">{spec('complexity').label}</span>
+          <select value={c.complexity ?? ''} onChange={(e) => save('complexity')(e.target.value ? Number(e.target.value) : null)}>
+            <option value="">{S.empty}</option>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={n}>{S.complexity(n)}</option>
+            ))}
+          </select>
+          {m('complexity')}
+        </label>
+        {text('success', true)}
+      </div>
+    </details>
   );
 }

@@ -595,7 +595,9 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'stageRestore':
       return St.restoreStage(ws, a.desk, a.undo);
     case 'projectAdd':
-      return Pj.addProject(ws, a.name, a.extra)?.ws ?? ws;
+      // V147 (V140 offen): von Hand angelegte Projekte brauchen keine Umstellung – Merker gleich setzen, sonst entstünde beim
+      // nächsten Laden überraschend eine Eisenhower-Matrix; Matrizen legt der Anwender selbst an (F-237)
+      return Pj.addProject(ws, a.name, { ...a.extra, eisenInit: true })?.ws ?? ws;
     case 'projectEdit':
       return Pj.editProject(ws, a.id, a.patch);
     case 'projectRemove':

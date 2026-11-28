@@ -13,6 +13,9 @@ import * as Gt from './gantt';
 import * as Sch from './schedule';
 import * as H from './help';
 import { TOURS } from './tour';
+import * as Rpt from './gpmReport';
+import * as Cs from './charterSheet';
+import * as Lv from './liveProject';
 
 describe('F-226 Datenmodell (V109): Ziele, Stakeholder, Phasen, Risiken quantitativ, Einsätze', () => {
   const base = () => {
@@ -1235,5 +1238,49 @@ describe('V145 Organigramm: Abkürzungen in der Legende', () => {
     const svg = Fg.figureSvg(ws, Sp.SAMPLE_PROJECT, 'org');
     expect(svg).toContain('Abkürzungen');
     expect(svg).toContain('Teamleitung');
+  });
+});
+
+describe('V147: Projektsteckbrief im Bericht wie Abbildung 3', () => {
+  it('Reihenfolge und Blöcke wie im Report, gleiche Werte wie das Blatt, ICB4-Ergänzungen darunter', () => {
+    let ws = Sp.addSampleProject(W.defaultWorkspace(), 5);
+    const id = Sp.SAMPLE_PROJECT;
+    const f = Fk.GPM_D.forms.find((x) => x.id === 'charter')!;
+    ws = Fk.setCell(ws, id, f, id, 'businessCase', 'Großkunde sichert Auslastung');
+    const html = Rpt.reportHtml(ws, id, { day: '2021-01-15' });
+    const sec = html.slice(html.indexOf('id="f-charter"'), html.indexOf('id="f-goals"'));
+    const order = ['Projekttitel', 'Projektnummer', 'AG extern/Kunde', 'AG intern', 'Projektleiter/in', 'Projektart', 'Oberziel', 'Hauptziele/ Kurzbeschreibung', 'Angestrebter Nutzen', 'Termine', 'Fixierte Meilensteine', 'Gesamtdauer', 'Kapazitätsaufwand', 'Budget insgesamt', 'Kosten €', 'PM-Kosten', 'Risikorücklage €', 'Projektbeteiligte', 'Fachteam', 'Lenkungsausschuss', 'Externe Dienstleister', 'Weitere wichtige SH', 'Berichterstattung', 'Mögliche Störungen/Risiken', 'Besonderheiten', 'Freigabe', 'Ergänzungen nach ICB4'];
+    const at = order.map((k) => sec.indexOf(k));
+    expect(at.every((x) => x > 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    expect(sec.includes('7 Monate')).toBe(true);
+    expect(sec.includes('Großkunde sichert Auslastung')).toBe(true);
+    // alte Bezeichnungen des Projektauftrags sind weg
+    expect(sec.includes('Ausgangssituation')).toBe(false);
+    const v = Cs.charterView(ws, Pj.projectById(ws, id)!);
+    expect(sec.includes(v.lead)).toBe(true);
+    // ohne Person in der Rolle: Name aus der Freigabe PL
+    const noLead = { ...Pj.projectById(ws, id)!, roles: Pj.rolesOf(Pj.projectById(ws, id)!).map((r) => (r.id === 'lead' ? { ...r, person: undefined } : r)) };
+    expect(Cs.charterView(ws, noLead).lead).toBe('Enrico Schulz');
+    expect(Cs.monthsBetween('2020-12-01', '2021-06-30')).toBe(7);
+    // Formular-Feldliste in Report-Reihenfolge, Ergänzungen nach ICB4 hinten
+    const keys = Fk.FIELDS.charter.map((x) => x.key);
+    expect(keys.indexOf('goal')).toBeLessThan(keys.indexOf('main'));
+    expect(keys.indexOf('others')).toBeLessThan(keys.indexOf('reporting'));
+    expect(Cs.CHARTER_EXTRAS.every((k) => keys.indexOf(k) > keys.indexOf('releasePl'))).toBe(true);
+  });
+});
+
+describe('V147: Eisenhower-Merker', () => {
+  it('Live-Projekt behält beim Aktualisieren gewählte Matrizen; Matrix-Umstellung läuft nur einmal', () => {
+    let ws = Lv.refreshLiveProject(W.defaultWorkspace(), 5);
+    ws = Fk.ensureMatrices(ws, 6);
+    ws = Pj.editProject(ws, Lv.LIVE_PROJECT, { eisenMaps: ['eis-pj-es'], eisenSel: 'eis-pj-es' }, 7);
+    ws = Lv.refreshLiveProject(ws, 8);
+    const p = Pj.projectById(ws, Lv.LIVE_PROJECT)!;
+    expect([p.eisenMaps, p.eisenSel, p.eisenInit]).toEqual([['eis-pj-es'], 'eis-pj-es', true]);
+    // Projekt mit Merker (von Hand angelegt) bekommt beim Laden keine Matrix
+    const made = Pj.addProject(ws, 'Neu', { eisenInit: true }, 9)!;
+    expect(Fk.ensureMatrices(made.ws, 10)).toBe(made.ws);
   });
 });

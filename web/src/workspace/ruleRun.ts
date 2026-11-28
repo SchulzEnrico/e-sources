@@ -124,7 +124,8 @@ export function eventsOf(prev: Workspace, next: Workspace): RuleEvent[] {
     // V153 (K14/K10a): neu im Eingang – nur bei einem Eingang, den es vorher schon gab (nicht beim ersten Anlegen)
     const inb = No.viewById(next, INBOX_ID);
     const pin = old.get(INBOX_ID);
-    if (inb && pin && inb !== pin) for (const id of inb.ids) if (!pin.ids.includes(id)) out.push({ k: 'inbox', note: id, view: INBOX_ID });
+    // V158: entsteht der Eingang mit dem ersten Gedanken, zählt die neue Notiz trotzdem (nur schon vorhandene Notizen nicht)
+    if (inb && inb !== pin) for (const id of inb.ids) if (pin ? !pin.ids.includes(id) : !No.noteById(prev, id)) out.push({ k: 'inbox', note: id, view: INBOX_ID });
   }
   return out;
 }
@@ -146,7 +147,8 @@ const STATE_TRIGS = new Set<TrigKind>(['done', 'reopen']);
 function triggers(ws: Workspace, r: KitRule, ev: RuleEvent): boolean {
   if (r.when.k !== ev.k) return false;
   const a = r.when.a?.trim() ?? '';
-  if (r.board) {
+  // V158: „Notiz kommt in den Eingang“ gilt unabhängig vom Board (Regel aus Board ⋮ › Automatisierung hat ein Board gesetzt)
+  if (r.board && ev.k !== 'inbox') {
     if (ev.view) {
       if (ev.view !== r.board) return false;
     } else {

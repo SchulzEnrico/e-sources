@@ -54,6 +54,7 @@ import { MAIN_NAME, collectedDesks, deskGone, deskRing, deskSaid, nextWindowName
 import { openAppWindow, useOpenWindows, windowTarget } from './workspace/useWindows';
 import { type MoveTarget, fetchPanels, moveTargets, setupOfWindow } from './workspace/move';
 import { PROBE, PROBE_KIND } from './workspace/probe';
+import { greetClosed, greetOnStart, greetToday, localDay, markGreeted } from './workspace/greetDay';
 import { Help } from './components/Help';
 import { Tour } from './components/Tour';
 import { ProjectCockpit, shownProjectId } from './components/ProjectCockpit';
@@ -75,7 +76,7 @@ import { type NoteHit, tabShowing, titleOf as noteTitleOf, viewById } from './wo
 import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, setPanelSize, resetPanel, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
 import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_LAYOUT_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, sampleText, STAGE_TEXT, VIEW_TEXT } from './workspace/terms';
-import { type DeskMode, PHONE_MQ, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
+import { type DeskMode, PHONE_MQ, modeOf, saveModes, startModes, withMode } from './workspace/deskMode';
 import { INBOX_TEXT, INK_TEXT, CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, RULE_SET_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
@@ -372,7 +373,8 @@ function DeskApp(props: DeskProps) {
   /** F-206 Schritt 3: Pads aus-/einblenden (nur in diesem Fenster) und geöffnete Note je Notizblock. */
   const [padsHidden, setPadsHidden] = useState(false);
   // V75 (F-215): Desk Mode / Note Mode je Desk (je Gerät); Telefon = schmal → startet im Note Mode
-  const [deskModes, setDeskModes] = useState(loadModes);
+  // V158: Start immer im Notizen-Modus (Hauptfenster setzt die Modi der letzten Sitzung zurück)
+  const [deskModes, setDeskModes] = useState(() => startModes(!win));
   // V76 (Enrico: Querformat auf dem Telefon): Telefon = schmal oder im Querformat niedrig mit Touch – sonst sprang
   // E-Sources beim Drehen in den Desk Mode (über 600 px breit)
   const [phone, setPhone] = useState(() => typeof matchMedia === 'function' && matchMedia(PHONE_MQ).matches);
@@ -607,7 +609,11 @@ function DeskApp(props: DeskProps) {
     else notify(SYNC_TEXT.pulled);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gist.at, gist.last]);
-  const [greetOn, setGreetOn] = useState(() => !win && !props.switched && !tourAutoStart('start') && profileOf(ws).greet);
+  // V158: höchstens einmal am Tag (Start oder Pause, was zuerst kommt)
+  const [greetOn, setGreetOn] = useState(() => !win && !props.switched && !tourAutoStart('start') && profileOf(ws).greet && greetOnStart(localDay()));
+  useEffect(() => {
+    if (greetOn) markGreeted(localDay());
+  }, [greetOn]);
   // V156 (F-109 „Wo war ich?“): nach einer Pause (Tab verborgen oder ohne Eingabe ≥ 30 min) kommt die Begrüßung wieder
   const [greetBack, setGreetBack] = useState(0);
   const greetOk = useRef(false);
@@ -618,7 +624,7 @@ function DeskApp(props: DeskProps) {
     let hiddenAt = 0;
     const back = (since: number) => {
       const now = Date.now();
-      if (!greetOk.current || !Ww.isPause(since, now)) return;
+      if (!greetOk.current || !Ww.isPause(since, now) || !greetToday(localDay())) return;
       setGreetBack(Math.max(1, Math.round((now - since) / 60_000)));
       setGreetOn(true);
     };
@@ -2113,7 +2119,8 @@ function DeskApp(props: DeskProps) {
       return;
     }
     setPadsHidden(false);
-    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .nblock__new, [data-pad-id="${id}"] button`)?.focus(), 80);
+    // V158: mit Sheet (z. B. „Eingang“ aus dem Cockpit) auf dessen Reiter, sonst wie bisher
+    window.setTimeout(() => ((sheet ? document.querySelector<HTMLElement>(`[data-pad-id="${id}"] [data-sheet="${sheet}"]`) : null) ?? document.querySelector<HTMLElement>(`[data-pad-id="${id}"] .nblock__new, [data-pad-id="${id}"] button`))?.focus(), 80);
   };
   /** V85 (N10): Pad auf einen anderen Desk – hierher: schwebend über dem aktiven Slot; sonst Platz beim ersten Zeigen. */
   const padToDesk = (id: string, desk: string) => {
@@ -2606,7 +2613,7 @@ function DeskApp(props: DeskProps) {
   useEffect(() => {
     if (greetBack) sayLive(`${GREET_TEXT.back} ${GREET_TEXT.backSub(greetBack)}${greetLast ? ` Zuletzt offen: ${greetLast.name}.` : ''} ${whereSaid(Ww.whereWas(ws, Date.now()))}`.trim());
   }, [greetBack]); // eslint-disable-line react-hooks/exhaustive-deps
-  const closeGreeting = useCallback(() => (setGreetOn(false), setGreetBack(0)), []);
+  const closeGreeting = useCallback(() => (greetClosed(), setGreetOn(false), setGreetBack(0)), []);
   const continueLast = () => {
     closeGreeting();
     if (lastPanel) focusPortal(lastPanel.id);
@@ -2697,7 +2704,7 @@ function DeskApp(props: DeskProps) {
 
   // F-228 (V111): Überlauf der Kopfleiste – die Mitte wird knapp (Suche bleibt), „»“ zeigt sie schwebend ganz
   const tbCenterRef = useRef<HTMLDivElement>(null);
-  const tbOvf = useOverflow(tbCenterRef, { label: OVERFLOW_TEXT.toolbar, keep: '.search' });
+  const tbOvf = useOverflow(tbCenterRef, { label: OVERFLOW_TEXT.toolbar, keep: '.search', fill: true });
 
   /** V111 (Enrico): „Entscheidung“ neben den Sheets – freie Entscheidung anlegen, im Pad im Vollbild öffnen (E1-C). */
   const newDecisionHere = () => {
@@ -4773,6 +4780,11 @@ function DeskApp(props: DeskProps) {
             setProfileOpen(true);
           }}
           onClose={closeGreeting}
+          onNever={() => {
+            closeGreeting();
+            dispatch({ type: 'profile', change: { greet: false } });
+            notify(GREET_TEXT.neverSaid, 8000, false, { label: GREET_TEXT.neverUndo, run: () => dispatch({ type: 'profile', change: { greet: true } }) });
+          }}
           where={greetWhere}
           back={greetBack || undefined}
           onNote={(id) => (closeGreeting(), openNoteRef.current(id))}
@@ -5097,11 +5109,12 @@ function DeskApp(props: DeskProps) {
 const HINT_SHORT = 2000;
 
 
-/** V99 (F-206 Schritt 10): Rad „Arbeitsweise dieses Desks“ – Desk · Notizen · Projekte (Kopfzeile und Menü gleich, NF-08) */
+/** V99 (F-206 Schritt 10): Rad „Arbeitsweise dieses Desks“ – seit V158 Notizen · Projekte · Desk (Kopfzeile und Menü gleich, NF-08) */
+// V158 (Enrico): Notizen · Projekte · Desk – meistgenutzt zuerst, Desk zuletzt
 const DESK_MODE_OPTIONS = [
-  { id: 'desk', name: DESK_MODE_TEXT.desk, icon: 'desk' as const, hint: DESK_MODE_TEXT.deskHint },
   { id: 'notes', name: DESK_MODE_TEXT.notes, icon: 'note' as const, hint: DESK_MODE_TEXT.notesHint },
   { id: 'projects', name: DESK_MODE_TEXT.projects, icon: 'project' as const, hint: DESK_MODE_TEXT.projectsHint },
+  { id: 'desk', name: DESK_MODE_TEXT.desk, icon: 'desk' as const, hint: DESK_MODE_TEXT.deskHint },
 ];
 
 export default function App(props: { sent?: string }) {

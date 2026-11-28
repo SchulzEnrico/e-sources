@@ -4926,7 +4926,8 @@ describe('V75 Steuerknopf über der Tastatur (F-215 A2)', () => {
 
 describe('V75 Umschalter Desk | Notes', () => {
   it('Telefon startet im Note Mode, ausdrückliche Wahl gewinnt', () => {
-    expect(DM.modeOf({}, 'a', false)).toBe('desk');
+    expect(DM.modeOf({}, 'a', false)).toBe('notes'); // V158: Start immer im Notizen-Modus
+    expect(DM.DESK_MODE_ORDER).toEqual(['notes', 'projects', 'desk']);
     expect(DM.modeOf({}, 'a', true)).toBe('notes');
     expect(DM.modeOf({ a: 'desk' }, 'a', true)).toBe('desk');
     expect(DM.modeOf(DM.withMode({}, 'a', 'notes'), 'a', false)).toBe('notes');

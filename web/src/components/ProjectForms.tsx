@@ -11,7 +11,7 @@
 import pagedUrl from '../../node_modules/pagedjs/dist/paged.polyfill.js?url';
 import { qrSvg } from '../workspace/qr';
 import { appBase, projectLinkUrl } from '../workspace/projectLink';
-import { Fragment, type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { Fragment, type KeyboardEvent, type TextareaHTMLAttributes, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { FormDef, FormFieldType, Project, Workspace } from '../workspace/types';
 import * as Fk from '../workspace/formKit';
@@ -51,6 +51,13 @@ const FIGURE_VIEW: Record<string, 'psp' | 'gantt' | 'res' | undefined> = { psp: 
 /** V134: Gewicht einer Spalte für die feste Tabellenaufteilung auf dem Blatt (lange Texte breit, Zahlen und Kästchen schmal). */
 const COL_WEIGHT: Record<string, number> = { long: 3, lines: 3, akv: 3, goal: 2, note: 2, name: 2.2, text: 1.6, person: 1.5, roles: 1.5, use: 1.5, phase: 1.4, choice: 1.3, date: 1.45, money: 1.2, number: 0.9, pct: 0.9, accept: 2, gpm: 1, bool: 0.7 };
 const colWeight = (c: { key: string; kind: string }) => (c.key === 'code' ? 1 : COL_WEIGHT[c.kind] ?? 1.3);
+/** V158: Gewicht nach Inhalt – Zahlen, Beträge, Prozente und Codes brechen nicht sinnvoll um, also Platz für den längsten Wert (≈ 0,15 je Zeichen + Rand). */
+const fitWeight = (c: { key: string; kind: string; digits?: number }, values: unknown[]): number => {
+  const base = colWeight(c);
+  if (c.key !== 'code' && c.kind !== 'number' && c.kind !== 'money' && c.kind !== 'pct') return base;
+  const n = values.reduce<number>((m, v) => Math.max(m, v === undefined || v === '' ? 0 : (typeof v === 'number' ? fmtNum(v, c.kind as Fk.FieldKind) : String(v)).length), 0);
+  return Math.max(base, 0.19 * n + 0.5);
+};
 const todayDay = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1055,16 +1062,20 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onTo
             <table className="pc__table pjf__table is-fixed" aria-labelledby={`${base}-head`}>
               {/* V134 (Enrico 11:25 „muss in der Breite zur Seite passen … bei allen anderen auch“): feste Aufteilung nach Spaltenart, Summe = Blattbreite */}
               <colgroup>
-                {cols.map((c) => (
-                  <col key={c.key} style={{ width: `${(100 * colWeight(c)) / cols.reduce((a, x) => a + colWeight(x), 0)}%` }} />
-                ))}
+                {/* V158: Zahlen- und Code-Spalten mindestens so breit wie ihr längster Wert – man kann immer alles lesen */}
+                {(() => {
+                  const w = cols.map((c) => fitWeight(c, rows.map((r) => Fk.cellValue(ws, p.id, form, r.id, c.key))));
+                  const sum = w.reduce((a, x) => a + x, 0);
+                  return cols.map((c, i) => <col key={c.key} style={{ width: `${(100 * w[i]) / sum}%` }} />);
+                })()}
                 <col className="pjf__actcol" />
               </colgroup>
               <thead>
                 <tr>
                   {cols.map((c) => (
                     <th key={c.key} scope="col" title={c.help}>
-                      {c.label}
+                      {/* V158: nach „/“ darf umbrechen (sonst „INTERN/E | XTERN“) */}
+                      {c.label.replace(/\//g, '/\u200b')}
                       {c.required && <span className="pjf__req" aria-label={T.required}>*</span>}
                     </th>
                   ))}
@@ -1371,6 +1382,26 @@ function LongCell({ common, rows, value, label, onSave }: { common: Record<strin
   );
 }
 
+/** V158: einzeiliger Text als Feld, das umbricht und in der Höhe mitwächst (Zeilenumbrüche werden zu Leerzeichen). */
+export function GrowText({ value, onChange, ...rest }: { value: string; onChange: (v: string) => void } & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'onChange'>) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    // nur auf Breitenänderungen reagieren (Spalte schmaler/breiter), nicht auf die eigene Höhe
+    let w = el.clientWidth;
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => el.clientWidth !== w && ((w = el.clientWidth), fit()));
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [value]);
+  return <textarea ref={ref} rows={1} data-single="1" className="pjf__grow" value={value} onChange={(e) => onChange(e.target.value.replace(/\r?\n/g, ' '))} {...rest} />;
+}
+
 /** Eine Zelle: Eingabe je nach Art; übernimmt bei Enter bzw. beim Verlassen, Esc verwirft. */
 function Cell({ ws, p, form, rowId, col, miss, label, onSet }: { ws: Workspace; p: Project; form: FormDef; rowId: string; col: Fk.FormCol; miss: boolean; label: string; onSet: (row: string, key: string, v: Fk.CellValue) => void }) {
   const v = Fk.cellValue(ws, p.id, form, rowId, col.key);
@@ -1393,7 +1424,7 @@ function Cell({ ws, p, form, rowId, col, miss, label, onSet }: { ws: Workspace; 
       e.preventDefault();
       e.stopPropagation();
       setDraft(null);
-    } else if (e.key === 'Enter' && (e.currentTarget.tagName === 'INPUT' || e.metaKey || e.ctrlKey)) {
+    } else if (e.key === 'Enter' && (e.currentTarget.tagName === 'INPUT' || e.currentTarget.dataset.single === '1' || e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       commit();
     }
@@ -1417,16 +1448,29 @@ function Cell({ ws, p, form, rowId, col, miss, label, onSet }: { ws: Workspace; 
               ? (p.roles ?? []).filter((r) => r.id !== rowId).map((r) => ({ v: r.id, label: r.name }))
               : (p.phases ?? []).map((x) => ({ v: x.id, label: x.name }));
     const cur = typeof v === 'string' ? v : '';
+    // V158: der gewählte Text steht sichtbar und bricht um (eine Auswahlliste schneidet sonst ab); die Liste liegt darüber
+    const curLabel = cur ? (options.find((o) => o.v === cur)?.label ?? cur) : T.none;
     return (
-      <select {...common} value={cur} onChange={(e) => onSet(rowId, col.key, e.target.value)}>
-        <option value="">{T.none}</option>
-        {cur && !options.some((o) => o.v === cur) && <option value={cur}>{cur}</option>}
-        {options.map((o) => (
-          <option key={o.v} value={o.v}>{o.label}</option>
-        ))}
-      </select>
+      <span className="pjf__sel">
+        <span className="pjf__selText" aria-hidden="true">{curLabel}</span>
+        <select {...common} value={cur} onChange={(e) => onSet(rowId, col.key, e.target.value)}>
+          <option value="">{T.none}</option>
+          {cur && !options.some((o) => o.v === cur) && <option value={cur}>{cur}</option>}
+          {options.map((o) => (
+            <option key={o.v} value={o.v}>{o.label}</option>
+          ))}
+        </select>
+      </span>
     );
   }
+  // V158: Text in Tabellen bricht um und wächst mit – man kann immer alles lesen (Enter übernimmt wie bisher)
+  if (col.kind === 'text')
+    return (
+      <span className="pjf__in">
+        <GrowText {...common} value={val} maxLength={300} onChange={(x) => setDraft(x)} onBlur={commit} onKeyDown={keys} />
+        {auto && <span className="pjf__auto" title={T.autoHint[col.key] ?? T.auto}>{T.auto}</span>}
+      </span>
+    );
   if (col.kind === 'long' || col.kind === 'lines') return <LongCell common={common} rows={form.layout === 'fields' ? 3 : 2} value={typeof v === 'string' ? v : ''} label={label} onSave={(x) => onSet(rowId, col.key, x)} />;
   return (
     <span className="pjf__in">
@@ -1435,7 +1479,7 @@ function Cell({ ws, p, form, rowId, col, miss, label, onSet }: { ws: Workspace; 
         type={col.kind === 'date' ? 'date' : 'text'}
         inputMode={col.kind === 'number' || col.kind === 'money' || col.kind === 'pct' ? 'decimal' : undefined}
         value={val}
-        maxLength={col.kind === 'text' ? 300 : 30}
+        maxLength={30}
         title={col.kind === 'date' && typeof v === 'string' ? dmy(v) : undefined}
         onChange={(e) => (col.kind === 'date' ? onSet(rowId, col.key, e.target.value) : setDraft(e.target.value))}
         onBlur={commit}

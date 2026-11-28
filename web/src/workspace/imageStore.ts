@@ -5,6 +5,7 @@
  * Bilder ohne Notiz (auch nicht im Entwurf) fallen beim Start weg, wenn älter als ein Tag (wie beim Ton).
  */
 import { SWEEP_AGE_MS, sweepable } from './audioStore';
+import { samplePic } from './samplePics';
 
 const DB = 'esource.images';
 const STORE = 'pics';
@@ -67,7 +68,18 @@ function run<T>(mode: IDBTransactionMode, work: (s: IDBObjectStore) => IDBReques
 }
 
 export const putPic = (p: Pic) => run('readwrite', (s) => s.put(p)).then(() => true, () => false);
-export const getPic = (id: string) => run<Pic | undefined>('readonly', (s) => s.get(id) as IDBRequest<Pic | undefined>).catch(() => undefined);
+const storedPic = (id: string) => run<Pic | undefined>('readonly', (s) => s.get(id) as IDBRequest<Pic | undefined>).catch(() => undefined);
+/** V158: Bilder des Beispielprojekts (z. B. Logo „CG“ mit Hut) kommen aus dem Programm, wenn der Gerätespeicher sie nicht hat. */
+function bundledPic(id: string): Pic | undefined {
+  const url = samplePic(id);
+  const m = url && /^data:([^;]+);base64,(.*)$/.exec(url);
+  if (!m) return undefined;
+  const bin = atob(m[2]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return { id, blob: new Blob([bytes], { type: m[1] }), mime: m[1], w: 0, h: 0, at: 0 };
+}
+export const getPic = async (id: string): Promise<Pic | undefined> => (await storedPic(id)) ?? bundledPic(id);
 export const delPic = (id: string) => run('readwrite', (s) => s.delete(id)).then(() => true, () => false);
 
 /** Bilder ohne Notiz entfernen (beim Start) */

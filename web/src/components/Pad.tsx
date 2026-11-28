@@ -521,7 +521,8 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
   const typing = (t: EventTarget) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
   const onKey = (e: KeyboardEvent) => {
     // Alt + Pfeil verschieben, Alt + Umschalt + Pfeil Größe
-    if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.startsWith('Arrow') && !typing(e.target)) {
+    // V158: hat ein Inhalt (z. B. Karte im Sheet: Alt+↑/↓ stellt um) die Taste schon genommen, tauscht das Pad nicht mit
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.startsWith('Arrow') && !typing(e.target) && !e.defaultPrevented) {
       e.preventDefault();
       e.stopPropagation();
       // V81 (D11): im Dock ändert Alt + Pfeil links/rechts die Breite (das Dock wächst nach links)

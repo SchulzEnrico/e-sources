@@ -388,16 +388,16 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
   const rowKey = (e: KeyboardEvent<HTMLElement>, n: Note) => {
     const ids = [...(listRef.current?.querySelectorAll<HTMLElement>('[data-row]') ?? [])];
     const i = ids.indexOf(e.currentTarget);
-    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey) {
+    // V158: ohne eigene Reihenfolge bleibt Alt+↑/↓ beim Pad (kein preventDefault)
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey && order === 'own' && v.ids.includes(n.id)) {
       e.preventDefault();
-      if (order !== 'own' || !v.ids.includes(n.id)) return;
       const d = e.key === 'ArrowUp' ? -1 : 1;
       dispatch({ type: 'sheetShift', view: sheetId, note: n.id, by: d });
       say(SHEET_TEXT.moved(d));
       return focusRow(n.id);
     }
-    if (e.key === 'ArrowDown') return void (e.preventDefault(), ids[i + 1]?.focus());
-    if (e.key === 'ArrowUp') return void (e.preventDefault(), i > 0 ? ids[i - 1].focus() : newRef.current?.focus());
+    if (e.key === 'ArrowDown' && !e.altKey) return void (e.preventDefault(), ids[i + 1]?.focus());
+    if (e.key === 'ArrowUp' && !e.altKey) return void (e.preventDefault(), i > 0 ? ids[i - 1].focus() : newRef.current?.focus());
     if (e.key === 'Home') return void (e.preventDefault(), ids[0]?.focus());
     if (e.key === 'End') return void (e.preventDefault(), ids[ids.length - 1]?.focus());
     if (e.key === ' ') return void (e.preventDefault(), toggle(n));

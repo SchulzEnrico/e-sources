@@ -68,7 +68,7 @@ export function ovfConceal(el: Element | null): void {
   for (const b of ovfBarsOf(el)) b.dispatchEvent(new CustomEvent('ovf:conceal'));
 }
 
-export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: string; keepActive?: boolean; keep?: string; off?: boolean; /** Reiter: offen als Liste nach unten (Enrico: „Am besten nach unten“) */ drop?: boolean; /** knapp erzwingen (z. B. Reiter in einer schwebenden Kopfleiste) */ forceTight?: boolean }): OverflowState {
+export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: string; keepActive?: boolean; keep?: string; off?: boolean; /** Reiter: offen als Liste nach unten (Enrico: „Am besten nach unten“) */ drop?: boolean; /** knapp erzwingen (z. B. Reiter in einer schwebenden Kopfleiste) */ forceTight?: boolean; /** V158: knapp heißt nicht „alles weg“ – vorn bleibt, was passt (Kopfleiste) */ fill?: boolean }): OverflowState {
   const [tight, setTight] = useState(false);
   const [open, setOpen] = useState(false);
   const [hidden, setHidden] = useState(0);
@@ -109,6 +109,12 @@ export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: s
     el.classList.remove('is-ovf-tight', 'is-ovf-open', 'is-ovf-vertical');
     el.classList.add('ovf-measure');
     need.current = Math.ceil(el.getBoundingClientRect().width);
+    // V158 (Enrico: „Bedienelemente in der Kopfleiste dauerhaft eingeklappt“): Breiten der Kinder für „fill“
+    const isKid = (c: HTMLElement) => !c.classList.contains('ovf__knob') && !c.classList.contains('sr-only') && !c.classList.contains('ovf-ph') && !c.hidden && c.getAttribute('aria-hidden') !== 'true';
+    const all = (Array.from(el.children) as HTMLElement[]).filter(isKid);
+    for (const c of all) c.removeAttribute('data-ovf-out');
+    const widths = opts.fill ? all.map((c) => c.getBoundingClientRect().width) : [];
+    const gap = opts.fill ? parseFloat(getComputedStyle(el).columnGap) || 0 : 0;
     el.className = had;
     const box = ph.current ?? el;
     const avail = Math.floor(box.getBoundingClientRect().width);
@@ -116,6 +122,24 @@ export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: s
     setTight(t);
     if (!t) setOpen(false);
     const kids = (Array.from(el.children) as HTMLElement[]).filter((c) => !c.hasAttribute('data-ovf-keep') && !c.classList.contains('ovf__knob') && !c.classList.contains('sr-only') && !c.classList.contains('ovf-ph') && !c.hidden && c.getAttribute('aria-hidden') !== 'true' && c.tagName !== 'INPUT');
+    if (opts.fill && t) {
+      // vorn bleibt, was passt – Reihenfolge bleibt; „»“ (≈ 56 px) und die festen Elemente haben Vorrang
+      const room = avail - 56;
+      let used = all.reduce((a, c, i) => a + (c.hasAttribute('data-ovf-keep') ? widths[i] + gap : 0), 0);
+      let full = false;
+      let out = 0;
+      all.forEach((c, i) => {
+        if (c.hasAttribute('data-ovf-keep') || c.tagName === 'INPUT') return;
+        if (!full && used + widths[i] + gap <= room) used += widths[i] + gap;
+        else {
+          full = true;
+          c.setAttribute('data-ovf-out', '');
+          out++;
+        }
+      });
+      setHidden(out);
+      return;
+    }
     setHidden(t ? kids.length : 0);
   };
 
@@ -319,5 +343,5 @@ export function useOverflow(ref: RefObject<HTMLElement | null>, opts: { label: s
       {opts.drop && <Icon name="chevronDown" size={10} />}
     </button>
   );
-  return { cls: `${tight ? ' is-ovf-tight' : ''}${tight && open ? ' is-ovf-open' : ''}${tight && open && (vertical || opts.drop) ? ' is-ovf-vertical' : ''}${opts.drop ? ' is-ovf-drop' : ''}`, knob, tight, open: tight && open };
+  return { cls: `${opts.fill ? ' ovf-fill' : ''}${tight ? ' is-ovf-tight' : ''}${tight && open ? ' is-ovf-open' : ''}${tight && open && (vertical || opts.drop) ? ' is-ovf-vertical' : ''}${opts.drop ? ' is-ovf-drop' : ''}`, knob, tight, open: tight && open };
 }

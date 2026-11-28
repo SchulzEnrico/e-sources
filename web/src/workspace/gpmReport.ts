@@ -367,11 +367,16 @@ export function reportHtml(ws: Workspace, pid: string, o: { version?: string; da
   const st = projectStatus(ws, pid, o.day);
   // V155 (F-236 G3 Rest): Fußzeile nach der Layout-Vorlage (Projektnummer, Seite)
   const foot = printFooter(layoutOf(p), { no, name: p.name, stand: `Stand ${dmy(o.day)}` });
+  const logo = logoId(p.charter?.logo);
+  const logoUrl = logo ? o.pics?.get(logo) : undefined;
+  const logoOk = !!logoUrl && layoutOf(p).printLogo && /^data:image\//.test(logoUrl);
+  // V158: Logo oben rechts auf jeder Seite wie im Report (laufendes Element – nur mit Paged.js, sonst nur auf dem Deckblatt)
+  const runLogo = logoOk && !!o.paged;
   const out: string[] = [];
   out.push(`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>${esc(`Projektbericht ${head}`)}</title><style>
 @page { size: A4; margin: 22mm 16mm 20mm;
   @top-left { content: "${cssText(head)}"; font: 9pt sans-serif; color: #555; }
-  @top-right { content: "${cssText(tpl.name)}"; font: 9pt sans-serif; color: #555; }
+  ${runLogo ? `@top-center { content: "${cssText(tpl.name)}"; font: 9pt sans-serif; color: #555; } @top-right { content: element(pagelogo); vertical-align: bottom; }` : `@top-right { content: "${cssText(tpl.name)}"; font: 9pt sans-serif; color: #555; }`}
   @bottom-left { content: "${cssText(foot.left)}"; font: 9pt sans-serif; color: #888; }
   @bottom-center { content: "${cssText(`Version ${docVersion(p) ?? o.version ?? '1'}`)}"; font: 9pt sans-serif; color: #888; }
   ${foot.page ? '@bottom-right { content: "Seite " counter(page) " von " counter(pages); font: 9pt sans-serif; color: #888; }' : ''} }
@@ -391,7 +396,7 @@ table.kv th { width: 34%; } .empty { color: #777; font-style: italic; } .cover {
 table.wpsheet { border: 2px solid #111; break-inside: avoid; } table.kv.wpsheet th { width: auto; background: #d9d9d9; } table.wpsheet col.wpsheet__l { width: 17%; } table.wpsheet th.wpsheet__head { background: #8a8a8a; color: #fff; font-size: 18pt; vertical-align: middle; padding-left: 12pt; } table.wpsheet td.sheethead__qr { padding: 3pt; background: #fff; } table.wpsheet td.sheethead__qr svg { display: block; width: 74pt; height: 74pt; }
 table.charter > tbody > tr > th { width: 26%; } table.charter td.sub { padding: 0; } table.charter .grid { margin: 0; border: 0; } table.charter .grid th { background: #f6f6f6; font-weight: normal; } table.charter .grid.rows th { width: 34%; } td.is-strong { font-weight: bold; }
 .sign__who { font-size: 8.5pt; } .sign__line { border-top: 1px solid #999; font-size: 8pt; color: #555; padding-top: 1pt; } tr.release td { white-space: normal; } figure { margin: 6pt 0; break-inside: avoid; } img.fig { display: block; width: 100%; height: auto; max-height: 215mm; object-fit: contain; } section.wide img.fig { max-height: 150mm; }
-.logo { float: right; max-height: 22mm; max-width: 50mm; } figure.media { display: inline-block; margin: 3pt 6pt 3pt 0; vertical-align: top; } figure.media img { display: block; max-width: 100%; max-height: 7cm; border: 1px solid #bbb; } figure.media figcaption { font-size: 8pt; color: #555; } .media--file, .media--missing { display: inline-block; font-size: 8.5pt; color: #555; }
+.logo { float: right; max-height: 22mm; max-width: 50mm; } .pagelogo { position: running(pagelogo); text-align: right; } .pagelogo img { max-height: 13mm; max-width: 40mm; } figure.media { display: inline-block; margin: 3pt 6pt 3pt 0; vertical-align: top; } figure.media img { display: block; max-width: 100%; max-height: 7cm; border: 1px solid #bbb; } figure.media figcaption { font-size: 8pt; color: #555; } .media--file, .media--missing { display: inline-block; font-size: 8.5pt; color: #555; }
 @media screen { body:not(.paged) { max-width: 900px; margin: 24px auto; padding: 0 16px; } .bar { position: sticky; top: 0; background: #fff; padding: 8px 0; border-bottom: 1px solid #ddd; } }
 @media print { .bar { display: none; } }
 nav.toc { break-after: page; } nav.toc h2 { border: 0; font-size: 15pt; margin: 0 0 8pt; color: #1b1b1b; }
@@ -402,9 +407,8 @@ nav.toc { break-after: page; } nav.toc h2 { border: 0; font-size: 15pt; margin: 
 ${layoutCss(p)}</style>${o.paged ? pagedScript(o.paged) : ''}</head><body${o.paged ? ' class="paged"' : ''}>`);
   // V156: mit Paged.js steht der Knopf außerhalb der Seiten (wird nach dem Aufteilen eingefügt)
   if (!o.paged) out.push(`<div class="bar"><button type="button" onclick="window.print()">Drucken bzw. als PDF sichern</button></div>`);
-  const logo = logoId(p.charter?.logo);
-  const logoUrl = logo ? o.pics?.get(logo) : undefined;
-  out.push(`<div class="cover">${logoUrl && layoutOf(p).printLogo && /^data:image\//.test(logoUrl) ? `<img class="logo" src="${esc(logoUrl)}" alt="Logo">` : ''}<h1>Projektbericht ${esc(p.name)}</h1><p class="meta">${esc([no ? `Projektnummer ${no}` : '', p.charter?.client ? `Auftraggeber ${p.charter.client}` : '', `Stand ${dmy(o.day)}`].filter(Boolean).join(' · '))}</p>`);
+  if (runLogo) out.push(`<div class="pagelogo"><img src="${esc(logoUrl!)}" alt=""></div>`);
+  out.push(`<div class="cover">${logoOk ? `<img class="logo" src="${esc(logoUrl!)}" alt="Logo">` : ''}<h1>Projektbericht ${esc(p.name)}</h1><p class="meta">${esc([no ? `Projektnummer ${no}` : '', p.charter?.client ? `Auftraggeber ${p.charter.client}` : '', `Stand ${dmy(o.day)}`].filter(Boolean).join(' · '))}</p>`);
   out.push(`<table class="kv"><tbody>`);
   const kv = (k: string, v: string) => v && out.push(`<tr><th scope="row">${esc(k)}</th><td>${esc(v)}</td></tr>`);
   kv('Projektzeitraum', [p.start ? dmy(p.start) : '', p.end ? dmy(p.end) : ''].filter(Boolean).join(' – '));
@@ -814,7 +818,8 @@ function layoutCss(p: Project): string {
   if (l.headFont !== D.headFont) css.push(`h1, h2, h3 { font-family: ${FONT_CSS[l.headFont]}; }`);
   if (l.headSize !== D.headSize) css.push(`h1 { font-size: ${(20 * l.headSize) / 100}pt; } h2 { font-size: ${(13 * l.headSize) / 100}pt; } h3 { font-size: ${(11 * l.headSize) / 100}pt; }`);
   if (l.tableSize !== D.tableSize) css.push(`table { font-size: ${(9 * l.tableSize) / 100}pt; } section.wide table { font-size: ${(8 * l.tableSize) / 100}pt; }`);
-  if (l.tableHead !== D.tableHead) css.push(`thead th, table.wpsheet th.wpsheet__head { background: ${l.tableHead}; color: ${textOn(l.tableHead)}; }`);
+  // V158: die Zeilenköpfe im Steckbrief (Starttermin …) behalten ihren hellen Grund – dort keine weiße Schrift (sonst unlesbar)
+  if (l.tableHead !== D.tableHead) css.push(`thead th, table.wpsheet th.wpsheet__head { background: ${l.tableHead}; color: ${textOn(l.tableHead)}; } table.charter .grid thead th { color: inherit; }`);
   if (l.tableGrid === 'rows') css.push('th, td { border-left-color: transparent; border-right-color: transparent; }');
   if (l.tableGrid === 'none') css.push('th, td { border-color: transparent; } table.wpsheet { border-color: transparent; }');
   return css.join(' ');

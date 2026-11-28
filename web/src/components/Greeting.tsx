@@ -41,11 +41,13 @@ interface Props {
   back?: number;
   onNote?: (id: string) => void;
   onInbox?: () => void;
+  /** V158: Begrüßung dauerhaft ausschalten (Profil › Begrüßung) */
+  onNever?: () => void;
 }
 
-const STAY_MS = 5000;
-/** V156: mit „Wo war ich?“ etwas länger stehen lassen – es gibt mehr zu lesen */
-const STAY_WHERE_MS = 9000;
+/** V158 (Enrico): höchstens 2,5 Sekunden – Maus oder Tastaturfokus darauf halten sie weiter an (zum Lesen) */
+const STAY_MS = 2500;
+const STAY_WHERE_MS = 2500;
 
 /** Pfad einer Adresse ohne Domain, z. B. „/docs/start“ – leer, wenn nur „/“. */
 function pathOf(url: string): string {
@@ -58,7 +60,7 @@ function pathOf(url: string): string {
   }
 }
 
-export function Greeting({ profile, greeting, last, onContinue, recent, onPortal, onSource, onProfile, onClose, where, back, onNote, onInbox }: Props) {
+export function Greeting({ profile, greeting, last, onContinue, recent, onPortal, onSource, onProfile, onClose, where, back, onNote, onInbox, onNever }: Props) {
   const hasWhere = !!where && (!!where.card || where.thoughts.length > 0);
   const stay = hasWhere ? STAY_WHERE_MS : STAY_MS;
   const box = useRef<HTMLElement>(null);
@@ -164,6 +166,11 @@ export function Greeting({ profile, greeting, last, onContinue, recent, onPortal
           <button type="button" aria-expanded={!!open} aria-controls={listId} title={G.moreTitle} onClick={() => setOpen(open ? null : recent())}>
             {open ? G.less : G.more}
           </button>
+          {onNever && (
+            <button type="button" className="greeting__never" title={G.neverTitle} onClick={onNever}>
+              {G.never}
+            </button>
+          )}
         </div>
       </div>
       <div className="greeting__corner">

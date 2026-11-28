@@ -45,6 +45,14 @@ describe('V154 F-232 P12 Medien in Feldern', () => {
     expect(html).toContain('📎 Ton.m4a');
     expect(html).not.toContain('es-img:');
     expect(html).not.toContain('es-file:');
+    // V158: ohne Paged.js nur auf dem Deckblatt; mit Paged.js zusätzlich oben rechts auf jeder Seite
+    expect(html).not.toContain('class="pagelogo"');
+    const paged = reportHtml(ws, pm, { day: '2026-11-28', paged: 'http://x/paged.js', pics: new Map([['logo1', 'data:image/png;base64,BBB']]) });
+    expect(paged).toContain('<div class="pagelogo"><img src="data:image/png;base64,BBB" alt=""></div>');
+    expect(paged).toContain('@top-right { content: element(pagelogo)');
+    // V158: Kopf der Tabellen dunkel → Steckbrief-Unterköpfe bleiben lesbar
+    const dark = reportHtml({ ...ws, projects: ws.projects!.map((x) => (x.id === pm ? { ...x, layout: { tableHead: '#1f3a68' } } : x)) }, pm, { day: '2026-11-28' });
+    expect(dark).toContain('table.charter .grid thead th { color: inherit; }');
   });
 });
 

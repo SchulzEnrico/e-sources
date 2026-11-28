@@ -484,6 +484,13 @@ export const TOURS: Record<TourId, TourStep[]> = {
       text: 'Der Eingang sammelt alles, was du schnell erfasst: Gedankenparkplatz, Dock-Notiz und „Neue Notiz“ im Portal. Die Zahl am Reiter zeigt die offenen Einträge. Mit V sortierst du ein – in ein anderes Sheet, eine Eisenhower-Matrix oder ein Projekt. Den Eingang gibt es immer genau einmal; umbenennen geht, löschen nicht.',
     },
     {
+      // V158: Eingang ist in keinem Pad offen – Schritt trotzdem zeigen (mittig) und sagen, wo er zu finden ist
+      id: 'inboxClosed',
+      title: 'Eingang',
+      unless: '.pad .pad__tab[data-sheet="inbox"]',
+      text: 'Der Eingang sammelt alles, was du schnell erfasst: Gedankenparkplatz, Dock-Notiz und „Neue Notiz“ im Portal. Mit V sortierst du ein – in ein anderes Sheet, eine Eisenhower-Matrix oder ein Projekt. Gerade ist er in keinem Pad offen: Im Cockpit unter „Notizen“ zeigt ein Klick auf „Eingang“ ihn im obersten Pad.',
+    },
+    {
       id: 'parking',
       title: 'Gedankenparkplatz',
       text: 'Alt/⌥+E öffnet überall ein kleines Feld oben in der Mitte. Enter legt den Gedanken in den Eingang, Umschalt+Enter macht eine neue Zeile, Esc schließt – und du bist wieder genau dort, wo du warst.',

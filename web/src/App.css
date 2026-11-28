@@ -4415,15 +4415,18 @@ button.is-off:hover,
 .greeting__last { margin: 0 0 10px; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
 /* V156 (F-109 „Wo war ich?“): laufende Karte und offene Gedanken – Begriffe links, Einträge als Verweis-Knöpfe */
 .greeting__where { margin: -4px 0 10px; font-size: 13px; line-height: 1.4; display: grid; gap: 4px; }
-.greeting__where > div { display: grid; grid-template-columns: max-content 1fr; column-gap: 6px; }
-.greeting__where dt { grid-column: 1; color: var(--muted); }
-.greeting__where dd { grid-column: 2; margin: 0; min-width: 0; }
-.greeting__link { all: unset; cursor: pointer; font-weight: 600; overflow-wrap: anywhere; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 2px; }
+/* V158: bei wenig Platz steht der Wert unter der Bezeichnung (vorher brach „Projektmanagement“ nach wenigen Buchstaben um) */
+.greeting__where > div { display: flex; flex-wrap: wrap; column-gap: 6px; }
+.greeting__where dt { flex: none; color: var(--muted); }
+.greeting__where dd { flex: 1 1 11em; margin: 0; min-width: 0; }
+.greeting__link { all: unset; cursor: pointer; font-weight: 600; overflow-wrap: break-word; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 2px; }
 .greeting__link:hover { text-decoration-color: currentColor; }
 .greeting__link:focus-visible { outline: 2px solid var(--accent, #4a90e2); outline-offset: 2px; border-radius: 3px; }
 .greeting__link--more { font-weight: 400; color: var(--muted); }
 .greeting__src { color: var(--muted); }
 .greeting__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* V158: dauerhaft ausschalten – leiser, rechts */
+.greeting__never { margin-left: auto; color: var(--muted); }
 .greeting__go { font-weight: 600; }
 .greeting__x { align-self: flex-start; padding: 0 6px; font-size: 18px; line-height: 1.2; }
 .greeting__corner { display: flex; align-items: center; gap: 14px; align-self: flex-start; flex: none; }
@@ -9477,6 +9480,16 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 .pjf__table td.is-bool { text-align: center; }
 .pjf__cell.is-miss input, .pjf__cell.is-miss textarea, .pjf__cell.is-miss select, .pjf__field [aria-invalid='true'] { outline: 1px dashed rgba(224, 176, 96, 0.9); outline-offset: 1px; }
 .pjf__in { display: flex; align-items: center; gap: 4px; }
+/* V158 (Enrico: „in den Zellen immer alles lesen“): Text bricht um und wächst mit; Auswahl zeigt den ganzen Text */
+.pjf__grow { resize: none; overflow: hidden; field-sizing: content; min-height: 0; line-height: 1.35; white-space: pre-wrap; overflow-wrap: break-word; }
+.pjf__in:has(.pjf__grow) { align-items: flex-start; }
+.pjf__sel { position: relative; display: block; min-width: 0; }
+.pjf__selText { display: block; padding: 2px 18px 2px 6px; border: 1px solid transparent; white-space: normal; overflow-wrap: break-word; line-height: 1.35; text-align: left; }
+.pjf__selText::after { content: '▾'; position: absolute; right: 5px; top: 3px; opacity: 0.6; font-size: 0.85em; }
+.pjf__table td.pjf__cell .pjf__sel select { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; opacity: 0; cursor: pointer; }
+.pjf__sel:focus-within .pjf__selText { outline: 2px solid var(--paper-red, var(--accent, #4a90e2)); outline-offset: 1px; border-radius: 2px; }
+.pjf__sel:hover .pjf__selText { border-color: rgba(127, 127, 127, 0.45); border-radius: 2px; }
+@media (forced-colors: active) { .pjf__selText { border-color: CanvasText; } }
 .pjf__auto { font-size: 10px; padding: 0 4px; border-radius: 4px; background: rgba(var(--accent-rgb), 0.15); white-space: nowrap; }
 .pjf__ro { font-variant-numeric: tabular-nums; opacity: 0.9; white-space: nowrap; }
 .pjf__acts { white-space: nowrap; }
@@ -9584,7 +9597,9 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 .ovf__knob { display: none; }
 .is-ovf-tight > .ovf__knob { display: inline-flex; align-items: center; gap: 2px; flex: none; margin-left: auto; padding: 0 9px; min-height: 22px; border-radius: 999px; font-weight: 700; }
 .ovf__n { font-size: 10px; font-weight: 600; opacity: 0.8; }
-.is-ovf-tight:not(.is-ovf-open) > :not([data-ovf-keep]):not(.ovf__knob):not(.sr-only) { display: none !important; }
+.is-ovf-tight:not(.is-ovf-open):not(.ovf-fill) > :not([data-ovf-keep]):not(.ovf__knob):not(.sr-only) { display: none !important; }
+/* V158: Kopfleiste – nur was nicht mehr passt, wandert in „»“ */
+.is-ovf-tight.ovf-fill:not(.is-ovf-open) > [data-ovf-out] { display: none !important; }
 .is-ovf-tight.is-ovf-open > .ovf__knob { margin-left: 0; }
 .is-ovf-open {
   position: fixed !important;
@@ -10706,8 +10721,10 @@ textarea.paper__namein { display: block; box-sizing: border-box; resize: none; o
 td:hover .fmedia__add, td:focus-within .fmedia__add, .fmedia__add:focus-visible { opacity: 1; }
 .fmedia__add:focus-visible, .fmedia__x:focus-visible, .fmedia__undo:focus-visible, .paper__logoTools button:focus-visible { outline: 2px solid var(--paper-red, #a3141b); outline-offset: 1px; }
 .fmedia__undo { border: 0; background: none; padding: 0; color: var(--paper-red, #a3141b); text-decoration: underline; cursor: pointer; font: inherit; }
-.paper__project { display: inline-flex; align-items: center; gap: 8px; }
-.paper__logo { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+/* V158: Logo wie im Report ganz rechts in der Kopfzeile, unten bündig über der Linie; Knöpfe schweben links davon */
+.paper__project { display: inline-flex; align-items: flex-end; gap: 10px; }
+.paper__logo { position: relative; display: inline-flex; align-items: center; gap: 4px; order: 2; }
+.paper__logo.has-logo .paper__logoTools { position: absolute; right: 100%; bottom: 0; margin-right: 6px; z-index: 2; }
 .paper__logo img { display: block; max-height: calc(28px * var(--paper-zoom, 1)); max-width: calc(120px * var(--paper-zoom, 1)); }
 .paper__logoTools { display: inline-flex; gap: 2px; opacity: 0; transition: opacity 0.15s; }
 .paper__head:hover .paper__logoTools, .paper__logo:focus-within .paper__logoTools { opacity: 1; }
@@ -10782,3 +10799,8 @@ td:hover .fmedia__add, td:focus-within .fmedia__add, .fmedia__add:focus-visible 
    beim Verlassen des Namensfelds nach unten und der erste Klick geht ins Leere */
 .lay__bar { padding-bottom: 1.5em; }
 .lay__bar > .lay__field > .paper__msg { position: absolute; top: 100%; left: 0; margin-top: 2px; white-space: nowrap; z-index: 2; }
+/* V158: Zahlen in schmalen Spalten – weniger Innenabstand, damit eine Ziffer nicht abgeschnitten wird */
+.paper--form .pjf__table.is-fixed td.pjf__cell input[inputmode='decimal'] { padding-inline: 3px; }
+/* V158: „auto“-Hinweis rutscht unter das Feld, statt ihm in schmalen Spalten die Breite zu nehmen */
+.paper--form .pjf__table.is-fixed .pjf__in { flex-wrap: wrap; }
+.paper--form .pjf__table.is-fixed .pjf__in > :is(input, textarea) { flex: 1 1 100%; min-width: 0; }

@@ -3,7 +3,7 @@ import type { Pad, Workspace } from '../workspace/types';
 import type { RadarWindow } from '../workspace/focus';
 import { placeText } from '../workspace/focus';
 import { DOCK_TAB_W, dockOf, dockedOn, padTitle, padUndoOf, padsOn, placeOf as floatOf, sheetUndoOf } from '../workspace/pads';
-import { loadModes } from '../workspace/deskMode';
+import { loadModes, modeOf } from '../workspace/deskMode';
 import { noteTreeOf, syncNoteTree } from '../workspace/noteTree';
 import { rects as treeRects } from '../workspace/tree';
 import type { PadPlace } from '../workspace/types';
@@ -62,7 +62,7 @@ export function NotesCockpit(p: NotesCockpitProps) {
   const { ws } = p;
   // V90 (F-210 Schritt 4): Desks im Notizen-Modus zeigen die Pads lückenlos wie auf dem Desk (Baum), ohne Dock
   const modes = loadModes();
-  const notesOn = (desk: string) => modes[desk] === 'notes';
+  const notesOn = (desk: string) => modeOf(modes, desk) === 'notes';
   const treeOf = (desk: string) => {
     const ids = padsOn(ws, desk).map((x) => x.id).sort();
     return treeRects(syncNoteTree(noteTreeOf(ws, desk, ''), ids, { min: { w: 0, h: 0 }, aspect: 16 / 10 }).tree);

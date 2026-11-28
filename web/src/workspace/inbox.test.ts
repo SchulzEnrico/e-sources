@@ -92,6 +92,26 @@ describe('V141 F-231 K14 Eingang', () => {
     expect(No.noteById(RR.applyRules(ws, other.ws), other.id)!.tags ?? []).toEqual([]);
   });
 
+  it('V158 Eingang-Regel aus dem Board-Menü (an ein Board gebunden) löst trotzdem aus', () => {
+    const b = No.createView(base(), 'kanban', 'Board', { id: 'kb' });
+    const r = { ...RK.newRule([], 'r-kb', 'kb'), name: 'Eingang markieren', when: { k: 'inbox' as const }, then: [{ k: 'tagAdd' as const, a: 'eingang' }] };
+    const ws = RK.saveRule(b.ws, r);
+    const got = In.captureToInbox(ws, 'Idee');
+    expect(No.noteById(RR.applyRules(ws, got!.ws), got!.id)!.tags).toEqual(['eingang']);
+  });
+
+  it('V158 erster Gedanke legt den Eingang an – Regel löst aus, vorhandene Notizen nicht', () => {
+    let ws = W.defaultWorkspace();
+    const old = No.createNote(ws, { title: 'Alt' });
+    ws = RK.saveRule(old.ws, { ...RK.newRule([], 'r-in'), name: 'Eingang', when: { k: 'inbox' as const }, then: [{ k: 'tagAdd' as const, a: 'eingang' }] });
+    expect(No.viewById(ws, In.INBOX_ID)).toBeUndefined();
+    const got = In.captureToInbox(ws, 'Erster');
+    const after = RR.applyRules(ws, got!.ws);
+    expect(No.noteById(after, got!.id)!.tags).toEqual(['eingang']);
+    const moved = RR.applyRules(ws, In.ensureInbox(ws));
+    expect(No.noteById(moved, old.id)!.tags ?? []).toEqual([]);
+  });
+
   it('V153 Eisenhower: eigene Reihenfolge im Feld (Alt+↑/↓)', () => {
     let ws = base();
     const ids: string[] = [];

@@ -304,6 +304,8 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
       org: ORG_TEXT,
     },
     charter: {
+      // V158: Logo „CG“ mit Hut wie im Report (mitgebracht, siehe samplePics.ts)
+      logo: 'es-img:cg-logo',
       no: 'CG-1',
       kind: 'Organisations- und Investitionsprojekt',
       client: 'FIT GmbH, vertreten durch GF Hr. Meier',

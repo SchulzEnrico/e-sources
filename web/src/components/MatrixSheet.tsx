@@ -187,7 +187,8 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       if (Sh.QUAD_CELL[q][0] === 1) return goGroup(String(Sh.quadAt(0, Sh.QUAD_CELL[q][1])));
       return goGroup('u');
     }
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    // V158: Alt/⌥+←/→ bleibt beim Pad (tauscht mit dem Nachbarn)
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.altKey) {
       e.preventDefault();
       if (q === null) return mine[i + (e.key === 'ArrowLeft' ? -1 : 1)]?.focus();
       return goGroup(String(Sh.quadAt(Sh.QUAD_CELL[q][0], e.key === 'ArrowLeft' ? 0 : 1)));

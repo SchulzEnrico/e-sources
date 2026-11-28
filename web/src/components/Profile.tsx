@@ -115,7 +115,7 @@ export function ProfileDialog({ profile, onChange, onRestored, onClose }: Props)
         </fieldset>
         <label className="profile__greet">
           <input type="checkbox" checked={profile.greet} onChange={(e) => onChange({ greet: e.target.checked })} />
-          Beim Start begrüßen und zeigen, was zuletzt offen war
+          Begrüßen (höchstens einmal am Tag) und zeigen, was zuletzt offen war
         </label>
         <WelcomePick
           draft={draft}

@@ -211,15 +211,18 @@ export function PaperLogo({ p, dispatch, say }: { p: Project | undefined; dispat
   const id = Fm.logoId(p?.charter?.logo);
   const { url } = useMediaUrl(id ?? '');
   const input = useRef<HTMLInputElement>(null);
-  const [msg, setMsg] = useState('');
+  // V158: ✕ mit Rückgängig wie bei den Medien im Feld; Fokus bleibt an der Kopfzeile (Rückgängig bzw. „Logo“)
+  const undoBtn = useRef<HTMLButtonElement>(null);
+  const addBtn = useRef<HTMLButtonElement>(null);
+  const [msg, setMsg] = useState<{ text: string; undo?: string } | null>(null);
   const timer = useRef(0);
   useEffect(() => () => window.clearTimeout(timer.current), []);
   if (!p) return null;
-  const tell = (t: string) => {
+  const tell = (t: string, undo?: string) => {
     window.clearTimeout(timer.current);
-    setMsg(t);
+    setMsg({ text: t, undo });
     say?.(t);
-    timer.current = noticeLater(() => setMsg(''));
+    timer.current = noticeLater(() => setMsg(null), undo ? 2 : 1);
   };
   const set = async (files: File[]) => {
     const f = files.find((x) => Fm.mediaKindOf(x.type, x.name) === 'img');
@@ -235,11 +238,21 @@ export function PaperLogo({ p, dispatch, say }: { p: Project | undefined; dispat
       {shown && <img src={url} alt={T.logoAlt(p.name)} />}
       {dispatch && (
         <span className="paper__logoTools">
-          <button type="button" onClick={() => input.current?.click()} title={T.logoHint} aria-label={shown ? T.logoChange : T.logoAdd}>
+          <button ref={addBtn} type="button" onClick={() => input.current?.click()} title={T.logoHint} aria-label={shown ? T.logoChange : T.logoAdd}>
             <Icon name="image" size={12} /> {shown ? '' : T.logo}
           </button>
           {id && (
-            <button type="button" onClick={() => (dispatch({ type: 'charterEdit', id: p.id, patch: { logo: null } }), tell(T.logoGone))} title={T.logoRemove} aria-label={T.logoRemove}>
+            <button
+              type="button"
+              onClick={() => {
+                const before = p.charter?.logo ?? undefined;
+                dispatch({ type: 'charterEdit', id: p.id, patch: { logo: null } });
+                tell(T.logoGone, before);
+                window.setTimeout(() => (undoBtn.current ?? addBtn.current)?.focus(), 0);
+              }}
+              title={T.logoRemove}
+              aria-label={T.logoRemove}
+            >
               <Icon name="close" size={11} />
             </button>
           )}
@@ -258,7 +271,25 @@ export function PaperLogo({ p, dispatch, say }: { p: Project | undefined; dispat
       )}
       {msg && (
         <span className="paper__msg" role="status">
-          {msg}
+          {msg.text}
+          {msg.undo && dispatch && (
+            <>
+              {' '}
+              <button
+                ref={undoBtn}
+                type="button"
+                className="fmedia__undo"
+                onClick={() => {
+                  dispatch({ type: 'charterEdit', id: p.id, patch: { logo: msg.undo! } });
+                  setMsg(null);
+                  say?.(T.logoSaved);
+                  window.setTimeout(() => addBtn.current?.focus(), 0);
+                }}
+              >
+                {T.undo}
+              </button>
+            </>
+          )}
         </span>
       )}
     </span>

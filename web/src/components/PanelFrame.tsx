@@ -1597,6 +1597,8 @@ export function PanelFrame(p: Props) {
               }} />
           ) : !url ? (
             <>
+              {/* V159 (Enrico 14:41): leeres Portal zeigt das ES-Zeichen wie die Hintergrundbilder (docs/Hintergrund) */}
+              <span className="esmark" aria-hidden="true" />
               <p className="win__placeholder">{p.panel.name}</p>
               {/* F-150: was man hier tun kann; Tastatur: über die Adresszeile */}
               <p className="win__hint">{linkOver ? 'Loslassen zum Öffnen' : 'Link in die Adresszeile eingeben oder hier hineinziehen'}</p>

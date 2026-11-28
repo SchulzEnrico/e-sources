@@ -1,5 +1,5 @@
 /** F-235 (V135): aus dem Lastenheft erzeugt von tools/live_project.py – nicht von Hand ändern. */
-export const LIVE_STAND = { chat: "V158", day: "2026-11-28" };
+export const LIVE_STAND = { chat: "V159", day: "2026-11-28" };
 export interface LiveItem { f: string; title: string; state: 'done' | 'part' | 'open'; group: string; chats: number; day: string; base: boolean }
 export const LIVE_ITEMS: LiveItem[] = [
   {"f": "F-01", "title": "Panels liegen in einem Kachel-Raster und überlappen sich nie", "state": "done", "group": "Arbeitsfläche und Raster", "chats": 1, "day": "2026-11-20", "base": true},

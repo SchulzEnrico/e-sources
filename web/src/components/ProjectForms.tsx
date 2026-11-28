@@ -28,6 +28,10 @@ import { PaperLogo, mediaDrop, useFieldMedia } from './FieldMedia';
 import { inkSvg } from '../workspace/ink';
 import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
+import { noticeLater } from '../workspace/flash';
+import { SAMPLES } from '../workspace/samples';
+import { refreshSample } from '../workspace/sampleRefresh';
+import { SAMPLE_REFRESH_TEXT as T_SR } from '../workspace/terms';
 import { useOverflow } from './Overflow';
 import { OVERFLOW_TEXT } from '../workspace/terms';
 import { WorkPadButton } from './WorkPadOpen';
@@ -43,6 +47,7 @@ import { eisenGeo, eisenMarks, eisenQuadAt, envPortfolioSvg, figureSvg, loadDefa
 import * as Sh from '../workspace/sheets';
 import { defaultViewName, deleteView } from '../workspace/notes';
 import { rolesOf } from '../workspace/projects';
+import { MoreLine } from './MoreLine';
 
 /** F-234 D2: Grafik-Blatt → bedienbare Ansicht im Projekt-Modus */
 const FIGURE_VIEW: Record<string, 'psp' | 'gantt' | 'res' | undefined> = { psp: 'psp', gantt: 'gantt', phasePlan: 'gantt', load: 'res' };
@@ -58,6 +63,9 @@ const fitWeight = (c: { key: string; kind: string; digits?: number }, values: un
   const n = values.reduce<number>((m, v) => Math.max(m, v === undefined || v === '' ? 0 : (typeof v === 'number' ? fmtNum(v, c.kind as Fk.FieldKind) : String(v)).length), 0);
   return Math.max(base, 0.19 * n + 0.5);
 };
+/** V159: Mindestbreite von Code-/Zahlspalten: ca. 8 px je Zeichen (aus fitWeight zurückgerechnet) + 40 px Rand und Feldabstand. */
+/** Spalten, die nicht sinnvoll umbrechen (Code, Zahl, Betrag, Prozent) – Text darf schmal werden und umbrechen. */
+const isFitCol = (c: { key: string; kind: string }) => c.key === 'code' || c.kind === 'number' || c.kind === 'money' || c.kind === 'pct';
 const todayDay = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -94,12 +102,36 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onTo
   // F-234 D4: Auslastungsdiagramm je Ressource (Rad), Vorgabe Projektleitung
   const [loadWho, setLoadWho] = useState('');
   const body = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   const by = ws.profile?.name || undefined;
   const base = inPad ? 'pjf-pad' : 'pjf';
   const tell = (text: string, undo?: () => void) => (setMsg({ text, ...(undo ? { undo } : {}) }), say(text));
+  // V159: Beispiel auffrischen direkt am leeren Formular (Meldung mit Rückgängig oben im Formular)
+  const sampleHere = SAMPLES.find((sm) => sm.id === p.id);
+  const refreshHere = () => {
+    if (!sampleHere) return;
+    const at = Date.now();
+    const r = refreshSample(ws, sampleHere.key, at);
+    if (!r.undo) return tell(T_SR.nothing(sampleHere.name));
+    const u = r.undo;
+    dispatch({ type: 'sampleRefresh', key: sampleHere.key, at });
+    tell(T_SR.done(sampleHere.name, r.added), () => dispatch({ type: 'sampleRefreshUndo', undo: u }));
+    window.setTimeout(() => document.querySelector<HTMLElement>('.sheet__msg .note__undo')?.focus(), 60);
+  };
   const run = (op: Fk.FormOp) => dispatch({ type: 'form', op });
 
   useEffect(() => setMsg(null), [form.id, p.id]);
+  // V159 (Enrico 14:24 „Die Meldung bleibt zu lange stehen“): Meldungen im Formular schließen nach der eingestellten
+  // Dauer wie überall (mit Rückgängig länger); stand der Fokus darin, geht er zurück ins Formular
+  useEffect(() => {
+    if (!msg) return;
+    const t = noticeLater(() => {
+      const inside = document.activeElement?.closest('.sheet__msg.dc__msg');
+      setMsg(null);
+      if (inside) window.setTimeout(() => body.current?.querySelector<HTMLElement>('input, textarea, select, button')?.focus(), 0);
+    }, msg.undo ? 2 : 1);
+    return () => window.clearTimeout(t);
+  }, [msg]);
   // V110: Tour „Formulare“ startet einmal von selbst, wenn man die Formulare zum ersten Mal öffnet
   useEffect(() => {
     if (!tourAutoStart('forms')) return;
@@ -823,7 +855,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onTo
   );
 
   return (
-    <section className="dc pjs pjf" aria-labelledby={`${base}-head`}>
+    <section className="dc pjs pjf" aria-labelledby={`${base}-head`} ref={sectionRef}>
       <header className={`dc__top${topOvf.cls}`} ref={topRef}>
         {/* V137 (Enrico 13:00 „Der Kapitel Scroll Button verspringt immer … muss nach ganz links“): Kapitel-Rad vorn, damit es beim Drehen nicht wandert */}
         <span className="layouts__label pj__wheel pjf__chapter">
@@ -873,10 +905,10 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onTo
           <Icon name="tour" size={13} className="icon icon--inline" /> {T.tour}
         </button>
       </header>
-      <p className="help__text dc__why">
+      <MoreLine store="forms" className="help__text dc__why">
         {form.chapter} {form.name}
         {form.icb ? ` · ICB4 ${form.icb}` : ''} – {PSP_TEXT.viewHint.forms}. <span className="pjf__keys">{T.keysHint}</span>
-      </p>
+      </MoreLine>
       {msg && (
         <p className="sheet__msg dc__msg" role="status">
           {msg.text}
@@ -1012,7 +1044,18 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onTo
       <div ref={body} className="pjf__body">
         {form.layout === 'figure' ? null : form.layout === 'record' ? (
           !recRow ? (
-            <p className="lc__muted">{T.recordNone[form.source] ?? T.empty}</p>
+            <p className="lc__muted">
+              {T.recordNone[form.source] ?? T.empty}
+              {/* V159: im Beispiel fehlen Daten, die erst nach der Anlage ins Beispiel kamen – hier gleich auffrischen */}
+              {sampleHere && (
+                <>
+                  {' '}{T_SR.emptyHint}{' '}
+                  <button type="button" className="help__run" title={T_SR.hint(sampleHere.name)} onClick={refreshHere}>
+                    <Icon name="restore" size={13} className="icon icon--inline" /> {T_SR.button}
+                  </button>
+                </>
+              )}
+            </p>
           ) : (
             <>
               <div className="pjf__recbar">
@@ -1059,15 +1102,20 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onTo
         ) : (
           <div className="pjs__left">
             {form.layout === 'chart' && <p className="fbq__label pjf__tabhead">{form.source === 'mta' ? T.mtaTable : T.chartTable}</p>}
-            <table className="pc__table pjf__table is-fixed" aria-labelledby={`${base}-head`}>
+            {(() => {
+              /* V159 (Zellen lesbar auch in schmalen Fenstern): jede Spalte hat eine Mindestbreite nach ihrem Gewicht –
+                 reicht das Blatt nicht, rollt die Tabelle seitlich, statt Zahlen und Codes abzuschneiden */
+              const w = cols.map((c) => fitWeight(c, rows.map((r) => Fk.cellValue(ws, p.id, form, r.id, c.key))));
+              const fitPx = (x: number) => Math.round(Math.max(48, ((x - 0.5) / 0.19) * 8 + 40));
+              const restSum = w.reduce((a, x, i) => a + (isFitCol(cols[i]) ? 0 : x), 0) || 1;
+              const minPx = Math.round(w.reduce((a, x, i) => a + (isFitCol(cols[i]) ? fitPx(x) : 52), 0) + 8);
+              return (
+            <table className="pc__table pjf__table is-fixed" aria-labelledby={`${base}-head`} style={{ minWidth: `${minPx}px` }}>
               {/* V134 (Enrico 11:25 „muss in der Breite zur Seite passen … bei allen anderen auch“): feste Aufteilung nach Spaltenart, Summe = Blattbreite */}
               <colgroup>
                 {/* V158: Zahlen- und Code-Spalten mindestens so breit wie ihr längster Wert – man kann immer alles lesen */}
-                {(() => {
-                  const w = cols.map((c) => fitWeight(c, rows.map((r) => Fk.cellValue(ws, p.id, form, r.id, c.key))));
-                  const sum = w.reduce((a, x) => a + x, 0);
-                  return cols.map((c, i) => <col key={c.key} style={{ width: `${(100 * w[i]) / sum}%` }} />);
-                })()}
+                {/* V159: Code-/Zahlspalten fest in px (so breit wie ihr längster Wert), die übrigen teilen sich den Rest */}
+                {cols.map((c, i) => <col key={c.key} style={{ width: isFitCol(c) ? `${fitPx(w[i])}px` : `${(100 * w[i]) / restSum}%` }} />)}
                 <col className="pjf__actcol" />
               </colgroup>
               <thead>
@@ -1133,6 +1181,8 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onTo
                 );
               })()}
             </table>
+              );
+            })()}
           </div>
         )}
       </div>
@@ -1140,6 +1190,35 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onTo
         </article>
       </div>
       )}
+      {/* V159 (Enrico 14:39 „am Ende des Dokuments … vor und zurück … einfach blättern“): wie auf Webseiten am Blattende */}
+      {(() => {
+        const i = tpl.forms.findIndex((f) => f.id === form.id);
+        const prev = i > 0 ? tpl.forms[i - 1] : undefined;
+        const next = i >= 0 && i < tpl.forms.length - 1 ? tpl.forms[i + 1] : undefined;
+        const go = (id: string) => {
+          setFid(id);
+          window.setTimeout(() => {
+            sectionRef.current?.scrollIntoView({ block: 'start' });
+            sectionRef.current?.querySelector<HTMLElement>('.pjf__chapter [role="slider"]')?.focus({ preventScroll: true });
+          }, 0);
+        };
+        return (
+          <nav className="pjf__pager" aria-label={T.pager}>
+            {prev ? (
+              <button type="button" className="pjf__pagebtn is-prev" onClick={() => go(prev.id)} title={T.pagePrevHint}>
+                <span className="pjf__pagedir" aria-hidden="true">← {T.pagePrev}</span>
+                <span className="pjf__pagename"><span className="sr-only">{T.pagePrev}: </span>{prev.chapter} {prev.name}</span>
+              </button>
+            ) : <span />}
+            {next ? (
+              <button type="button" className="pjf__pagebtn is-next" onClick={() => go(next.id)} title={T.pageNextHint}>
+                <span className="pjf__pagedir" aria-hidden="true">{T.pageNext} →</span>
+                <span className="pjf__pagename"><span className="sr-only">{T.pageNext}: </span>{next.chapter} {next.name}</span>
+              </button>
+            ) : <span />}
+          </nav>
+        );
+      })()}
       </div>
       </div>
     </section>

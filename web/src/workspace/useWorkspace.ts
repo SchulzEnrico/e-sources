@@ -72,6 +72,7 @@ import * as Rk from './risks';
 import * as Fk from './formKit';
 import * as In from './inbox';
 import * as Sm from './samples';
+import * as SRf from './sampleRefresh';
 import * as Gp from './gpm';
 import * as Wt from './watch';
 import * as FL from './focusLoad';
@@ -282,6 +283,9 @@ export type Action =
   /** V118 (F-230): Import fertig gerechnet (bzw. Rückgängig) – Stand übernehmen */
   | { type: 'exchange'; ws: Workspace }
   | { type: 'sampleProject'; on: boolean; key?: import('./samples').SampleKey }
+  /** V159: Beispiel auffrischen – nur Fehlendes ergänzen (sampleRefresh.ts), mit Rückgängig */
+  | { type: 'sampleRefresh'; key?: import('./samples').SampleKey; at: number }
+  | { type: 'sampleRefreshUndo'; undo: import('./sampleRefresh').SampleRefreshUndo }
   /** F-235 (V135): Live-Projekt E-Sources anlegen bzw. aktualisieren */
   | { type: 'liveProject'; at?: number }
   | { type: 'liveCopy'; id?: string; at?: number }
@@ -715,6 +719,10 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'sampleProject':
       // V134 (F-233): Beispiel nach Kennung (ohne = ColorGentlemen wie bisher)
       return Sm.toggleSample(ws, a.key, a.on);
+    case 'sampleRefresh':
+      return SRf.refreshSample(ws, a.key, a.at).ws;
+    case 'sampleRefreshUndo':
+      return SRf.undoRefreshSample(ws, a.undo);
     case 'personRemove':
       return Ps.removePerson(ws, a.id)?.ws ?? ws;
     case 'personRestore':

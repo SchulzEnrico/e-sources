@@ -47,6 +47,7 @@ import { LIVE_STAND } from '../workspace/liveProjectData';
 import { shownSamples, hasSample, sampleOf, type SampleKey } from '../workspace/samples';
 import { ACCENTS } from '../workspace/look';
 import { DeskProjectBar } from './DeskProject';
+import { MoreLine } from './MoreLine';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 /** 2026-12-21 → 21.12.2026 */
@@ -183,6 +184,31 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
     const t = noticeLater(() => setUndo(null), 3);
     return () => window.clearTimeout(t);
   }, [undo]);
+  // V159: Höhe der festen Projektzeile als --pj-sticky – darunter kleben Inhaltsleiste und Köpfe, statt verdeckt zu werden
+  const stickyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = stickyRef.current;
+    const host = el?.closest<HTMLElement>('.pj');
+    if (!el || !host || typeof ResizeObserver === 'undefined') return;
+    // V159 (Enrico 14:29): auch die Kopfzeile „Projektliste“ bleibt stehen – die Projektzeile klebt darunter
+    const head = host.querySelector<HTMLElement>(':scope > header');
+    const set = () => {
+      host.style.setProperty('--pj-headh', `${Math.round(head?.getBoundingClientRect().height ?? 0)}px`);
+      host.style.setProperty('--pj-sticky', `${Math.round(el.getBoundingClientRect().height + (head?.getBoundingClientRect().height ?? 0))}px`);
+      // Tab-Fokus und „ins Bild holen“ landen unter den festen Zeilen, nicht dahinter (WCAG 2.4.11)
+      const layer = host.closest<HTMLElement>('.projlayer');
+      if (layer) layer.style.scrollPaddingTop = `${Math.round(el.getBoundingClientRect().height + (head?.getBoundingClientRect().height ?? 0)) + 8}px`;
+    };
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    if (head) ro.observe(head);
+    return () => {
+      ro.disconnect();
+      host.style.removeProperty('--pj-sticky');
+      host.style.removeProperty('--pj-headh');
+    };
+  });
   const tell = (t: string) => (setNote(t), say(t));
   const full = allList.length >= Pj.PROJECTS_MAX;
   const similar = newName.trim() ? Pj.similarProjects(ws, newName) : [];
@@ -295,7 +321,7 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
       {boundId && desk && shown ? (
         <DeskProjectBar ws={ws} win={desk.win} shown={shown.id} onShow={(id) => setSel(id)} dispatch={dispatch} say={say} />
       ) : (
-        <p className="help__text bt__intro">{TERMS.projects.replace(' = ', ': ')}</p>
+        <MoreLine store="projects" className="help__text bt__intro">{TERMS.projects.replace(' = ', ': ')}</MoreLine>
       )}
 
       {adding && (
@@ -353,7 +379,7 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
         </div>
       ) : (
         <div className="pc__body">
-          <div className="pc__tablewrap">
+          <div className="pc__tablewrap" ref={stickyRef}>
             <table className="pc__table pj__table" aria-labelledby="pj-head" aria-describedby="pj-keys">
               <thead>
                 <tr>

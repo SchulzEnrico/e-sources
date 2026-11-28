@@ -20,6 +20,7 @@ import { Icon } from './Icon';
 import { CardWindow } from './SheetViews';
 import { fmtDay } from './ProjectPsp';
 import { ModeWheel } from './ModeWheel';
+import { MoreLine } from './MoreLine';
 
 const ZOOMS = ['fit', '50', '75', '100', '125'] as const;
 type Zoom = (typeof ZOOMS)[number];
@@ -176,7 +177,7 @@ export function ProjectNetwork({ ws, p, dispatch, say }: { ws: Workspace; p: Pro
           {N.span(fmtDay(g.start), fmtDay(g.end))} · {N.count(net.nodes.length, net.links.length)} · <span className={crit ? 'pj__crit-tag' : ''}>{G.criticalCount(critCount)}</span>
         </p>
       </div>
-      <p className="lc__keys" id="nw-keys">{N.keys}</p>
+      <MoreLine store="netKeys" className="lc__keys" id="nw-keys">{N.keys}</MoreLine>
       <div className={`nw__box${z < 1 ? ' is-zoomed' : ''}`} ref={boxRef} role="group" aria-label={N.head(p.name)} aria-describedby="nw-keys" onDoubleClickCapture={zoomDbl} onKeyDown={boxKey} tabIndex={-1} title={z < 1 ? N.zoomDblHint : undefined}>
         <div className="nw__sizer" style={{ width: width * z, height: height * z }}>
         <div className="nw__canvas" style={{ width, height, transform: z !== 1 ? `scale(${z})` : undefined, transformOrigin: '0 0' }}>

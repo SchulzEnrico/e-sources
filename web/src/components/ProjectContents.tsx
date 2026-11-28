@@ -3,7 +3,7 @@
  * mit Kapitel, Zahl der Einträge und leeren Pflichtfeldern. Enter/Klick öffnet das Dokument (Formular-Kapitel bzw.
  * Ansicht), ↑/↓ wandern, Pos1/Ende springen. Gleiche Reihenfolge wie das Inhaltsverzeichnis im Bericht.
  */
-import { type KeyboardEvent, useRef, useState } from 'react';
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import type { Project, Workspace } from '../workspace/types';
 import { type ContentsEntry, contentsOf } from '../workspace/contents';
 import { CONTENTS_TEXT as T } from '../workspace/terms';
@@ -75,6 +75,16 @@ export function ContentsRail({ ws, p, current, onOpen }: { ws: Workspace; p: Pro
     }
   };
   const list = contentsOf(ws, p);
+  // V159 (Enrico 14:39 „Auswahlleiste … immer an dem Punkt stehen bleiben, wo man sich gerade befindet“): der aktive
+  // Eintrag bleibt in der Liste sichtbar – nur die Liste rollt, nicht die Seite
+  useEffect(() => {
+    const ol = ref.current;
+    const b = ol?.querySelector<HTMLElement>('.tocrail__row.is-here');
+    if (!ol || !b) return;
+    const top = b.offsetTop - ol.offsetTop;
+    if (top < ol.scrollTop + 4 || top + b.offsetHeight > ol.scrollTop + ol.clientHeight - 4) ol.scrollTop = Math.max(0, top - ol.clientHeight / 2 + b.offsetHeight / 2);
+  }, [current, open]);
+  const here = list.find((x) => x.id === current);
   const key = (e: KeyboardEvent<HTMLButtonElement>) => {
     const all = [...(ref.current?.querySelectorAll<HTMLButtonElement>('button[data-entry]') ?? [])];
     const i = all.indexOf(e.currentTarget);
@@ -89,6 +99,8 @@ export function ContentsRail({ ws, p, current, onOpen }: { ws: Workspace; p: Pro
     <nav className={`tocrail${open ? ' is-open' : ''}`} aria-label={T.rail}>
       <button type="button" className="tocrail__toggle" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)} title={open ? T.railClose : T.railOpen}>
         <span aria-hidden="true">{open ? '◂' : '▸'}</span> {T.railName}
+        {/* V159: zugeklappt steht das aktuelle Kapitel daneben (schmale Geräte) */}
+        {!open && here && <span className="tocrail__cur"> · {here.chapter} {here.name}</span>}
       </button>
       {open && (
         <ol id={id} className="tocrail__list" ref={ref}>

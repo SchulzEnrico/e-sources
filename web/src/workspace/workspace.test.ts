@@ -4926,7 +4926,7 @@ describe('V75 Steuerknopf über der Tastatur (F-215 A2)', () => {
 
 describe('V75 Umschalter Desk | Notes', () => {
   it('Telefon startet im Note Mode, ausdrückliche Wahl gewinnt', () => {
-    expect(DM.modeOf({}, 'a', false)).toBe('notes'); // V158: Start immer im Notizen-Modus
+    expect(DM.modeOf({}, 'a', false)).toBe('notes'); // erster Start ohne gemerkten Modus: Notizen (V158/V159)
     expect(DM.DESK_MODE_ORDER).toEqual(['notes', 'projects', 'desk']);
     expect(DM.modeOf({}, 'a', true)).toBe('notes');
     expect(DM.modeOf({ a: 'desk' }, 'a', true)).toBe('desk');
@@ -4940,6 +4940,8 @@ describe('V75 Umschalter Desk | Notes', () => {
   it('V99: Modus „Projekte“ wird gespeichert und gelesen', () => {
     expect(DM.parseModes('{"a":"projects"}')).toEqual({ a: 'projects' });
     expect(DM.modeOf(DM.withMode({}, 'a', 'projects'), 'a', true)).toBe('projects');
+    // V159: Start im zuletzt gewählten Modus – ohne Speicher (Test) nichts gemerkt, also Notizen
+    expect(DM.modeOf(DM.startModes(true), 'a')).toBe('notes');
   });
 });
 

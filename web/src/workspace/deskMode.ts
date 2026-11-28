@@ -13,7 +13,7 @@ const KEY = 'esource.deskMode.v1';
 /** V76: Telefon – schmal (Hochformat) oder niedrig mit Touch (Querformat); gleiche Regel wie das Vollbild im CSS */
 export const PHONE_MQ = '(max-width: 600px), (pointer: coarse) and (max-height: 600px)';
 
-/** V158 (Enrico 28.11.2026): E-Sources startet immer im Notizen-Modus – auf jedem Gerät (`phone` bleibt für alte Aufrufe). */
+/** Ohne gemerkten Modus (erster Start auf dem Gerät) beginnt ein Desk mit Notizen (V158); sonst der zuletzt gewählte (V159). */
 export function modeOf(modes: DeskModes, desk: string, _phone?: boolean): DeskMode {
   return modes[desk] ?? 'notes';
 }
@@ -38,18 +38,12 @@ export function parseModes(raw: string | null): DeskModes {
 }
 
 /**
- * V158: beim Start des Hauptfensters (ohne `?win=`) vergisst E-Sources die Modi der letzten Sitzung – jeder Desk
- * beginnt im Notizen-Modus. Innerhalb der Sitzung (Desk-Wechsel, eigene Fenster) bleibt die Wahl erhalten.
+ * V159 (Enrico 28.11. 14:23 „pro Gerät merken, was die letzte Anzeige war, und dort wieder starten“): E-Sources
+ * startet je Desk in dem Modus, der auf diesem Gerät zuletzt offen war (Notizen, Projekte oder Desk). Nur beim
+ * allerersten Start auf einem Gerät (nichts gemerkt) beginnt es mit Notizen (`modeOf`). Ersetzt die V158-Regel
+ * „immer Notizen“. `main` bleibt für alte Aufrufe.
  */
-let started = false;
-export function startModes(main: boolean): DeskModes {
-  if (!started) {
-    started = true;
-    if (main) {
-      saveModes({});
-      return {};
-    }
-  }
+export function startModes(_main?: boolean): DeskModes {
   return loadModes();
 }
 

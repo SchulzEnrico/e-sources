@@ -1373,7 +1373,11 @@ function NoteBlock(props: {
             <NoteTab ws={ws} noteId={open} dispatch={dispatch} sheet={sheetId} draft={{ onClose: back, say: props.say, notice, shown, above: <RemindAlarm r={reminders} onOpen={pick} /> }} />
           </>
         ) : (
-          <p className="nblock__pick">{PAD_TEXT.pick}</p>
+          <>
+            {/* V159: leere Notizfläche mit ES-Zeichen im Hintergrund */}
+            <span className="esmark" aria-hidden="true" />
+            <p className="nblock__pick">{PAD_TEXT.pick}</p>
+          </>
         )}
       </div>
       {/* V74 (Wunsch Enrico): ohne offene Note erscheinen Meldungen unten in der Notizfläche – dort, wo eben

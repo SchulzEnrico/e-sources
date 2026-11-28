@@ -9087,8 +9087,10 @@ b.pc__week.is-warn { color: #e0a040; }
 /* V99 (F-206 Schritt 10): Projekt-Modus – Projektliste und Steckbrief füllen den Desk (Aufbau wie Cockpit „Personen“).
    Portale ruhen unsichtbar dahinter (wie im Notizen-Modus), Pads schweben darüber wie im Desk-Modus. */
 .area.is-projects > :not(.projlayer):not(.padlayer):not(.planprev):not(.padgone):not(.workpad) { visibility: hidden; }
-.projlayer { position: absolute; inset: 0; z-index: 10; overflow: auto; padding: 12px 16px 24px; background: var(--panel); }
-.projlayer .pj { max-width: 1600px; margin: 0 auto; }
+/* V159 (Enrico 14:26 „beim Scrollen sieht man die Seite oben nochmal ein Stück“): kein Innenabstand oben im Rollbereich –
+   sonst klebt die feste Projektzeile 12px unter dem Rand und darüber scheint das Blatt durch; der Abstand sitzt jetzt in .pj */
+.projlayer { position: absolute; inset: 0; z-index: 10; overflow: auto; padding: 0 16px 24px; background: var(--panel); }
+.projlayer .pj { max-width: 1600px; margin: 0 auto; padding-top: 12px; }
 .projlayer .help__run { opacity: 1; }
 .pj .pc__body { grid-template-columns: minmax(0, 1fr) minmax(320px, 440px); }
 @media (max-width: 1100px) { .pj .pc__body { grid-template-columns: 1fr; } }
@@ -9144,7 +9146,8 @@ span.pj__twist { cursor: default; }
 .pj__gantt .gt__table thead th { position: sticky; top: 0; z-index: 4; background: var(--panel, #1b1d22); vertical-align: bottom; }
 .gt__table tbody tr { height: var(--gt-row); }
 .gt__table td, .gt__table th { white-space: nowrap; padding-top: 0; padding-bottom: 0; }
-.gt__name { max-width: 15em; overflow: hidden; text-overflow: ellipsis; display: inline-flex; gap: 4px; align-items: center; }
+/* V159 (Zellen immer lesbar): Name so breit wie der längste Vorgang – erst ab 45 % der Fensterbreite gekürzt (Titel zeigt alles) */
+.gt__name { max-width: 45vw; overflow: hidden; text-overflow: ellipsis; display: inline-flex; gap: 4px; align-items: center; }
 .gt__name > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .gt__preds { font-size: 11px; max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
 .gt__table tr.is-crit .pj__code, .pj__crit-tag { color: #e5484d; }
@@ -9486,7 +9489,8 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 .pjf__sel { position: relative; display: block; min-width: 0; }
 .pjf__selText { display: block; padding: 2px 18px 2px 6px; border: 1px solid transparent; white-space: normal; overflow-wrap: break-word; line-height: 1.35; text-align: left; }
 .pjf__selText::after { content: '▾'; position: absolute; right: 5px; top: 3px; opacity: 0.6; font-size: 0.85em; }
-.pjf__table td.pjf__cell .pjf__sel select { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; opacity: 0; cursor: pointer; }
+/* V159: auch in Einzelblättern (Feldliste, z. B. 15.1 Teammitglied) – vorher stand der Name dort doppelt */
+.pjf__sel select { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; opacity: 0; cursor: pointer; }
 .pjf__sel:focus-within .pjf__selText { outline: 2px solid var(--paper-red, var(--accent, #4a90e2)); outline-offset: 1px; border-radius: 2px; }
 .pjf__sel:hover .pjf__selText { border-color: rgba(127, 127, 127, 0.45); border-radius: 2px; }
 @media (forced-colors: active) { .pjf__selText { border-color: CanvasText; } }
@@ -9773,7 +9777,7 @@ dialog.fbc::backdrop { background: rgba(0, 0, 0, 0.45); }
 .rs__table { border-collapse: separate; border-spacing: 0; font-size: 12px; min-width: max-content; }
 .rs__table th, .rs__table td { padding: 3px 8px; border-bottom: 1px solid rgba(127,127,127,.15); white-space: nowrap; }
 .rs__table thead th { position: sticky; top: 0; z-index: 2; background: rgba(var(--glass), 0.96); }
-.rs__table .rs__name { position: sticky; left: 0; z-index: 1; text-align: left; background: rgba(var(--glass), 0.96); max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.rs__table .rs__name { position: sticky; left: 0; z-index: 1; text-align: left; background: rgba(var(--glass), 0.96); max-width: 45vw; white-space: normal; /* V159: vorher 280px und gekürzt – jetzt bricht der Name bei Enge um (Zellen immer lesbar) */ }
 .rs__table thead .rs__name { z-index: 3; }
 .rs__num { text-align: right; font-variant-numeric: tabular-nums; }
 .rs__num.is-over { color: #fff; background: rgba(214, 64, 64, 0.75); font-weight: 600; }
@@ -10189,6 +10193,9 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 .pj__admin[open] { display: grid; gap: 10px; padding-bottom: 12px; }
 .pj__stand { margin: 0; }
 .paper__wrap { display: grid; gap: 8px; justify-items: center; }
+/* V159: breite Formular-Tabellen rollen im Blatt seitlich – das Blatt selbst wird nicht breiter als der Platz */
+.paper__wrap { grid-template-columns: minmax(0, 1fr); }
+.paper--form { min-width: 0; max-width: 100%; }
 .paper__bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-self: stretch; }
 .paper {
   --paper-ink: #1a1a1a; --paper-red: #a3141b; --paper-line: #3a3a3a; --paper-label: #ececec;
@@ -10474,6 +10481,7 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
 .pj__namewheel > .pj__wheel { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; margin: 0; }
 /* V134 (Enrico 11:49 „Das darf nie aus dem Bild laufen“): Projektliste mit Projekt- und Ansicht-Rad bleibt beim Scrollen oben stehen */
 .pj .pc__tablewrap { position: sticky; top: 0; z-index: 40; background: var(--panel, #1b1d22); box-shadow: 0 6px 10px -8px rgba(0, 0, 0, 0.6); }
+
 .pj .pc__tablewrap thead th { position: static; }
 /* V142 (Enrico 15:20, Bildschirmfoto): Kartenfenster im Netzplan lag unter der stehenden Projektliste – offenes Fenster geht vor */
 .pj .cardwin { z-index: 60; }
@@ -10737,8 +10745,13 @@ td:hover .fmedia__add, td:focus-within .fmedia__add, .fmedia__add:focus-visible 
 /* V154 (F-232 P13): Inhalts-Seitenleiste neben jedem Blatt */
 .paper__side { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
 .paper__main { min-width: 0; }
-.tocrail { position: sticky; top: 8px; display: grid; gap: 4px; align-content: start; max-height: calc(100vh - 140px); }
+.tocrail { position: sticky; top: 8px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 4px; align-content: start; max-height: calc(100vh - 140px); } /* V159: Liste rollt in sich */
 .tocrail.is-open { width: 13rem; }
+/* V159 (Enrico 14:29): Kopfzeile „Projektliste“ bleibt oben stehen, die Projektzeile klebt darunter */
+.projlayer .pj > header.lc__head { position: sticky; top: 0; z-index: 41; background: linear-gradient(rgba(var(--accent-rgb), 0.18), rgba(var(--accent-rgb), 0.18)), var(--panel, #1b1d22); } /* gleiche Farbe wie das Band, aber deckend */
+.projlayer .pj .pc__tablewrap { top: var(--pj-headh, 0px); overflow-x: auto; } /* V159: Projektliste rollt bei Enge in sich seitlich, nicht die ganze Fläche */
+/* V159: im Projekt-Modus unter der festen Projektzeile kleben (Höhe aus ProjectCockpit) */
+.projlayer .pj .tocrail { top: calc(var(--pj-sticky, 0px) + 8px); max-height: calc(100vh - 140px - var(--pj-sticky, 0px)); }
 .tocrail__toggle { display: inline-flex; align-items: center; gap: 4px; justify-self: start; padding: 3px 8px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 6px; background: transparent; color: inherit; font: inherit; font-size: 0.85em; cursor: pointer; writing-mode: horizontal-tb; }
 .tocrail:not(.is-open) .tocrail__toggle { writing-mode: vertical-rl; padding: 8px 3px; }
 .tocrail__list { list-style: none; margin: 0; padding: 0; overflow: auto; display: grid; gap: 1px; font-size: 0.82em; }
@@ -10751,7 +10764,18 @@ td:hover .fmedia__add, td:focus-within .fmedia__add, .fmedia__add:focus-visible 
 .tocrail__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tocrail__miss { min-width: 1.2em; padding: 0 4px; border-radius: 8px; background: #d00000; color: #fff; font-size: 0.85em; text-align: center; }
 @media (forced-colors: active) { .tocrail__row.is-here { border-color: Highlight; } .tocrail__miss { border: 1px solid CanvasText; } }
-@media (max-width: 900px) { .paper__side { grid-template-columns: minmax(0, 1fr); } .tocrail { position: static; max-height: none; } .tocrail.is-open { width: auto; } .tocrail:not(.is-open) .tocrail__toggle { writing-mode: horizontal-tb; padding: 3px 8px; } }
+/* V159 (Enrico 14:39, iPad): auch schmal bleibt „Inhalt“ beim Scrollen oben stehen (unter der Projektzeile), die Liste ist
+   niedrig und rollt in sich; zugeklappt zeigt der Knopf das aktuelle Kapitel */
+.tocrail__cur { display: none; font-weight: 600; }
+@media (max-width: 900px) {
+  .paper__side { grid-template-columns: minmax(0, 1fr); }
+  .tocrail { position: sticky; z-index: 30; max-height: 32vh; background: var(--panel, #1b1d22); padding: 4px 0; box-shadow: 0 6px 10px -8px rgba(0, 0, 0, 0.6); }
+  .projlayer .pj .tocrail { max-height: 32vh; }
+  .tocrail.is-open { width: auto; }
+  .tocrail:not(.is-open) .tocrail__toggle { writing-mode: horizontal-tb; padding: 3px 8px; }
+  .tocrail__cur { display: inline; }
+  .tocrail__list { min-height: 0; }
+}
 @media print { .tocrail { display: none; } .paper__side { display: block; } }
 
 /* V154 (F-236 B): Generator-Blatt „Layout“ */
@@ -10804,3 +10828,27 @@ td:hover .fmedia__add, td:focus-within .fmedia__add, .fmedia__add:focus-visible 
 /* V158: „auto“-Hinweis rutscht unter das Feld, statt ihm in schmalen Spalten die Breite zu nehmen */
 .paper--form .pjf__table.is-fixed .pjf__in { flex-wrap: wrap; }
 .paper--form .pjf__table.is-fixed .pjf__in > :is(input, textarea) { flex: 1 1 100%; min-width: 0; }
+
+/* V159: Erklär- und Tastentexte in einer Zeile, Rest per „mehr“ (MoreLine) */
+.moreline { display: flex; align-items: baseline; gap: 6px; min-width: 0; max-width: none; }
+.moreline__text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.moreline.is-open .moreline__text { white-space: normal; overflow: visible; }
+.moreline__btn { flex: none; padding: 0 6px; border: 1px solid color-mix(in srgb, currentColor 30%, transparent); border-radius: 999px; background: transparent; color: inherit; font: inherit; font-size: 0.9em; line-height: 1.5; cursor: pointer; }
+.moreline__btn:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+.moreline__btn:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 1px; }
+
+/* V159: Blättern am Blattende – Zurück links, Weiter rechts, wie auf Webseiten */
+.pjf__pager { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px auto 8px; max-width: calc(297mm * var(--paper-zoom, 1)); }
+.pjf__pagebtn { display: grid; gap: 2px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, currentColor 4%, transparent); color: inherit; font: inherit; cursor: pointer; min-height: 44px; }
+.pjf__pagebtn.is-prev { text-align: left; justify-items: start; }
+.pjf__pagebtn.is-next { text-align: right; justify-items: end; grid-column: 2; }
+.pjf__pagebtn:hover { border-color: rgb(var(--accent-rgb)); background: rgba(var(--accent-rgb), 0.12); }
+.pjf__pagebtn:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 2px; }
+.pjf__pagedir { font-size: 0.8em; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.04em; }
+.pjf__pagename { font-weight: 600; overflow-wrap: anywhere; }
+
+/* V159 (Enrico 14:41 „Als Hintergrund … das ES Logo“): ES-Zeichen (ohne „ources“, wie die Hintergrundbilder) mittig und
+   dezent in leeren Portalen, Slots und Notizflächen; Inhalt davor bleibt bedienbar */
+.esmark { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: url('./assets/es-mark.svg') center / min(42%, 220px) auto no-repeat; opacity: 0.22; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.55)); }
+.esmark ~ * { position: relative; z-index: 1; }
+@media (forced-colors: active) { .esmark { display: none; } }

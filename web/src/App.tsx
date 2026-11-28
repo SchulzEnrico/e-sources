@@ -1,4 +1,5 @@
 import { SAMPLES, hasSample, shownSamples } from './workspace/samples';
+import { refreshSample } from './workspace/sampleRefresh';
 import { liveLocked, liveStale } from './workspace/liveProject';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { ZOOM_DEFAULT, fitFor, fitStart, frameWidth, nearestStep, shownZoom, zoomOf, zoomStep } from './workspace/zoom';
@@ -75,7 +76,7 @@ import { importSlot, isSlotFile, readSlotFile, slotFileName, slotToFile } from '
 import { type NoteHit, tabShowing, titleOf as noteTitleOf, viewById } from './workspace/notes';
 import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, setPanelSize, resetPanel, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
-import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_LAYOUT_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, sampleText, STAGE_TEXT, VIEW_TEXT } from './workspace/terms';
+import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_LAYOUT_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, sampleText, SAMPLE_REFRESH_TEXT, STAGE_TEXT, VIEW_TEXT } from './workspace/terms';
 import { type DeskMode, PHONE_MQ, modeOf, saveModes, startModes, withMode } from './workspace/deskMode';
 import { INBOX_TEXT, INK_TEXT, CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, RULE_SET_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
@@ -373,7 +374,7 @@ function DeskApp(props: DeskProps) {
   /** F-206 Schritt 3: Pads aus-/einblenden (nur in diesem Fenster) und geöffnete Note je Notizblock. */
   const [padsHidden, setPadsHidden] = useState(false);
   // V75 (F-215): Desk Mode / Note Mode je Desk (je Gerät); Telefon = schmal → startet im Note Mode
-  // V158: Start immer im Notizen-Modus (Hauptfenster setzt die Modi der letzten Sitzung zurück)
+  // V159: Start je Desk im zuletzt auf diesem Gerät gewählten Modus (erster Start: Notizen)
   const [deskModes, setDeskModes] = useState(() => startModes(!win));
   // V76 (Enrico: Querformat auf dem Telefon): Telefon = schmal oder im Querformat niedrig mit Touch – sonst sprang
   // E-Sources beim Drehen in den Desk Mode (über 600 px breit)
@@ -4337,6 +4338,25 @@ function DeskApp(props: DeskProps) {
                   </Item>
                 );
               })}
+              {/* V159: Beispiel auffrischen – ergänzt, was seit der Anlage neu ins Beispiel kam (Teamrollen, Logo …) */}
+              {SAMPLES.filter((sm) => hasSample(ws, sm.key)).map((sm) => (
+                <Item key={`${sm.key}-refresh`} icon="restore" title={SAMPLE_REFRESH_TEXT.hint(sm.name)}
+                  onClick={() => {
+                    const at = Date.now();
+                    const r = refreshSample(ws, sm.key, at);
+                    const gear = document.querySelector('button[aria-label="Einstellungen"]');
+                    if (!r.undo) notify(SAMPLE_REFRESH_TEXT.nothing(sm.name), undefined, false, undefined, gear);
+                    else {
+                      const u = r.undo;
+                      dispatch({ type: 'sampleRefresh', key: sm.key, at });
+                      notify(SAMPLE_REFRESH_TEXT.done(sm.name, r.added), 12000, false, { label: SAMPLE_REFRESH_TEXT.undo, run: () => { dispatch({ type: 'sampleRefreshUndo', undo: u }); notify(SAMPLE_REFRESH_TEXT.undone(sm.name), undefined, false, undefined, gear); } }, gear);
+                    }
+                    close();
+                  }}
+                >
+                  {SAMPLE_REFRESH_TEXT.menu(sm.name)}
+                </Item>
+              ))}
               <li className="menu__sep" role="separator" />
               {/* V84 (F-216, NF-08): Bildschirm als Umschalt-Rad wie das Gerät in der Layouts-Vorschau (Anschlag, der Größe nach) */}
               <li role="none" className="menu__wheel">

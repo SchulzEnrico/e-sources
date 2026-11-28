@@ -16,6 +16,7 @@ import { newId } from '../workspace/workspace';
 import { rects as treeRects } from '../workspace/tree';
 import { Icon } from './Icon';
 import type { IconName } from '../workspace/icons';
+import { MoreLine } from './MoreLine';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 const KIND_ICON: Record<NoteViewKind, IconName> = { block: 'note', todo: 'todo', kanban: 'kanban', eisenhower: 'matrix' };
@@ -192,7 +193,7 @@ export function NotesLayoutGroup({ ws, win, screenKey, screenName, dispatch, say
         </h3>
         <span className="lc__head-tools lc__muted">{NLT.screen(screenName)}</span>
       </header>
-      <p className="help__text bt__intro">{TERMS.notesLayout.replace(' = ', ': ')}</p>
+      <MoreLine store="notesLayouts" className="help__text bt__intro">{TERMS.notesLayout.replace(' = ', ': ')}</MoreLine>
 
       <ul className="lc__cards" aria-label={NLT.head}>
         {ids.map((id, i) => {

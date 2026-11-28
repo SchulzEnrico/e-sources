@@ -1422,7 +1422,7 @@ export const DESK_MODE_TEXT = {
   desk: 'Desk',
   notes: 'Notizen',
   deskHint: 'Desk: Portale und Slots wie gewohnt, Pads schweben darüber',
-  notesHint: 'Notizen: alle Pads des Desks liegen verteilt über dem ganzen Desk (eins allein füllt ihn) – die Portale ruhen unsichtbar dahinter. E-Sources startet immer so.',
+  notesHint: 'Notizen: alle Pads des Desks liegen verteilt über dem ganzen Desk (eins allein füllt ihn) – die Portale ruhen unsichtbar dahinter. Beim ersten Start auf einem Gerät beginnt E-Sources so, danach im zuletzt gewählten Modus.',
   nowDesk: 'Desk Mode: Portale und Slots.',
   nowNotes: 'Notizen: die Pads teilen sich den Desk.',
   projects: 'Projekte',
@@ -2767,6 +2767,19 @@ export const sampleText = (s: { name: string; tasks: number; roles: number; sour
   hint: `Beispielprojekt „${s.name}“ aus dem ${s.source} anlegen – mit Steckbrief, Formularen, PSP, Gantt, Rollen, Meilensteinen und Vorgängern zum Ausprobieren; entfernen über ⚙`,
   addedHere: `Beispielprojekt „${s.name}“ angelegt (${s.tasks} Vorgänge, ${s.roles} Rollen) und gewählt. Entfernen über ⚙.`,
 });
+/** V159: Erklärtexte in einer Zeile, Rest per „mehr“ (MoreLine). */
+export const MORE_TEXT = { more: 'mehr', less: 'weniger', moreHint: 'Ganzen Text zeigen (merkt sich dieses Gerät)', lessHint: 'Wieder auf eine Zeile kürzen' };
+/** V159: Beispiel auffrischen – ergänzt, was seit der Anlage ins Beispiel kam; Enricos Änderungen bleiben. */
+export const SAMPLE_REFRESH_TEXT = {
+  menu: (name: string) => `Beispielprojekt „${name}“ auffrischen`,
+  hint: (name: string) => `Ergänzt im Beispiel „${name}“ nur, was seit der Anlage neu ins Beispiel kam (z. B. Teamrollen, Logo) – deine Änderungen bleiben, mit Rückgängig.`,
+  button: 'Beispiel auffrischen',
+  done: (name: string, parts: string[]) => `Beispiel „${name}“ aufgefrischt – ergänzt: ${parts.join(', ')}. Deine Änderungen bleiben.`,
+  nothing: (name: string) => `Beispiel „${name}“ ist vollständig – nichts zu ergänzen.`,
+  undo: 'Rückgängig',
+  undone: (name: string) => `Auffrischen von „${name}“ rückgängig gemacht.`,
+  emptyHint: 'Im Beispiel fehlt etwas, das später dazukam?',
+};
 export const SAMPLE_TEXT = {
   add: 'Beispielprojekt „ColorGentlemen“ anlegen',
   remove: 'Beispielprojekt „ColorGentlemen“ entfernen',
@@ -3834,6 +3847,12 @@ export const STEER_TEXT = {
 
 /** F-226 (V109): Projekt-Modus › Ansicht „Formulare“ (Formular-Baukasten nach GPM). */
 export const FORMS_TEXT = {
+  // V159: blättern am Blattende
+  pager: 'Kapitel blättern',
+  pagePrev: 'Zurück',
+  pageNext: 'Weiter',
+  pagePrevHint: 'Voriges Kapitel öffnen (oben beginnen)',
+  pageNextHint: 'Nächstes Kapitel öffnen (oben beginnen)',
   // V133 (F-232 P9): jedes Formular als Blatt wie im Report
   sheetTitle: (f: string, p: string) => `Formular ${f}, Projekt ${p} – Blatt wie im Report`,
   sheetProject: 'Projektname',

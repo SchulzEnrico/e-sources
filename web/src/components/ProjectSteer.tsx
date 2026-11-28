@@ -23,6 +23,7 @@ import { openNote } from './SourceChips';
 import { PrepareLine } from './ProjectDecisions';
 import * as Pr from '../workspace/prepare';
 import { DECISION_TEXT as DT } from '../workspace/terms';
+import { MoreLine } from './MoreLine';
 
 type Kind = Rk.SteerType;
 
@@ -123,7 +124,7 @@ export function ProjectSteer({ ws, p, kind, dispatch, say, focus }: { ws: Worksp
           </span>
         )}
       </header>
-      <p className="help__text dc__why">{PSP_TEXT.viewHint[kind === 'risk' ? 'risks' : 'changes']}</p>
+      <MoreLine store={`steer-${kind}`} className="help__text dc__why">{PSP_TEXT.viewHint[kind === 'risk' ? 'risks' : 'changes']}</MoreLine>
       {adding && (
         <form className="dc__new" aria-label={kind === 'risk' ? T.addRisk : T.addChange} onSubmit={(e) => (e.preventDefault(), create())}>
           <label>

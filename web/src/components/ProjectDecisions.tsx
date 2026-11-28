@@ -26,6 +26,7 @@ import { DecisionSheet, ShapeWheel, useShape } from './PaperDocs';
 import type { ContentsEntry } from '../workspace/contents';
 import { DOC_SHEET_TEXT as DS } from '../workspace/terms';
 import { noticeLater } from '../workspace/flash';
+import { MoreLine } from './MoreLine';
 
 type Step = 'crit' | 'pair' | 'score' | 'result';
 const STEPS: Step[] = ['crit', 'pair', 'score', 'result'];
@@ -147,7 +148,7 @@ export function Decisions({ ws, p, dispatch, say, open, scope: scope0, inPad, on
         {topOvf.knob}
         {!inPad && <WorkPadButton tab="decisions" project={p?.id ?? (shownScope !== 'all' && shownScope !== 'free' ? shownScope : undefined)} decision={d?.id} />}
       </header>
-      <p className="help__text dc__why">{T.why}</p>
+      <MoreLine store="decisions" className="help__text dc__why">{T.why}</MoreLine>
       {adding && (
         <form className="dc__new" aria-label={T.addLabel} onSubmit={(e) => (e.preventDefault(), create())}>
           <label>

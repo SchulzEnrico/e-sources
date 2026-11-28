@@ -18,6 +18,7 @@ import { DIALOG_TEXT, PERSON_TEXT, PERSONS_TEXT as T, TERMS } from '../workspace
 import { noticeLater } from '../workspace/flash';
 import { Icon } from './Icon';
 import { PersonBadge } from './PersonChips';
+import { MoreLine } from './MoreLine';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 /** 2026-12-21 → 21.12. */
@@ -141,7 +142,7 @@ export function PersonCockpit({ ws, dispatch, say }: { ws: Workspace; dispatch: 
           </button>
         </span>
       </header>
-      <p className="help__text bt__intro">{TERMS.resources.replace(' = ', ': ')}</p>
+      <MoreLine store="persons" className="help__text bt__intro">{TERMS.resources.replace(' = ', ': ')}</MoreLine>
 
       {adding && (
         <form

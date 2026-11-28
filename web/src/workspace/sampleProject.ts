@@ -18,8 +18,8 @@ import { headText } from './sheets';
 import { ME_ID, ensureMe } from './persons';
 
 export const SAMPLE_PROJECT = 'pj-cg';
-const NOTE_PREFIX = 'cg-';
-const PERSON_PREFIX = 'pn-cg-';
+export const NOTE_PREFIX = 'cg-';
+export const PERSON_PREFIX = 'pn-cg-';
 
 /** 2020/2021 → 2026/2027 (gleiche Wochentage). */
 const shift = (d: string) => `${Number(d.slice(0, 4)) + 6}${d.slice(4)}`;

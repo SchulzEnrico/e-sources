@@ -19,6 +19,7 @@ import { Icon } from './Icon';
 import { ModeWheel } from './ModeWheel';
 import { openNote } from './SourceChips';
 import { TaskInfo, fmtDay, usePspTree } from './ProjectPsp';
+import { MoreLine } from './MoreLine';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 type Scale = 'day' | 'week' | 'month';
@@ -237,9 +238,9 @@ export function ProjectGantt({ ws, p, dispatch, say, onPickProject }: { ws: Work
         </p>
       </div>
       {phases.length > 0 && (
-        <p className="lc__keys gt__phaselist">
+        <MoreLine store="ganttPhases" className="lc__keys gt__phaselist">
           <strong>{G.phases}:</strong> {phases.map((ph) => G.phaseLine(ph.name, fmtDay(ph.start), fmtDay(ph.end), ph.tasks, ph.from === 'tasks', ph.outside)).join(' · ')}
-        </p>
+        </MoreLine>
       )}
       {loopNames.length > 0 && <p className="layouts__error" role="alert">{G.loops(loopNames.join(' · '))}</p>}
       <div ref={boxRef} className="gt" style={{ ['--gt-row' as string]: `${ROW}px`, ['--gt-head' as string]: `${head}px`, ['--gt-lane' as string]: `${LANE}px`, ['--gt-lanes' as string]: laneEnd.length }}>

@@ -17,6 +17,7 @@ import { newId } from '../workspace/workspace';
 import { Item, MenuHead } from './PanelFrame';
 import { Icon } from './Icon';
 import { COL_STATE_ICON } from './KanbanSheet';
+import { MoreLine } from './MoreLine';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 /** „Offen · In Arbeit · Erledigt“ */
@@ -271,7 +272,7 @@ export function BoardTemplateGroup({ ws, win, dispatch, say, onNewBoard }: { ws:
           />
         </span>
       </header>
-      <p className="help__text bt__intro">{TERMS.boardTemplate.replace(' = ', ': ')}</p>
+      <MoreLine store="boardTemplates" className="help__text bt__intro">{TERMS.boardTemplate.replace(' = ', ': ')}</MoreLine>
 
       <ul className="lc__cards" aria-label={BTT.head}>
         {list.map((t, i) => {

@@ -13,6 +13,7 @@ import { Icon } from './Icon';
 import { openNote } from './SourceChips';
 import { fmtDay } from './ProjectPsp';
 import { PersonBadge } from './PersonChips';
+import { MoreLine } from './MoreLine';
 
 const explain = (t: string) => t.split(' = ').slice(1).join(' = ') || t;
 /** V117: Wochenzellen auf eine Nachkommastelle (genau steht im Tooltip). */
@@ -56,7 +57,7 @@ export function ProjectResources({ ws, p }: { ws: Workspace; p: Project }) {
           {u.cut && <> · {R.cut(u.weeks.length)}</>}
         </p>
       </div>
-      <p className="lc__keys" id="rs-keys">{R.keys}</p>
+      <MoreLine store="resKeys" className="lc__keys" id="rs-keys">{R.keys}</MoreLine>
       <div className="rs__box">
         <table className="pc__table rs__table" aria-labelledby="rs-head" aria-describedby="rs-keys">
           <thead>

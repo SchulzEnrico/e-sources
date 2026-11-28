@@ -9,7 +9,7 @@ import type { FormDef, Project, Workspace } from './types';
 import * as Fk from './formKit';
 import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf, projectStatus, type CostCurve, type EvCurve, type Mta, type PortfolioDot } from './gpmCalc';
 import { personById } from './persons';
-import { projectById } from './projects';
+import { projectById, rolesOf } from './projects';
 import { envPortfolioSvg, figureSvg, shPortfolioSvg } from './gpmFigures';
 import * as Sh from './sheets';
 
@@ -354,6 +354,12 @@ export interface ReportSign {
   date?: string;
   ref?: string;
 }
+/** V145: Name der Projektleitung aus der Rolle „lead“ (Organigramm) – für die Freigabe-Zeilen ohne eigenes Namensfeld. */
+export const leadName = (ws: Workspace, p: Project): string | undefined => personById(ws, rolesOf(p).find((x) => x.id === 'lead')?.person)?.name || undefined;
+const ownerName = (ws: Workspace, noteId?: string): string | undefined => {
+  const n = noteId ? (ws.notes ?? []).find((x) => x.id === noteId) : undefined;
+  return (n?.assignee && personById(ws, n.assignee)?.name) || undefined;
+};
 export function reportSigns(ws: Workspace, p: Project, f: FormDef, rowId?: string): ReportSign[] {
   if (f.source === 'charter') {
     const c = p.charter ?? {};
@@ -366,20 +372,20 @@ export function reportSigns(ws: Workspace, p: Project, f: FormDef, rowId?: strin
     const n = (ws.notes ?? []).find((x) => x.id === rowId);
     const w = n?.wp ?? {};
     return [
-      { label: 'Unterschrift AP-Verantwortlich', name: n?.assignee ? personById(ws, n.assignee)?.name : undefined, date: w.releaseOwner, ref: w.inkOwner },
-      { label: 'Unterschrift Projektleitung', date: w.releasePl, ref: w.inkPl },
+      { label: 'Unterschrift AP-Verantwortlich', name: ownerName(ws, rowId), date: w.releaseOwner, ref: w.inkOwner },
+      { label: 'Unterschrift Projektleitung', name: leadName(ws, p), date: w.releasePl, ref: w.inkPl },
     ];
   }
   if (f.source === 'reports' && rowId) {
     const r = (p.reports ?? []).find((x) => x.id === rowId);
-    return r ? [{ label: 'Unterschrift Projektleitung', date: r.date, ref: r.inkPl }] : [];
+    return r ? [{ label: 'Unterschrift Projektleitung', name: leadName(ws, p), date: r.date, ref: r.inkPl }] : [];
   }
   if (f.source === 'wpReports' && rowId) {
     const r = (p.wpReports ?? []).find((x) => x.id === rowId);
     if (!r) return [];
     return [
-      { label: 'Unterschrift AP-Verantwortlich', date: r.date, ref: r.inkOwner },
-      { label: 'Unterschrift Projektleitung', date: r.date, ref: r.inkPl },
+      { label: 'Unterschrift AP-Verantwortlich', name: ownerName(ws, r.wp), date: r.date, ref: r.inkOwner },
+      { label: 'Unterschrift Projektleitung', name: leadName(ws, p), date: r.date, ref: r.inkPl },
     ];
   }
   return [];

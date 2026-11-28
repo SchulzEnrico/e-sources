@@ -1140,3 +1140,100 @@ describe('V144: Statusbericht (12) als Blatt wie Abb. 15', () => {
     expect(F.figureSvg(back, pid, 'wpReport')).toContain('AP Statusbericht zum 17.05.2027');
   });
 });
+
+describe('V145 Freigabe mit Namen, eigene Vorlagen mit Blatt', () => {
+  const sample = () => Sp.addSampleProject(W.defaultWorkspace(), 5);
+  const pid = Sp.SAMPLE_PROJECT;
+  it('Projektleitung bekommt den Namen aus der Rolle „lead“ – in 8.3, 12 und 12.1', async () => {
+    const Rp = await import('./gpmReport');
+    const Ps = await import('./persons');
+    const ws = sample();
+    const p = Pj.projectById(ws, pid)!;
+    const lead = Ps.personById(ws, Pj.rolesOf(p).find((r) => r.id === 'lead')?.person)?.name;
+    expect(Rp.leadName(ws, p)).toBe(lead || undefined);
+    for (const id of ['reports', 'wpReports']) {
+      const f = Fk.GPM_D.forms.find((x) => x.id === id)!;
+      const row = Fk.rowsOf(ws, pid, f)[0];
+      if (!row) continue;
+      const pl = Rp.reportSigns(ws, p, f, row.id).find((g) => g.label.endsWith('Projektleitung'));
+      expect(pl?.name).toBe(lead || undefined);
+    }
+    const ap = Fk.GPM_D.forms.find((x) => x.id === 'wpReports')!;
+    const r = (p.wpReports ?? [])[0];
+    if (r) {
+      const n = (ws.notes ?? []).find((x) => x.id === r.wp);
+      const want = n?.assignee ? Ps.personById(ws, n.assignee)?.name : undefined;
+      expect(Rp.reportSigns(ws, p, ap, r.id)[0].name).toBe(want || undefined);
+    }
+    const noLead = Pj.editProject(ws, pid, { roles: Pj.rolesOf(p).filter((x) => x.id !== 'lead') });
+    expect(Rp.leadName(noLead, Pj.projectById(noLead, pid)!)).toBeUndefined();
+  });
+  it('Kopie von GPM_D ohne Figur im Statusbericht bekommt das Blatt der Standardvorlage', () => {
+    const old = { id: 'mine', name: 'Meine', forms: Fk.GPM_D.forms.map((f) => { const c = { ...f }; if (c.id === 'reports') delete c.figure; return c; }) };
+    const [t] = Fk.parseFormTemplates([JSON.parse(JSON.stringify(old))]);
+    expect(t.forms.find((f) => f.id === 'reports')!.figure).toBe('statusReport');
+    expect(t.forms.find((f) => f.id === 'wpReports')!.figure).toBe('wpReport');
+    // Tabellen ohne Blatt bleiben ohne Figur
+    expect(t.forms.find((f) => f.id === 'goals')!.figure).toBeUndefined();
+  });
+});
+
+describe('V145 Balkenplan-Kopf wie MS Project', () => {
+  const dn = (d: string) => Math.round(Date.parse(`${d}T12:00:00Z`) / 864e5);
+  it('Quartale mit Jahr über den Jahreswechsel, KW nur bei Platz', async () => {
+    const Fg = await import('./gpmFigures');
+    const a = { x0: 0, w: 600, d0: dn('2026-11-01'), d1: dn('2027-03-01') };
+    const t = Fg.ganttTiers(a);
+    expect(t.quarters.map((q) => q.label)).toEqual(['Q4 2026', 'Q1 2027']);
+    expect(t.quarters[0].x1).toBe(0);
+    expect(t.quarters[1].x2).toBe(600);
+    // 120 Tage auf 600 Punkte = 35 Punkte je Woche → KW
+    expect(t.weeks).not.toBeNull();
+    expect(t.weeks![0].label).toBe('44');
+    expect(t.weeks!.some((w) => w.label === '53')).toBe(true);
+    // ein Jahr auf 600 Punkte: zu eng für KW
+    expect(Fg.ganttTiers({ x0: 0, w: 600, d0: dn('2026-01-01'), d1: dn('2027-01-01') }).weeks).toBeNull();
+  });
+  it('Blatt zeigt Quartale und bleibt im Rahmen', async () => {
+    const Fg = await import('./gpmFigures');
+    const ws = Sp.addSampleProject(W.defaultWorkspace(), 5);
+    const svg = Fg.ganttSheetSvg(ws, Sp.SAMPLE_PROJECT);
+    expect(svg).toContain('Q4 2026');
+    expect(svg).toContain('KW 53');
+    expect(/<(text|rect)[^>]* y="-/.test(svg)).toBe(false);
+  });
+});
+
+describe('V145 Phasenplan: Beschriftungen ohne Überlappung', () => {
+  it('labelLevels stapelt nur, was sich überlagert, je Gruppe getrennt', async () => {
+    const Fg = await import('./gpmFigures');
+    expect(Fg.labelLevels([{ x1: 0, x2: 20 }, { x1: 10, x2: 30 }, { x1: 15, x2: 35 }, { x1: 40, x2: 60 }])).toEqual([0, 1, 2, 0]);
+    expect(Fg.labelLevels([{ x1: 0, x2: 20, group: 1 }, { x1: 5, x2: 25, group: 2 }])).toEqual([0, 0]);
+    // Reihenfolge der Eingabe bleibt erhalten
+    expect(Fg.labelLevels([{ x1: 50, x2: 70 }, { x1: 0, x2: 60 }])).toEqual([1, 0]);
+  });
+  it('Phasenplan ColorGentlemen bleibt zeichenbar', async () => {
+    const Fg = await import('./gpmFigures');
+    const ws = Sp.addSampleProject(W.defaultWorkspace(), 5);
+    expect(Fg.phasePlanSvg(ws, Sp.SAMPLE_PROJECT)).toContain('Projektmonat');
+  });
+});
+
+describe('V145 Organigramm: Abkürzungen in der Legende', () => {
+  it('nur vorkommende Kürzel, eigene Erklärung vor der Liste, Firmenkürzel ohne Erklärung fehlen', async () => {
+    const Fg = await import('./gpmFigures');
+    expect(Fg.orgAbbrevs(['QMB', 'Hr. Baum – TL Aufbau', 'Projektbüro (PA)', 'Fr. Mikitta – Projektassistenz, QMB (CG)'])).toEqual([
+      ['PA', 'Projektbüro'],
+      ['QMB', 'Beauftragte/r Qualitätsmanagement'],
+      ['TL', 'Teamleitung'],
+    ]);
+    expect(Fg.orgAbbrevs(['Projektleitung'])).toEqual([]);
+  });
+  it('ColorGentlemen: Organigramm zeigt die Abkürzungen', async () => {
+    const Fg = await import('./gpmFigures');
+    const ws = Sp.addSampleProject(W.defaultWorkspace(), 5);
+    const svg = Fg.figureSvg(ws, Sp.SAMPLE_PROJECT, 'org');
+    expect(svg).toContain('Abkürzungen');
+    expect(svg).toContain('Teamleitung');
+  });
+});

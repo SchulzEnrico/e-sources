@@ -1623,6 +1623,12 @@ export function parseFormTemplates(v: unknown): FormTemplate[] {
         ...(fields ? { fields } : {}),
       });
     }
+    // V145: Kopien von GPM_D aus der Zeit vor einem neuen Blatt (z. B. Statusbericht V144) bekommen die Figur der Standardvorlage
+    for (const f of forms) {
+      if (f.figure || f.layout === 'figure') continue;
+      const std = GPM_D.forms.find((x) => x.id === f.id && x.source === f.source && x.layout === f.layout && x.figure);
+      if (std) f.figure = std.figure;
+    }
     if (forms.length) out.push({ id: t.id, name: t.name.trim().slice(0, 60), forms });
     if (out.length >= TEMPLATES_MAX) break;
   }

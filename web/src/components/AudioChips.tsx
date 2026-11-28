@@ -4,6 +4,7 @@
  * „Ton löschen“ (T5) mit „Rückgängig“ am Ort (F-214). Liegt der Ton auf einem anderen Gerät, bleibt der Chip
  * ausgegraut sichtbar: „Ton liegt auf ‚Mac‘“ (T7). Tastatur (NF-03): alles Knöpfe; Ansage über aria-live.
  */
+import { shareOrDownload } from '../workspace/fileOut';
 import { useEffect, useRef, useState } from 'react';
 import type { NoteAttachment } from '../workspace/types';
 import { AUDIO_TEXT as AT } from '../workspace/terms';
@@ -75,25 +76,7 @@ export function AudioChips(props: { clips: NoteAttachment[]; onRemove: (ref: str
     const c = await getClip(a.ref);
     if (!c) return setSay(AT.missing);
     const name = audioFileName(a.at ?? new Date(c.at).toISOString(), c.mime);
-    const file = typeof File === 'function' ? new File([c.blob], name, { type: c.mime }) : null;
-    const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
-    if (file && nav.share && nav.canShare?.({ files: [file] }) && matchMedia('(pointer: coarse)').matches) {
-      try {
-        await nav.share({ files: [file], title: name });
-        return;
-      } catch {
-        /* abgebrochen – nichts tun */
-        return;
-      }
-    }
-    const u = URL.createObjectURL(c.blob);
-    const link = document.createElement('a');
-    link.href = u;
-    link.download = name;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(u), 4000);
+    if ((await shareOrDownload(c.blob, name, c.mime)) === 'shared') return;
     setSay(name);
   };
 

@@ -499,8 +499,44 @@ export function orgChartSvg(ws: Workspace, p: Project): string {
     const y = 46 + (items.length + i) * 18;
     parts.push(`<text x="${lx + 8}" y="${y}" font-size="9" fill="${LOOK.ink}">${t}</text><rect x="${lx + 128}" y="${y - 9}" width="54" height="12" rx="2" fill="${FILL[tone]}" stroke="${STROKE[tone]}"/>`);
   });
-  const H = Math.max(bottom + 10, 30 + (items.length + 3) * 18 + 20);
+  // V145: Abkürzungen wie im Report (QMB, TL …) unter der Legende – nur, was im Organigramm vorkommt
+  const abbr = orgAbbrevs(roles.flatMap((r) => [r.name, who(r.person) ?? '', ext(r) ? '' : r.org ?? '']).filter(Boolean));
+  let ay = 30 + items.length * 18 + 2 * 18 + 28;
+  if (abbr.length) {
+    const lines = abbr.flatMap(([k, v]) => wrap(v, 26, 2).map((l, j) => [j ? '' : k, l] as const));
+    parts.push(`<rect x="${lx}" y="${ay - 14}" width="190" height="${20 + lines.length * 13}" fill="#fff" stroke="${LOOK.grayLine}" stroke-width="0.8"/><text x="${lx + 8}" y="${ay}" font-size="10" font-weight="bold" fill="${LOOK.ink}">Abkürzungen</text>`);
+    lines.forEach(([k, l], i) => parts.push(`${k ? `<text x="${lx + 8}" y="${ay + 15 + i * 13}" font-size="8.5" font-weight="bold" fill="${LOOK.wine}">${esc(k)}</text>` : ''}<text x="${lx + 44}" y="${ay + 15 + i * 13}" font-size="8.5" fill="${LOOK.ink}">${esc(l)}</text>`));
+    ay += 20 + lines.length * 13;
+  }
+  const H = Math.max(bottom + 10, 30 + (items.length + 3) * 18 + 20, abbr.length ? ay : 0);
   return svgWrap(lx + 200, H, `Projektorganisation ${p.name}: ${roles.length} Rollen${exts.length ? `, davon ${exts.length} extern` : ''}`, parts.join(''));
+}
+
+/** V145 (Report Abb. 7): Abkürzungen in der Legende – nur die, die im Organigramm stehen. Erklärungen aus „Name (ABK)“
+ *  in den Rollen haben Vorrang vor der Liste gängiger Kürzel. */
+export const ORG_ABBR: Record<string, string> = {
+  AG: 'Auftraggeber',
+  AP: 'Arbeitspaket',
+  AWT: 'Anwendungstechnik',
+  GF: 'Geschäftsführung',
+  GL: 'Gebietsleitung',
+  LB: 'Leitung Buchhaltung',
+  PA: 'Projektassistenz',
+  PL: 'Projektleitung',
+  PMO: 'Projektmanagement-Office',
+  QMB: 'Beauftragte/r Qualitätsmanagement',
+  TL: 'Teamleitung',
+};
+export function orgAbbrevs(texts: readonly string[]): [string, string][] {
+  const own = new Map<string, string>();
+  for (const t of texts) for (const m of t.matchAll(/([A-ZÄÖÜa-zäöüß][\wäöüß\- ]{2,}?)\s*\(([A-ZÄÖÜ]{2,4})\)/g)) {
+    const word = m[1].trim();
+    // nur echte Erklärungen: Wort mit Kleinbuchstaben, gleicher Anfangsbuchstabe („Projektbüro (PA)“, nicht „QMB (CG)“)
+    if (/[a-zäöüß]/.test(word) && word[0].toUpperCase() === m[2][0]) own.set(m[2], word);
+  }
+  const found = new Set<string>();
+  for (const t of texts) for (const m of t.replace(/\([^)]*\)/g, (x) => ` ${x.slice(1, -1)} `).matchAll(/\b([A-ZÄÖÜ]{2,4})\b/g)) found.add(m[1]);
+  return [...found].filter((k) => own.has(k) || ORG_ABBR[k]).sort().map((k) => [k, own.get(k) ?? ORG_ABBR[k]]);
 }
 
 // ---------------------------------------------------------------- Zeitachse (Phasenplan, Balkenplan)
@@ -537,12 +573,63 @@ function monthHeads(a: Axis, y: number, h: number, withYear = true): string {
   parts.push(`<line x1="${a.x0 + a.w}" y1="${y}" x2="${a.x0 + a.w}" y2="${y + h}" stroke="${LOOK.grid}" stroke-width="0.7"/>`);
   return parts.join('');
 }
+/** V145 (Rangfolge 2: Zeitskala wie MS Project): Ebenen über den Monaten – Quartal mit Jahr („Q1 2026“) und, wenn eine
+ *  Woche mindestens `minWeek` Punkte breit ist, die Kalenderwochen (Montag bis Sonntag, ISO 8601). Rein rechnend. */
+export interface TimeTier { label: string; x1: number; x2: number }
+export function ganttTiers(a: Pick<Axis, 'x0' | 'w' | 'd0' | 'd1'>, minWeek = 16): { quarters: TimeTier[]; weeks: TimeTier[] | null } {
+  const span = Math.max(1, a.d1 - a.d0);
+  const xOf = (d: number) => a.x0 + ((Math.min(a.d1, Math.max(a.d0, d)) - a.d0) / span) * a.w;
+  // dayNo rundet 12:00 UTC auf – der Tag d beginnt also bei (d − ½) · 864e5
+  const at = (d: number) => new Date((d - 0.5) * 864e5);
+  const iso = (d: number) => at(d).toISOString().slice(0, 10);
+  const quarters: TimeTier[] = [];
+  for (let d = a.d0; d < a.d1; ) {
+    const dt = at(d);
+    const q = Math.floor(dt.getUTCMonth() / 3);
+    const next = Math.round(Date.UTC(dt.getUTCFullYear(), q * 3 + 3, 1, 12) / 864e5);
+    quarters.push({ label: `Q${q + 1} ${dt.getUTCFullYear()}`, x1: xOf(d), x2: xOf(next) });
+    d = next;
+  }
+  const weekW = (a.w / span) * 7;
+  if (weekW < minWeek) return { quarters, weeks: null };
+  const weeks: TimeTier[] = [];
+  // erster Montag am oder vor dem Anfang
+  const wd = (at(a.d0).getUTCDay() + 6) % 7;
+  for (let d = a.d0 - wd; d < a.d1; d += 7) weeks.push({ label: String(isoWeek(iso(Math.max(d, a.d0)))), x1: xOf(d), x2: xOf(d + 7) });
+  return { quarters, weeks };
+}
+function tierHeads(t: TimeTier[], y: number, hh: number, bold: boolean): string {
+  return t
+    .map((q) => {
+      const w = q.x2 - q.x1;
+      const fits = w >= q.label.length * 4.6 + 4;
+      // Texte nie über Feldränder: passt die Beschriftung nicht, steht sie nur als Tooltip
+      return `<g><title>${esc(bold ? q.label : `KW ${q.label}`)}</title><rect x="${q.x1.toFixed(1)}" y="${y}" width="${Math.max(0, w).toFixed(1)}" height="${hh}" fill="${bold ? '#ececec' : '#f6f6f6'}" stroke="${LOOK.grid}" stroke-width="0.6"/>${fits ? `<text x="${((q.x1 + q.x2) / 2).toFixed(1)}" y="${y + hh - 3}" text-anchor="middle" font-size="${bold ? 8.5 : 7}"${bold ? ` font-weight="bold" fill="${LOOK.wine}"` : ` fill="${LOOK.muted}"`}>${esc(q.label)}</text>` : ''}</g>`;
+    })
+    .join('');
+}
 /** V138 (Enrico 12:59 „Gleiches gilt auch für alle anderen Darstellungen“): Teil einer Grafik am Ort bearbeitbar – „Formular:Zeile[:Feld]“. */
 const edg = (key: string, label: string) => ` class="fg-edit" data-edit="${esc(key)}" tabindex="0" role="button" aria-label="${esc(`Bearbeiten: ${label}`)}"`;
 /** unsichtbare Trefferfläche (für Klick und Fokus-Rahmen) */
 const hit = (x: number, y: number, w: number, h: number) => `<rect class="fg-hit" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1, w).toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" fill="#fff" fill-opacity="0"/>`;
 const diamond = (x: number, y: number, r: number, fill: string) => `<path d="M${x} ${y - r}L${x + r} ${y}L${x} ${y + r}L${x - r} ${y}Z" fill="${fill}" stroke="#3a0607" stroke-width="0.6"/>`;
 
+/** V145: Beschriftungen ohne Überlappung – je Eintrag die niedrigste Ebene, auf der links davon Platz ist (gierig, in
+ *  Reihenfolge von links). `group` trennt Einträge auf verschiedenen Höhen (z. B. Phasenzeilen). */
+export function labelLevels(items: readonly { x1: number; x2: number; group?: number }[], gap = 2): number[] {
+  const order = items.map((it, i) => ({ ...it, i })).sort((a, b) => a.x1 - b.x1);
+  const ends = new Map<number, number[]>();
+  const out = new Array<number>(items.length).fill(0);
+  for (const it of order) {
+    const row = ends.get(it.group ?? 0) ?? [];
+    let lvl = row.findIndex((e) => e + gap <= it.x1);
+    if (lvl < 0) lvl = row.length;
+    row[lvl] = it.x2;
+    ends.set(it.group ?? 0, row);
+    out[it.i] = lvl;
+  }
+  return out;
+}
 /** Phasenplan (Abb. 9): Phasen als Treppe über den Monaten, Meilensteine als Raute mit Kürzel und Datum, unten Projektmonate.
  *  V142 (Report): oben Jahresbänder als Pfeil, Meilensteine an ihrer Phase (am Ende der Phase bzw. über der laufenden Phase)
  *  mit gestrichelter Linie nach unten und Datum rot unter dem Pfeil „Projektmonat“. */
@@ -610,9 +697,11 @@ export function phasePlanSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws, 
     else parts.push(`<text x="${x2 + 4}" y="${y + barH / 2 + 3.5}" font-size="9" font-weight="bold" fill="${LOOK.wine}">${esc(b.name)}</text>`);
     parts.push('</g>');
   }
-  for (const t of msAt) {
+  // V145: Kürzel naher Meilensteine stapeln statt überlagern (Texte nie über andere Texte)
+  const codeLvl = labelLevels(msAt.map((t) => ({ x1: t.x + 9, x2: t.x + 9 + t.code.length * 4.8, group: Math.round(t.y) })));
+  for (const [k, t] of msAt.entries()) {
     const own = t.m.node.kind === 'task' && t.m.node.owner === pid;
-    parts.push(`<g${own ? edg(`milestones:${t.m.id}`, `Meilenstein ${t.m.node.title}`) : ''}><title>${esc(`${t.m.node.code} ${t.m.node.title}: ${dmy(t.m.start)}`)}</title>${own ? hit(t.x - 12, t.y - 12, 24, 24) : ''}${diamond(t.x, t.y, 6.5, t.m.critical ? LOOK.red : LOOK.orange)}<text x="${t.x + 9}" y="${t.y - 3}" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">${esc(t.code)}</text></g>`);
+    parts.push(`<g${own ? edg(`milestones:${t.m.id}`, `Meilenstein ${t.m.node.title}`) : ''}><title>${esc(`${t.m.node.code} ${t.m.node.title}: ${dmy(t.m.start)}`)}</title>${own ? hit(t.x - 12, t.y - 12, 24, 24) : ''}${diamond(t.x, t.y, 6.5, t.m.critical ? LOOK.red : LOOK.orange)}<text x="${t.x + 9}" y="${t.y - 3 - codeLvl[k] * 9}" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">${esc(t.code)}</text></g>`);
   }
   // Pfeil „Projektmonat“ mit Monatsnummern, darunter die Daten rot
   const months = Math.max(1, Math.round((a.d1 - a.d0) / 30.4));
@@ -624,14 +713,16 @@ export function phasePlanSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws, 
   }
   parts.push(`<text x="${a.x0 + 3}" y="${axisY + 26}" font-size="7.5" fill="${LOOK.muted}">Projektmonat</text>`);
   const dates = [...new Set([start, ...msAt.map((t) => t.m.start), end])].sort();
-  let lastX = -99;
-  for (const d of dates) {
-    const x = Math.min(a.x0 + a.w, a.x(d) + (d === end ? day : 0));
-    const yy = axisY + 36 + (x - lastX < 26 ? 9 : 0);
-    if (x - lastX >= 26) lastX = x;
+  // V145: Daten auf so vielen Ebenen wie nötig (vorher höchstens zwei – drei nahe Termine überlagerten sich)
+  const dx = dates.map((d) => Math.min(a.x0 + a.w, a.x(d) + (d === end ? day : 0)));
+  const dLvl = labelLevels(dx.map((x) => ({ x1: x - 12, x2: x + 12 })));
+  const extra = Math.max(0, ...dLvl) * 9;
+  for (const [k, d] of dates.entries()) {
+    const x = dx[k];
+    const yy = axisY + 36 + dLvl[k] * 9;
     parts.push(`<line x1="${x}" y1="${axisY + 18}" x2="${x}" y2="${yy - 8}" stroke="${LOOK.red}" stroke-width="1" stroke-dasharray="1.5 2"/><text x="${x}" y="${yy}" text-anchor="middle" font-size="7.5" font-weight="bold" fill="${LOOK.red}">${dm(d)}</text>`);
   }
-  const H = axisY + 58;
+  const H = axisY + 58 + Math.max(0, extra - 9);
   parts.push(`<text x="${a.x0}" y="${H - 4}" font-size="8" fill="${LOOK.muted}">Raute = Meilenstein (rot = auf dem kritischen Pfad)</text>`);
   return svgWrap(width, H, `Phasenplan ${p.name}: ${bars.length} Phasen, ${ms.length} Meilensteine, ${dmy(start)} bis ${dmy(end)}`, parts.join(''));
 }
@@ -658,8 +749,10 @@ export function ganttSheetSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws,
     if (f) preds.set(ar.to, [...(preds.get(ar.to) ?? []), predText({ nr: f.nr, rel: ar.rel, lag: ar.lag })]);
   }
   const cStart = colNr + colCode + colName + colDur;
-  const top = 34;
   const a = axisOf(g.start, g.end, left + 8, width - left - 16);
+  // V145: Zeitskala wie MS Project – Quartal · Monat · (KW, wenn Platz)
+  const tiers = ganttTiers(a);
+  const top = 34 + 12 + (tiers.weeks ? 12 : 0);
   const h = rows.length * rowH;
   const parts: string[] = [];
   parts.push(`<rect x="0" y="${top}" width="${left}" height="${h}" fill="#fff" stroke="${LOOK.grid}"/>`);
@@ -667,7 +760,9 @@ export function ganttSheetSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws,
   parts.push(`<rect x="0" y="${top - 14}" width="${left}" height="14" fill="#e6e6e6" stroke="${LOOK.grid}"/>`);
   for (const x of [colNr, colNr + colCode, colNr + colCode + colName, cStart, cStart + colStart, cStart + colStart + colEnd]) parts.push(`<line x1="${x}" y1="${top - 14}" x2="${x}" y2="${top + rows.length * rowH}" stroke="${LOOK.grid}" stroke-width="0.6"/>`);
   for (const [x, t] of heads) parts.push(`<text x="${x}" y="${top - 4}" font-size="8.5" font-weight="bold" fill="${LOOK.ink}">${t}</text>`);
-  parts.push(monthHeads(a, top, h));
+  parts.push(monthHeads(a, top - (tiers.weeks ? 12 : 0), h + (tiers.weeks ? 12 : 0), false));
+  parts.push(tierHeads(tiers.quarters, top - 14 - 12 - (tiers.weeks ? 12 : 0) - 1, 12, true));
+  if (tiers.weeks) parts.push(tierHeads(tiers.weeks, top - 13, 12, false));
   const yOf = new Map<string, number>();
   rows.forEach((r, i) => {
     const y = top + i * rowH;

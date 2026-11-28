@@ -4,6 +4,7 @@
  * Dort: „Als Datei sichern“ (Teilen-Menü auf Touch, sonst Download), „Bild löschen“ (mit Rückgängig am Ort im
  * Text) und die Beschreibung (alt) – Bildschirmleser lesen sie vor (NF-03). Tab bleibt in der Ebene.
  */
+import { shareOrDownload } from '../workspace/fileOut';
 import { type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getPic, picFileName } from '../workspace/imageStore';
@@ -64,24 +65,7 @@ export function PicView({ picRef, alt, host, onAlt, onDelete, onClose }: Props) 
     const p = await getPic(picRef);
     if (!p) return;
     const name = picFileName(p.at, p.mime);
-    const file = typeof File === 'function' ? new File([p.blob], name, { type: p.mime }) : null;
-    const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
-    if (file && nav.share && nav.canShare?.({ files: [file] }) && matchMedia('(pointer: coarse)').matches) {
-      try {
-        await nav.share({ files: [file], title: name });
-      } catch {
-        /* abgebrochen */
-      }
-      return;
-    }
-    const u = URL.createObjectURL(p.blob);
-    const a = document.createElement('a');
-    a.href = u;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.setTimeout(() => URL.revokeObjectURL(u), 4000);
+    if ((await shareOrDownload(p.blob, name, p.mime)) === 'shared') return;
     setSay(name);
   };
 

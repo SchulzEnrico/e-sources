@@ -18,6 +18,7 @@ import { remindLabel } from '../workspace/remind';
 import { INK_TEXT as T, NOTE_TEXT, PAUSE_TEXT, VOICE_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { InkPad } from './InkPad';
+import { Icon } from './Icon';
 import { noticeLater } from '../workspace/flash';
 
 /** Lokale Erkennung (Chromium Handwriting Recognition API) – Feature-Abfrage, sonst null. */
@@ -191,6 +192,26 @@ export function InkDialog(props: { ws: Workspace; req: InkOpenDetail | null; dis
               say={say}
             />
             <footer className="inkdlg__foot">
+              {!sign && (
+                // V145: Seite verlängern – Meldung am Ort (Knopf-Titel + Ansage), Fokus bleibt auf dem Knopf
+                <button
+                  type="button"
+                  className="inkdlg__more"
+                  title={K.canGrowInk(size.h) ? T.moreHint : T.moreMax}
+                  aria-disabled={!K.canGrowInk(size.h)}
+                  onClick={() => {
+                    if (!K.canGrowInk(size.h)) return say(T.moreMax);
+                    const next = K.growInk(size);
+                    setSize(next);
+                    say(T.moreDone(next.h / K.INK_SIZE.h, K.INK_MAX_H / K.INK_SIZE.h));
+                  }}
+                >
+                  <Icon name="plus" size={13} /> {T.more}
+                  <span className="inkdlg__pages" aria-hidden="true">
+                    {size.h / K.INK_SIZE.h > 1 ? ` · ${Math.round(size.h / K.INK_SIZE.h)}/${K.INK_MAX_H / K.INK_SIZE.h}` : ''}
+                  </span>
+                </button>
+              )}
               <button type="button" className="inkdlg__cancel" onClick={close}>
                 {T.cancel}
               </button>

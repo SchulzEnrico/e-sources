@@ -97,3 +97,25 @@ describe('V143 F-238 Handschrift', () => {
     expect(K.canRecognize({ createHandwritingRecognizer: () => Promise.resolve() })).toBe(true);
   });
 });
+
+describe('V145 Tinte als Bild, mehr Platz', () => {
+  it('Dateiname wie Sprachnotiz, mit Ersatz ohne Zeitpunkt', () => {
+    const at = new Date(2026, 10, 28, 8, 5).toISOString();
+    expect(K.inkFileName(at)).toBe('Handschrift 2026-11-28 08-05.png');
+    expect(K.inkFileName(at, 'svg')).toBe('Handschrift 2026-11-28 08-05.svg');
+    expect(K.inkFileName(undefined)).toBe('Handschrift Notiz.png');
+  });
+  it('Seite wächst um eine Fläche bis höchstens fünf, Breite bleibt', () => {
+    let s = { ...K.INK_SIZE };
+    for (let i = 0; i < 7; i++) s = K.growInk(s);
+    expect(s).toEqual({ w: K.INK_SIZE.w, h: K.INK_MAX_H });
+    expect(K.canGrowInk(K.INK_SIZE.h)).toBe(true);
+    expect(K.canGrowInk(K.INK_MAX_H)).toBe(false);
+    expect(K.growInk({ w: 640, h: 400 }).h).toBe(800);
+  });
+  it('SVG trägt die Beschreibung für Bildschirmleser', () => {
+    const svg = K.inkSvg([{ tool: 'pen', color: '#1b1b1b', width: 2.4, pts: [[1, 1, 0.5], [9, 9, 0.5]] }], 640, 800, 'Einkauf');
+    expect(svg).toContain('viewBox="0 0 640 800"');
+    expect(svg).toContain('aria-label="Einkauf"');
+  });
+});

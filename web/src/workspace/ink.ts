@@ -108,6 +108,20 @@ export function inkSvg(strokes: readonly InkStroke[], w: number, h: number, labe
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img"${label ? ` aria-label="${esc(label)}"` : ''}>${mask}<g${hasEraser ? ' mask="url(#ink-er)"' : ''}>${paths}</g></svg>`;
 }
 
+/** V145: Dateiname für „Als Bild sichern“: Handschrift 2026-11-28 08-15.png (wie Sprachnotiz) */
+export function inkFileName(atIso: string | undefined, ext: 'png' | 'svg' = 'png'): string {
+  const d = new Date(atIso ?? '');
+  const p = (n: number) => String(n).padStart(2, '0');
+  const stamp = Number.isNaN(d.getTime()) ? 'Notiz' : `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}-${p(d.getMinutes())}`;
+  return `Handschrift ${stamp}.${ext}`;
+}
+
+/** V145: Schreibfläche „Mehr Platz“ – Seite um eine Fläche (400) nach unten verlängern, höchstens 5 Flächen.
+ *  Striche behalten ihre Lage (Koordinaten oben links). Unterschriften wachsen nicht. */
+export const INK_MAX_H = INK_SIZE.h * 5;
+export const canGrowInk = (h: number) => h < INK_MAX_H;
+export const growInk = (s: { w: number; h: number }) => ({ w: s.w, h: Math.min(INK_MAX_H, s.h + INK_SIZE.h) });
+
 // ---------- Anhang an der Notiz ----------
 
 export const inkOf = (n: Pick<Note, 'attach'>): NoteAttachment[] => (n.attach ?? []).filter((a) => a.kind === 'ink');

@@ -1816,6 +1816,14 @@ export const INK_TEXT = {
   splitHint: 'Handschrift aus dieser Notiz nehmen und als eigene Notiz in den Eingang legen',
   parkInk: 'Mit der Hand schreiben',
   parkInkHint: 'Schreibfläche statt Tastatur öffnen (Alt/⌥+W) – landet ebenso im Eingang.',
+  // V145
+  saveImg: 'Als Bild sichern',
+  saveImgHint: 'Handschrift als Bild (PNG) sichern – auf Telefon und Tablet über das Teilen-Menü (Fotos, Nachrichten, Mail …)',
+  savedImg: (name: string) => `Gesichert als „${name}“.`,
+  more: 'Mehr Platz',
+  moreHint: 'Seite nach unten verlängern – um eine Fläche, höchstens fünf; Geschriebenes bleibt, wo es ist.',
+  moreDone: (n: number, max: number) => `Schreibfläche verlängert (${n} von ${max}).`,
+  moreMax: 'Länger geht die Seite nicht – für mehr eine neue Handschrift anlegen.',
 };
 
 export const INBOX_TEXT = {

@@ -8,7 +8,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { NoteAttachment } from '../workspace/types';
 import { INK_TEXT as T } from '../workspace/terms';
 import { INK_EVENT, getInk, openInk } from '../workspace/inkStore';
-import { inkAlt, inkCount, inkSvg } from '../workspace/ink';
+import { inkAlt, inkCount, inkFileName, inkSvg } from '../workspace/ink';
+import { shareOrDownload, svgToPng } from '../workspace/fileOut';
 import { remindLabel } from '../workspace/remind';
 import { noticeLater } from '../workspace/flash';
 import { Icon } from './Icon';
@@ -54,6 +55,17 @@ export function InkChips(props: { note: string; inks: NoteAttachment[]; onRemove
     goneT.current = noticeLater(() => setGone(null));
   };
 
+  /** V145: Als Bild sichern/teilen wie beim Ton – PNG, wo der Browser zeichnen kann, sonst SVG */
+  const saveImg = async (a: NoteAttachment) => {
+    const r = await getInk(a.ref);
+    if (!r) return setSay(T.missing);
+    const svg = inkSvg(r.strokes, r.w, r.h, a.text || T.name);
+    const png = await svgToPng(svg, r.w, r.h);
+    const name = inkFileName(a.at, png ? 'png' : 'svg');
+    const blob = png ?? new Blob([svg], { type: 'image/svg+xml' });
+    if ((await shareOrDownload(blob, name, blob.type)) === 'saved') setSay(T.savedImg(name));
+  };
+
   if (!inks.length && !gone) return null;
   const anyText = inks.some((a) => a.text);
   return (
@@ -91,6 +103,11 @@ export function InkChips(props: { note: string; inks: NoteAttachment[]; onRemove
                 <button type="button" className="remind__x" aria-label={T.edit} title={T.edit} onClick={() => openInk({ note, ref: a.ref })}>
                   <Icon name="rename" size={13} />
                 </button>
+                {s !== false && (
+                  <button type="button" className="remind__x" aria-label={T.saveImg} title={T.saveImgHint} onClick={() => void saveImg(a)}>
+                    <Icon name="download" size={13} />
+                  </button>
+                )}
                 <button type="button" className="remind__x" aria-label={T.remove} title={T.remove} onClick={() => remove(a)}>
                   <Icon name="trash" size={13} />
                 </button>

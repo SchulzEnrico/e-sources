@@ -10576,6 +10576,9 @@ dialog.inkdlg::backdrop { background: rgba(0, 0, 0, 0.22); }
 .inkdlg__hint { font-size: 12px; color: var(--muted); }
 .inkdlg__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 6px 14px 14px; }
 .inkdlg__save { font-weight: 600; }
+.inkdlg__more { margin-right: auto; display: inline-flex; align-items: center; gap: 4px; }
+.inkdlg__more[aria-disabled="true"] { opacity: 0.55; }
+.inkdlg__pages { font-variant-numeric: tabular-nums; color: var(--muted); }
 .ink { display: flex; flex-direction: column; gap: 8px; padding: 4px 14px; }
 .ink__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .ink__group { display: inline-flex; align-items: center; gap: 4px; }

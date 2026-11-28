@@ -627,10 +627,13 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
    *  mit der Rolle und – in 8.3 – das Datum darunter. Meldung mit Rückgängig an der Formular-Meldung. */
   const releaseRow = (rowId: string, list: Fk.FormCol[], span: number) => {
     const byKey = new Map(list.map((c) => [c.key, c]));
-    const owner = form.source === 'wp' ? Ps.personById(ws, String(Fk.cellValue(ws, p.id, form, rowId, 'assignee') ?? ''))?.name : undefined;
+    // V145: Namen wie im Bericht (reportSigns) – AP-Verantwortlich aus dem Arbeitspaket, Projektleitung aus der Rolle „lead“
+    const known = Rp.reportSigns(ws, p, form, rowId);
+    const owner = form.source === 'wp' ? Ps.personById(ws, String(Fk.cellValue(ws, p.id, form, rowId, 'assignee') ?? ''))?.name : known.find((g) => g.label.endsWith('AP-Verantwortlich'))?.name;
+    const lead = known.find((g) => g.label.endsWith('Projektleitung'))?.name ?? Rp.leadName(ws, p);
     const all = [
       { ink: 'inkOwner', date: 'releaseOwner', label: T.signOwner, name: owner },
-      { ink: 'inkPl', date: 'releasePl', label: T.signPl, name: undefined },
+      { ink: 'inkPl', date: 'releasePl', label: T.signPl, name: lead },
     ] as const;
     // Statusbericht (12): nur die Projektleitung unterschreibt (wie Abb. 15)
     const signs = form.source === 'reports' ? all.filter((g) => g.ink === 'inkPl') : all;

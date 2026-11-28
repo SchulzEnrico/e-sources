@@ -10636,3 +10636,8 @@ dialog.inkdlg::backdrop { background: rgba(0, 0, 0, 0.22); }
 
 /* V147: Matrix im Pad – Person und Datum wie im Kopf von 15.2 */
 .matrix__who { margin: 2px 0 6px; font-size: 0.85em; color: var(--muted); }
+
+/* V149: Kriterien/Lösungen auf dem Blatt anlegen und benennen */
+.paper__adds { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.paper__adds button { font: inherit; font-size: 0.85em; }
+.paper__namein { width: 100%; font-weight: 600; text-align: left; }

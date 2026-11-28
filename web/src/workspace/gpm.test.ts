@@ -1336,3 +1336,47 @@ describe('V148 F-232: Arbeitspaketbeschreibung wie Abb. 11, Statusberichte ohne 
     expect(close.includes('>Abnahme am<')).toBe(false);
   });
 });
+describe('V149 F-232: Teamrollen und Nachrichtenquadrat im Bericht ohne doppelte Felder', () => {
+  it('unter dem Blatt nur Felder, die das Blatt nicht zeigt', async () => {
+    const S = await import('./sampleProject');
+    const R = await import('./gpmReport');
+    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const html = R.reportHtml(ws, S.SAMPLE_PROJECT, { day: '2026-12-01' });
+    const part = (id: string) => { const at = html.indexOf(`id="f-${id}"`); const sec = html.slice(at, html.indexOf('</section>', at)); return sec.slice(sec.indexOf('</figure>')); };
+    const tr = part('teamRoles');
+    expect(tr).toContain('Datum der Bestimmung');
+    expect(tr).toContain('Reflexion der eigenen Teamrolle');
+    expect(tr.includes('>Teammitglied<')).toBe(false);
+    expect(tr.includes('Punkte')).toBe(false);
+    const sq = part('messages');
+    expect(sq).toContain('>Sender<');
+    expect(sq).toContain('>Empfänger<');
+    expect(sq.includes('Sachebene')).toBe(false);
+    expect(sq.includes('>Reaktion<')).toBe(false);
+  });
+});
+describe('V149 F-232 P9: Problemstellungen und Entscheidungsvorlagen als Anlage im Bericht', () => {
+  it('Anlage A und B mit Inhaltsverzeichnis, ohne Einträge keine Anlage', async () => {
+    const S = await import('./sampleProject');
+    const R = await import('./gpmReport');
+    const Fb = await import('./feedback');
+    const Dc = await import('./decisions');
+    let ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    expect(R.reportHtml(ws, S.SAMPLE_PROJECT, { day: '2026-12-01' }).includes('Anlage A')).toBe(false);
+    ws = Fb.addFeedback(ws, { kind: 'bug', title: 'Lackierkabine zu klein', project: S.SAMPLE_PROJECT, what: 'Kabine fasst keine Stoßstange' }, { id: 'fb1', now: new Date('2026-11-02T10:00:00Z') })!.ws;
+    const names = { criterion: (n: number) => `Kriterium ${n}`, option: (n: number) => `Lösung ${n}` };
+    ws = Dc.addDecision(ws, { title: 'Lackieranlage', projectId: S.SAMPLE_PROJECT, question: 'Welche Anlage?' }, { id: 'dc1', ids: ['c1', 'c2', 'c3', 'o1', 'o2'], names })!.ws;
+    const html = R.reportHtml(ws, S.SAMPLE_PROJECT, { day: '2026-12-01' });
+    expect(html).toContain('href="#an-fb"');
+    expect(html).toContain('href="#an-dc"');
+    const a = html.slice(html.indexOf('id="an-fb"'));
+    expect(a).toContain('A1 Lackierkabine zu klein');
+    expect(a).toContain('Kabine fasst keine Stoßstange');
+    expect(a).toContain('Was passiert bzw. fehlt');
+    const b = html.slice(html.indexOf('id="an-dc"'));
+    expect(b).toContain('B1 Lackieranlage');
+    expect(b).toContain('Welche Anlage?');
+    expect(b).toContain('Nutzwert');
+    expect(b).toContain('Lösung 1');
+  });
+});

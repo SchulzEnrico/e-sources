@@ -15,9 +15,12 @@ import { noticeLater } from '../workspace/flash';
 import { DOC_SHEET_TEXT as T } from '../workspace/terms';
 import { ModeWheel } from './ModeWheel';
 import { Field, PaperSizeWheel, Row, paperZoom, usePaperSize } from './ProjectSheet';
-import { Thumb, storePics } from './FeedbackCard';
+import { MarkAdd, MarkTrail, Thumb, loadTriage, storePics } from './FeedbackCard';
+import * as Ps from '../workspace/persons';
 import { FEEDBACK_CARD_TEXT as C } from '../workspace/terms';
 import { Icon } from './Icon';
+import { DECISION_TEXT as DT } from '../workspace/terms';
+import { newId } from '../workspace/workspace';
 
 const de = (n: number) => n.toLocaleString('de-DE', { maximumFractionDigits: 1 });
 const dmy = (iso?: string) => {
@@ -89,12 +92,14 @@ export function FeedbackPaper({ ws, p, dispatch, say }: { ws: Workspace; p: Proj
           <ModeWheel label={T.pick} value={f.id} onChange={(id) => (setPick(id), say(`${T.pick}: ${list.find((x) => x.id === id)?.title ?? ''}`))} options={list.map((x) => ({ id: x.id, name: x.title, hint: T.pickHint }))} />
         </span>
       </div>
-      <FeedbackSheet key={f.id} f={f} p={p} dispatch={dispatch} say={say} />
+      <FeedbackSheet key={f.id} f={f} p={p} ws={ws} dispatch={dispatch} say={say} />
     </>
   );
 }
 
-function FeedbackSheet({ f, p, dispatch, say }: { f: Feedback; p: Project; dispatch: (a: Action) => void; say: (t: string) => void }) {
+function FeedbackSheet({ f, p, ws, dispatch, say }: { f: Feedback; p: Project; ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void }) {
+  // V149: Bearbeitung (unsere Seite) wie im Board-Fenster – „Behoben in“, Vermerk hinzufügen, Spur
+  const triage = loadTriage() && Ps.canTriage(ws);
   const [size, setSize] = usePaperSize(say);
   const { tell, m } = useFieldMsg(say);
   const raw = p.feedbackForm;
@@ -237,6 +242,20 @@ function FeedbackSheet({ f, p, dispatch, say }: { f: Feedback; p: Project; dispa
                 {m('pics')}
               </td>
             </tr>
+            {triage && [
+              <tr key="tr-h" className="paper__section">
+                <th scope="rowgroup" colSpan={2}>{T.fbTrailHead}</th>
+              </tr>,
+              <Row key="tr-fixed" label={C.fixedLabel} msg={m('fixedIn')}>
+                <Field label={C.fixedLabel} value={f.fixedIn} onSave={(v) => edit({ fixedIn: ((v as string) ?? '').slice(0, 6) }, 'fixedIn', C.fixedLabel)} />
+              </Row>,
+              <Row key="tr-mark" label={C.markLabel} msg={m('mark')}>
+                <MarkAdd f={f} ws={ws} dispatch={dispatch} inputId={`paper-${f.id}-mark`} onSaved={() => tell('mark', T.saved(C.markLabel))} />
+              </Row>,
+              <Row key="tr-trail" label={C.trail} msg={null}>
+                <MarkTrail f={f} label={false} />
+              </Row>,
+            ]}
           </tbody>
         </table>
         <p className="paper__caption">{T.fbCaption}</p>
@@ -269,6 +288,13 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
     if (!v.trim()) return null;
     const x = Number(v.replace(',', '.').trim());
     return Number.isFinite(x) ? x : undefined;
+  };
+  // V149 (offen seit V140): Kriterien und Lösungen auch auf dem Blatt anlegen; der Name hat danach den Fokus
+  const add = (k: 'crit' | 'opt') => {
+    const id = newId();
+    if (k === 'crit') op({ op: 'critAdd', id, name: DT.criterion(d.criteria.length + 1) }, 'addCrit', T.critName);
+    else op({ op: 'optAdd', id, name: DT.option(d.options.length + 1) }, 'addOpt', T.optName);
+    setTimeout(() => (document.getElementById(`paper-${k}-${id}`) as HTMLInputElement | null)?.select(), 60);
   };
 
   return (
@@ -329,7 +355,7 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
                     <tbody>
                       {weighed.map((c) => (
                         <tr key={c.id}>
-                          <th scope="row">{c.name}</th>
+                          <th scope="row">{lock ? c.name : <NameIn id={`paper-crit-${c.id}`} label={T.critName} value={c.name} onSave={(v) => op({ op: 'critName', c: c.id, name: v }, `w-${c.id}`, T.critName)} />}</th>
                           <td className="paper__num">
                             <input
                               key={`w-${c.id}-${c.weight ?? ''}`}
@@ -363,6 +389,14 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
                 ) : (
                   <span className="paper__muted">{T.noCrit}</span>
                 )}
+                {!lock && (
+                  <div className="paper__adds">
+                    <button type="button" onClick={() => add('crit')}>
+                      <Icon name="plus" size={12} className="icon icon--inline" /> {DT.addCrit}
+                    </button>
+                    {m('addCrit')}
+                  </div>
+                )}
               </td>
             </tr>
             <tr className="paper__section">
@@ -386,7 +420,7 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
                       const r = res.find((x) => x.option.id === o.id);
                       return (
                         <tr key={o.id} className={r?.out ? 'is-out' : undefined}>
-                          <th scope="row">{o.name}{r?.out ? <span className="paper__calc"> · {T.out}</span> : null}</th>
+                          <th scope="row">{lock ? o.name : <NameIn id={`paper-opt-${o.id}`} label={T.optName} value={o.name} onSave={(v) => op({ op: 'optName', o: o.id, name: v }, `o-${o.id}`, T.optName)} />}{r?.out ? <span className="paper__calc"> · {T.out}</span> : null}{m(`o-${o.id}`)}</th>
                           {weighed.map((c) => {
                             const s = Dc.scoreOf(d, c.id, o.id);
                             const at = `s-${c.id}-${o.id}`;
@@ -418,6 +452,14 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
                     })}
                   </tbody>
                 </table>
+                {!lock && (
+                  <div className="paper__adds">
+                    <button type="button" onClick={() => add('opt')}>
+                      <Icon name="plus" size={12} className="icon icon--inline" /> {DT.addOpt}
+                    </button>
+                    {m('addOpt')}
+                  </div>
+                )}
               </td>
             </tr>
             <tr className="paper__section">
@@ -435,5 +477,24 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
         <p className="paper__caption">{T.dcCaption}</p>
       </article>
     </div>
+  );
+}
+
+/** V149: Name eines Kriteriums bzw. einer Lösung direkt in der Zelle (Speichern beim Verlassen bzw. Enter). */
+function NameIn({ id, label, value, onSave }: { id: string; label: string; value: string; onSave: (v: string) => void }) {
+  return (
+    <input
+      key={`${id}-${value}`}
+      id={id}
+      className="paper__in paper__cellin paper__namein"
+      aria-label={`${label}: ${value}`}
+      defaultValue={value}
+      onBlur={(e) => {
+        const v = e.target.value.trim();
+        if (!v) return void (e.target.value = value);
+        if (v !== value) onSave(v);
+      }}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+    />
   );
 }

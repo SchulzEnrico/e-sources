@@ -16,6 +16,9 @@ import { envPortfolioSvg, figureSvg, shPortfolioSvg } from './gpmFigures';
 import * as Sh from './sheets';
 import { charterView, CHARTER_EXTRAS } from './charterSheet';
 import { staffLines, wpView } from './wpSheet';
+import { BELBIN } from './gpm';
+import * as Fb from './feedback';
+import * as Dc from './decisions';
 
 export const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
@@ -360,7 +363,7 @@ h3 { font-size: 11pt; margin: 10pt 0 4pt; break-after: avoid; }
 .meta { color: #555; margin: 0 0 12pt; } .icb { color: #666; font-weight: normal; font-size: 9pt; }
 table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt; font-size: 9pt; table-layout: fixed; } th, td { border: 1px solid #bbb; padding: 3pt 4pt; vertical-align: top; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; hyphens: auto; }
 @page wide { size: A4 landscape; margin: 18mm 14mm 16mm; }
-section.wide { page: wide; } section.wide table { font-size: 8pt; }
+section.wide { page: wide; } #an-fb, #an-dc { break-before: page; } .annex__item { break-before: page; break-inside: avoid; } h2 + .annex__item { break-before: auto; } tr.annex__sec th { background: #d9d9d9; } section.wide table { font-size: 8pt; }
 th { background: #eee; } thead { display: table-header-group; } tr { break-inside: avoid; }
 table.kv th { width: 34%; } .empty { color: #777; font-style: italic; } .cover { break-after: page; } section { break-inside: auto; }
 .sum td { font-weight: bold; }
@@ -385,6 +388,8 @@ table.charter > tbody > tr > th { width: 26%; } table.charter td.sub { padding: 
   kv('Vorlage', tpl.name);
   out.push(`</tbody></table><h2>Inhalt</h2><ol>`);
   for (const f of tpl.forms) out.push(`<li><a href="#f-${esc(f.id)}">${esc(`${f.chapter} ${f.name}`)}</a></li>`);
+  const annex = annexSheets(ws, p);
+  for (const a of annex.toc) out.push(`<li><a href="#${a.id}">${esc(a.name)}</a></li>`);
   out.push(`</ol></div>`);
   for (const f of tpl.forms) out.push(formSection(ws, p, f, o.inks, o.base));
   // F-234 D7 (V137): Kapitel als Anlage einreihen (z. B. Zentraltabelle der Kosten)
@@ -393,6 +398,8 @@ table.charter > tbody > tr > th { width: 26%; } table.charter td.sub { padding: 
     if (!f) continue;
     out.push(formSection(ws, p, f, o.inks, o.base).replace(/<h2>[\s\S]*?<\/h2>/, `<h2>${esc(`${a.code ? `${a.code}: ` : ''}${a.title}`)} <span class="icb">${esc(`${f.chapter} ${f.name}`)}</span></h2>`).replace(/id="f-[^"]*"/, `id="a-${esc(a.id)}"`));
   }
+  // V149 (F-232 P9): Problemstellungen und Entscheidungsvorlagen als Anlage – je Blatt eine Seite wie am Bildschirm
+  out.push(annex.html);
   out.push(`</body></html>`);
   return out.join('\n');
 }
@@ -408,6 +415,12 @@ const cssText = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').rep
 const SIGN_DATES = new Set(['charter:releaseAg', 'charter:releasePl', 'wp:releasePl', 'wp:releaseOwner', 'close:acceptedBy', 'close:acceptedOn']);
 /** V148: Blätter, die alle Felder des Eintrags schon zeigen (Abb. 15) – darunter keine zweite Feldliste, nur eigene Felder. */
 const SHEET_HAS_ALL = new Set(['wpReport', 'statusReport']);
+/** V149: Blätter, die einen Teil der Felder zeigen (Belbin: Person und Punkte; Nachrichtenquadrat: Anlass als Überschrift,
+ *  Nachricht, Reaktion und die acht Seiten) – darunter stehen nur die übrigen Felder. */
+const SHEET_SHOWS: Record<string, ReadonlySet<string>> = {
+  belbin: new Set(['person', ...BELBIN]),
+  square: new Set(['topic', 'message', 'reaction', 'sFact', 'rFact', 'sSelf', 'rSelf', 'sRel', 'rRel', 'sAppeal', 'rAppeal']),
+};
 
 /** V147 (F-232): Kapitel 2.1 im Bericht in der Anordnung von Abbildung 3 – dieselben Werte wie das Blatt
  *  (`charterView`); eigene Felder der Vorlage vor der Freigabe, Ergänzungen nach ICB4 als Abschnitt darunter. */
@@ -535,7 +548,8 @@ function formSection(ws: Workspace, p: Project, f: FormDef, inks?: ReadonlyMap<s
         if (own.length) out.push(`<table class="kv"><tbody>${own.map(([k, x]) => `<tr><th scope="row">${esc(k)}</th><td>${esc(x)}</td></tr>`).join('')}</tbody></table>`);
         continue;
       }
-      out.push(`<table class="kv"><tbody>${cols.filter((c) => c.key !== 'code' && c.key !== 'title' && !SIGN_DATES.has(`${f.source}:${c.key}`)).map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r.id, c))}</td></tr>`).join('')}${signRowHtml(reportSigns(ws, p, f, r.id), inks)}</tbody></table>`);
+      const onSheet = f.figure ? SHEET_SHOWS[f.figure] : undefined;
+      out.push(`<table class="kv"><tbody>${cols.filter((c) => c.key !== 'code' && c.key !== 'title' && !SIGN_DATES.has(`${f.source}:${c.key}`) && !(onSheet?.has(c.key) && !c.custom)).map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r.id, c))}</td></tr>`).join('')}${signRowHtml(reportSigns(ws, p, f, r.id), inks)}</tbody></table>`);
     }
   } else if (f.source === 'eisenhower') {
     // V140 (F-237 H6): je abgebildeter Matrix eine Seite wie Abb. 17 – Grafik und Tabelle der offenen Einträge
@@ -584,4 +598,87 @@ function formSection(ws: Workspace, p: Project, f: FormDef, inks?: ReadonlyMap<s
   }
   out.push(`</section>`);
   return out.join('');
+}
+
+const DC_STATE: Record<string, string> = { draft: 'Entwurf', rated: 'bewertet', decided: 'entschieden' };
+const dmyIso = (iso?: string) => (iso ? iso.slice(0, 10).split('-').reverse().join('.') : '');
+
+/** V149 (F-232 P9): Anlagen des Berichts – Blätter „Problemstellung“ (Meldungen am Projekt) und
+ *  „Entscheidungsvorlage“ (Nutzwertanalysen am Projekt) in der Anordnung der Blätter am Bildschirm. */
+export function annexSheets(ws: Workspace, p: Project): { toc: { id: string; name: string }[]; html: string } {
+  const fbs = Fb.feedbackOf(ws).filter((f) => f.project === p.id).sort((a, b) => a.at.localeCompare(b.at));
+  const dcs = Dc.decisionsOf(ws).filter((d) => d.projectId === p.id).sort((a, b) => a.at.localeCompare(b.at));
+  const toc: { id: string; name: string }[] = [];
+  const out: string[] = [];
+  const row = (k: string, v: string) => `<tr><th scope="row">${esc(k)}</th><td>${v}</td></tr>`;
+  const sec = (h: string) => `<tr class="annex__sec"><th scope="rowgroup" colspan="2">${esc(h)}</th></tr>`;
+  if (fbs.length) {
+    toc.push({ id: 'an-fb', name: `Anlage A Problemstellungen (${fbs.length})` });
+    out.push(`<section id="an-fb"><h2>Anlage A: Problemstellungen <span class="icb">Meldungen im Projekt</span></h2>`);
+    fbs.forEach((f, i) => {
+      const raw = p.feedbackForm;
+      const rows: string[] = [
+        row('Titel', `<b>${esc(f.title)}</b>`),
+        row('Art', esc(Fb.kindName(raw, f.kind))),
+        row('Gemeldet am', esc(dmyIso(f.at))),
+        row('An', esc(rolesOf(p).find((r) => r.id === f.to)?.name ?? '–')),
+        row('Zustand', esc(`${Fb.FILE_LABELS.state[f.state]}${f.fixedIn ? ` · ${f.fixedIn}` : ''}`)),
+      ];
+      const place = Fb.placeLine(f);
+      if (place) rows.push(row('Ort', esc(place)));
+      for (const s of Fb.problemSheet(f, raw)) {
+        rows.push(sec(s.head));
+        for (const r of s.rows) {
+          const v =
+            r.kind === 'text' ? f[r.key] ?? ''
+            : r.kind === 'severity' ? (f.severity ? Fb.FILE_LABELS.severity[f.severity] : '')
+            : (() => { const x = f.extra?.[r.def.id]; return x === true ? Fb.FILE_LABELS.yes : x === false ? Fb.FILE_LABELS.no : x === undefined || x === null ? '' : String(x); })();
+          rows.push(row(r.label, esc(String(v))));
+        }
+      }
+      if (f.pics?.length) rows.push(sec('Bilder'), row('Bilder', esc(`${f.pics.length} ${f.pics.length === 1 ? 'Bild' : 'Bilder'} (im Gerät gespeichert)`)));
+      if (f.marks?.length) {
+        rows.push(sec('Spur'));
+        rows.push(row('Spur', `<ol>${f.marks.map((m) => `<li>${esc(`${dmyIso(m.at)} · ${m.text}${m.by ? ` (${m.by})` : ''}`)}</li>`).join('')}</ol>`));
+      }
+      out.push(`<div class="annex__item"><h3>${esc(`A${i + 1} ${f.title}`)}</h3><table class="kv"><tbody>${rows.join('')}</tbody></table></div>`);
+    });
+    out.push(`</section>`);
+  }
+  if (dcs.length) {
+    toc.push({ id: 'an-dc', name: `Anlage B Entscheidungsvorlagen (${dcs.length})` });
+    out.push(`<section id="an-dc"><h2>Anlage B: Entscheidungsvorlagen <span class="icb">Nutzwertanalyse</span></h2>`);
+    dcs.forEach((d, i) => {
+      const res = Dc.ranking(d);
+      const weighed = d.criteria.filter((c) => !c.must);
+      const musts = d.criteria.filter((c) => c.must);
+      const win = Dc.winner(d);
+      const chosen = d.options.find((o) => o.id === d.chosen);
+      const de1 = (n: number) => n.toLocaleString('de-DE', { maximumFractionDigits: 1 });
+      const head: string[] = [
+        row('Entscheidung', `<b>${esc(d.title)}</b>`),
+        row('Frage', esc(d.question ?? '')),
+        row('Angelegt am', esc(dmyIso(d.at))),
+        row('Stand', esc(DC_STATE[d.state] ?? d.state)),
+      ];
+      out.push(`<div class="annex__item"><h3>${esc(`B${i + 1} ${d.title}`)}</h3><table class="kv"><tbody>${head.join('')}</tbody></table>`);
+      if (d.options.length && d.criteria.length) {
+        const opts = res.map((r) => r.option);
+        const th = opts.map((o) => `<th scope="col">${esc(o.name)}</th>`).join('');
+        const body: string[] = [];
+        for (const c of musts) body.push(`<tr><th scope="row">${esc(`${c.name} (Muss)`)}</th><td>–</td>${opts.map((o) => `<td>${o.fails?.includes(c.id) ? 'nicht erfüllt' : 'erfüllt'}</td>`).join('')}</tr>`);
+        for (const c of weighed) body.push(`<tr><th scope="row">${esc(c.name)}</th><td>${c.weight === undefined ? '' : `${de1(c.weight)} %`}</td>${opts.map((o) => { const v = Dc.scoreOf(d, c.id, o.id)?.v; return `<td>${v === undefined ? '' : de1(v)}</td>`; }).join('')}</tr>`);
+        body.push(`<tr class="sum"><th scope="row">Nutzwert</th><td>${de1(weighed.reduce((s, c) => s + (c.weight ?? 0), 0))} %</td>${res.map((r) => `<td>${r.out ? 'scheidet aus' : de1(r.total)}</td>`).join('')}</tr>`);
+        body.push(`<tr><th scope="row">Rang</th><td></td>${res.map((r) => `<td>${r.rank ?? '–'}</td>`).join('')}</tr>`);
+        out.push(`<table><thead><tr><th scope="col">Kriterium</th><th scope="col">Gewicht</th>${th}</tr></thead><tbody>${body.join('')}</tbody></table>`);
+      }
+      const tail: string[] = [row('Empfehlung', esc(win ? win.name : d.options.length ? 'Gleichstand bzw. noch nicht bewertet' : ''))];
+      if (chosen) tail.push(row('Gewählte Lösung', `<b>${esc(chosen.name)}</b>`));
+      if (d.why) tail.push(row('Begründung', esc(d.why)));
+      if (d.marks?.length) tail.push(row('Spur', `<ol>${d.marks.map((m) => `<li>${esc(`${dmyIso(m.at)} · ${m.text}${m.by ? ` (${m.by})` : ''}`)}</li>`).join('')}</ol>`));
+      out.push(`<table class="kv"><tbody>${tail.join('')}</tbody></table></div>`);
+    });
+    out.push(`</section>`);
+  }
+  return { toc, html: out.join('') };
 }

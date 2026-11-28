@@ -124,6 +124,54 @@ export function Thumb({ picRef, n, onRemove }: { picRef: string; n: number; onRe
   );
 }
 
+/** V149: „Vermerk hinzufügen“ – im Board-Fenster und auf dem Blatt der Problemstellung gleich (NF-08). */
+export function MarkAdd({ f, ws, dispatch, inputId, saved, onSaved }: { f: Feedback; ws: Workspace; dispatch: (a: Action) => void; inputId: string; saved?: boolean; onSaved: () => void }) {
+  const [kind, setKind] = useState<'note' | 'decision' | 'ref'>('note');
+  const [text, setText] = useState('');
+  const add = () => {
+    if (!text.trim()) return document.getElementById(inputId)?.focus();
+    dispatch({ type: 'fbMark', id: f.id, kind, text, by: ws.profile?.name || undefined });
+    setText('');
+    onSaved();
+  };
+  return (
+    <div className="fbc__mark">
+      <span className="fbq__label">
+        {C.markLabel}
+        {saved && <span className="fbc__saved" role="status"> · {C.saved}</span>}
+      </span>
+      <div className="fbc__markRow">
+        <ModeWheel label={C.markLabel} options={(['note', 'decision', 'ref'] as const).map((k) => ({ id: k, name: C.markKinds[k] }))} value={kind} onChange={(k) => setKind(k as typeof kind)} />
+        <input id={inputId} type="text" value={text} placeholder={C.markPh} aria-label={C.markLabel} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), add())} />
+        <button type="button" onClick={add}>
+          {C.markAdd}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** V149: Spur der Meldung (neueste oben) – im Board-Fenster und auf dem Blatt gleich. */
+export function MarkTrail({ f, label = true }: { f: Feedback; label?: boolean }) {
+  return (
+    <div className="fbc__trail">
+      {label && <span className="fbq__label">{C.trail}</span>}
+      {f.marks?.length ? (
+        <ol>
+          {[...f.marks].reverse().map((m, i) => (
+            <li key={`${m.at}-${i}`}>
+              <time dateTime={m.at}>{when(m.at)}</time> · <b>{C.trailKinds[m.kind]}</b>: {m.kind === 'state' ? stateLine(m.text) : m.text}
+              {m.by ? ` (${m.by})` : ''}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <span className="fbq__hint">{C.trailEmpty}</span>
+      )}
+    </div>
+  );
+}
+
 export function FeedbackCard(props: {
   ws: Workspace;
   dispatch: Dispatch<Action>;
@@ -147,8 +195,6 @@ export function FeedbackCard(props: {
   const [dropMiss, setDropMiss] = useState(false);
   const [refsBad, setRefsBad] = useState('');
   const [picMsg, setPicMsg] = useState('');
-  const [markKind, setMarkKind] = useState<'note' | 'decision' | 'ref'>('note');
-  const [markText, setMarkText] = useState('');
   // V107 (F-225 P8, R7): „Wird zu …“ – Meldung am Ort mit Rückgängig
   const [become, setBecome] = useState<{ text: string; undo?: Rk.BecomeUndo; dcUndo?: Pr.DecisionBecomeUndo } | null>(null);
   const by = ws.profile?.name || undefined;
@@ -348,12 +394,6 @@ export function FeedbackCard(props: {
     edit({ related: next }, 'related');
   };
 
-  const addMark = () => {
-    if (!markText.trim()) return document.getElementById(`fbc-${id}-mark`)?.focus();
-    dispatch({ type: 'fbMark', id, kind: markKind, text: markText, by });
-    setMarkText('');
-    said('mark');
-  };
 
   return (
     <dialog
@@ -737,47 +777,8 @@ export function FeedbackCard(props: {
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), e.currentTarget.blur())}
             />
           </label>
-          <div className="fbc__mark">
-            <span className="fbq__label">
-              {C.markLabel}
-              {savedAt === 'mark' && <span className="fbc__saved" role="status"> · {C.saved}</span>}
-            </span>
-            <div className="fbc__markRow">
-              <ModeWheel
-                label={C.markLabel}
-                options={(['note', 'decision', 'ref'] as const).map((k) => ({ id: k, name: C.markKinds[k] }))}
-                value={markKind}
-                onChange={(k) => setMarkKind(k as typeof markKind)}
-              />
-              <input
-                id={`fbc-${id}-mark`}
-                type="text"
-                value={markText}
-                placeholder={C.markPh}
-                aria-label={C.markLabel}
-                onChange={(e) => setMarkText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addMark())}
-              />
-              <button type="button" onClick={addMark}>
-                {C.markAdd}
-              </button>
-            </div>
-          </div>
-          <div className="fbc__trail">
-            <span className="fbq__label">{C.trail}</span>
-            {f.marks?.length ? (
-              <ol>
-                {[...f.marks].reverse().map((m, i) => (
-                  <li key={`${m.at}-${i}`}>
-                    <time dateTime={m.at}>{when(m.at)}</time> · <b>{C.trailKinds[m.kind]}</b>: {m.kind === 'state' ? stateLine(m.text) : m.text}
-                    {m.by ? ` (${m.by})` : ''}
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <span className="fbq__hint">{C.trailEmpty}</span>
-            )}
-          </div>
+          <MarkAdd f={f} ws={ws} dispatch={dispatch} inputId={`fbc-${id}-mark`} saved={savedAt === 'mark'} onSaved={() => said('mark')} />
+          <MarkTrail f={f} />
         </fieldset>
         )}
 

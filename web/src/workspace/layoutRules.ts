@@ -37,6 +37,8 @@ export interface LayoutRules {
   head: string;
   /** Blatt: Hintergrund der Bezeichnungen */
   label: string;
+  /** V156: externe Firmen im Organigramm (hellblau; stahlblau und schiefer werden daraus gerechnet) */
+  external: string;
   /** Kästen mit Verlauf (sonst flach) */
   gradient: boolean;
   // V155 (G3 Rest): Schrift und Größen, Kästen, Tabellen, Kopf- und Fußzeile im Druck
@@ -83,7 +85,7 @@ export type LayoutFlag = 'gradient' | 'shadow' | 'printLogo' | 'printNo' | 'prin
 export const LAYOUT_FLAGS: readonly LayoutFlag[] = ['gradient', 'shadow', 'printLogo', 'printNo', 'printPage'];
 
 export type LayoutColor = Exclude<keyof LayoutRules, 'name' | LayoutFlag | LayoutSize | 'font' | 'headFont' | 'tableGrid'>;
-export const LAYOUT_COLORS: readonly LayoutColor[] = ['primary', 'accent', 'soft', 'neutral', 'critical', 'bar', 'ok', 'ink', 'muted', 'grid', 'line', 'head', 'label', 'tableHead'];
+export const LAYOUT_COLORS: readonly LayoutColor[] = ['primary', 'accent', 'soft', 'neutral', 'critical', 'bar', 'ok', 'ink', 'muted', 'grid', 'line', 'head', 'label', 'tableHead', 'external'];
 
 /** G2: Vorgabe – genau die bisherigen Werte (Report ColorGentlemen, IPMA ICB4 Level D) */
 export const REPORT_LAYOUT: LayoutRules = {
@@ -101,6 +103,7 @@ export const REPORT_LAYOUT: LayoutRules = {
   line: '#8a8a8a',
   head: '#a3141b',
   label: '#ececec',
+  external: '#c7dcf3',
   gradient: true,
   font: 'sans',
   headFont: 'serif',

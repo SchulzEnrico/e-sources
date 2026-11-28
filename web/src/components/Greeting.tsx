@@ -14,6 +14,7 @@ import type { Bookmark } from '../workspace/types';
 import { hostOf } from '../workspace/workspace';
 import { GREET_TEXT as G, WELCOME_TEXT } from '../workspace/terms';
 import { Avatar } from './Profile';
+import type { WhereWas } from '../workspace/whereWas';
 import { SiteIcon, useDisplay } from './SiteIcon';
 
 /** F-193: Inhalt von „Zuletzt benutzt“ – wird erst beim Aufklappen ermittelt. */
@@ -35,9 +36,16 @@ interface Props {
   onSource: (b: Bookmark) => void;
   onProfile: () => void;
   onClose: () => void;
+  /** V156 (F-109): laufende Karte und offene Gedanken; `back` = nach einer Pause (Minuten) */
+  where?: WhereWas;
+  back?: number;
+  onNote?: (id: string) => void;
+  onInbox?: () => void;
 }
 
 const STAY_MS = 5000;
+/** V156: mit „Wo war ich?“ etwas länger stehen lassen – es gibt mehr zu lesen */
+const STAY_WHERE_MS = 9000;
 
 /** Pfad einer Adresse ohne Domain, z. B. „/docs/start“ – leer, wenn nur „/“. */
 function pathOf(url: string): string {
@@ -50,7 +58,9 @@ function pathOf(url: string): string {
   }
 }
 
-export function Greeting({ profile, greeting, last, onContinue, recent, onPortal, onSource, onProfile, onClose }: Props) {
+export function Greeting({ profile, greeting, last, onContinue, recent, onPortal, onSource, onProfile, onClose, where, back, onNote, onInbox }: Props) {
+  const hasWhere = !!where && (!!where.card || where.thoughts.length > 0);
+  const stay = hasWhere ? STAY_WHERE_MS : STAY_MS;
   const box = useRef<HTMLElement>(null);
   const [hold, setHold] = useState(false);
   // F-193: erst klein; „Mehr …“ klappt die Spalten auf (dann bleibt die Begrüßung stehen)
@@ -88,20 +98,21 @@ export function Greeting({ profile, greeting, last, onContinue, recent, onPortal
         }
       }}
     >
-      <span className={['greeting__avatar', hold && 'is-held', open && 'is-open'].filter(Boolean).join(' ')} title={open ? undefined : hold ? G.ringHeld : G.ringTitle(STAY_MS / 1000)}>
+      <span className={['greeting__avatar', hold && 'is-held', open && 'is-open'].filter(Boolean).join(' ')} title={open ? undefined : hold ? G.ringHeld : G.ringTitle(stay / 1000)}>
         <Avatar profile={profile} />
         {!open && (
-          <svg className="greeting__ring" viewBox="0 0 48 48" aria-hidden="true" style={{ '--stay': `${STAY_MS}ms` } as CSSProperties}>
+          <svg className="greeting__ring" viewBox="0 0 48 48" aria-hidden="true" style={{ '--stay': `${stay}ms` } as CSSProperties}>
             <circle className="greeting__ring-track" cx="24" cy="24" r="22" />
             <circle className="greeting__ring-left" cx="24" cy="24" r="22" pathLength={100} onAnimationEnd={onClose} />
           </svg>
         )}
-        {!open && <span className="sr-only">{G.ringSr(STAY_MS / 1000)}</span>}
+        {!open && <span className="sr-only">{G.ringSr(stay / 1000)}</span>}
       </span>
       <div className="greeting__main">
         <h2 id="greeting-title" className="greeting__title">
-          {greeting}
+          {back ? G.back : greeting}
         </h2>
+        {back ? <p className="greeting__invite">{G.backSub(back)}</p> : null}
         {last ? (
           <p className="greeting__last">
             Zuletzt offen: <strong>{last.name}</strong>
@@ -109,6 +120,38 @@ export function Greeting({ profile, greeting, last, onContinue, recent, onPortal
           </p>
         ) : (
           <p className="greeting__last">Schön, dass du da bist.</p>
+        )}
+        {/* V156 (F-109): laufende Karte und offene Gedanken – Klick öffnet sie im Pad */}
+        {hasWhere && (
+          <dl className="greeting__where">
+            {where!.card && (
+              <div>
+                <dt>{where!.card.kind === 'doing' ? G.doing : G.lastCard}</dt>
+                <dd>
+                  <button type="button" className="greeting__link" title={G.cardTitle} onClick={() => onNote?.(where!.card!.id)}>
+                    {where!.card.title || G.untitled}
+                  </button>
+                </dd>
+              </div>
+            )}
+            {where!.thoughts.length > 0 && (
+              <div>
+                <dt>{G.thoughts}</dt>
+                {where!.thoughts.map((t) => (
+                  <dd key={t.id}>
+                    <button type="button" className="greeting__link" title={G.thoughtsTitle} onClick={() => onNote?.(t.id)}>
+                      {t.title || G.untitled}
+                    </button>
+                  </dd>
+                ))}
+                <dd>
+                  <button type="button" className="greeting__link greeting__link--more" onClick={onInbox}>
+                    {where!.more ? G.thoughtsMore(where!.more) : G.inbox}
+                  </button>
+                </dd>
+              </div>
+            )}
+          </dl>
         )}
         {/* F-205: ohne Profil zum Anlegen einladen (Demo), mit Hinweis „nur lokal“ */}
         {!profile.name && <p className="greeting__invite">{WELCOME_TEXT.invite}</p>}

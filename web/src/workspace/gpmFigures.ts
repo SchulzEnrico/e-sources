@@ -51,9 +51,9 @@ const defs = () => `<defs>
 <linearGradient id="fgYellow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffbe0"/><stop offset="1" stop-color="${LOOK.yellow}"/></linearGradient>
 <linearGradient id="fgGray" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${LOOK.grayHi}"/><stop offset="1" stop-color="${LOOK.gray}"/></linearGradient>
 <linearGradient id="fgPale" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#ececec"/></linearGradient>
-<linearGradient id="fgSkyBox" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef6ff"/><stop offset="1" stop-color="#c7dcf3"/></linearGradient>
-<linearGradient id="fgSteel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfe5ec"/><stop offset="1" stop-color="#aab6c4"/></linearGradient>
-<linearGradient id="fgSlate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7d8a99"/><stop offset="1" stop-color="#44505e"/></linearGradient>
+<linearGradient id="fgSkyBox" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${EXT.skyHi}"/><stop offset="1" stop-color="${EXT.sky}"/></linearGradient>
+<linearGradient id="fgSteel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${EXT.steelHi}"/><stop offset="1" stop-color="${EXT.steel}"/></linearGradient>
+<linearGradient id="fgSlate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${EXT.slateHi}"/><stop offset="1" stop-color="${EXT.slate}"/></linearGradient>
 <linearGradient id="fgGloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.38"/><stop offset="1" stop-color="#fff" stop-opacity="0.04"/></linearGradient>
 <linearGradient id="fgHead" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b5b5b"/><stop offset="1" stop-color="#2f2f2f"/></linearGradient>
 <radialGradient id="fgDark" cx="0.4" cy="0.3" r="0.8"><stop offset="0" stop-color="#9a9a9a"/><stop offset="1" stop-color="#2a2a2a"/></radialGradient>
@@ -93,7 +93,15 @@ function applyLook(l: LayoutRules): void {
   });
   Object.assign(TEXT, baseText(), same('primary') ? {} : { wine: textOn(l.primary, l.ink) }, same('accent') ? {} : { orange: textOn(l.accent, l.ink) }, same('soft') ? {} : { yellow: textOn(l.soft, l.ink) });
   Object.assign(STROKE, baseStroke(), same('primary') ? {} : { wine: shade(l.primary, -0.4) }, same('accent') ? {} : { orange: shade(l.accent, -0.4) }, same('soft') ? {} : { yellow: shade(l.soft, -0.35) });
-  Object.assign(FILL, GRAD_FILL, l.gradient ? {} : { wine: LOOK.wine, orange: LOOK.orange, yellow: LOOK.yellow, gray: LOOK.gray, root: LOOK.gray, pale: '#f4f4f4', head: '#f4f4f4', white: '#ffffff', sky: '#d9e8f8', steel: '#c3ccd6', slate: '#56626f' });
+  // V156: externe Firmen (hellblau, stahlblau, schiefer) folgen der Regel „Extern“; Vorgabe = genau die bisherigen Töne
+  EXT = same('external') ? { ...BASE_EXT } : extTones(l.external);
+  Object.assign(TEXT, same('external') ? {} : { sky: textOn(EXT.sky, l.ink), steel: textOn(EXT.steel, l.ink), slate: textOn(EXT.slate, l.ink) });
+  Object.assign(STROKE, same('external') ? {} : { sky: shade(EXT.sky, -0.55), steel: shade(EXT.steel, -0.5), slate: shade(EXT.slate, -0.45) });
+  Object.assign(FILL, GRAD_FILL, l.gradient ? {} : { wine: LOOK.wine, orange: LOOK.orange, yellow: LOOK.yellow, gray: LOOK.gray, root: LOOK.gray, pale: '#f4f4f4', head: '#f4f4f4', white: '#ffffff', sky: EXT.skyFlat, steel: EXT.steelFlat, slate: EXT.slateFlat });
+  // V156: Graustufen (graue Überschriften und Hilfslinien der Grafiken) folgen der Regel „Nebentext“
+  GRAY_FROM = same('muted') ? null : l.muted;
+  // V156: Netzplan-Balken mit Puffer folgen der Regel „Balken“
+  NET_BAR = same('bar') ? '#9fb3c8' : l.bar;
   GLOSS_ON = l.gradient;
   // V155 (G3 Rest): Ecken, Schatten und Schriftarten der Kästen; Größen bleiben (Texte nie über Feldränder)
   BOX_R = l.radius;
@@ -102,6 +110,24 @@ function applyLook(l: LayoutRules): void {
   HEAD_FONT = FONT_CSS[l.headFont];
 }
 let GLOSS_ON = true;
+/** V156: Töne der externen Firmen (Organigramm) – Verlauf oben/unten und flach */
+const BASE_EXT = { skyHi: '#eef6ff', sky: '#c7dcf3', steelHi: '#dfe5ec', steel: '#aab6c4', slateHi: '#7d8a99', slate: '#44505e', skyFlat: '#d9e8f8', steelFlat: '#c3ccd6', slateFlat: '#56626f' };
+let EXT = { ...BASE_EXT };
+/** aus einer Farbe drei Stufen: hell (wie hellblau), mittel (wie stahlblau), dunkel (wie schiefer) */
+export function extTones(c: string): typeof BASE_EXT {
+  const sky = c;
+  const steel = shade(c, -0.18);
+  const slate = shade(c, -0.62);
+  return { skyHi: shade(sky, 0.7), sky, steelHi: shade(steel, 0.55), steel, slateHi: shade(slate, 0.35), slate, skyFlat: shade(sky, 0.3), steelFlat: shade(steel, 0.25), slateFlat: shade(slate, 0.12) };
+}
+let GRAY_FROM: string | null = null;
+/** V156: Graustufe der Vorgabe (#666 … #fff) – bei eigener Regel „Nebentext“ dieselbe Helligkeitsstufe aus dieser Farbe */
+export function gy(h: string): string {
+  if (!GRAY_FROM) return h;
+  const v = parseInt(h.slice(1, 3), 16);
+  return shade(GRAY_FROM, Math.max(0, Math.min(1, (v - 0x66) / (255 - 0x66))));
+}
+let NET_BAR = '#9fb3c8';
 let BOX_R = REPORT_LAYOUT.radius;
 let SHADOW_ON = true;
 let TEXT_FONT = FONT_CSS.sans;
@@ -168,7 +194,7 @@ const offOf = (b: Box) => (b.edit ? OFF[b.edit] : undefined) ?? { dx: 0, dy: 0 }
 let TONE: Record<string, string> = {};
 /** Farbe, die die Regel der Layout-Vorlage einem Kasten gibt (für „weicht von der Vorlage ab“ im Bearbeiten-Fenster) */
 export const toneColor = (t: BoxTone): string =>
-  ({ wine: LOOK.wine, orange: LOOK.orange, yellow: LOOK.yellow, gray: LOOK.gray, root: LOOK.gray, pale: '#ececec', head: '#ececec', sky: '#c7dcf3', steel: '#aab6c4', slate: '#44505e', white: '#ffffff' })[t];
+  ({ wine: LOOK.wine, orange: LOOK.orange, yellow: LOOK.yellow, gray: LOOK.gray, root: LOOK.gray, pale: '#ececec', head: '#ececec', sky: EXT.sky, steel: EXT.steel, slate: EXT.slate, white: '#ffffff' })[t];
 /** Fläche, Schrift und Kante eines Kastens mit eigener Farbe (Verlauf wie die Regel-Kästen, sonst flach) */
 export function ownLook(c: string): { fill: string; text: string; stroke: string; defs: string } {
   const gid = `fgOwn${c.slice(1)}`;
@@ -193,7 +219,7 @@ function drawBox(x0: number, y0: number, w: number, b: Box, fs = 9): string {
   const tx = b.lines
     .map((l, i) => `<text x="${x + w / 2}" y="${y + 13 + i * LH + (b.big ? (i ? 5 : 2) : 0)}" text-anchor="middle" font-size="${b.big && !i ? fs + 4 : fs}" font-weight="${i === 0 || b.bold || BOLD_ALL[b.tone] ? 'bold' : 'normal'}" fill="${i && b.accent ? b.accent : t}">${esc(l)}</text>`)
     .join('');
-  const tab = b.tab ? `<rect x="${x + 6}" y="${y - 13}" width="${w - 12}" height="14" rx="3" fill="url(#fgPale)" stroke="${LOOK.grayLine}" stroke-width="0.8"/><text x="${x + w / 2}" y="${y - 2.5}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#9a9a9a">${esc(b.tab)}</text>` : '';
+  const tab = b.tab ? `<rect x="${x + 6}" y="${y - 13}" width="${w - 12}" height="14" rx="3" fill="url(#fgPale)" stroke="${LOOK.grayLine}" stroke-width="0.8"/><text x="${x + w / 2}" y="${y - 2.5}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="${gy('#9a9a9a')}">${esc(b.tab)}</text>` : '';
   const ed = b.edit ? ` class="fg-edit" data-edit="${esc(b.edit)}" tabindex="0" role="button" aria-label="${esc(`Bearbeiten: ${b.title ?? b.lines.join(' ')}`)}"${toneAttr(b.edit, toneColor(b.tone))}` : '';
   return `<g${ed}>${b.title ? `<title>${esc(b.title)}</title>` : ''}${own?.defs ?? ''}<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${BOX_R}" fill="${own?.fill ?? FILL[b.tone]}" stroke="${own?.stroke ?? STROKE[b.tone]}" stroke-width="0.8"${SHADOW_ON ? ' filter="url(#fgShadow)"' : ''}/>${tab}${GLOSS_ON && (own ? luminance(TONE[b.edit!]) < 0.4 : GLOSS[b.tone]) ? `<rect x="${x + 1.5}" y="${y + 1}" width="${w - 3}" height="${Math.min(h / 2, 9)}" rx="3" fill="url(#fgGloss)"/>` : ''}${tx}</g>`;
 }
@@ -563,7 +589,7 @@ export function orgChartSvg(ws: Workspace, p: Project): string {
   const parts: string[] = [...lines];
   if (groups.length) {
     parts.push(`<line x1="${left}" y1="${sepY}" x2="${width}" y2="${sepY}" stroke="${LOOK.ink}" stroke-width="5" stroke-dasharray="5 9"/>`);
-    parts.push(`<text x="${left + 54}" y="${sepY + 60}" text-anchor="middle" font-size="10" font-weight="bold" fill="#9a9a9a">zu koordinierende</text><text x="${left + 54}" y="${sepY + 73}" text-anchor="middle" font-size="10" font-weight="bold" fill="#9a9a9a">externe</text><text x="${left + 54}" y="${sepY + 86}" text-anchor="middle" font-size="10" font-weight="bold" fill="#9a9a9a">Dienstleister</text>`);
+    parts.push(`<text x="${left + 54}" y="${sepY + 60}" text-anchor="middle" font-size="10" font-weight="bold" fill="${gy('#9a9a9a')}">zu koordinierende</text><text x="${left + 54}" y="${sepY + 73}" text-anchor="middle" font-size="10" font-weight="bold" fill="${gy('#9a9a9a')}">externe</text><text x="${left + 54}" y="${sepY + 86}" text-anchor="middle" font-size="10" font-weight="bold" fill="${gy('#9a9a9a')}">Dienstleister</text>`);
   }
   for (const r of roles) {
     const a = at.get(r.id);
@@ -744,8 +770,8 @@ export function phasePlanSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws, 
       const last = i === years.length - 1;
       const tip = last ? 10 : 0;
       parts.push(`<path d="M${yr.x1 + 1} ${y}H${yr.x2 - 1 - tip}${last ? `L${yr.x2 + 6} ${y + h / 2}L${yr.x2 - 1 - tip} ${y + h}` : `V${y + h}`}H${yr.x1 + 1}Z" fill="url(#fgGray)" stroke="${LOOK.orangeHi}" stroke-width="1"/>`);
-      if (yr.x2 - yr.x1 > 34) parts.push(`<text x="${(yr.x1 + yr.x2) / 2}" y="${y + 12}" text-anchor="middle" font-size="11" font-weight="bold" fill="#9a9a9a">${yr.y}</text>`);
-      if (i) parts.push(`<line x1="${yr.x1}" y1="${y + h}" x2="${yr.x1}" y2="${axisY + 16}" stroke="#a9a9a9" stroke-width="2"/>`);
+      if (yr.x2 - yr.x1 > 34) parts.push(`<text x="${(yr.x1 + yr.x2) / 2}" y="${y + 12}" text-anchor="middle" font-size="11" font-weight="bold" fill="${gy('#9a9a9a')}">${yr.y}</text>`);
+      if (i) parts.push(`<line x1="${yr.x1}" y1="${y + h}" x2="${yr.x1}" y2="${axisY + 16}" stroke="${gy('#a9a9a9')}" stroke-width="2"/>`);
     });
     parts.push(`<line x1="${a.x0}" y1="${y + h}" x2="${a.x0}" y2="${axisY + 16}" stroke="${LOOK.orangeHi}" stroke-width="1.2"/>`);
   }
@@ -767,7 +793,7 @@ export function phasePlanSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws, 
     return { m, x, y, code };
   });
   // gestrichelte Linien von den Meilensteinen nach unten
-  for (const t of msAt) parts.push(`<line x1="${t.x}" y1="${t.y + 6}" x2="${t.x}" y2="${axisY + 16}" stroke="#a9a9a9" stroke-width="1.3" stroke-dasharray="4 4"/>`);
+  for (const t of msAt) parts.push(`<line x1="${t.x}" y1="${t.y + 6}" x2="${t.x}" y2="${axisY + 16}" stroke="${gy('#a9a9a9')}" stroke-width="1.3" stroke-dasharray="4 4"/>`);
   for (const { b, x1, x2, y } of spans) {
     const key = `phases:${b.id}`;
     const own = TONE[key] ? ownLook(TONE[key]) : undefined;
@@ -867,7 +893,7 @@ export function ganttSheetSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws,
     const x2 = a.x(r.end) + a.w / (a.d1 - a.d0);
     if (r.node.milestone) parts.push(`<g><title>${esc(`${r.node.title}: ${dmy(r.start)}`)}</title>${diamond(x1, y + rowH / 2, 5, r.critical ? LOOK.red : LOOK.ink)}<text x="${x1 + 8}" y="${y + 11}" font-size="7.5" fill="${LOOK.ink}">${dm(r.start)}</text></g>`);
     else if (r.node.summary) parts.push(`<path d="M${x1} ${y + 4}H${x2}V${y + 11}L${x2 - 3} ${y + 8}H${x1 + 3}L${x1} ${y + 11}Z" fill="${LOOK.ink}"><title>${esc(`${r.node.title}: ${dmy(r.start)} – ${dmy(r.end)}`)}</title></path>`);
-    else parts.push(`<rect x="${x1}" y="${y + 3}" width="${Math.max(2, x2 - x1)}" height="${rowH - 6}" rx="1.5" fill="${r.critical ? LOOK.red : '#9fb3c8'}" stroke="${r.critical ? '#7a0010' : '#5d738a'}" stroke-width="0.5"><title>${esc(`${r.node.title}: ${dmy(r.start)} – ${dmy(r.end)}${r.critical ? ' · kritisch' : ` · Puffer ${r.float} T`}`)}</title></rect>`);
+    else parts.push(`<rect x="${x1}" y="${y + 3}" width="${Math.max(2, x2 - x1)}" height="${rowH - 6}" rx="1.5" fill="${r.critical ? LOOK.red : NET_BAR}" stroke="${r.critical ? '#7a0010' : NET_BAR === '#9fb3c8' ? '#5d738a' : shade(NET_BAR, -0.4)}" stroke-width="0.5"><title>${esc(`${r.node.title}: ${dmy(r.start)} – ${dmy(r.end)}${r.critical ? ' · kritisch' : ` · Puffer ${r.float} T`}`)}</title></rect>`);
     parts.push('</g>');
   });
   // Pfeile: Ende/Anfang je nach Beziehung, rechtwinklig
@@ -887,7 +913,7 @@ export function ganttSheetSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws,
   }
   const ly = top + h + 16;
   parts.push(`<rect x="${left + 8}" y="${ly - 8}" width="14" height="8" fill="${LOOK.red}"/><text x="${left + 26}" y="${ly}" font-size="8.5" fill="${LOOK.ink}">kritischer Vorgang</text>`);
-  parts.push(`<rect x="${left + 120}" y="${ly - 8}" width="14" height="8" fill="#9fb3c8"/><text x="${left + 138}" y="${ly}" font-size="8.5" fill="${LOOK.ink}">Vorgang mit Puffer</text>`);
+  parts.push(`<rect x="${left + 120}" y="${ly - 8}" width="14" height="8" fill="${NET_BAR}"/><text x="${left + 138}" y="${ly}" font-size="8.5" fill="${LOOK.ink}">Vorgang mit Puffer</text>`);
   parts.push(`${diamond(left + 236, ly - 4, 4.5, LOOK.ink)}<text x="${left + 246}" y="${ly}" font-size="8.5" fill="${LOOK.ink}">Meilenstein</text>`);
   parts.push(`<text x="${left + 320}" y="${ly}" font-size="8.5" fill="${LOOK.muted}">T = Arbeitstage · ${g.critical.length} kritische Vorgänge</text>`);
   return svgWrap(width, ly + 10, `Vernetzter Balkenplan ${p.name}: ${rows.length} Vorgänge, ${g.critical.length} kritisch, ${dmy(g.start)} bis ${dmy(g.end)}`, parts.join(''));
@@ -952,7 +978,7 @@ export function loadSvg(ws: Workspace, pid: string, person: string): string {
   const parts: string[] = [];
   parts.push(`<rect x="${pad.l}" y="${pad.t - 30}" width="${iw}" height="${ih + 30}" fill="#c4c4c4"/>`);
   parts.push(`<rect x="${pad.l}" y="${pad.t - 30}" width="${iw}" height="26" fill="url(#fgPale)"/>`);
-  parts.push(`<text x="${pad.l + iw / 2}" y="${pad.t - 11}" text-anchor="middle" font-size="16" font-weight="bold" fill="#9a9a9a">Einsatzmittelganglinie ${esc(row.person.name.split(/\s+[–-]\s+/)[0])}</text>`);
+  parts.push(`<text x="${pad.l + iw / 2}" y="${pad.t - 11}" text-anchor="middle" font-size="16" font-weight="bold" fill="${gy('#9a9a9a')}">Einsatzmittelganglinie ${esc(row.person.name.split(/\s+[–-]\s+/)[0])}</text>`);
   const step = [5, 10, 20, 25, 50, 100, 200, 250, 500].find((s) => max / s <= 12) ?? 1000;
   for (let v = 0; v <= max; v += step) {
     parts.push(`<line x1="${pad.l}" y1="${y(v)}" x2="${pad.l + iw}" y2="${y(v)}" stroke="#fff" stroke-width="${v ? 1.4 : 0}"/><text x="${pad.l - 5}" y="${y(v) + 3}" text-anchor="end" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">${v}</text><text x="${pad.l + iw + 5}" y="${y(v) + 3}" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">${v}</text>`);
@@ -1109,7 +1135,7 @@ function reportKit(W: number, X: number[]) {
     parts.push(txt(5, y + fh - 13, [[place, dmy(date)].filter(Boolean).join(', ')], { bold: true }));
     if (svg) parts.push(`<image x="${W - 190}" y="${y + 2}" width="180" height="${fh - 18}" preserveAspectRatio="xMinYMax meet" href="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}"/>`);
     const ly = y + fh - (svg ? 14 : 10);
-    parts.push(`<line x1="${W - 190}" y1="${ly}" x2="${W - 10}" y2="${ly}" stroke="#9a9a9a" stroke-dasharray="2 2"/><text x="${W - 10}" y="${y + (svg ? fh - 4 : 11)}" text-anchor="end" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">${esc(sign.label)}</text>`);
+    parts.push(`<line x1="${W - 190}" y1="${ly}" x2="${W - 10}" y2="${ly}" stroke="${gy('#9a9a9a')}" stroke-dasharray="2 2"/><text x="${W - 10}" y="${y + (svg ? fh - 4 : 11)}" text-anchor="end" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">${esc(sign.label)}</text>`);
     y += fh;
   };
   const done = (label: string) => {
@@ -1219,7 +1245,7 @@ export function belbinSvg(ws: Workspace, p: Project, rowId: string | undefined):
   const base = 196;
   const parts: string[] = [];
   const who = personById(ws, t.person)?.name ?? '';
-  parts.push(`<text x="40" y="58" font-size="40" font-weight="bold" fill="#9b9b9b">Teamrollen</text><text x="236" y="76" font-size="14" font-weight="bold" fill="#a7a7a7">nach Belbin${who ? ` · ${esc(who)}` : ''}</text>`);
+  parts.push(`<text x="40" y="58" font-size="40" font-weight="bold" fill="${gy('#9b9b9b')}">Teamrollen</text><text x="236" y="76" font-size="14" font-weight="bold" fill="${gy('#a7a7a7')}">nach Belbin${who ? ` · ${esc(who)}` : ''}</text>`);
   // Legende oben rechts
   ([['act', 'handlungsorientierte Rollen'], ['know', 'wissensorientierte Rollen'], ['talk', 'kommunikationsorientierte Rollen']] as const).forEach(([g, name], i) =>
     parts.push(`<circle cx="${W - 196}" cy="${22 + i * 15}" r="5" fill="${BELBIN_FILL[g]}" stroke="#333" stroke-width="1"/><text x="${W - 186}" y="${25.5 + i * 15}" font-size="8.5" fill="${LOOK.muted}">${name}</text>`),
@@ -1345,8 +1371,8 @@ export function eisenhowerSvg(ws: Workspace, pid: string, day: string, all = fal
   parts.push(`<text transform="translate(${x0 - 30} ${y0 + gh2 / 2}) rotate(-90)" text-anchor="middle" font-size="22" font-weight="bold" fill="${LOOK.wine}">Wichtigkeit</text>`);
   parts.push(`<text transform="translate(${x0 - 8} ${y0 + gh / 2}) rotate(-90)" text-anchor="middle" font-size="10" fill="${LOOK.muted}">sehr</text><text transform="translate(${x0 - 8} ${y0 + gh + ghBot / 2}) rotate(-90)" text-anchor="middle" font-size="10" fill="${LOOK.muted}">nicht</text>`);
   parts.push(`<text x="${x0 + gw / 2}" y="${y0 + gh2 + 16}" text-anchor="middle" font-size="11" fill="${LOOK.muted}">nicht</text><text x="${x0 + gw * 1.5}" y="${y0 + gh2 + 16}" text-anchor="middle" font-size="11" fill="${LOOK.muted}">sehr</text>`);
-  parts.push(`<text x="${x0 + gw}" y="${y0 + gh2 + 44}" text-anchor="middle" font-size="22" font-weight="bold" fill="#9b9b9b">Dringlichkeit</text>`);
-  parts.push(`<text transform="translate(${x0 + 2 * gw + 30} ${y0 + gh2 / 2}) rotate(90)" text-anchor="middle" font-size="30" font-weight="bold" fill="#9b9b9b">Eisenhower-Matrix</text>`);
+  parts.push(`<text x="${x0 + gw}" y="${y0 + gh2 + 44}" text-anchor="middle" font-size="22" font-weight="bold" fill="${gy('#9b9b9b')}">Dringlichkeit</text>`);
+  parts.push(`<text transform="translate(${x0 + 2 * gw + 30} ${y0 + gh2 / 2}) rotate(90)" text-anchor="middle" font-size="30" font-weight="bold" fill="${gy('#9b9b9b')}">Eisenhower-Matrix</text>`);
   return svgWrap(W, H, `${v.name}: ${q.do.length} erledigen, ${q.plan.length} planen, ${q.delegate.length} delegieren, ${q.drop.length} liegen lassen`, parts.join(''));
 }
 
@@ -1449,7 +1475,7 @@ export function squareSvg(p: Project, rowId: string | undefined): string {
   const wMid = S - 2 * c - 20;
   parts.push(lines(S / 2, c + 34, ['Nachricht'], { size: 22, bold: true, fill: LOOK.wine }), lines(S / 2, c + 76, tx(m.message, wMid, 3, 14), { size: 14, bold: true, max: wMid }));
   parts.push(lines(S / 2, S / 2 + 34, ['Reaktion'], { size: 22, bold: true, fill: LOOK.wine }), lines(S / 2, S / 2 + 76, tx(m.reaction, wMid, 3, 14), { size: 14, bold: true, max: wMid }));
-  parts.push(`<text transform="translate(${S + 62} ${S}) rotate(-90)" font-size="64" font-weight="bold" fill="#b3b3b3">Nachrichtenquadrat</text><text transform="translate(${S + 84} ${S}) rotate(-90)" font-size="18" font-weight="bold" fill="#9a9a9a">nach Schulz von Thun</text>`);
+  parts.push(`<text transform="translate(${S + 62} ${S}) rotate(-90)" font-size="64" font-weight="bold" fill="${gy('#b3b3b3')}">Nachrichtenquadrat</text><text transform="translate(${S + 84} ${S}) rotate(-90)" font-size="18" font-weight="bold" fill="${gy('#9a9a9a')}">nach Schulz von Thun</text>`);
   const hits = parts.splice(fieldsAt - Object.keys(FIELD).length, Object.keys(FIELD).length);
   parts.push(...hits, ...verts);
   return svgWrap(S + 92, S, `Nachrichtenquadrat: ${m.topic}${m.message ? ` – Nachricht „${m.message}“` : ''}`, parts.join(''));
@@ -1507,8 +1533,8 @@ function quadFrame(p: Project, day: string, o: { x0: number; y0: number; gw: num
   parts.push(`<text transform="translate(${x0 - 30} ${y0 + gh}) rotate(-90)" text-anchor="middle" font-size="22" font-weight="bold" fill="${LOOK.wine}">${esc(o.left)}</text>`);
   parts.push(`<text transform="translate(${x0 - 8} ${y0 + gh / 2}) rotate(-90)" text-anchor="middle" font-size="10" fill="${LOOK.muted}">${esc(o.leftHi)}</text><text transform="translate(${x0 - 8} ${y0 + gh * 1.5}) rotate(-90)" text-anchor="middle" font-size="10" fill="${LOOK.muted}">${esc(o.leftLo)}</text>`);
   parts.push(`<text x="${x0 + gw / 2}" y="${y0 + 2 * gh + 16}" text-anchor="middle" font-size="11" fill="${LOOK.muted}">${esc(o.bottomLo)}</text><text x="${x0 + gw * 1.5}" y="${y0 + 2 * gh + 16}" text-anchor="middle" font-size="11" fill="${LOOK.muted}">${esc(o.bottomHi)}</text>`);
-  parts.push(`<text x="${x0 + gw}" y="${y0 + 2 * gh + 44}" text-anchor="middle" font-size="22" font-weight="bold" fill="#9b9b9b">${esc(o.bottom)}</text>`);
-  parts.push(`<text transform="translate(${x0 + 2 * gw + 30} ${y0 + gh}) rotate(90)" text-anchor="middle" font-size="30" font-weight="bold" fill="#9b9b9b">${esc(o.name)}</text>`);
+  parts.push(`<text x="${x0 + gw}" y="${y0 + 2 * gh + 44}" text-anchor="middle" font-size="22" font-weight="bold" fill="${gy('#9b9b9b')}">${esc(o.bottom)}</text>`);
+  parts.push(`<text transform="translate(${x0 + 2 * gw + 30} ${y0 + gh}) rotate(90)" text-anchor="middle" font-size="30" font-weight="bold" fill="${gy('#9b9b9b')}">${esc(o.name)}</text>`);
   return parts;
 }
 const corner = (x: number, y: number, t: string, anchor: 'start' | 'end') => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="11" fill="${LOOK.muted}">${esc(t)}</text>`;

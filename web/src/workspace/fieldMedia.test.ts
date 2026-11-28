@@ -180,3 +180,54 @@ describe('V155 F-236 G2 Vorlagen im Arbeitsbereich', () => {
     expect(L.parseLayoutTemplates([{ id: 'x', name: 'Blau', rules: { primary: '#00f', font: 'comic' } }, { id: 'y', name: 'blau', rules: {} }, { name: 'ohne Id' }])).toEqual([{ id: 'x', name: 'Blau', rules: { primary: '#0000ff' } }]);
   });
 });
+
+describe('V156 Regel „Extern“, Graustufen und Netzplan-Balken folgen den Regeln', () => {
+  it('ohne Regel wie bisher, mit Regel aus der Farbe gerechnet', async () => {
+    const L = await import('./layoutRules');
+    const Gp = await import('./gpm');
+    const Gf = await import('./gpmFigures');
+    const { editProject } = await import('./projects');
+    expect(L.sanitizeLayout({ external: '#C7DCF3' })).toBeUndefined();
+    expect(L.sanitizeLayout({ external: '#336699' })).toEqual({ external: '#336699' });
+    const made = addProject(W.defaultWorkspace(), 'Ext')!;
+    const id = made.id;
+    let ws = editProject(made.ws, id, { roles: [{ id: 'lead', name: 'Projektleitung' }, { id: 'x1', name: 'Berater', kind: 'external', org: 'Firma A', parent: 'lead', link: 'contract' }, { id: 'x2', name: 'Lieferant', kind: 'external', org: 'Firma B', parent: 'lead', link: 'contract' }] });
+    const svg0 = Gf.figureSvg(ws, id, 'org');
+    expect(svg0).toContain('stop-color="#c7dcf3"');
+    expect(svg0).toContain('fill="#9a9a9a"');
+    ws = Gp.editLayout(ws, id, { external: '#336699', muted: '#204060' });
+    const svg = Gf.figureSvg(ws, id, 'org');
+    expect(svg).not.toContain('stop-color="#c7dcf3"');
+    expect(svg).toContain('stop-color="#336699"');
+    expect(svg).not.toContain('fill="#9a9a9a"');
+    expect(Gf.extTones('#336699').slate).toBe(L.shade('#336699', -0.62));
+    expect(Gf.gy('#666666')).toBe('#666666');
+    // nach dem Zeichnen gilt wieder die Vorgabe
+    expect(Gf.figureSvg(editProject(ws, id, { layout: undefined }), id, 'org')).toBe(svg0);
+  });
+});
+
+describe('V156 F-232 P13 Inhaltsverzeichnis wie im Report', () => {
+  it('Hauptkapitel mit ICB4-Element, Unterkapitel mit Nummer, Anlagen am Ende; Seitenzahl nur mit Paged.js', async () => {
+    const Rp = await import('./gpmReport');
+    const Fk = await import('./formKit');
+    const e = Rp.tocEntries(Fk.GPM_D_ID, Fk.GPM_D.forms, [{ id: 'an-fb', name: 'Anlage A Problemstellungen (2)' }]);
+    expect(e[0]).toEqual({ no: '2.', name: 'Anforderung und Ziele [4.5.2]', href: '#f-charter', main: true });
+    expect(e[1]).toMatchObject({ no: '2.1.', name: 'Projektsteckbrief', main: false });
+    expect(e.find((x) => x.name === 'Stakeholderanalyse')).toMatchObject({ no: '', main: false });
+    const an = e.findIndex((x) => x.name === 'Anlagen');
+    expect(e[an + 1]).toMatchObject({ href: '#an-fb', main: false });
+    expect(e.filter((x) => x.main).length).toBe(15);
+    // eigene Vorlage mit fremden Nummern: keine erfundenen Kapitelnamen
+    const own = Rp.tocEntries('mine', [{ ...Fk.GPM_D.forms[0], id: 'x1', chapter: '7' }], []);
+    expect(own).toEqual([{ no: '7.', name: 'Projektsteckbrief', href: '#f-x1', main: true }]);
+    const made = addProject(W.defaultWorkspace(), 'Toc')!;
+    const plain = Rp.reportHtml(made.ws, made.id, { day: '2026-11-28' });
+    expect(plain).toContain('<nav class="toc"');
+    expect(plain).not.toContain('PagedConfig');
+    const paged = Rp.reportHtml(made.ws, made.id, { day: '2026-11-28', paged: 'http://localhost:2910/paged.js' });
+    expect(paged).toContain('<body class="paged">');
+    expect(paged).toContain('src="http://localhost:2910/paged.js"');
+    expect(paged).not.toContain('<div class="bar">');
+  });
+});

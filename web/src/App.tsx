@@ -117,6 +117,7 @@ import { InkDialog } from './components/InkDialog';
 import { INK_OPEN, type InkOpenDetail, openInk, sweepInk } from './workspace/inkStore';
 import { inkRefs } from './workspace/ink';
 import * as In from './workspace/inbox';
+import * as Ww from './workspace/whereWas';
 import { FeedbackCard } from './components/FeedbackCard';
 import { setWheelSource } from './components/wheelPrefs';
 import { setCalendar } from './workspace/calendar';
@@ -607,6 +608,41 @@ function DeskApp(props: DeskProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gist.at, gist.last]);
   const [greetOn, setGreetOn] = useState(() => !win && !props.switched && !tourAutoStart('start') && profileOf(ws).greet);
+  // V156 (F-109 „Wo war ich?“): nach einer Pause (Tab verborgen oder ohne Eingabe ≥ 30 min) kommt die Begrüßung wieder
+  const [greetBack, setGreetBack] = useState(0);
+  const greetOk = useRef(false);
+  greetOk.current = !win && profileOf(ws).greet;
+  useEffect(() => {
+    if (win) return;
+    let lastInput = Date.now();
+    let hiddenAt = 0;
+    const back = (since: number) => {
+      const now = Date.now();
+      if (!greetOk.current || !Ww.isPause(since, now)) return;
+      setGreetBack(Math.max(1, Math.round((now - since) / 60_000)));
+      setGreetOn(true);
+    };
+    const onInput = () => {
+      back(lastInput);
+      lastInput = Date.now();
+    };
+    const onVis = () => {
+      if (document.hidden) hiddenAt = Date.now();
+      else {
+        back(hiddenAt || lastInput);
+        hiddenAt = 0;
+        lastInput = Date.now();
+      }
+    };
+    document.addEventListener('pointerdown', onInput, true);
+    document.addEventListener('keydown', onInput, true);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      document.removeEventListener('pointerdown', onInput, true);
+      document.removeEventListener('keydown', onInput, true);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [win]);
   /** Zuletzt offenes Portal – beim Start gelesen, bevor das aktuelle es überschreibt. */
   const [lastAtStart] = useState(() => loadLast(win ?? ''));
   /** F-155: Größen-Modus (Alt/⌥+A) und seine letzte Ansage. */
@@ -2561,12 +2597,18 @@ function DeskApp(props: DeskProps) {
   const [greetSeed] = useState(Math.random);
   const greetText = welcomeText(profileOf(ws).welcome, new Date(), profileOf(ws).name, greetSeed);
   // Begrüßung höflich ansagen (einmal beim Start)
+  /** V156 (F-109): laufende Karte und offene Gedanken für die Begrüßung (Start und nach einer Pause) */
+  const greetWhere = greetOn ? Ww.whereWas(ws, Date.now()) : undefined;
+  const whereSaid = (w: Ww.WhereWas | undefined) => (w ? GREET_TEXT.say(w.card ? `${w.card.kind === 'doing' ? GREET_TEXT.doing : GREET_TEXT.lastCard} ${w.card.title || GREET_TEXT.untitled}.` : '', w.thoughts.length + w.more) : '');
   useEffect(() => {
-    if (greetOn) sayLive(`${greetText}${/[.!?…]$/.test(greetText) ? '' : '.'}${greetLast ? ` Zuletzt offen: ${greetLast.name}. Weitermachen steht in der Begrüßung oben rechts.` : ''}`);
+    if (greetOn) sayLive(`${greetText}${/[.!?…]$/.test(greetText) ? '' : '.'}${greetLast ? ` Zuletzt offen: ${greetLast.name}. Weitermachen steht in der Begrüßung oben rechts.` : ''} ${whereSaid(greetWhere)}`.trim());
   }, []);
-  const closeGreeting = useCallback(() => setGreetOn(false), []);
+  useEffect(() => {
+    if (greetBack) sayLive(`${GREET_TEXT.back} ${GREET_TEXT.backSub(greetBack)}${greetLast ? ` Zuletzt offen: ${greetLast.name}.` : ''} ${whereSaid(Ww.whereWas(ws, Date.now()))}`.trim());
+  }, [greetBack]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeGreeting = useCallback(() => (setGreetOn(false), setGreetBack(0)), []);
   const continueLast = () => {
-    setGreetOn(false);
+    closeGreeting();
     if (lastPanel) focusPortal(lastPanel.id);
   };
   /** Portal dieses Desks nach vorn holen, ansagen und den Fokus in seine Adresszeile setzen. */
@@ -4731,6 +4773,10 @@ function DeskApp(props: DeskProps) {
             setProfileOpen(true);
           }}
           onClose={closeGreeting}
+          where={greetWhere}
+          back={greetBack || undefined}
+          onNote={(id) => (closeGreeting(), openNoteRef.current(id))}
+          onInbox={() => (closeGreeting(), openInbox())}
         />
       )}
       {update.found && <UpdateNotice onReload={() => window.location.reload()} onLater={update.later} />}

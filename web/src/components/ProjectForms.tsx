@@ -7,6 +7,8 @@
  * Tastatur (NF-03): Tab durch die Felder, Enter übernimmt, Esc verwirft, Alt+↑/↓ verschiebt die Zeile.
  * Meldungen am Ort (F-214). Logik in workspace/formKit.ts und gpm.ts.
  */
+// V156 (F-232 P13): Paged.js für Seitenzahlen im Inhaltsverzeichnis – nur im Bericht-Fenster geladen
+import pagedUrl from '../../node_modules/pagedjs/dist/paged.polyfill.js?url';
 import { qrSvg } from '../workspace/qr';
 import { appBase, projectLinkUrl } from '../workspace/projectLink';
 import { Fragment, type KeyboardEvent, useEffect, useRef, useState } from 'react';
@@ -220,7 +222,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onTo
     };
   }, [picKey]);
   const openReport = () => {
-    const html = Rp.reportHtml(ws, p.id, { version: APP_VERSION, day: todayDay(), inks, base: appBase(), pics });
+    const html = Rp.reportHtml(ws, p.id, { version: APP_VERSION, day: todayDay(), inks, base: appBase(), pics, paged: new URL(pagedUrl, window.location.href).href });
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
     const w = window.open(url, '_blank');
     if (w) tell(T.reportOpened);
@@ -232,7 +234,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onTo
       fr.title = T.report;
       fr.setAttribute('aria-hidden', 'true');
       fr.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none';
-      fr.srcdoc = html;
+      fr.srcdoc = Rp.reportHtml(ws, p.id, { version: APP_VERSION, day: todayDay(), inks, base: appBase(), pics });
       fr.onload = () => {
         fr.contentWindow?.focus();
         fr.contentWindow?.print();

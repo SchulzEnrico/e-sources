@@ -612,6 +612,18 @@ export const GREET_TEXT = {
   front: 'vorn',
   frontTitle: 'Liegt in seinem Slot vorn',
   deskWhere: (slots: number, portals: number) => `${slots === 1 ? '1 Slot' : `${slots} Slots`} · ${portals === 1 ? '1 Portal' : `${portals} Portale`}`,
+  // V156 (F-109 „Wo war ich?“)
+  back: 'Wo war ich?',
+  backSub: (min: number) => `Willkommen zurück – ${min >= 120 ? `${Math.round(min / 60)} Stunden` : `${min} Minuten`} Pause.`,
+  doing: 'In Arbeit:',
+  lastCard: 'Zuletzt bearbeitet:',
+  cardTitle: 'Karte öffnen und weitermachen',
+  thoughts: 'Offene Gedanken:',
+  thoughtsTitle: 'Gedanke aus dem Gedankenparkplatz bzw. Eingang öffnen',
+  thoughtsMore: (n: number) => `+ ${n} im Eingang`,
+  inbox: 'Eingang zeigen',
+  untitled: '(ohne Titel)',
+  say: (card: string, thoughts: number) => [card, thoughts ? `${thoughts === 1 ? 'Ein offener Gedanke' : `${thoughts} offene Gedanken`} im Eingang.` : ''].filter(Boolean).join(' '),
 };
 
 export const SEND_TEXT = {
@@ -4406,7 +4418,7 @@ export const LAYOUT_TEXT = {
   resetDone: 'Alle Regeln auf die Vorgabe zurückgesetzt.',
   undo: 'Rückgängig',
   groups: { boxes: 'Kästen (MUSS · SOLL · KANN · neutral)', lines: 'Linien und Hervorhebung', text: 'Schrift', tables: 'Tabellen', curves: 'Kurven (Ganglinie, MTA)', print: 'Kopf- und Fußzeile im Druck' } as Record<'boxes' | 'lines' | 'text' | 'tables' | 'curves' | 'print', string>,
-  rules: { primary: 'Primär (MUSS, Linien)', accent: 'Akzent (SOLL, Meilensteine)', soft: 'KANN', neutral: 'Neutral (graue Kästen)', critical: 'Kritischer Pfad, Überschreitung', line: 'Kanten und Rahmen', grid: 'Raster', head: 'Kopfzeile und Hervorhebung', ink: 'Text', muted: 'Nebentext', label: 'Hintergrund der Bezeichnungen', bar: 'Balken', ok: 'Im Plan, Budget', tableHead: 'Kopf der Tabellen', font: 'Schriftart Text', headFont: 'Schriftart Überschriften', textSize: 'Größe Text', headSize: 'Größe Überschriften', tableSize: 'Größe Tabellen', radius: 'Ecken der Kästen', shadow: 'Schatten unter den Kästen', tableGrid: 'Raster der Tabellen', printLogo: 'Logo auf Deckblatt und Blättern', printNo: 'Projektnummer in der Fußzeile', printPage: '„Seite x von y“ in der Fußzeile' } as Record<string, string>,
+  rules: { primary: 'Primär (MUSS, Linien)', accent: 'Akzent (SOLL, Meilensteine)', soft: 'KANN', neutral: 'Neutral (graue Kästen)', critical: 'Kritischer Pfad, Überschreitung', line: 'Kanten und Rahmen', grid: 'Raster', head: 'Kopfzeile und Hervorhebung', ink: 'Text', muted: 'Nebentext', label: 'Hintergrund der Bezeichnungen', bar: 'Balken', ok: 'Im Plan, Budget', tableHead: 'Kopf der Tabellen', external: 'Extern (Firmen im Organigramm)', font: 'Schriftart Text', headFont: 'Schriftart Überschriften', textSize: 'Größe Text', headSize: 'Größe Überschriften', tableSize: 'Größe Tabellen', radius: 'Ecken der Kästen', shadow: 'Schatten unter den Kästen', tableGrid: 'Raster der Tabellen', printLogo: 'Logo auf Deckblatt und Blättern', printNo: 'Projektnummer in der Fußzeile', printPage: '„Seite x von y“ in der Fußzeile' } as Record<string, string>,
   fonts: { sans: 'Open Sans', serif: 'Georgia (mit Serifen)', system: 'Systemschrift' } as Record<string, string>,
   fontsHint: { sans: 'Wie im Report – klare Schrift ohne Serifen', serif: 'Klassisch, wie die Überschriften in den Grafiken', system: 'Schrift des Geräts (Mac: SF, Windows: Segoe UI)' } as Record<string, string>,
   grids: { full: 'alle Linien', rows: 'nur waagerecht', none: 'ohne Linien' } as Record<string, string>,

@@ -358,7 +358,7 @@ export function reportPicRefs(ws: Workspace, pid: string): string[] {
   return [...new Set(out)];
 }
 
-export function reportHtml(ws: Workspace, pid: string, o: { version?: string; day: string; inks?: ReadonlyMap<string, string>; base?: string; pics?: ReadonlyMap<string, string> }): string {
+export function reportHtml(ws: Workspace, pid: string, o: { version?: string; day: string; inks?: ReadonlyMap<string, string>; base?: string; pics?: ReadonlyMap<string, string>; paged?: string }): string {
   const p = projectById(ws, pid);
   if (!p) return '';
   const tpl = Fk.templateOf(ws, p);
@@ -390,12 +390,18 @@ table.kv th { width: 34%; } .empty { color: #777; font-style: italic; } .cover {
 .sign__ink { height: 34pt; width: auto; align-self: flex-start; } .sign__name { font: 16pt "Segoe Script", "Brush Script MT", "Snell Roundhand", cursive; color: #1b2f8a; }
 table.wpsheet { border: 2px solid #111; break-inside: avoid; } table.kv.wpsheet th { width: auto; background: #d9d9d9; } table.wpsheet col.wpsheet__l { width: 17%; } table.wpsheet th.wpsheet__head { background: #8a8a8a; color: #fff; font-size: 18pt; vertical-align: middle; padding-left: 12pt; } table.wpsheet td.sheethead__qr { padding: 3pt; background: #fff; } table.wpsheet td.sheethead__qr svg { display: block; width: 74pt; height: 74pt; }
 table.charter > tbody > tr > th { width: 26%; } table.charter td.sub { padding: 0; } table.charter .grid { margin: 0; border: 0; } table.charter .grid th { background: #f6f6f6; font-weight: normal; } table.charter .grid.rows th { width: 34%; } td.is-strong { font-weight: bold; }
-.sign__who { font-size: 8.5pt; } .sign__line { border-top: 1px solid #999; font-size: 8pt; color: #555; padding-top: 1pt; } tr.release td { white-space: normal; } figure { margin: 6pt 0; break-inside: avoid; }
+.sign__who { font-size: 8.5pt; } .sign__line { border-top: 1px solid #999; font-size: 8pt; color: #555; padding-top: 1pt; } tr.release td { white-space: normal; } figure { margin: 6pt 0; break-inside: avoid; } img.fig { display: block; width: 100%; height: auto; max-height: 215mm; object-fit: contain; } section.wide img.fig { max-height: 150mm; }
 .logo { float: right; max-height: 22mm; max-width: 50mm; } figure.media { display: inline-block; margin: 3pt 6pt 3pt 0; vertical-align: top; } figure.media img { display: block; max-width: 100%; max-height: 7cm; border: 1px solid #bbb; } figure.media figcaption { font-size: 8pt; color: #555; } .media--file, .media--missing { display: inline-block; font-size: 8.5pt; color: #555; }
-@media screen { body { max-width: 900px; margin: 24px auto; padding: 0 16px; } .bar { position: sticky; top: 0; background: #fff; padding: 8px 0; border-bottom: 1px solid #ddd; } }
+@media screen { body:not(.paged) { max-width: 900px; margin: 24px auto; padding: 0 16px; } .bar { position: sticky; top: 0; background: #fff; padding: 8px 0; border-bottom: 1px solid #ddd; } }
 @media print { .bar { display: none; } }
-${layoutCss(p)}</style></head><body>`);
-  out.push(`<div class="bar"><button type="button" onclick="window.print()">Drucken bzw. als PDF sichern</button></div>`);
+nav.toc { break-after: page; } nav.toc h2 { border: 0; font-size: 15pt; margin: 0 0 8pt; color: #1b1b1b; }
+.toc ol { list-style: none; margin: 0; padding: 0; } .toc li { margin: 0; } .toc a { display: flex; align-items: baseline; gap: 4pt; color: inherit; text-decoration: none; padding: 0.7pt 0; }
+.toc__no { flex: none; min-width: 2.6em; } .toc__t { flex: 0 1 auto; } .toc__dots { flex: 1 1 1.5em; } .toc__pg { flex: none; min-width: 1.6em; text-align: right; }
+.toc__main > a { font-weight: bold; color: var(--toc-head, #a3141b); font-size: 10pt; margin-top: 2pt; } .toc__sub > a { font-size: 9pt; font-weight: 600; color: #333; } .toc__sub .toc__no { color: #6b6b6b; padding-left: 0; }
+.paged .toc__dots { border-bottom: 1.4px dotted currentColor; transform: translateY(-3pt); }
+${layoutCss(p)}</style>${o.paged ? pagedScript(o.paged) : ''}</head><body${o.paged ? ' class="paged"' : ''}>`);
+  // V156: mit Paged.js steht der Knopf außerhalb der Seiten (wird nach dem Aufteilen eingefügt)
+  if (!o.paged) out.push(`<div class="bar"><button type="button" onclick="window.print()">Drucken bzw. als PDF sichern</button></div>`);
   const logo = logoId(p.charter?.logo);
   const logoUrl = logo ? o.pics?.get(logo) : undefined;
   out.push(`<div class="cover">${logoUrl && layoutOf(p).printLogo && /^data:image\//.test(logoUrl) ? `<img class="logo" src="${esc(logoUrl)}" alt="Logo">` : ''}<h1>Projektbericht ${esc(p.name)}</h1><p class="meta">${esc([no ? `Projektnummer ${no}` : '', p.charter?.client ? `Auftraggeber ${p.charter.client}` : '', `Stand ${dmy(o.day)}`].filter(Boolean).join(' · '))}</p>`);
@@ -408,11 +414,10 @@ ${layoutCss(p)}</style></head><body>`);
   kv('Fortschritt Leistung', `${st.progWork} %`);
   kv('Arbeitspakete', `${st.done} erledigt · ${st.doing} laufend · ${st.open} offen`);
   kv('Vorlage', tpl.name);
-  out.push(`</tbody></table><h2>Inhalt</h2><ol>`);
-  for (const f of tpl.forms) out.push(`<li><a href="#f-${esc(f.id)}">${esc(`${f.chapter} ${f.name}`)}</a></li>`);
+  out.push(`</tbody></table></div>`);
   const annex = annexSheets(ws, p, o.pics);
-  for (const a of annex.toc) out.push(`<li><a href="#${a.id}">${esc(a.name)}</a></li>`);
-  out.push(`</ol></div>`);
+  // V156 (F-232 P13, Doc „Seitenzahlen im Druck-Inhaltsverzeichnis“): Inhalt auf eigener Seite wie Seite 2 im Report
+  out.push(tocHtml(tpl.id, tpl.forms, [...(p.annexes ?? []).filter((a) => a.form && tpl.forms.some((x) => x.id === a.form)).map((a) => ({ id: `a-${a.id}`, name: `${a.code ? `${a.code}: ` : ''}${a.title}` })), ...annex.toc]));
   for (const f of tpl.forms) out.push(formSection(ws, p, f, o.inks, o.base));
   // F-234 D7 (V137): Kapitel als Anlage einreihen (z. B. Zentraltabelle der Kosten)
   for (const a of p.annexes ?? []) {
@@ -715,13 +720,91 @@ export function annexSheets(ws: Workspace, p: Project, pics?: ReadonlyMap<string
 }
 
 /** V154 (F-236 B): Bericht nimmt die Regeln der Layout-Vorlage (Text, Hervorhebung, Bezeichnungen, Raster) */
+/** V156: Hauptkapitel der Vorlage „GPM Level D“ mit ICB4-Element wie im Inhaltsverzeichnis des Reports (Z20-0173) */
+export const GPM_CHAPTERS: Record<string, string> = {
+  '1': 'Projektdesign [4.5.1]',
+  '2': 'Anforderung und Ziele [4.5.2]',
+  '3': 'Qualität [4.5.6]',
+  '4': 'Stakeholder [4.5.12]',
+  '5': 'Chancen und Risiken [4.5.11]',
+  '6': 'Organisation, Information und Dokumentation [4.5.9]',
+  '7': 'Ablauf und Termine [4.5.4] - Teil 1',
+  '8': 'Leistungsumfang und Lieferobjekte [4.5.3]',
+  '9': 'Ablauf und Termine [4.5.4] - Teil 2',
+  '10': 'Ressourcen [4.5.8]',
+  '11': 'Kosten und Finanzierung [4.5.7]',
+  '12': 'Planung und Steuerung [4.5.5]',
+  '13': 'Veränderung und Transformation [4.5.13]',
+  '14': 'Projektabschluss [4.5.5]',
+  '15': 'Selbstreflexion, Kommunikation und Vielseitigkeit [4.4]',
+  '16': 'Anlagen',
+};
+export interface TocEntry {
+  /** Kapitel-Nummer mit Punkt („2.“, „2.1.“) oder leer */
+  no: string;
+  name: string;
+  href: string;
+  main: boolean;
+}
+/**
+ * V156: Einträge des Inhaltsverzeichnisses – je Hauptkapitel eine Zeile (Name aus GPM_CHAPTERS, sonst nur die
+ * Nummer weglassen), darunter die Formulare mit Unternummer; Anlagen am Ende unter „Anlagen“.
+ */
+export function tocEntries(tplId: string, forms: readonly FormDef[], annexes: readonly { id: string; name: string }[]): TocEntry[] {
+  const gpm = new Map(Fk.GPM_D.forms.map((f) => [f.id, f.chapter.split('.')[0]]));
+  const out: TocEntry[] = [];
+  let cur = '';
+  let annexAt = -1;
+  for (const f of forms) {
+    const major = f.chapter.split('.')[0];
+    const named = (tplId === Fk.GPM_D_ID || gpm.get(f.id) === major) && GPM_CHAPTERS[major];
+    if (major !== cur) {
+      cur = major;
+      if (named) out.push({ no: `${major}.`, name: GPM_CHAPTERS[major], href: `#f-${f.id}`, main: true });
+    }
+    // allein in seinem Hauptkapitel ohne Unternummer (z. B. 16 Anlagen): die Kapitelzeile genügt, wie im Report
+    const alone = named && !f.chapter.includes('.') && forms.filter((x) => x.chapter.split('.')[0] === major).length === 1;
+    if (!alone) {
+      const sub = f.chapter.includes('.') ? `${f.chapter}.` : named ? '' : `${f.chapter}.`;
+      out.push({ no: sub, name: f.name, href: `#f-${f.id}`, main: !named && !f.chapter.includes('.') });
+    }
+    if (f.id === 'annexes') annexAt = out.length;
+  }
+  if (annexes.length) {
+    if (annexAt < 0) {
+      out.push({ no: '', name: 'Anlagen', href: `#${annexes[0].id}`, main: true });
+      annexAt = out.length;
+    }
+    out.splice(annexAt, 0, ...annexes.map((a) => ({ no: '', name: a.name, href: `#${a.id}`, main: false })));
+  }
+  return out;
+}
+function tocHtml(tplId: string, forms: readonly FormDef[], annexes: readonly { id: string; name: string }[]): string {
+  const li = (e: TocEntry) => `<li class="${e.main ? 'toc__main' : 'toc__sub'}"><a href="${esc(e.href)}"><span class="toc__no">${esc(e.no)}</span><span class="toc__t">${esc(e.name)}</span><span class="toc__dots" aria-hidden="true"></span><span class="toc__pg" href="${esc(e.href)}"></span></a></li>`;
+  return `<nav class="toc" aria-labelledby="toc-h"><h2 id="toc-h">Inhalt</h2><ol>${tocEntries(tplId, forms, annexes).map(li).join('')}</ol></nav>`;
+}
+/** V156: Paged.js teilt den Bericht vor dem Druck in Seiten und rechnet die Seitenzahlen im Inhalt (target-counter) */
+function pagedScript(src: string): string {
+  // Nach dem Aufteilen: Seitenzahlen aus der Seite, auf der das Kapitel steht (target-counter rechnet Paged.js 0.4 hier
+  // nicht zuverlässig), Bildschirm-Ansicht als graue Fläche mit weißen Seiten (Paged.js verwirft @media screen) und
+  // der Knopf „Drucken“ über den Seiten. Alles erst danach eingefügt, damit es nicht mit aufgeteilt wird.
+  const after = `function(){
+var pg=function(el){var p=el&&el.closest('.pagedjs_page');return p?(p.dataset.pageNumber||''):'';};
+document.querySelectorAll('.toc__pg').forEach(function(s){var id=(s.getAttribute('href')||'').slice(1);s.textContent=pg(id&&document.getElementById(id));});
+var st=document.createElement('style');st.textContent='@media screen{html{background:#8a8a8a;color-scheme:light}.pagedjs_pages{padding:56px 0 24px}.pagedjs_page{background:#fff;margin:0 auto 18px;box-shadow:0 1px 6px rgba(0,0,0,.45)}.bar--paged{position:fixed;top:0;left:0;right:0;z-index:9;text-align:center;padding:8px;background:#fff;border-bottom:1px solid #ccc}}@media print{.bar--paged{display:none}}';document.head.append(st);
+var b=document.createElement('div');b.className='bar bar--paged';b.innerHTML='<button type="button" onclick="window.print()">Drucken bzw. als PDF sichern</button>';document.body.prepend(b);
+document.documentElement.dataset.paged='fertig';}`;
+  // Vorher: Grafiken als Bild (ein Block) – sonst versucht Paged.js, den SVG-Text zu teilen, und bricht ab
+  const before = `function(){document.querySelectorAll('figure > svg').forEach(function(s){if(!s.getAttribute('xmlns'))s.setAttribute('xmlns','http://www.w3.org/2000/svg');var vb=(s.getAttribute('viewBox')||'').split(/\\s+/);if(vb.length===4){s.setAttribute('width',vb[2]);s.setAttribute('height',vb[3]);}var i=document.createElement('img');i.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(s));i.alt=(s.querySelector('title')||{}).textContent||'Abbildung';i.className='fig';s.replaceWith(i);});}`;
+  return `<script>window.PagedConfig={auto:true,before:${before},after:${after}};</script><script src="${esc(src)}"></script>`;
+}
 function layoutCss(p: Project): string {
   if (!p.layout) return '';
   const l = layoutOf(p);
   const D = REPORT_LAYOUT;
   const css: string[] = [];
   if (l.ink !== D.ink) css.push(`body { color: ${l.ink}; }`);
-  if (l.head !== D.head) css.push(`td.is-strong, .over { color: ${l.head}; }`);
+  if (l.head !== D.head) css.push(`td.is-strong, .over, .toc__main > a { color: ${l.head}; }`);
   if (l.label !== D.label) css.push(`th, table.kv th, table.charter .grid th { background: ${l.label}; }`);
   if (l.line !== D.line) css.push(`th, td { border-color: ${l.line}; } h2 { border-bottom-color: ${l.line}; }`);
   if (l.muted !== D.muted) css.push(`.calc, .meta, .icb { color: ${l.muted}; }`);

@@ -19,7 +19,7 @@ import * as Fk from '../workspace/formKit';
 type RuleKey = Exclude<keyof L.LayoutRules, 'name'>;
 /** V155 (G3 Rest): Gruppen mit Farben, Schriften, Größen, Schaltern */
 const GROUPS: [keyof typeof T.groups, RuleKey[]][] = [
-  ['boxes', ['primary', 'accent', 'soft', 'neutral', 'gradient', 'radius', 'shadow']],
+  ['boxes', ['primary', 'accent', 'soft', 'neutral', 'external', 'gradient', 'radius', 'shadow']],
   ['lines', ['critical', 'line', 'grid', 'head']],
   ['text', ['ink', 'muted', 'font', 'headFont', 'textSize', 'headSize']],
   ['tables', ['label', 'tableHead', 'tableGrid', 'tableSize']],

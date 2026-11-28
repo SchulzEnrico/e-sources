@@ -4409,6 +4409,15 @@ button.is-off:hover,
 .greeting__main { flex: 1; min-width: 0; }
 .greeting__title { margin: 2px 0 4px; font-size: 18px; color: var(--strong); }
 .greeting__last { margin: 0 0 10px; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+/* V156 (F-109 „Wo war ich?“): laufende Karte und offene Gedanken – Begriffe links, Einträge als Verweis-Knöpfe */
+.greeting__where { margin: -4px 0 10px; font-size: 13px; line-height: 1.4; display: grid; gap: 4px; }
+.greeting__where > div { display: grid; grid-template-columns: max-content 1fr; column-gap: 6px; }
+.greeting__where dt { grid-column: 1; color: var(--muted); }
+.greeting__where dd { grid-column: 2; margin: 0; min-width: 0; }
+.greeting__link { all: unset; cursor: pointer; font-weight: 600; overflow-wrap: anywhere; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 2px; }
+.greeting__link:hover { text-decoration-color: currentColor; }
+.greeting__link:focus-visible { outline: 2px solid var(--accent, #4a90e2); outline-offset: 2px; border-radius: 3px; }
+.greeting__link--more { font-weight: 400; color: var(--muted); }
 .greeting__src { color: var(--muted); }
 .greeting__actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .greeting__go { font-weight: 600; }
@@ -5314,7 +5323,7 @@ button.is-off:hover,
 .greeting__invite { margin: 4px 0 0; font-size: 13px; line-height: 1.4; color: var(--muted); max-width: 46ch; }
 /* V52 (Wunsch Enrico): Begrüßung möglichst einzeilig – die Karte wächst mit dem Gruß (bis 680 px), Folgezeilen bestimmen die Breite nicht mit */
 .greeting:not(.is-open) { width: fit-content; min-width: min(420px, calc(100vw - 32px)); max-width: min(680px, calc(100vw - 32px)); box-sizing: border-box; }
-.greeting:not(.is-open) .greeting__last, .greeting:not(.is-open) .greeting__invite { width: 0; min-width: 100%; }
+.greeting:not(.is-open) .greeting__last, .greeting:not(.is-open) .greeting__invite, .greeting:not(.is-open) .greeting__where { width: 0; min-width: 100%; }
 .greeting__title { text-wrap: balance; }
 
 /* ---------- F-200 Stufe 2: Entwickler-Modus – Terminal-Look je Portal, unabhängig vom Design des Desks.

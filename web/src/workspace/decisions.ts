@@ -265,6 +265,8 @@ export type DecisionOp =
   | { op: 'optName'; o: string; name: string }
   | { op: 'optMove'; o: string; to: number }
   | { op: 'optRemove'; o: string }
+  /** V150: Rückgängig am Blatt – setzt Kriterien, Lösungen, Bewertungen und Paarvergleich auf einen früheren Stand derselben Entscheidung */
+  | { op: 'back'; prev: Decision }
   | { op: 'fails'; o: string; c: string; fails: boolean }
   | { op: 'optLink'; o: string; link: DecisionLink; on: boolean }
   | { op: 'score'; c: string; o: string; v: number | null; by?: string }
@@ -440,6 +442,13 @@ function apply(d: Decision, o: DecisionOp, now: Date): Decision {
     case 'reopen': {
       const { chosen: _c, locked: _l, why: _w, ...rest } = d; // eslint-disable-line @typescript-eslint/no-unused-vars
       return { ...rest, marks: mark(d, 'Wieder geöffnet', now, o.by) };
+    }
+    case 'back': {
+      // V150: nur dieselbe, nicht entschiedene Entscheidung; Spur (marks) und Kopf bleiben wie jetzt
+      const b = o.prev;
+      if (!b || b.id !== d.id || b.locked) return d;
+      const { pairs: _p, chosen: _c, ...rest } = d; // eslint-disable-line @typescript-eslint/no-unused-vars
+      return { ...rest, criteria: b.criteria, options: b.options, scores: b.scores ?? [], ...(b.pairs ? { pairs: b.pairs } : {}), ...(b.chosen ? { chosen: b.chosen } : {}) };
     }
   }
 }

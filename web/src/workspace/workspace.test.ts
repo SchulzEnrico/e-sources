@@ -6761,6 +6761,22 @@ describe('F-222 Werkzeug (V104): Bearbeiten, Zustand, Beispiele, Ausgabe', () =>
     expect(Dc.decisionsOf(r.ws)).toHaveLength(0);
     expect(d(Dc.undoRemoveDecision(r.ws, r.undo)).title).toBe('Malerbetrieb');
   });
+  it('V150 Rückgängig am Blatt (back): Kriterium/Lösung mit Bewertungen und Paarvergleich zurück; fremde oder gesperrte Stände nicht', () => {
+    let ws = base();
+    ws = ed(ws, { op: 'pair', a: 'c1', b: 'c2', v: 2 });
+    ws = ed(ws, { op: 'score', c: 'c2', o: 'o1', v: 7 });
+    const prev = d(ws);
+    ws = ed(ws, { op: 'critRemove', c: 'c2' });
+    ws = ed(ws, { op: 'optRemove', o: 'o2' });
+    expect(d(ws).criteria).toHaveLength(2);
+    ws = ed(ws, { op: 'back', prev });
+    expect(d(ws).criteria.map((c) => c.id)).toEqual(['c1', 'c2', 'c3']);
+    expect(d(ws).options.map((o) => o.id)).toEqual(['o1', 'o2']);
+    expect(Dc.scoreOf(d(ws), 'c2', 'o1')!.v).toBe(7);
+    expect(d(ws).pairs).toEqual({ 'c1|c2': 2 });
+    expect(ed(ws, { op: 'back', prev: { ...prev, id: 'x', criteria: [] } })).toBe(ws);
+    expect(ed(ws, { op: 'back', prev: { ...prev, criteria: [], locked: true } })).toBe(ws);
+  });
   it('Beispiele Wohnung und Malerbetrieb: vollständig bewertet, einer scheidet aus; Markdown und CSV', () => {
     let n = 0;
     for (const which of ['flat', 'painter'] as const) {

@@ -10641,3 +10641,14 @@ dialog.inkdlg::backdrop { background: rgba(0, 0, 0, 0.22); }
 .paper__adds { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
 .paper__adds button { font: inherit; font-size: 0.85em; }
 .paper__namein { width: 100%; font-weight: 600; text-align: left; }
+/* V150: Namen und Spaltenköpfe brechen um statt über den Rand zu laufen */
+textarea.paper__namein { display: block; box-sizing: border-box; resize: none; overflow: hidden; min-width: 0; font: inherit; font-weight: 600; line-height: 1.3; white-space: pre-wrap; overflow-wrap: anywhere; hyphens: auto; }
+.paper__matrix th, .paper__matrix td { overflow-wrap: anywhere; hyphens: auto; }
+.paper__matrix thead th:first-child { width: 24%; }
+/* V150: Entfernen/Muss am Blatt – klein, nur am Bildschirm */
+.paper__rowtools { display: inline-flex; gap: 4px; margin-top: 2px; flex-wrap: wrap; }
+.paper__rowtools button { font: inherit; font-size: 0.72em; padding: 0 5px; line-height: 1.5; border: 1px solid #bbb; border-radius: 4px; background: #f6f6f6; color: #444; cursor: pointer; }
+.paper__rowtools button:hover, .paper__rowtools button:focus-visible { border-color: #8a1c2b; color: #8a1c2b; }
+.paper__list .paper__rowtools { margin-left: 6px; vertical-align: middle; }
+.paper__undo { margin-left: 4px; font-size: 0.95em; }
+@media print { .paper__rowtools, .paper__undo { display: none; } }

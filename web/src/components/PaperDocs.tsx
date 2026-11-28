@@ -5,7 +5,7 @@
  * gerechnete Werte (Gewichtssumme, Nutzwert, Rang, Empfehlung) stehen blass mit Hinweis. Rad „Darstellung“ an
  * derselben Stelle in beiden Ansichten (NF-08), je Gerät gemerkt.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { Decision, Feedback, FeedbackKind, FeedbackSeverity, Project, Workspace } from '../workspace/types';
 import * as Fb from '../workspace/feedback';
@@ -61,16 +61,30 @@ export function ShapeWheel<S extends string>({ value, onChange, options, say }: 
 
 /** Meldung am Feld (wie im Steckbrief): verschwindet nach kurzer Zeit. */
 function useFieldMsg(say: (t: string) => void) {
-  const [msg, setMsg] = useState<{ text: string; at: string } | null>(null);
+  // V150: optional mit Rückgängig – die Meldung steht am Ort und bietet den Knopf direkt an
+  const [msg, setMsg] = useState<{ text: string; at: string; undo?: () => void } | null>(null);
   const timer = useRef(0);
   useEffect(() => () => window.clearTimeout(timer.current), []);
-  const tell = (at: string, text: string) => {
+  const tell = (at: string, text: string, undo?: () => void) => {
     window.clearTimeout(timer.current);
-    setMsg({ text, at });
+    setMsg({ text, at, ...(undo ? { undo } : {}) });
     say(text);
     timer.current = noticeLater(() => setMsg(null));
   };
-  const m = (at: string) => (msg?.at === at ? <span className="paper__msg" role="status">{msg.text}</span> : null);
+  const m = (at: string) =>
+    msg?.at === at ? (
+      <span className="paper__msg" role="status">
+        {msg.text}
+        {msg.undo && (
+          <>
+            {' '}
+            <button type="button" className="note__undo paper__undo" onClick={() => (msg.undo!(), setMsg(null))}>
+              {T.undo}
+            </button>
+          </>
+        )}
+      </span>
+    ) : null;
   return { tell, m };
 }
 
@@ -296,6 +310,28 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
     else op({ op: 'optAdd', id, name: DT.option(d.options.length + 1) }, 'addOpt', T.optName);
     setTimeout(() => (document.getElementById(`paper-${k}-${id}`) as HTMLInputElement | null)?.select(), 60);
   };
+  // V150: Entfernen (mit Rückgängig am Ort) und Muss umschalten – vorher nur im Werkzeug
+  const removeCrit = (c: { id: string; name: string }) => {
+    const prev = d;
+    dispatch({ type: 'dc', id: d.id, o: { op: 'critRemove', c: c.id }, at: new Date().toISOString() });
+    tell('addCrit', T.removedCrit(c.name), () => {
+      dispatch({ type: 'dc', id: d.id, o: { op: 'back', prev }, at: new Date().toISOString() });
+      say(T.undone(c.name));
+    });
+  };
+  const removeOpt = (o: { id: string; name: string }) => {
+    const prev = d;
+    dispatch({ type: 'dc', id: d.id, o: { op: 'optRemove', o: o.id }, at: new Date().toISOString() });
+    tell('addOpt', T.removedOpt(o.name), () => {
+      dispatch({ type: 'dc', id: d.id, o: { op: 'back', prev }, at: new Date().toISOString() });
+      say(T.undone(o.name));
+    });
+  };
+  const setMust = (c: { id: string; name: string }, must: boolean) => {
+    dispatch({ type: 'dc', id: d.id, o: { op: 'critMust', c: c.id, must }, at: new Date().toISOString() });
+    tell(must ? 'musts' : `w-${c.id}`, must ? T.mustOnSaid(c.name) : T.mustOffSaid(c.name));
+  };
+  const tools = (kids: ReactNode) => <span className="paper__rowtools">{kids}</span>;
 
   return (
     <div className="paper__wrap">
@@ -330,6 +366,13 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
                     return (
                       <li key={c.id}>
                         <b>{c.name}</b> – <span className="paper__calc">{fails.length ? T.mustFails(fails.join(', ')) : T.mustAll}</span>
+                        {!lock &&
+                          tools(
+                            <>
+                              <button type="button" title={T.mustOffOf(c.name)} aria-label={T.mustOffOf(c.name)} onClick={() => setMust(c, false)}>{T.mustOff}</button>
+                              <button type="button" title={T.removeOf(c.name)} aria-label={T.removeOf(c.name)} onClick={() => removeCrit(c)}>✕</button>
+                            </>,
+                          )}
                       </li>
                     );
                   })}
@@ -337,6 +380,7 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
               ) : (
                 <span className="paper__muted">{T.mustsNone}</span>
               )}
+              {m('musts')}
             </Row>
             <tr className="paper__section">
               <th scope="rowgroup" colSpan={2}>{T.weights}</th>
@@ -355,7 +399,16 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
                     <tbody>
                       {weighed.map((c) => (
                         <tr key={c.id}>
-                          <th scope="row">{lock ? c.name : <NameIn id={`paper-crit-${c.id}`} label={T.critName} value={c.name} onSave={(v) => op({ op: 'critName', c: c.id, name: v }, `w-${c.id}`, T.critName)} />}</th>
+                          <th scope="row">
+                            {lock ? c.name : <NameIn id={`paper-crit-${c.id}`} label={T.critName} value={c.name} onSave={(v) => op({ op: 'critName', c: c.id, name: v }, `w-${c.id}`, T.critName)} />}
+                            {!lock &&
+                              tools(
+                                <>
+                                  <button type="button" title={T.mustOnOf(c.name)} aria-label={T.mustOnOf(c.name)} onClick={() => setMust(c, true)}>{T.mustOn}</button>
+                                  <button type="button" title={T.removeOf(c.name)} aria-label={T.removeOf(c.name)} onClick={() => removeCrit(c)}>✕</button>
+                                </>,
+                              )}
+                          </th>
                           <td className="paper__num">
                             <input
                               key={`w-${c.id}-${c.weight ?? ''}`}
@@ -420,7 +473,10 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
                       const r = res.find((x) => x.option.id === o.id);
                       return (
                         <tr key={o.id} className={r?.out ? 'is-out' : undefined}>
-                          <th scope="row">{lock ? o.name : <NameIn id={`paper-opt-${o.id}`} label={T.optName} value={o.name} onSave={(v) => op({ op: 'optName', o: o.id, name: v }, `o-${o.id}`, T.optName)} />}{r?.out ? <span className="paper__calc"> · {T.out}</span> : null}{m(`o-${o.id}`)}</th>
+                          <th scope="row">{lock ? o.name : <NameIn id={`paper-opt-${o.id}`} label={T.optName} value={o.name} onSave={(v) => op({ op: 'optName', o: o.id, name: v }, `o-${o.id}`, T.optName)} />}{r?.out ? <span className="paper__calc"> · {T.out}</span> : null}
+                            {!lock && tools(<button type="button" title={T.removeOf(o.name)} aria-label={T.removeOf(o.name)} onClick={() => removeOpt(o)}>✕</button>)}
+                            {m(`o-${o.id}`)}
+                          </th>
                           {weighed.map((c) => {
                             const s = Dc.scoreOf(d, c.id, o.id);
                             const at = `s-${c.id}-${o.id}`;
@@ -480,21 +536,37 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
   );
 }
 
-/** V149: Name eines Kriteriums bzw. einer Lösung direkt in der Zelle (Speichern beim Verlassen bzw. Enter). */
+/** V149: Name eines Kriteriums bzw. einer Lösung direkt in der Zelle (Speichern beim Verlassen bzw. Enter).
+ *  V150: mehrzeilig umbrechend und mitwachsend – lange Namen laufen nicht mehr über den Zellrand. */
 function NameIn({ id, label, value, onSave }: { id: string; label: string; value: string; onSave: (v: string) => void }) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  const fit = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  };
+  useEffect(fit, [value]);
   return (
-    <input
+    <textarea
+      ref={ref}
       key={`${id}-${value}`}
       id={id}
+      rows={1}
       className="paper__in paper__cellin paper__namein"
       aria-label={`${label}: ${value}`}
       defaultValue={value}
+      onInput={fit}
       onBlur={(e) => {
-        const v = e.target.value.trim();
-        if (!v) return void (e.target.value = value);
+        const v = e.target.value.replace(/\s+/g, ' ').trim();
+        if (!v) return void ((e.target.value = value), fit());
         if (v !== value) onSave(v);
       }}
-      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        e.currentTarget.blur();
+      }}
     />
   );
 }

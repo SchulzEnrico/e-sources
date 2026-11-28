@@ -141,8 +141,17 @@ export function setInkText(n: Pick<Note, 'attach'>, ref: string, text: string): 
 /** Alle Tinten-Schlüssel der Library (auch Unterschriften an Projekten) – der Rest auf dem Gerät darf weg. */
 export function inkRefs(ws: Workspace): Set<string> {
   const out = new Set<string>();
-  for (const n of No.notesOf(ws)) for (const a of inkOf(n)) out.add(a.ref);
-  for (const p of ws.projects ?? []) for (const r of [p.charter?.inkAg, p.charter?.inkPl]) if (r) out.add(r);
+  for (const n of No.notesOf(ws)) {
+    for (const a of inkOf(n)) out.add(a.ref);
+    // V144: Unterschriften in der Arbeitspaketbeschreibung (8.3)
+    for (const r of [n.wp?.inkPl, n.wp?.inkOwner]) if (r) out.add(r);
+  }
+  for (const p of ws.projects ?? []) {
+    for (const r of [p.charter?.inkAg, p.charter?.inkPl]) if (r) out.add(r);
+    // V144: Unterschriften im AP-Statusbericht (12.1)
+    for (const w of p.wpReports ?? []) for (const r of [w.inkOwner, w.inkPl]) if (r) out.add(r);
+    for (const w of p.reports ?? []) if (w.inkPl) out.add(w.inkPl);
+  }
   return out;
 }
 

@@ -1076,3 +1076,67 @@ describe('F-234 (V137): AP-Statusbericht, Persönliche Kompetenzen, Anlagen, Bea
     expect(F.figureSvg(ws, Sp.SAMPLE_PROJECT, 'load')).toContain('Menge Ph');
   });
 });
+
+describe('V144 F-238 S6: Unterschriften in 8.3 und 12.1, Tinte im Bericht', () => {
+  const form = (id: string) => Fk.GPM_D.forms.find((f) => f.id === id)!;
+  it('speichert Tinte an Arbeitspaket und AP-Statusbericht, zählt sie mit und zeigt sie im Bericht', async () => {
+    const S = await import('./sampleProject');
+    const R = await import('./gpmReport');
+    const K = await import('./ink');
+    let ws = Fk.ensureMatrices(S.addSampleProject(W.defaultWorkspace(), 5));
+    const pid = S.SAMPLE_PROJECT;
+    ws = Fk.setSignInk(ws, pid, form('wp'), 'cg-31', 'inkOwner', 'sigW');
+    ws = Fk.setSignInk(ws, pid, form('wpReports'), 'cg-wr1', 'inkPl', 'sigR');
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(back.notes!.find((n) => n.id === 'cg-31')!.wp?.inkOwner).toBe('sigW');
+    expect(back.projects!.find((x) => x.id === pid)!.wpReports!.find((x) => x.id === 'cg-wr1')!.inkPl).toBe('sigR');
+    const refs = K.inkRefs(back);
+    expect(refs.has('sigW') && refs.has('sigR')).toBe(true);
+    const rr = R.reportInkRefs(back, pid);
+    expect(rr.includes('sigR') && rr.includes('sigW')).toBe(true);
+    const html = R.reportHtml(back, pid, { day: '2026-12-01', inks: new Map([['sigW', '<svg xmlns="http://www.w3.org/2000/svg"></svg>']]) });
+    expect(html).toContain('class="sign__ink"');
+    expect(html).toContain('Unterschrift AP-Verantwortlich');
+    // entfernen
+    const gone = Fk.setSignInk(back, pid, form('wp'), 'cg-31', 'inkOwner', null);
+    expect(gone.notes!.find((n) => n.id === 'cg-31')!.wp?.inkOwner).toBeUndefined();
+  });
+  it('ohne Tinte steht der Name in Schreibschrift, das Datum unter der Linie', async () => {
+    const R = await import('./gpmReport');
+    const row = R.signRowHtml([{ label: 'Unterschrift Projektleitung', name: 'E. Schulz', date: '2026-12-04', ref: 'fehlt' }], new Map());
+    expect(row).toContain('sign__name');
+    expect(row).toContain('04.12.2026, Unterschrift Projektleitung');
+    expect(R.signRowHtml([])).toBe('');
+  });
+});
+
+describe('V144: Statusbericht (12) als Blatt wie Abb. 15', () => {
+  const form = (id: string) => Fk.GPM_D.forms.find((f) => f.id === id)!;
+  it('zeichnet den Projekt-Statusbericht mit Ampel, Fortschritt und Unterschrift', async () => {
+    const S = await import('./sampleProject');
+    const F = await import('./gpmFigures');
+    const R = await import('./gpmReport');
+    let ws = Fk.ensureMatrices(S.addSampleProject(W.defaultWorkspace(), 5));
+    const pid = S.SAMPLE_PROJECT;
+    const r = Fk.addRow(ws, pid, form('reports'), { id: 'sr1', now: Date.parse('2027-05-17T10:00:00Z') })!;
+    ws = Fk.setCell(r.ws, pid, form('reports'), 'sr1', 'place', 'Hamburg');
+    ws = Fk.setCell(ws, pid, form('reports'), 'sr1', 'done', 'Testlackierungen durchgeführt');
+    expect(form('reports').figure).toBe('statusReport');
+    const svg = F.figureSvg(ws, pid, 'statusReport', { row: 'sr1' });
+    expect(svg).toContain('Statusbericht zum 17.05.2027');
+    expect(svg).toContain('Fortschritt Leistung');
+    expect(svg).toContain('Hamburg, 17.05.2027');
+    expect(svg).toContain('Testlackierungen durchgeführt');
+    expect(svg).not.toContain('<image');
+    expect(F.kwOf('2026-12-01', '2027-05-17')).toBe('49. KW 2026 – 20. KW 2027');
+    expect(F.kwOf('2027-05-03', '2027-05-17')).toBe('18.–20. KW');
+    ws = Fk.setSignInk(ws, pid, form('reports'), 'sr1', 'inkPl', 'sigS');
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    const inks = new Map([['sigS', '<svg xmlns="http://www.w3.org/2000/svg"></svg>']]);
+    expect(F.figureSvg(back, pid, 'statusReport', { row: 'sr1', inks })).toContain('<image');
+    expect(R.reportInkRefs(back, pid)).toContain('sigS');
+    expect(R.reportHtml(back, pid, { day: '2027-05-18', inks })).toContain('Abbildung: Statusbericht');
+    // AP-Statusbericht unverändert, mit Tinte im Fuß
+    expect(F.figureSvg(back, pid, 'wpReport')).toContain('AP Statusbericht zum 17.05.2027');
+  });
+});

@@ -15,7 +15,7 @@ import * as K from '../workspace/ink';
 import { type InkOpenDetail, getInk, inkChanged, putInk } from '../workspace/inkStore';
 import { deviceLabel } from '../workspace/transfer';
 import { remindLabel } from '../workspace/remind';
-import { INK_TEXT as T, NOTE_TEXT, PAUSE_TEXT } from '../workspace/terms';
+import { INK_TEXT as T, NOTE_TEXT, PAUSE_TEXT, VOICE_TEXT } from '../workspace/terms';
 import { newId } from '../workspace/workspace';
 import { InkPad } from './InkPad';
 import { noticeLater } from '../workspace/flash';
@@ -50,14 +50,14 @@ export function InkDialog(props: { ws: Workspace; req: InkOpenDetail | null; dis
   const [strokes, setStrokes] = useState<K.InkStroke[]>([]);
   const [text, setText] = useState('');
   const [size, setSize] = useState(K.INK_SIZE);
-  const [msg, setMsg] = useState<{ text: string; undo?: () => void } | null>(null);
+  const [msg, setMsg] = useState<{ text: string; undo?: () => void; split?: () => void } | null>(null);
   const timer = useRef(0);
   const wsRef = useRef(ws);
   wsRef.current = ws;
   const by = ws.profile?.name || undefined;
   const sign = req?.sign;
   const existing: NoteAttachment | undefined = req?.note && req.ref ? K.inkOf(No.noteById(ws, req.note) ?? {}).find((a) => a.ref === req.ref) : undefined;
-  const signRef = sign ? (ws.projects ?? []).find((p) => p.id === sign.project)?.charter?.[sign.field] : undefined;
+  const signRef = sign?.ref;
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
   useEffect(() => {
@@ -84,7 +84,7 @@ export function InkDialog(props: { ws: Workspace; req: InkOpenDetail | null; dis
     props.onClose();
     restoreFocus();
   };
-  const show = (m: { text: string; undo?: () => void }) => {
+  const show = (m: { text: string; undo?: () => void; split?: () => void }) => {
     setMsg(m);
     say(m.text);
     window.clearTimeout(timer.current);
@@ -119,16 +119,30 @@ export function InkDialog(props: { ws: Workspace; req: InkOpenDetail | null; dis
     close();
     if (sign) {
       const was = signRef;
-      dispatch({ type: 'charterEdit', id: sign.project, patch: { [sign.field]: ref } });
+      sign.save(ref);
       if (req.onDone) return req.onDone(T.signed);
-      return show({ text: T.signed, undo: was ? undefined : () => dispatch({ type: 'charterEdit', id: sign.project, patch: { [sign.field]: null } }) });
+      return show({ text: T.signed, undo: was ? undefined : () => sign.save(null) });
     }
     if (req.note) {
       const n = No.noteById(wsRef.current, req.note);
       if (!n) return;
       const before = n.attach;
-      dispatch({ type: 'noteEdit', id: n.id, patch: { attach: K.addInk(n, a) }, by });
-      return show({ text: existing ? T.updated : T.attached, undo: () => dispatch({ type: 'noteEdit', id: n.id, patch: { attach: before }, by }) });
+      const after = K.addInk(n, a);
+      dispatch({ type: 'noteEdit', id: n.id, patch: { attach: after }, by });
+      // V144 (F-238, wie Sprachnotiz V77): frisch angehängte Tinte „Als neue Notiz lösen“ – nur, wenn die Notiz seither gleich blieb
+      const split = existing
+        ? undefined
+        : () => {
+            const cur = No.noteById(wsRef.current, n.id);
+            if (!cur || JSON.stringify(cur.attach ?? []) !== JSON.stringify(after ?? [])) return show({ text: VOICE_TEXT.splitGone });
+            dispatch({ type: 'noteEdit', id: n.id, patch: { attach: before }, by });
+            const id = newId();
+            const title = t ? t.split('\n')[0].slice(0, 80) : `${T.name} ${remindLabel(a.at!)}`;
+            const r = K.captureInk({ ...wsRef.current, notes: (wsRef.current.notes ?? []).map((x) => (x.id === n.id ? { ...x, attach: before } : x)) }, a, { id, by, title });
+            dispatch({ type: 'inkCapture', note: id, att: a, title, by });
+            show({ text: `${VOICE_TEXT.splitDone} – ${T.saved(title, In.inboxCount(r.ws))}` });
+          };
+      return show({ text: existing ? T.updated : T.attached, undo: () => dispatch({ type: 'noteEdit', id: n.id, patch: { attach: before }, by }), split });
     }
     const id = newId();
     const title = t ? t.split('\n')[0].slice(0, 80) : `${T.name} ${remindLabel(a.at!)}`;
@@ -204,6 +218,11 @@ export function InkDialog(props: { ws: Workspace; req: InkOpenDetail | null; dis
                 }}
               >
                 {PAUSE_TEXT.undo}
+              </button>
+            )}
+            {msg.split && (
+              <button type="button" className="note__undo" title={T.splitHint} onClick={() => msg.split!()}>
+                {VOICE_TEXT.split}
               </button>
             )}
           </p>

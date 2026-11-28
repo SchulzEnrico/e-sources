@@ -1812,6 +1812,8 @@ export const INK_TEXT = {
   signHint: 'Mit Stift, Finger oder Maus unterschreiben – die Unterschrift steht statt des Namens in Schreibschrift auf dem Blatt.',
   signRemove: 'Unterschrift entfernen',
   signRemoved: 'Unterschrift entfernt',
+  // V144: wie Sprachnotiz
+  splitHint: 'Handschrift aus dieser Notiz nehmen und als eigene Notiz in den Eingang legen',
   parkInk: 'Mit der Hand schreiben',
   parkInkHint: 'Schreibfläche statt Tastatur öffnen (Alt/⌥+W) – landet ebenso im Eingang.',
 };
@@ -3805,6 +3807,11 @@ export const FORMS_TEXT = {
   sheetTitle: (f: string, p: string) => `Formular ${f}, Projekt ${p} – Blatt wie im Report`,
   sheetProject: 'Projektname',
   sheetProjectNo: 'Projekt.Nr.',
+  // V144 (F-238 S6): Unterschriften in 8.3 Arbeitspaketbeschreibung und 12.1 AP-Statusbericht
+  release: 'Freigabe',
+  signOwner: 'Unterschrift AP-Verantwortlich',
+  signPl: 'Unterschrift Projektleitung',
+  signDate: (who: string) => `${who}: Datum`,
   sheetCaption: (f: string) => `Formular: ${f}`,
   sheetHint: 'Blatt wie im Report (Hochformat) – direkt in die Felder schreiben; Enter übernimmt, Esc verwirft.',
   sheetWide: 'Breite Tabelle: Blatt im Querformat wie im Report – direkt in die Felder schreiben; Enter übernimmt, Esc verwirft.',

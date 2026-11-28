@@ -347,7 +347,71 @@ export function formSvg(ws: Workspace, pid: string, form: FormDef, col: SvgColor
 // ---------------------------------------------------------------- Bericht
 
 /** Projektbericht als HTML-Dokument; `version` z. B. App-Version oder Berichtsstand, `day` Stichtag. */
-export function reportHtml(ws: Workspace, pid: string, o: { version?: string; day: string }): string {
+/** V144 (F-238 S6): Unterschriften eines Projekts – Steckbrief (2.1), Arbeitspaketbeschreibung (8.3), AP-Statusbericht (12.1). */
+export interface ReportSign {
+  label: string;
+  name?: string;
+  date?: string;
+  ref?: string;
+}
+export function reportSigns(ws: Workspace, p: Project, f: FormDef, rowId?: string): ReportSign[] {
+  if (f.source === 'charter') {
+    const c = p.charter ?? {};
+    return [
+      { label: 'Unterschrift Auftraggeber', name: c.signAg, date: c.releaseAg, ref: c.inkAg },
+      { label: 'Unterschrift Projektleitung', name: c.signPl, date: c.releasePl, ref: c.inkPl },
+    ];
+  }
+  if (f.source === 'wp' && rowId) {
+    const n = (ws.notes ?? []).find((x) => x.id === rowId);
+    const w = n?.wp ?? {};
+    return [
+      { label: 'Unterschrift AP-Verantwortlich', name: n?.assignee ? personById(ws, n.assignee)?.name : undefined, date: w.releaseOwner, ref: w.inkOwner },
+      { label: 'Unterschrift Projektleitung', date: w.releasePl, ref: w.inkPl },
+    ];
+  }
+  if (f.source === 'reports' && rowId) {
+    const r = (p.reports ?? []).find((x) => x.id === rowId);
+    return r ? [{ label: 'Unterschrift Projektleitung', date: r.date, ref: r.inkPl }] : [];
+  }
+  if (f.source === 'wpReports' && rowId) {
+    const r = (p.wpReports ?? []).find((x) => x.id === rowId);
+    if (!r) return [];
+    return [
+      { label: 'Unterschrift AP-Verantwortlich', date: r.date, ref: r.inkOwner },
+      { label: 'Unterschrift Projektleitung', date: r.date, ref: r.inkPl },
+    ];
+  }
+  return [];
+}
+/** Alle Tinten-Schlüssel, die der Bericht eines Projekts braucht (zum Vorladen aus dem Gerätespeicher). */
+export function reportInkRefs(ws: Workspace, pid: string): string[] {
+  const p = projectById(ws, pid);
+  if (!p) return [];
+  const out = new Set<string>();
+  const add = (l: ReportSign[]) => l.forEach((g) => g.ref && out.add(g.ref));
+  for (const f of Fk.templateOf(ws, p).forms) {
+    if (f.source === 'charter') add(reportSigns(ws, p, f));
+    else if (f.source === 'wp' || f.source === 'wpReports' || f.source === 'reports') for (const r of Fk.rowsOf(ws, pid, f)) add(reportSigns(ws, p, f, r.id));
+  }
+  return [...out];
+}
+/** Freigabe-Zeile: Tinte (SVG) bzw. Name in Schreibschrift über der Linie, darunter Rolle und Datum. */
+export function signRowHtml(signs: ReportSign[], inks?: ReadonlyMap<string, string>): string {
+  if (!signs.length) return '';
+  const one = (g: ReportSign) => {
+    const svg = g.ref ? inks?.get(g.ref) : undefined;
+    const top = svg
+      ? `<img class="sign__ink" alt="${esc(`${g.label}${g.name ? ` (${g.name})` : ''}`)}" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}">`
+      : g.name
+        ? `<span class="sign__name">${esc(g.name)}</span>`
+        : '<span class="sign__blank"></span>';
+    return `<div class="sign">${top}${svg && g.name ? `<span class="sign__who">${esc(g.name)}</span>` : ''}<div class="sign__line">${esc([g.date ? dmy(g.date) : '', g.label].filter(Boolean).join(', '))}</div></div>`;
+  };
+  return `<tr class="release"><th scope="row">Freigabe</th><td><div class="signs">${signs.map(one).join('')}</div></td></tr>`;
+}
+
+export function reportHtml(ws: Workspace, pid: string, o: { version?: string; day: string; inks?: ReadonlyMap<string, string> }): string {
   const p = projectById(ws, pid);
   if (!p) return '';
   const tpl = Fk.templateOf(ws, p);
@@ -370,7 +434,10 @@ table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt; font-size: 9p
 section.wide { page: wide; } section.wide table { font-size: 8pt; }
 th { background: #eee; } thead { display: table-header-group; } tr { break-inside: avoid; }
 table.kv th { width: 34%; } .empty { color: #777; font-style: italic; } .cover { break-after: page; } section { break-inside: auto; }
-.sum td { font-weight: bold; } figure { margin: 6pt 0; break-inside: avoid; }
+.sum td { font-weight: bold; }
+.signs { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12pt; } .sign { display: flex; flex-direction: column; justify-content: flex-end; min-height: 40pt; }
+.sign__ink { height: 34pt; width: auto; align-self: flex-start; } .sign__name { font: 16pt "Segoe Script", "Brush Script MT", "Snell Roundhand", cursive; color: #1b2f8a; }
+.sign__who { font-size: 8.5pt; } .sign__line { border-top: 1px solid #999; font-size: 8pt; color: #555; padding-top: 1pt; } tr.release td { white-space: normal; } figure { margin: 6pt 0; break-inside: avoid; }
 @media screen { body { max-width: 900px; margin: 24px auto; padding: 0 16px; } .bar { position: sticky; top: 0; background: #fff; padding: 8px 0; border-bottom: 1px solid #ddd; } }
 @media print { .bar { display: none; } }
 </style></head><body>`);
@@ -388,19 +455,22 @@ table.kv th { width: 34%; } .empty { color: #777; font-style: italic; } .cover {
   out.push(`</tbody></table><h2>Inhalt</h2><ol>`);
   for (const f of tpl.forms) out.push(`<li><a href="#f-${esc(f.id)}">${esc(`${f.chapter} ${f.name}`)}</a></li>`);
   out.push(`</ol></div>`);
-  for (const f of tpl.forms) out.push(formSection(ws, p, f));
+  for (const f of tpl.forms) out.push(formSection(ws, p, f, o.inks));
   // F-234 D7 (V137): Kapitel als Anlage einreihen (z. B. Zentraltabelle der Kosten)
   for (const a of p.annexes ?? []) {
     const f = a.form ? tpl.forms.find((x) => x.id === a.form) : undefined;
     if (!f) continue;
-    out.push(formSection(ws, p, f).replace(/<h2>[\s\S]*?<\/h2>/, `<h2>${esc(`${a.code ? `${a.code}: ` : ''}${a.title}`)} <span class="icb">${esc(`${f.chapter} ${f.name}`)}</span></h2>`).replace(/id="f-[^"]*"/, `id="a-${esc(a.id)}"`));
+    out.push(formSection(ws, p, f, o.inks).replace(/<h2>[\s\S]*?<\/h2>/, `<h2>${esc(`${a.code ? `${a.code}: ` : ''}${a.title}`)} <span class="icb">${esc(`${f.chapter} ${f.name}`)}</span></h2>`).replace(/id="f-[^"]*"/, `id="a-${esc(a.id)}"`));
   }
   out.push(`</body></html>`);
   return out.join('\n');
 }
 const cssText = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ');
 
-function formSection(ws: Workspace, p: Project, f: FormDef): string {
+/** Datumsfelder, die in der Freigabe-Zeile unter der Unterschrift stehen (nicht doppelt als eigene Zeile). */
+const SIGN_DATES = new Set(['charter:releaseAg', 'charter:releasePl', 'wp:releasePl', 'wp:releaseOwner']);
+
+function formSection(ws: Workspace, p: Project, f: FormDef, inks?: ReadonlyMap<string, string>): string {
   const cols = Fk.columnsOf(p, f);
   const rows = Fk.rowsOf(ws, p.id, f);
   const wide = Fk.isWideForm(f, cols.length);
@@ -412,7 +482,7 @@ function formSection(ws: Workspace, p: Project, f: FormDef): string {
     out.push(svg ? `<figure>${svg}<figcaption class="meta">Abbildung: ${esc(f.name)}</figcaption></figure>` : `<p class="empty">Noch nichts zu zeichnen.</p>`);
   } else if (f.layout === 'fields') {
     const r = rows[0]?.id ?? p.id;
-    out.push(`<table class="kv"><tbody>${cols.map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r, c))}</td></tr>`).join('')}</tbody></table>`);
+    out.push(`<table class="kv"><tbody>${cols.filter((c) => !SIGN_DATES.has(`${f.source}:${c.key}`)).map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r, c))}</td></tr>`).join('')}${signRowHtml(reportSigns(ws, p, f), inks)}</tbody></table>`);
   } else if (f.layout === 'record') {
     // Arbeitspakete: nur die beschriebenen (wie im Report – sonst stünde jedes Arbeitspaket leer da)
     const shown = f.source === 'wp' ? rows.filter((r) => { const n = (ws.notes ?? []).find((x) => x.id === r.id); return !!(n?.wp && Object.keys(n.wp).length) || !!n?.results?.length; }) : rows;
@@ -427,10 +497,10 @@ function formSection(ws: Workspace, p: Project, f: FormDef): string {
       out.push(`<h3>${esc(title)}</h3>`);
       // F-234 (V137): Blatt wie im Report (AP-Statusbericht, Teamrollen, Nachrichtenquadrat) vor den Feldern
       if (f.figure) {
-        const svg = figureSvg(ws, p.id, f.figure, { row: r.id });
+        const svg = figureSvg(ws, p.id, f.figure, { row: r.id, inks });
         if (svg) out.push(`<figure>${svg}<figcaption class="meta">Abbildung: ${esc(`${f.name} – ${title}`)}</figcaption></figure>`);
       }
-      out.push(`<table class="kv"><tbody>${cols.filter((c) => c.key !== 'code' && c.key !== 'title').map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r.id, c))}</td></tr>`).join('')}</tbody></table>`);
+      out.push(`<table class="kv"><tbody>${cols.filter((c) => c.key !== 'code' && c.key !== 'title' && !SIGN_DATES.has(`${f.source}:${c.key}`)).map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r.id, c))}</td></tr>`).join('')}${signRowHtml(reportSigns(ws, p, f, r.id), inks)}</tbody></table>`);
     }
   } else if (f.source === 'eisenhower') {
     // V140 (F-237 H6): je abgebildeter Matrix eine Seite wie Abb. 17 – Grafik und Tabelle der offenen Einträge

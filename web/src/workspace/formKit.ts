@@ -269,6 +269,7 @@ export const FIELDS: Record<FormSource, readonly FieldSpec[]> = {
     { key: 'next', label: 'Nächste Schritte', kind: 'long' },
     { key: 'measures', label: 'Steuerungsmaßnahmen', kind: 'long', gpm: true },
     { key: 'note', label: 'Bemerkung', kind: 'long' },
+    { key: 'place', label: 'Ort', kind: 'text', help: 'Ort der Unterschrift, z. B. Hamburg' },
   ],
   wp: [
     { key: 'code', label: 'PSP-Code', kind: 'text', readonly: true },
@@ -483,7 +484,7 @@ export const fieldSpec = (src: FormSource, key: string): FieldSpec | undefined =
 
 const cols = (src: FormSource, keys?: string[]): FormColumn[] => (keys ?? FIELDS[src].map((f) => f.key)).map((key) => ({ key }));
 export const GPM_D_ID = 'gpm-d';
-const FIGURES: NonNullable<FormDef['figure']>[] = ['goalTree', 'org', 'phasePlan', 'psp', 'gantt', 'load', 'wpReport', 'belbin', 'eisenhower', 'square'];
+const FIGURES: NonNullable<FormDef['figure']>[] = ['goalTree', 'org', 'phasePlan', 'psp', 'gantt', 'load', 'wpReport', 'statusReport', 'belbin', 'eisenhower', 'square'];
 /** G3: nach GPM-Leitfaden Z01D Rev. 09, Kapitel wie im Report; dazu ICB4-Ergänzungen der Stufe 1 (G11). */
 export const GPM_D: FormTemplate = {
   id: GPM_D_ID,
@@ -520,7 +521,8 @@ export const GPM_D: FormTemplate = {
     { id: 'costs', chapter: '11', name: 'Kostenganglinie', source: 'costs', layout: 'chart', columns: cols('costs'), stage: 2, icb: '4.5.7' },
     { id: 'ev', chapter: '11', name: 'Earned Value (Fertigstellungswert)', source: 'ev', layout: 'table', columns: cols('ev'), stage: 2, icb: '4.5.7' },
     { id: 'procure', chapter: '11', name: 'Beschaffung', source: 'procure', layout: 'table', columns: cols('procure'), stage: 1, icb: '4.5.9' },
-    { id: 'reports', chapter: '12', name: 'Statusbericht', source: 'reports', layout: 'record', columns: cols('reports'), stage: 2, icb: '4.5.10' },
+    // V144: Statusbericht als Blatt im Aussehen von Abb. 15 – Blatt oben, Felder darunter
+    { id: 'reports', chapter: '12', name: 'Statusbericht', source: 'reports', layout: 'record', figure: 'statusReport', columns: cols('reports'), stage: 2, icb: '4.5.10' },
     // F-234 (V137, D5): AP-Statusbericht wie Abb. 15 – Blatt oben, Felder darunter
     { id: 'wpReports', chapter: '12.1', name: 'AP-Statusbericht', source: 'wpReports', layout: 'record', figure: 'wpReport', columns: cols('wpReports'), stage: 2, icb: '4.5.10' },
     { id: 'changes', chapter: '13', name: 'Veränderung', source: 'changes', layout: 'table', columns: cols('changes'), stage: 2, icb: '4.5.13' },
@@ -920,6 +922,15 @@ const setOpt = <T extends object>(o: T, k: string, v: unknown): T => {
   else out[k] = v;
   return out as T;
 };
+
+/** V144 (F-238 S6): Unterschrift als Tinte in 8.3 Arbeitspaketbeschreibung, 12 Statusbericht bzw. 12.1 AP-Statusbericht – kein Formularfeld,
+ *  sondern der Schlüssel im Tintenspeicher des Geräts (wie charter.inkAg/inkPl). `null` entfernt. */
+export function setSignInk(ws: Workspace, pid: string, form: FormDef, rowId: string, key: 'inkPl' | 'inkOwner', ref: string | null, now = Date.now()): Workspace {
+  if (form.source === 'wp') return patchNote(ws, rowId, (n) => setOpt(n, 'wp', parseWp(setOpt(n.wp ?? {}, key, ref)) ?? null), now);
+  if (form.source === 'wpReports') return editItem(ws, pid, 'wpReports', rowId, { [key]: ref }, now);
+  if (form.source === 'reports' && key === 'inkPl') return editItem(ws, pid, 'reports', rowId, { inkPl: ref }, now);
+  return ws;
+}
 
 /** Zelle setzen – schreibt in das Objekt hinter der Zeile (G2 „und andersrum“). Leer löscht. */
 export function setCell(ws: Workspace, pid: string, form: FormDef, rowId: string, key: string, v: CellValue, act: Act = {}): Workspace {
@@ -1622,6 +1633,7 @@ export function parseFormTemplates(v: unknown): FormTemplate[] {
 
 /** Alle Änderungen der Formulare als eine Action (`{ type: 'form', op }` in useWorkspace). */
 export type FormOp =
+  | { op: 'ink'; pid: string; form: FormDef; row: string; key: 'inkPl' | 'inkOwner'; ref: string | null; at: number }
   | { op: 'cell'; pid: string; form: FormDef; row: string; key: string; value: CellValue; at: number; by?: string }
   | { op: 'add'; pid: string; form: FormDef; id: string; at: number; by?: string; init?: RowInit }
   | { op: 'eisen'; pid: string; act: EisenAct; at: number }
@@ -1672,6 +1684,8 @@ export function applyForm(ws: Workspace, o: FormOp): Workspace {
       return resetFigLayout(ws, o.pid, o.fig, o.at);
     case 'cell':
       return setCell(ws, o.pid, o.form, o.row, o.key, o.value, { now: o.at, by: o.by });
+    case 'ink':
+      return setSignInk(ws, o.pid, o.form, o.row, o.key, o.ref, o.at);
     case 'add':
       return addRow(ws, o.pid, o.form, { id: o.id, now: o.at, by: o.by, init: o.init })?.ws ?? ws;
     case 'remove':

@@ -10614,6 +10614,8 @@ dialog.inkdlg::backdrop { background: rgba(0, 0, 0, 0.22); }
 .paper__signink .paper__signview { box-shadow: none; padding: 0; border: 0; background: none; cursor: pointer; }
 .paper__signink .remind__x { width: 22px; height: 22px; min-height: 0; padding: 0; }
 .paper__signimg { display: block; height: 44px; width: auto; }
+/* V144: Name unter der Tinte (8.3: AP-Verantwortlich aus dem Arbeitspaket) */
+.paper__signname { font-size: 0.85em; }
 .paper__sign.has-ink > .paper__unit .paper__in { font-family: inherit; font-size: 0.9em; color: inherit; }
 @media print { .paper__signbtn, .paper__signink .remind__x { display: none; } }
 @media (prefers-contrast: more), (forced-colors: active) { .ink__paper, .inkn__view { background: #fff; background-image: none; border-color: #000; } }

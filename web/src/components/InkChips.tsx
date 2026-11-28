@@ -127,7 +127,7 @@ export function InkChips(props: { note: string; inks: NoteAttachment[]; onRemove
  * V143 (F-238 S6, F-232 P8 ergänzt): Unterschrift im Freigabe-Feld – Knopf „Unterschreiben“ öffnet eine kleine
  * Schreibfläche; danach steht die Tinte statt des Namens in Schreibschrift auf dem Blatt (Name bleibt als Text).
  */
-export function InkSign(props: { project: string; field: 'inkAg' | 'inkPl'; label: string; inkRef?: string; name?: string; onRemove: () => void; onDone?: (text: string) => void }) {
+export function InkSign(props: { label: string; inkRef?: string; name?: string; save: (ref: string | null) => void; onRemove: () => void; onDone?: (text: string) => void }) {
   const { inkRef } = props;
   const [url, setUrl] = useState<string | null | false>(null);
   useEffect(() => {
@@ -143,7 +143,7 @@ export function InkSign(props: { project: string; field: 'inkAg' | 'inkPl'; labe
       window.removeEventListener(INK_EVENT, load);
     };
   }, [inkRef]);
-  const open = () => openInk({ sign: { project: props.project, field: props.field, label: props.label }, onDone: props.onDone });
+  const open = () => openInk({ sign: { label: props.label, ref: inkRef, save: props.save }, onDone: props.onDone });
   if (!inkRef)
     return (
       <button type="button" className="paper__signbtn" title={T.signHint} onClick={open}>

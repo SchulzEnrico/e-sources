@@ -833,33 +833,21 @@ const nf = (v: number | undefined, unit: string) => (v === undefined ? '' : `${v
 const RED_TXT = '#b0282c';
 const LIGHT_ON: Record<string, string> = { red: '#e0201b', yellow: '#f5c400', green: '#22c21f' };
 
-/** Abb. 15: AP-Statusbericht als Blatt – Kopf, Tabelle mit Bezeichnungen grau und Werten rot, Ampel, Kreis „erledigt/offen“. */
-export function wpReportSvg(ws: Workspace, p: Project, rowId: string | undefined): string {
-  const list = p.wpReports ?? [];
-  const r = list.find((x) => x.id === rowId) ?? list[0];
-  if (!r) return '';
-  const rows = pspRows(pspTree(ws, p.id)).filter((n) => n.owner === p.id || n.kind !== 'task');
-  const at = rows.findIndex((n) => n.id === r.wp);
-  const node = at >= 0 ? rows[at] : undefined;
-  let parent: PspNode | undefined;
-  for (let i = at - 1; i >= 0 && node; i--) if (rows[i].depth < node.depth) { parent = rows[i]; break; }
-  const note = (ws.notes ?? []).find((n) => n.id === r.wp);
-  const title = note ? titleOf(note) : '(entfallen)';
-  const lead = personById(ws, rolesOf(p).find((x) => x.id === 'lead')?.person)?.name ?? '';
-  const owner = personById(ws, note?.assignee)?.name ?? '';
-  const phase = p.phases?.find((x) => x.id === note?.phase)?.name ?? '';
-  const W = 640;
-  const X = [0, 112, 300, 452, W];
+/** V144: Bausteine der Statusbericht-Blätter (Abb. 15) – Zellen grau/weiß, Text, Paare, Blöcke, lange Felder, Ampel mit
+ *  Fortschrittskreis und Fuß mit Ort, Datum und Unterschrift (Tinte aus dem Gerätespeicher, sonst Linie). */
+type InkMap = ReadonlyMap<string, string>;
+function reportKit(W: number, X: number[]) {
   const parts: string[] = [];
-  const cellBg = (x: number, y: number, w: number, h: number, gray: boolean) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${gray ? '#ececec' : '#fff'}" stroke="#9a9a9a" stroke-width="0.7"/>`;
-  const txt = (x: number, y: number, lines: string[], o: { fill?: string; bold?: boolean; size?: number } = {}) =>
-    lines.map((l, i) => `<text x="${x}" y="${y + i * ((o.size ?? 10) + 3)}" font-size="${o.size ?? 10}"${o.bold ? ' font-weight="bold"' : ''} fill="${o.fill ?? LOOK.ink}">${esc(l)}</text>`).join('');
-  // Kopf
-  const kw = r.from && r.to ? (isoWeek(r.from) === isoWeek(r.to) ? `${isoWeek(r.to)}. KW` : `${isoWeek(r.from)}./${isoWeek(r.to)}. KW`) : '';
-  parts.push(`<rect x="0" y="0" width="${W}" height="84" fill="url(#fgHead)" stroke="#2a2a2a"/>`);
-  parts.push(`<text x="${W / 2}" y="${kw ? 36 : 50}" text-anchor="middle" font-size="24" font-weight="bold" fill="#fff">AP Statusbericht zum ${esc(dmy(r.date))}</text>`);
-  if (kw) parts.push(`<text x="${W / 2}" y="68" text-anchor="middle" font-size="22" font-weight="bold" fill="#fff">(Berichtszeitraum ${esc(kw)})</text>`);
-  let y = 84;
+  let y = 0;
+  const cellBg = (x: number, yy: number, w: number, h: number, gray: boolean) => `<rect x="${x}" y="${yy}" width="${w}" height="${h}" fill="${gray ? '#ececec' : '#fff'}" stroke="#9a9a9a" stroke-width="0.7"/>`;
+  const txt = (x: number, yy: number, lines: string[], o: { fill?: string; bold?: boolean; size?: number } = {}) =>
+    lines.map((l, i) => `<text x="${x}" y="${yy + i * ((o.size ?? 10) + 3)}" font-size="${o.size ?? 10}"${o.bold ? ' font-weight="bold"' : ''} fill="${o.fill ?? LOOK.ink}">${esc(l)}</text>`).join('');
+  const head = (title: string, kw: string) => {
+    parts.push(`<rect x="0" y="0" width="${W}" height="84" fill="url(#fgHead)" stroke="#2a2a2a"/>`);
+    parts.push(`<text x="${W / 2}" y="${kw ? 36 : 50}" text-anchor="middle" font-size="24" font-weight="bold" fill="#fff">${esc(title)}</text>`);
+    if (kw) parts.push(`<text x="${W / 2}" y="68" text-anchor="middle" font-size="22" font-weight="bold" fill="#fff">(Berichtszeitraum ${esc(kw)})</text>`);
+    y = 84;
+  };
   const pair = (a: string, av: string, b: string, bv: string) => {
     const l1 = wrap(av, 32, 3);
     const l2 = wrap(bv, 30, 3);
@@ -868,40 +856,44 @@ export function wpReportSvg(ws: Workspace, p: Project, rowId: string | undefined
     parts.push(txt(X[0] + 5, y + 16, [a], { bold: true }), txt(X[1] + 5, y + 16, l1, { fill: RED_TXT, bold: true }), txt(X[2] + 5, y + 16, [b], { bold: true }), txt(X[3] + 5, y + 16, l2, { fill: RED_TXT, bold: true }));
     y += h;
   };
-  pair('AP Bezeichnung', title, 'AP.Nr. (PSP CODE)', node?.code ?? '');
-  // V142 (Report Abb. 15): Projektname mit Untertitel (Ziel aus dem Steckbrief)
-  pair('Projektname', [p.name, (p.brief?.goal ?? '').split('\n')[0]].filter(Boolean).join(' - '), 'Projekt.Nr.', p.charter?.no ?? '');
-  pair('Teilaufgabe', parent ? [parent.title, parent.code].filter(Boolean).join(' / ') : '', 'Phase', phase);
-  pair('Projektleiter', lead, 'Verantwortlicher', owner);
-  // Status: Ampel und Fortschrittskreis
-  const sh = 150;
-  parts.push(cellBg(X[0], y, X[2] - X[0], sh, false), cellBg(X[2], y, X[4] - X[2], sh, false));
-  parts.push(txt(X[0] + 5, y + 16, ['Status'], { bold: true }), txt(X[2] + 5, y + 16, ['Ist-Fortschrittsgrad'], { bold: true }));
-  const cx = (X[0] + X[2]) / 2;
-  const hy = y + 14;
-  parts.push(`<path d="M${cx - 62} ${hy + 10}h24v10h-24zM${cx + 38} ${hy + 10}h24v10h-24zM${cx - 62} ${hy + 50}h24v10h-24zM${cx + 38} ${hy + 50}h24v10h-24zM${cx - 62} ${hy + 90}h24v10h-24zM${cx + 38} ${hy + 90}h24v10h-24z" fill="#222"/>`);
-  parts.push(`<rect x="${cx - 40}" y="${hy}" width="80" height="124" rx="10" fill="#1d1d1d"/>`);
-  (['red', 'yellow', 'green'] as const).forEach((c, i) => parts.push(`<circle cx="${cx}" cy="${hy + 22 + i * 40}" r="15" fill="${r.light === c ? LIGHT_ON[c] : '#c9c9c9'}" stroke="#555" stroke-width="1.5"/>`));
-  const prog = Math.max(0, Math.min(100, r.progress ?? 0));
-  const pcx = (X[2] + X[4]) / 2 + 10;
-  const pcy = y + 82;
-  const pr = 56;
-  const a = (2 * Math.PI * prog) / 100;
-  const ex = pcx + pr * Math.sin(a);
-  const ey = pcy - pr * Math.cos(a);
-  if (prog >= 100) parts.push(`<circle cx="${pcx}" cy="${pcy}" r="${pr}" fill="#56c94f"/>`);
-  else if (prog <= 0) parts.push(`<circle cx="${pcx}" cy="${pcy}" r="${pr}" fill="#b5b5b5"/>`);
-  else {
-    parts.push(`<circle cx="${pcx}" cy="${pcy}" r="${pr}" fill="#b5b5b5"/>`);
-    parts.push(`<path d="M${pcx} ${pcy}L${pcx} ${pcy - pr}A${pr} ${pr} 0 ${prog > 50 ? 1 : 0} 1 ${ex.toFixed(1)} ${ey.toFixed(1)}Z" fill="#56c94f" stroke="#fff" stroke-width="1"/>`);
-  }
-  const mid = (from: number, share: number) => { const m = from + (2 * Math.PI * share) / 200; return [pcx + pr * 0.55 * Math.sin(m), pcy - pr * 0.55 * Math.cos(m)]; };
-  const [dx1, dy1] = mid(0, prog);
-  const [dx2, dy2] = mid(a, 100 - prog);
-  if (prog > 0) parts.push(`<text x="${dx1.toFixed(1)}" y="${dy1.toFixed(1)}" text-anchor="middle" font-size="9.5" fill="#fff">erledigt</text><text x="${dx1.toFixed(1)}" y="${(dy1 + 12).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="#fff">${esc(nf(prog, ' %'))}</text>`);
-  if (prog < 100) parts.push(`<text x="${dx2.toFixed(1)}" y="${dy2.toFixed(1)}" text-anchor="middle" font-size="9.5" fill="#fff">offen</text><text x="${dx2.toFixed(1)}" y="${(dy2 + 12).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="#fff">${esc(nf(Math.round((100 - prog) * 10) / 10, ' %'))}</text>`);
-  y += sh;
-  // Termine, Aufwand, Kosten
+  /** Status: Ampel links, Fortschrittskreis rechts („erledigt/offen“), darunter optional weitere Zeilen */
+  const status = (light: string | undefined, progress: number | undefined, label: string, extra: string[] = []) => {
+    const sh = 150 + (extra.length ? 6 + extra.length * 13 : 0);
+    parts.push(cellBg(X[0], y, X[2] - X[0], sh, false), cellBg(X[2], y, X[4] - X[2], sh, false));
+    parts.push(txt(X[0] + 5, y + 16, ['Status'], { bold: true }), txt(X[2] + 5, y + 16, [label], { bold: true }));
+    const cx = (X[0] + X[2]) / 2;
+    const hy = y + 14;
+    parts.push(`<path d="M${cx - 62} ${hy + 10}h24v10h-24zM${cx + 38} ${hy + 10}h24v10h-24zM${cx - 62} ${hy + 50}h24v10h-24zM${cx + 38} ${hy + 50}h24v10h-24zM${cx - 62} ${hy + 90}h24v10h-24zM${cx + 38} ${hy + 90}h24v10h-24z" fill="#222"/>`);
+    parts.push(`<rect x="${cx - 40}" y="${hy}" width="80" height="124" rx="10" fill="#1d1d1d"/>`);
+    (['red', 'yellow', 'green'] as const).forEach((c, i) => parts.push(`<circle cx="${cx}" cy="${hy + 22 + i * 40}" r="15" fill="${light === c ? LIGHT_ON[c] : '#c9c9c9'}" stroke="#555" stroke-width="1.5"/>`));
+    const prog = Math.max(0, Math.min(100, progress ?? 0));
+    const pcx = (X[2] + X[4]) / 2 + 10;
+    const pcy = y + 82;
+    const pr = 56;
+    const a = (2 * Math.PI * prog) / 100;
+    const ex = pcx + pr * Math.sin(a);
+    const ey = pcy - pr * Math.cos(a);
+    if (prog >= 100) parts.push(`<circle cx="${pcx}" cy="${pcy}" r="${pr}" fill="#56c94f"/>`);
+    else if (prog <= 0) parts.push(`<circle cx="${pcx}" cy="${pcy}" r="${pr}" fill="#b5b5b5"/>`);
+    else {
+      parts.push(`<circle cx="${pcx}" cy="${pcy}" r="${pr}" fill="#b5b5b5"/>`);
+      parts.push(`<path d="M${pcx} ${pcy}L${pcx} ${pcy - pr}A${pr} ${pr} 0 ${prog > 50 ? 1 : 0} 1 ${ex.toFixed(1)} ${ey.toFixed(1)}Z" fill="#56c94f" stroke="#fff" stroke-width="1"/>`);
+    }
+    // V144 („Texte nie über Feldränder“): kleine Anteile (< 25 %) außen neben dem Kreis beschriften, dunkel
+    const mid = (from: number, share: number) => {
+      const m = from + (2 * Math.PI * share) / 200;
+      const out = share < 25;
+      const f = out ? 1.22 : 0.55;
+      return { x: pcx + pr * f * Math.sin(m), y: pcy - pr * f * Math.cos(m) - (out ? 4 : 0), fill: out ? LOOK.ink : '#fff', anchor: out ? (Math.sin(m) >= 0 ? 'start' : 'end') : 'middle' };
+    };
+    const lab = (c: ReturnType<typeof mid>, word: string, v: string) =>
+      `<text x="${c.x.toFixed(1)}" y="${c.y.toFixed(1)}" text-anchor="${c.anchor}" font-size="9.5" fill="${c.fill}">${word}</text><text x="${c.x.toFixed(1)}" y="${(c.y + 12).toFixed(1)}" text-anchor="${c.anchor}" font-size="9.5" fill="${c.fill}">${esc(v)}</text>`;
+    if (prog > 0) parts.push(lab(mid(0, prog), 'erledigt', nf(prog, ' %')));
+    if (prog < 100) parts.push(lab(mid(a, 100 - prog), 'offen', nf(Math.round((100 - prog) * 10) / 10, ' %')));
+    if (extra.length) parts.push(txt(X[2] + 5, y + 156, extra, { fill: RED_TXT, bold: true }));
+    y += sh;
+    return prog;
+  };
   const lv = (x: number, yy: number, label: string, v: string) => `<text x="${x}" y="${yy}" font-size="10" font-weight="bold"><tspan fill="${RED_TXT}">${esc(label)}</tspan> <tspan fill="${LOOK.ink}">${esc(v)}</tspan></text>`;
   const block = (label: string, c2: [string, string][], c3: [string, string][], c4: [string, string][]) => {
     const n = Math.max(c2.length, c3.length, c4.length);
@@ -918,25 +910,97 @@ export function wpReportSvg(ws: Workspace, p: Project, rowId: string | undefined
     });
     y += h;
   };
-  const d = (v?: string) => (v ? dmy(v) : '');
-  block('Termine', [['Plan-Start:', d(r.planStart)], ['Plan-Ende:', d(r.planEnd)]], [['Soll-Start:', d(r.sollStart)], ['Soll-Ende:', d(r.sollEnd)]], [['Ist-Start:', d(r.actStart)], ['Ist-Ende:', d(r.actEnd)]]);
-  const rest = (s?: number, i?: number) => (s === undefined ? undefined : Math.round((s - (i ?? 0)) * 100) / 100);
-  block('Aufwand', [['Plan:', nf(r.planHours, ' Ph')], ['Soll:', nf(r.sollHours, ' Ph')]], [['Ist:', nf(r.actHours, ' Ph')]], [['Rest:', nf(rest(r.sollHours, r.actHours), ' Ph')]]);
-  block('Kosten', [['Plan:', nf(r.planCost, ' €')], ['Soll:', nf(r.sollCost, ' €')]], [['Ist:', nf(r.actCost, ' €')]], [['Rest:', nf(rest(r.sollCost, r.actCost), ' €')]]);
   const long = (label: string, text: string | undefined, minH: number) => {
     const lines = wrap(text || '', 112, 12);
     const h = Math.max(minH, 30 + lines.length * 13);
     parts.push(cellBg(0, y, W, h, false), txt(5, y + 16, [label], { bold: true }), txt(5, y + 31, lines));
     y += h;
   };
-  long('Aktuelle Aktivitäten:', r.done, 70);
-  long('Notwendige Steuerungsmaßnahmen:', r.measures, 56);
-  parts.push(cellBg(0, y, W, 34, true));
-  parts.push(txt(5, y + 21, [`${r.place ? `${r.place}, ` : ''} ${dmy(r.date)}`.trim()], { bold: true }));
-  parts.push(`<line x1="${W - 190}" y1="${y + 24}" x2="${W - 10}" y2="${y + 24}" stroke="#9a9a9a" stroke-dasharray="2 2"/><text x="${W - 10}" y="${y + 11}" text-anchor="end" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">Unterschrift PL</text>`);
-  y += 34;
-  parts.push(`<rect x="1" y="1" width="${W - 2}" height="${y - 1}" fill="none" stroke="#111" stroke-width="2.4"/>`);
-  return svgWrap(W, y + 1, `AP-Statusbericht ${node?.code ?? ''} ${title} zum ${dmy(r.date)}: Ampel ${r.light === 'red' ? 'rot' : r.light === 'yellow' ? 'gelb' : 'grün'}, ${nf(prog, ' %')} erledigt`, parts.join(''));
+  /** Fuß: Ort und Datum links, rechts „Unterschrift PL“ – mit Tinte (V144, F-238 S6), sonst gestrichelte Linie */
+  const foot = (place: string | undefined, date: string, sign: { label: string; ref?: string; inks?: InkMap }) => {
+    const svg = sign.ref ? sign.inks?.get(sign.ref) : undefined;
+    const fh = svg ? 58 : 34;
+    parts.push(cellBg(0, y, W, fh, true));
+    parts.push(txt(5, y + fh - 13, [[place, dmy(date)].filter(Boolean).join(', ')], { bold: true }));
+    if (svg) parts.push(`<image x="${W - 190}" y="${y + 2}" width="180" height="${fh - 18}" preserveAspectRatio="xMinYMax meet" href="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}"/>`);
+    const ly = y + fh - (svg ? 14 : 10);
+    parts.push(`<line x1="${W - 190}" y1="${ly}" x2="${W - 10}" y2="${ly}" stroke="#9a9a9a" stroke-dasharray="2 2"/><text x="${W - 10}" y="${y + (svg ? fh - 4 : 11)}" text-anchor="end" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">${esc(sign.label)}</text>`);
+    y += fh;
+  };
+  const done = (label: string) => {
+    parts.push(`<rect x="1" y="1" width="${W - 2}" height="${y - 1}" fill="none" stroke="#111" stroke-width="2.4"/>`);
+    return svgWrap(W, y + 1, label, parts.join(''));
+  };
+  return { head, pair, status, block, long, foot, done };
+}
+/** Berichtszeitraum als Kalenderwochen: „19. KW“, „18./19. KW“, „10.–20. KW“, über den Jahreswechsel mit Jahr. */
+export function kwOf(from?: string, to?: string): string {
+  if (!from || !to) return '';
+  const a = isoWeek(from);
+  const b = isoWeek(to);
+  if (a === b && to.slice(0, 4) === from.slice(0, 4)) return `${b}. KW`;
+  if (to.slice(0, 4) !== from.slice(0, 4) || b < a) return `${a}. KW ${from.slice(0, 4)} – ${b}. KW ${to.slice(0, 4)}`;
+  return b === a + 1 ? `${a}./${b}. KW` : `${a}.–${b}. KW`;
+}
+const restOf = (s?: number, i?: number) => (s === undefined ? undefined : Math.round((s - (i ?? 0)) * 100) / 100);
+const dOf = (v?: string) => (v ? dmy(v) : '');
+const lightWord = (l?: string) => (l === 'red' ? 'rot' : l === 'yellow' ? 'gelb' : l === 'green' ? 'grün' : 'ohne');
+
+/** Abb. 15: AP-Statusbericht als Blatt – Kopf, Tabelle mit Bezeichnungen grau und Werten rot, Ampel, Kreis „erledigt/offen“. */
+export function wpReportSvg(ws: Workspace, p: Project, rowId: string | undefined, inks?: InkMap): string {
+  const list = p.wpReports ?? [];
+  const r = list.find((x) => x.id === rowId) ?? list[0];
+  if (!r) return '';
+  const rows = pspRows(pspTree(ws, p.id)).filter((n) => n.owner === p.id || n.kind !== 'task');
+  const at = rows.findIndex((n) => n.id === r.wp);
+  const node = at >= 0 ? rows[at] : undefined;
+  let parent: PspNode | undefined;
+  for (let i = at - 1; i >= 0 && node; i--) if (rows[i].depth < node.depth) { parent = rows[i]; break; }
+  const note = (ws.notes ?? []).find((n) => n.id === r.wp);
+  const title = note ? titleOf(note) : '(entfallen)';
+  const lead = personById(ws, rolesOf(p).find((x) => x.id === 'lead')?.person)?.name ?? '';
+  const owner = personById(ws, note?.assignee)?.name ?? '';
+  const phase = p.phases?.find((x) => x.id === note?.phase)?.name ?? '';
+  const k = reportKit(640, [0, 112, 300, 452, 640]);
+  k.head(`AP Statusbericht zum ${dmy(r.date)}`, kwOf(r.from, r.to));
+  k.pair('AP Bezeichnung', title, 'AP.Nr. (PSP CODE)', node?.code ?? '');
+  // V142 (Report Abb. 15): Projektname mit Untertitel (Ziel aus dem Steckbrief)
+  k.pair('Projektname', [p.name, (p.brief?.goal ?? '').split('\n')[0]].filter(Boolean).join(' - '), 'Projekt.Nr.', p.charter?.no ?? '');
+  k.pair('Teilaufgabe', parent ? [parent.title, parent.code].filter(Boolean).join(' / ') : '', 'Phase', phase);
+  k.pair('Projektleiter', lead, 'Verantwortlicher', owner);
+  const prog = k.status(r.light, r.progress, 'Ist-Fortschrittsgrad');
+  k.block('Termine', [['Plan-Start:', dOf(r.planStart)], ['Plan-Ende:', dOf(r.planEnd)]], [['Soll-Start:', dOf(r.sollStart)], ['Soll-Ende:', dOf(r.sollEnd)]], [['Ist-Start:', dOf(r.actStart)], ['Ist-Ende:', dOf(r.actEnd)]]);
+  k.block('Aufwand', [['Plan:', nf(r.planHours, ' Ph')], ['Soll:', nf(r.sollHours, ' Ph')]], [['Ist:', nf(r.actHours, ' Ph')]], [['Rest:', nf(restOf(r.sollHours, r.actHours), ' Ph')]]);
+  k.block('Kosten', [['Plan:', nf(r.planCost, ' €')], ['Soll:', nf(r.sollCost, ' €')]], [['Ist:', nf(r.actCost, ' €')]], [['Rest:', nf(restOf(r.sollCost, r.actCost), ' €')]]);
+  k.long('Aktuelle Aktivitäten:', r.done, 70);
+  k.long('Notwendige Steuerungsmaßnahmen:', r.measures, 56);
+  k.foot(r.place, r.date, { label: 'Unterschrift PL', ref: r.inkPl, inks });
+  return k.done(`AP-Statusbericht ${node?.code ?? ''} ${title} zum ${dmy(r.date)}: Ampel ${r.light === 'red' ? 'rot' : r.light === 'yellow' ? 'gelb' : 'grün'}, ${nf(prog, ' %')} erledigt`);
+}
+
+/** V144 (Statusbericht 12 als Blatt): Projekt-Statusbericht im Aussehen von Abb. 15 – Kopf mit Stichtag und Berichtszeitraum,
+ *  Projekt, Auftraggeber, Projektleiter, Zeitraum; Ampel und Leistungsfortschritt, darunter Termin- und Kostenfortschritt;
+ *  Aufwand und Kosten (Plan, Ist, Rest), Aktivitäten, nächste Schritte, Steuerungsmaßnahmen, Bemerkung, Ort und Unterschrift. */
+export function statusReportSvg(ws: Workspace, p: Project, rowId: string | undefined, inks?: InkMap): string {
+  const list = p.reports ?? [];
+  const r = list.find((x) => x.id === rowId) ?? list[list.length - 1];
+  if (!r) return '';
+  const lead = personById(ws, rolesOf(p).find((x) => x.id === 'lead')?.person)?.name ?? '';
+  const k = reportKit(640, [0, 112, 300, 452, 640]);
+  k.head(`Statusbericht zum ${dmy(r.date)}`, kwOf(r.from, r.to));
+  k.pair('Projektname', [p.name, (p.brief?.goal ?? '').split('\n')[0]].filter(Boolean).join(' - '), 'Projekt.Nr.', p.charter?.no ?? '');
+  k.pair('Auftraggeber', p.charter?.client ?? '', 'Projektleiter', lead);
+  k.pair('Projektzeitraum', [dOf(p.start), dOf(p.end)].filter(Boolean).join(' – '), 'Berichtszeitraum', [dOf(r.from), dOf(r.to)].filter(Boolean).join(' – '));
+  const extra = [r.progTime !== undefined ? `Termin: ${nf(r.progTime, ' %')}` : '', r.progCost !== undefined ? `Kosten: ${nf(r.progCost, ' %')}` : ''].filter(Boolean);
+  const prog = k.status(r.light, r.progWork, 'Fortschritt Leistung', extra.length ? [extra.join(' · ')] : []);
+  k.block('Aufwand', [['Plan:', nf(r.planHours, ' Ph')]], [['Ist:', nf(r.actHours, ' Ph')]], [['Rest:', nf(restOf(r.planHours, r.actHours), ' Ph')]]);
+  k.block('Kosten', [['Plan:', nf(r.planCost, ' €')]], [['Ist:', nf(r.actCost, ' €')]], [['Rest:', nf(restOf(r.planCost, r.actCost), ' €')]]);
+  k.long('Erledigte Aktivitäten:', r.done, 56);
+  k.long('Nächste Schritte:', r.next, 44);
+  k.long('Notwendige Steuerungsmaßnahmen:', r.measures, 44);
+  if (r.note) k.long('Bemerkung:', r.note, 36);
+  k.foot(r.place, r.date, { label: 'Unterschrift PL', ref: r.inkPl, inks });
+  return k.done(`Statusbericht ${p.name} zum ${dmy(r.date)}: Ampel ${lightWord(r.light)}, ${nf(prog, ' %')} Leistung erledigt`);
 }
 
 // ---------------------------------------------------------------- F-234 (V137): Teamrollen nach Belbin wie Abb. 16
@@ -1206,9 +1270,9 @@ export function squareSvg(p: Project, rowId: string | undefined): string {
 }
 
 /** Kennung der Grafik eines Formulars (FormDef.figure). */
-export type FigureKind = 'goalTree' | 'org' | 'phasePlan' | 'psp' | 'gantt' | 'load' | 'wpReport' | 'belbin' | 'eisenhower' | 'square';
+export type FigureKind = 'goalTree' | 'org' | 'phasePlan' | 'psp' | 'gantt' | 'load' | 'wpReport' | 'statusReport' | 'belbin' | 'eisenhower' | 'square';
 /** Grafik eines Formulars mit Layout `figure` (leer, wenn noch nichts zu zeichnen ist). */
-export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefined, o: { person?: string; row?: string; day?: string; all?: boolean; done?: boolean } = {}): string {
+export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefined, o: { person?: string; row?: string; day?: string; all?: boolean; done?: boolean; inks?: InkMap } = {}): string {
   const p = projectById(ws, pid);
   if (!p || !kind) return '';
   switch (kind) {
@@ -1225,7 +1289,9 @@ export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefin
     case 'load':
       return loadSvg(ws, pid, o.person || loadDefault(ws, pid));
     case 'wpReport':
-      return wpReportSvg(ws, p, o.row);
+      return wpReportSvg(ws, p, o.row, o.inks);
+    case 'statusReport':
+      return statusReportSvg(ws, p, o.row, o.inks);
     case 'belbin':
       return belbinSvg(ws, p, o.row);
     case 'eisenhower':

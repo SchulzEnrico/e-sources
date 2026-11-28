@@ -172,6 +172,8 @@ export const parseReport = (r: Record<string, unknown>): StatusReport | undefine
     next: txt(r.next),
     measures: txt(r.measures),
     note: txt(r.note),
+    place: txt(r.place, 120),
+    inkPl: id(r.inkPl),
     ms: parseDayMap(r.ms),
   });
 };
@@ -245,6 +247,8 @@ export function parseWp(v: unknown): NoteWp | undefined {
     progress: pct(v.progress),
     releasePl: isDay(v.releasePl) ? v.releasePl : undefined,
     releaseOwner: isDay(v.releaseOwner) ? v.releaseOwner : undefined,
+    inkPl: id(v.inkPl),
+    inkOwner: id(v.inkOwner),
   });
   return Object.keys(out).length ? out : undefined;
 }
@@ -284,6 +288,8 @@ export const parseWpReport = (r: Record<string, unknown>): WpReport | undefined 
     done: txt(r.done),
     measures: txt(r.measures),
     place: txt(r.place, 120),
+    inkOwner: id(r.inkOwner),
+    inkPl: id(r.inkPl),
   });
 };
 export const parseTeamRole = (r: Record<string, unknown>): TeamRole | undefined => {

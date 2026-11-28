@@ -81,8 +81,9 @@ export const INK_OPEN = 'esource:ink';
 export interface InkOpenDetail {
   note?: string;
   ref?: string;
-  /** Unterschrift im Steckbrief: Projekt und Feld */
-  sign?: { project: string; field: 'inkAg' | 'inkPl'; label: string };
+  /** Unterschrift (Steckbrief 2.1, Arbeitspaketbeschreibung 8.3, AP-Statusbericht 12.1): Bezeichnung, vorhandene
+   *  Tinte und wohin der Schlüssel gehört (V144: allgemein statt nur Steckbrief) */
+  sign?: { label: string; ref?: string; save: (ref: string | null) => void };
   /** Meldung am Ort des Geschehens (z. B. am Freigabe-Feld) statt oben in der Mitte */
   onDone?: (text: string) => void;
 }

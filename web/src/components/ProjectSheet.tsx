@@ -347,7 +347,7 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
                   ).map(([d, n, l, ink]) => (
                     <div key={d} className={`paper__sign${c[ink] ? ' has-ink' : ''}`}>
                       {/* V143 (F-238 S6): Unterschrift als Handschrift; ohne bleibt der Name in Schreibschrift */}
-                      <InkSign project={p.id} field={ink} label={l} inkRef={c[ink]} name={c[n]} onRemove={() => (dispatch({ type: 'charterEdit', id: p.id, patch: { [ink]: null } }), tell(n, T_INK.signRemoved))} onDone={(t) => tell(n, t)} />
+                      <InkSign label={l} inkRef={c[ink]} name={c[n]} save={(ref) => dispatch({ type: 'charterEdit', id: p.id, patch: { [ink]: ref } })} onRemove={() => (dispatch({ type: 'charterEdit', id: p.id, patch: { [ink]: null } }), tell(n, T_INK.signRemoved))} onDone={(t) => tell(n, t)} />
                       <Field label={`${l}: ${S.signName}`} value={c[n]} placeholder={S.signName} onSave={charter(n, `${l}: ${S.signName}`)} />
                       <span className="paper__signline">{l}</span>
                       <Field label={`${l}: ${S.signDate}`} value={c[d]} kind="date" onSave={charter(d, `${l}: ${S.signDate}`)} />

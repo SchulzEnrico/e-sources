@@ -1187,6 +1187,9 @@ export interface StatusReport {
   next?: string;
   measures?: string;
   note?: string;
+  /** V144 (Statusbericht als Blatt): Ort der Unterschrift und Unterschrift PL als Handschrift (inkStore) */
+  place?: string;
+  inkPl?: string;
   /** V115 (MTA): Ende der Meilensteine laut Gantt am Stichtag, je Notiz-Id */
   ms?: Record<string, string>;
 }
@@ -1220,6 +1223,9 @@ export interface WpReport {
   done?: string;
   measures?: string;
   place?: string;
+  /** V144 (F-238 S6): Unterschriften AP-Verantwortlich bzw. Projektleitung als Handschrift (inkStore) */
+  inkOwner?: string;
+  inkPl?: string;
 }
 /** F-234 (V137, D6, ICB4 4.4.1): Teamrollen nach Belbin – Punkte je Rolle (Selbsteinschätzung). */
 export interface TeamRole {
@@ -1432,6 +1438,9 @@ export interface NoteWp {
   /** Freigabe Projektleitung bzw. AP-Verantwortlicher (JJJJ-MM-TT) */
   releasePl?: string;
   releaseOwner?: string;
+  /** V144 (F-238 S6): Unterschrift als Handschrift – Schlüssel im Tintenspeicher des Geräts (inkStore) */
+  inkPl?: string;
+  inkOwner?: string;
 }
 /** Fortschrittsmessmethoden nach GPM: 0/100, 50/50, 20/80, aufwandsproportional, Meilensteine, Schätzung. */
 export type ProgressMethod = 'zero' | 'half' | 'twenty' | 'effort' | 'steps' | 'estimate';
@@ -1640,7 +1649,7 @@ export interface FormDef {
   /** Tabelle (Zeilen) oder Feldliste (ein Objekt); V113: `record` = Feldliste je Zeile (Auswahl-Rad), `chart` = Ganglinie, `portfolio` = Grafik */
   layout: 'table' | 'fields' | 'record' | 'chart' | 'portfolio' | 'figure';
   /** F-234 (V135): Grafik eines Kapitel-Blatts mit Layout `figure` (gpmFigures.ts) */
-  figure?: 'goalTree' | 'org' | 'phasePlan' | 'psp' | 'gantt' | 'load' | 'wpReport' | 'belbin' | 'eisenhower' | 'square';
+  figure?: 'goalTree' | 'org' | 'phasePlan' | 'psp' | 'gantt' | 'load' | 'wpReport' | 'statusReport' | 'belbin' | 'eisenhower' | 'square';
   columns: FormColumn[];
   /** Zeilen-Filter, z. B. Ziel-Art `non` */
   filter?: string;

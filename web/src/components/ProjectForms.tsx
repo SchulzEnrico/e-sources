@@ -13,7 +13,10 @@ import type { FormDef, FormFieldType, Project, Workspace } from '../workspace/ty
 import * as Fk from '../workspace/formKit';
 import * as Ps from '../workspace/persons';
 import { newId } from '../workspace/workspace';
-import { FORMS_TEXT as T, PSP_TEXT } from '../workspace/terms';
+import { FORMS_TEXT as T, INK_TEXT as T_INK, PSP_TEXT } from '../workspace/terms';
+import { InkSign } from './InkChips';
+import { INK_EVENT, getInk } from '../workspace/inkStore';
+import { inkSvg } from '../workspace/ink';
 import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
 import { useOverflow } from './Overflow';
@@ -156,8 +159,27 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
   const targets = [...Fk.rowsOf(ws, p.id, msForm), ...tasks];
   const recRow = rows.find((r) => r.id === rec) ?? rows[0];
   const recAt = recRow ? rows.indexOf(recRow) : -1;
+  // V144 (F-238 S6): Unterschriften als Tinte im Bericht – Striche vorab aus dem Gerätespeicher laden (Bericht bleibt synchron, kein Pop-up-Blocker)
+  const inkKey = Rp.reportInkRefs(ws, p.id).join('|');
+  const [inks, setInks] = useState<Map<string, string>>(() => new Map());
+  useEffect(() => {
+    let live = true;
+    const load = () =>
+      void Promise.all(inkKey.split('|').filter(Boolean).map(async (ref) => [ref, await getInk(ref)] as const)).then((all) => {
+        if (!live) return;
+        const m = new Map<string, string>();
+        for (const [ref, r] of all) if (r) m.set(ref, inkSvg(r.strokes, r.w, r.h));
+        setInks(m);
+      });
+    load();
+    window.addEventListener(INK_EVENT, load);
+    return () => {
+      live = false;
+      window.removeEventListener(INK_EVENT, load);
+    };
+  }, [inkKey]);
   const openReport = () => {
-    const html = Rp.reportHtml(ws, p.id, { version: APP_VERSION, day: todayDay() });
+    const html = Rp.reportHtml(ws, p.id, { version: APP_VERSION, day: todayDay(), inks });
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
     const w = window.open(url, '_blank');
     if (w) tell(T.reportOpened);
@@ -432,7 +454,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
   const figureBlock = () => {
     const people = form.figure === 'load' ? loadPersons(ws, p.id) : [];
     const who = people.some((x) => x.id === loadWho) ? loadWho : loadDefault(ws, p.id);
-    const svg = figureSvg(ws, p.id, form.figure, { person: who, row: quadDrag ? mat?.id : recRow?.id, all: eisenAll, done: eisenMode === 'done' });
+    const svg = figureSvg(ws, p.id, form.figure, { person: who, row: quadDrag ? mat?.id : recRow?.id, all: eisenAll, done: eisenMode === 'done', inks });
     const target = form.figure ? FIGURE_VIEW[form.figure] : undefined;
     const editable = !!svg && (svg.includes('data-edit=') || quadDrag);
     return (
@@ -601,6 +623,48 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
       </div>
     );
   };
+  /** V144 (F-238 S6, F-232 P8): Freigabe wie im Steckbrief – je Unterschrift Tinte (oder Knopf „Unterschreiben“), Linie
+   *  mit der Rolle und – in 8.3 – das Datum darunter. Meldung mit Rückgängig an der Formular-Meldung. */
+  const releaseRow = (rowId: string, list: Fk.FormCol[], span: number) => {
+    const byKey = new Map(list.map((c) => [c.key, c]));
+    const owner = form.source === 'wp' ? Ps.personById(ws, String(Fk.cellValue(ws, p.id, form, rowId, 'assignee') ?? ''))?.name : undefined;
+    const all = [
+      { ink: 'inkOwner', date: 'releaseOwner', label: T.signOwner, name: owner },
+      { ink: 'inkPl', date: 'releasePl', label: T.signPl, name: undefined },
+    ] as const;
+    // Statusbericht (12): nur die Projektleitung unterschreibt (wie Abb. 15)
+    const signs = form.source === 'reports' ? all.filter((g) => g.ink === 'inkPl') : all;
+    return (
+      <tr className="paper__release">
+        <th scope="row">{T.release}</th>
+        <td colSpan={span} className="paper__sub">
+          <div className="paper__signs">
+            {signs.map((g) => {
+              const ref = Fk.cellValue(ws, p.id, form, rowId, g.ink);
+              const inkRef = typeof ref === 'string' && ref ? ref : undefined;
+              const dc = byKey.get(g.date);
+              const put = (v: string | null) => run({ op: 'ink', pid: p.id, form, row: rowId, key: g.ink, ref: v, at: Date.now() });
+              return (
+                <div key={g.ink} className={`paper__sign${inkRef ? ' has-ink' : ''}`}>
+                  <InkSign
+                    label={g.label}
+                    inkRef={inkRef}
+                    name={g.name}
+                    save={put}
+                    onRemove={() => (put(null), tell(T_INK.signRemoved, () => put(inkRef ?? null)))}
+                    onDone={(t) => tell(t, inkRef ? undefined : () => put(null))}
+                  />
+                  {g.name && <span className="paper__signname">{g.name}</span>}
+                  <span className="paper__signline">{g.label}</span>
+                  {dc && <Cell ws={ws} p={p} form={form} rowId={rowId} col={dc} miss={miss.has(`${rowId}|${dc.key}`)} label={T.signDate(g.label)} onSet={setValue} />}
+                </div>
+              );
+            })}
+          </div>
+        </td>
+      </tr>
+    );
+  };
   /** Feldliste wie im Report: zweispaltige Tabelle Bezeichnung | Wert */
   /** V142 (Report Abb. 11): Arbeitspaketbeschreibung als Blatt mit vier Spalten – kurze Angaben paarweise, lange über die ganze
    *  Breite, Kopf dunkel mit dem Namen des Formulars, Projektname und -nummer aus dem Steckbrief. */
@@ -646,6 +710,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
           {[...layout, ...rest].map((keys) => {
             const cs = keys.map((k) => byKey.get(k)).filter((c): c is Fk.FormCol => !!c);
             if (!cs.length) return null;
+            if (form.source === 'wp' && keys.join('|') === 'releasePl|releaseOwner') return <Fragment key="release">{releaseRow(rowId, list, 3)}</Fragment>;
             return <tr key={keys.join('|')}>{cs.length === 1 ? cell(cs[0], true) : cs.map((c) => <Fragment key={c.key}>{cell(c)}</Fragment>)}</tr>;
           })}
         </tbody>
@@ -671,6 +736,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
             </td>
           </tr>
         ))}
+        {(form.source === 'wpReports' || form.source === 'reports') && releaseRow(rowId, list, 1)}
       </tbody>
     </table>
   );

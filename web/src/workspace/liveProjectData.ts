@@ -1,5 +1,5 @@
 /** F-235 (V135): aus dem Lastenheft erzeugt von tools/live_project.py – nicht von Hand ändern. */
-export const LIVE_STAND = { chat: "V145", day: "2026-11-28" };
+export const LIVE_STAND = { chat: "V146", day: "2026-11-28" };
 export interface LiveItem { f: string; title: string; state: 'done' | 'part' | 'open'; group: string; chats: number; day: string; base: boolean }
 export const LIVE_ITEMS: LiveItem[] = [
   {"f": "F-01", "title": "Panels liegen in einem Kachel-Raster und überlappen sich nie", "state": "done", "group": "Arbeitsfläche und Raster", "chats": 1, "day": "2026-11-20", "base": true},
@@ -178,7 +178,7 @@ export const LIVE_ITEMS: LiveItem[] = [
   {"f": "F-208", "title": "Glossar", "state": "open", "group": "Notizen und Ansichten", "chats": 1, "day": "2026-11-24", "base": false},
   {"f": "F-209", "title": "Import und Export für Trello & Co", "state": "open", "group": "Notizen und Ansichten", "chats": 2, "day": "2026-11-24", "base": false},
   {"f": "F-210", "title": "NewSlot mit Lageplan", "state": "part", "group": "Notizen und Ansichten", "chats": 3, "day": "2026-11-24", "base": false},
-  {"f": "F-211", "title": "QR-Code auf PDF-Ausdrucken", "state": "open", "group": "Notizen und Ansichten", "chats": 1, "day": "2026-11-24", "base": false},
+  {"f": "F-211", "title": "QR-Code auf PDF-Ausdrucken", "state": "part", "group": "Notizen und Ansichten", "chats": 1, "day": "2026-11-24", "base": false},
   {"f": "F-212", "title": "Transparenz für Pads und Dock", "state": "part", "group": "Notizen und Ansichten", "chats": 2, "day": "2026-11-24", "base": false},
   {"f": "F-213", "title": "Speichern, Verwerfen, Schließen im Notizblock", "state": "done", "group": "Notizen und Ansichten", "chats": 2, "day": "2026-11-24", "base": false},
   {"f": "F-214", "title": "Meldungen am Ort des Geschehens", "state": "part", "group": "Notizen und Ansichten", "chats": 1, "day": "2026-11-24", "base": false},

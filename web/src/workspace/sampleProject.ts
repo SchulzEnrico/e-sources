@@ -392,6 +392,22 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
       ...(EISEN[r.nr] ?? {}),
       // V109 (F-226, G7): CG-1.6.4 mit vier Ressourcen (Abb. 11): 10 × 51 + 25 × 30 + 80 × 39 + 180 × 33 = 10.320 €
       ...(r.nr === 31 ? { use: [{ person: ME_ID, hours: 10, cost: 10 * PL_RATE }, { person: personId('PA'), hours: 25 }, { person: personId('LB'), hours: 80 }, { person: personId('LM'), hours: 180 }] } : {}),
+      // V146 (Abgleich mit dem Report, Abb. 11 S. 19): Arbeitspaketbeschreibung CG-1.6.4 – damit 8.3 im Blatt und im Bericht
+      // so aussieht wie im Report (mit QR-Code zur Arbeitskarte)
+      ...(r.nr === 31
+        ? {
+            results: ['Übergabefertige Prozessbeschreibungen und Ablaufdiagramme'],
+            wp: {
+              goal: 'Die Arbeitsprozesse der neuen Lackiererei festlegen: übergabefertige Prozessbeschreibungen und Ablaufdiagramme.',
+              activities: 'Der Lackiermeister erarbeitet zusammen mit dem Anwendungstechniker der Glasklar GmbH (SH-EX 05 – Herr Talib) die einzelnen Prozessschritte und stellt sie zu sinnvollen Prozessketten zusammen.\nDie Fachbereiche Qualitätsmanagement und Buchhaltung leiten unterstützend an und helfen bei der Dokumentation und Systemimplementierung.',
+              inputs: 'Vorgänger: CG-M-LA1 Lackieranlage 1 ist in Betrieb (CG-1.5.3 Lackieranlage 1 installieren, CG-1.6.2 Aufbaustruktur festlegen, CG-1.4.2 Ausstattung mit neuer Technik).\nNachfolger: CG-M4 Umbau & Inbetriebnahme abgeschlossen.\nSachmittel: übernimmt die Glasklar GmbH (wie die Arbeitsleistung von Herrn Talib, Servicebestandteil des Lackausrüster-Vertrags). Anlagen: keine.',
+              risks: 'Bei gut optimierten Prozessen steigert sich die Wirtschaftlichkeit der Lackieranlagen sowie der Lackmittel, und die Reklamationsquote sinkt.',
+              method: 'effort' as const,
+              releasePl: shift('2021-01-21'),
+              releaseOwner: shift('2021-03-23'),
+            },
+          }
+        : {}),
     };
     const after = parsePreds(r.pred);
     if (after.length) init.after = after;

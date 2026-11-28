@@ -7,6 +7,8 @@
  * Tastatur (NF-03): Tab durch die Felder, Enter übernimmt, Esc verwirft, Alt+↑/↓ verschiebt die Zeile.
  * Meldungen am Ort (F-214). Logik in workspace/formKit.ts und gpm.ts.
  */
+import { qrSvg } from '../workspace/qr';
+import { appBase, projectLinkUrl } from '../workspace/projectLink';
 import { Fragment, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { FormDef, FormFieldType, Project, Workspace } from '../workspace/types';
@@ -62,7 +64,7 @@ const parseNum = (v: string): number | '' | undefined => {
 const fmtNum = (v: Fk.CellValue, kind: Fk.FieldKind, digits?: number): string => (typeof v !== 'number' ? (v === undefined ? '' : String(v)) : Fk.fmtNumber(v, kind, digits));
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
 
-export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void; inPad?: boolean; openView?: (v: 'psp' | 'gantt' | 'res') => void }) {
+export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void; inPad?: boolean; openView?: (v: 'psp' | 'gantt' | 'res') => void; jump?: { form?: string; row?: string; at: number } }) {
   const tpl = Fk.templateOf(ws, p);
   const [fid, setFidState] = useState(loadForm);
   const form = tpl.forms.find((f) => f.id === fid) ?? tpl.forms[0];
@@ -158,6 +160,12 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
   const msForm = Fk.GPM_D.forms.find((f) => f.id === 'milestones')!;
   const targets = [...Fk.rowsOf(ws, p.id, msForm), ...tasks];
   const recRow = rows.find((r) => r.id === rec) ?? rows[0];
+  // V146 (F-232 P10): Verweis aus dem QR-Code – Kapitel und Eintrag (z. B. 8.3 mit dem Arbeitspaket) zeigen
+  useEffect(() => {
+    if (!jump) return;
+    if (jump.form && tpl.forms.some((f) => f.id === jump.form)) setFid(jump.form);
+    if (jump.row) setRec(jump.row);
+  }, [jump?.at]); // eslint-disable-line react-hooks/exhaustive-deps
   const recAt = recRow ? rows.indexOf(recRow) : -1;
   // V144 (F-238 S6): Unterschriften als Tinte im Bericht – Striche vorab aus dem Gerätespeicher laden (Bericht bleibt synchron, kein Pop-up-Blocker)
   const inkKey = Rp.reportInkRefs(ws, p.id).join('|');
@@ -179,7 +187,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
     };
   }, [inkKey]);
   const openReport = () => {
-    const html = Rp.reportHtml(ws, p.id, { version: APP_VERSION, day: todayDay(), inks });
+    const html = Rp.reportHtml(ws, p.id, { version: APP_VERSION, day: todayDay(), inks, base: appBase() });
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
     const w = window.open(url, '_blank');
     if (w) tell(T.reportOpened);
@@ -454,7 +462,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
   const figureBlock = () => {
     const people = form.figure === 'load' ? loadPersons(ws, p.id) : [];
     const who = people.some((x) => x.id === loadWho) ? loadWho : loadDefault(ws, p.id);
-    const svg = figureSvg(ws, p.id, form.figure, { person: who, row: quadDrag ? mat?.id : recRow?.id, all: eisenAll, done: eisenMode === 'done', inks });
+    const svg = figureSvg(ws, p.id, form.figure, { person: who, row: quadDrag ? mat?.id : recRow?.id, all: eisenAll, done: eisenMode === 'done', inks, base: appBase() });
     const target = form.figure ? FIGURE_VIEW[form.figure] : undefined;
     const editable = !!svg && (svg.includes('data-edit=') || quadDrag);
     return (
@@ -700,7 +708,15 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
         </colgroup>
         <thead>
           <tr>
-            <th colSpan={4} scope="col" className="pjf__sheethead">{form.name}</th>
+            {/* V146 (F-232 P10, Report S. 19): QR-Code oben links – führt zu diesem Arbeitspaket in E-Sources */}
+            {form.source === 'wp' && appBase() ? (
+              <>
+                <td className="pjf__sheetqr" dangerouslySetInnerHTML={{ __html: qrSvg(projectLinkUrl(appBase(), { project: p.id, form: form.id, row: rowId }), 74, T.qrLabel) }} />
+                <th colSpan={3} scope="col" className="pjf__sheethead">{form.name}</th>
+              </>
+            ) : (
+              <th colSpan={4} scope="col" className="pjf__sheethead">{form.name}</th>
+            )}
           </tr>
         </thead>
         <tbody>

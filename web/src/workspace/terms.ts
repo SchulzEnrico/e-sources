@@ -2959,6 +2959,9 @@ export const GANTT_TEXT = {
 };
 
 export const PROJECTS_TEXT = {
+  // V146 (F-232 P10): Verweis aus dem QR-Code eines Blatts
+  linkMissing: 'Der Verweis zeigt auf ein Projekt, das es auf diesem Gerät nicht gibt (Abgleich oder Datei laden).',
+  linkOpened: (name: string) => `Verweis geöffnet: ${name} › Formulare.`,
   // F-235 (V135): Live-Projekt E-Sources
   liveAdd: 'Live-Projekt E-Sources',
   liveUpdate: 'Live-Projekt aktualisieren',
@@ -3815,6 +3818,8 @@ export const FORMS_TEXT = {
   sheetTitle: (f: string, p: string) => `Formular ${f}, Projekt ${p} – Blatt wie im Report`,
   sheetProject: 'Projektname',
   sheetProjectNo: 'Projekt.Nr.',
+  // V146 (F-232 P10): QR-Code wie im Report (S. 19, 24) – Verweis auf das Arbeitspaket bzw. den Bericht in E-Sources
+  qrLabel: 'QR-Code: öffnet dieses Arbeitspaket in E-Sources (Projekt-Modus › Formulare)',
   // V144 (F-238 S6): Unterschriften in 8.3 Arbeitspaketbeschreibung und 12.1 AP-Statusbericht
   release: 'Freigabe',
   signOwner: 'Unterschrift AP-Verantwortlich',

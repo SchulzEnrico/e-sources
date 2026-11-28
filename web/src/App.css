@@ -10253,6 +10253,9 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 .pjf__sheet { border: 2px solid #111; }
 .pjf__sheetL { width: 18%; }
 .pjf__sheet > thead > tr > th.pjf__sheethead { background: linear-gradient(#8c8c8c, #6a6a6a); color: #fff; font-size: 1.9em; font-weight: 700; text-align: center; padding: 12px 8px; border: 1px solid var(--paper-line); }
+/* V146 (F-232 P10): QR-Code oben links wie im Report (S. 19) – weißes Feld, Code bleibt scharf und quadratisch */
+.pjf__sheet > thead > tr > td.pjf__sheetqr { background: #fff; padding: 4px; width: 82px; border: 1px solid var(--paper-line); vertical-align: middle; }
+.pjf__sheetqr svg { display: block; width: 74px; height: 74px; }
 .pjf__sheet > tbody > tr > td { color: var(--paper-red); font-weight: 700; }
 .pjf__sheet > tbody > tr > td :is(input, textarea, select) { color: inherit; font-weight: inherit; }
 .pjf__sheet > tbody > tr > td.is-long, .pjf__sheet > tbody > tr > td.is-lines { color: var(--paper-ink); font-weight: 400; }

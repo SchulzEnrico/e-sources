@@ -15,6 +15,8 @@ import { personById } from './persons';
 import { projectById, rolesOf } from './projects';
 import { titleOf, viewById } from './notes';
 import { matrixEntries, projectMatrix } from './sheets';
+import { qrInner } from './qr';
+import { projectLinkUrl } from './projectLink';
 import type { PortfolioDot } from './gpmCalc';
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -937,10 +939,17 @@ function reportKit(W: number, X: number[]) {
   const cellBg = (x: number, yy: number, w: number, h: number, gray: boolean) => `<rect x="${x}" y="${yy}" width="${w}" height="${h}" fill="${gray ? '#ececec' : '#fff'}" stroke="#9a9a9a" stroke-width="0.7"/>`;
   const txt = (x: number, yy: number, lines: string[], o: { fill?: string; bold?: boolean; size?: number } = {}) =>
     lines.map((l, i) => `<text x="${x}" y="${yy + i * ((o.size ?? 10) + 3)}" font-size="${o.size ?? 10}"${o.bold ? ' font-weight="bold"' : ''} fill="${o.fill ?? LOOK.ink}">${esc(l)}</text>`).join('');
-  const head = (title: string, kw: string) => {
-    parts.push(`<rect x="0" y="0" width="${W}" height="84" fill="url(#fgHead)" stroke="#2a2a2a"/>`);
-    parts.push(`<text x="${W / 2}" y="${kw ? 36 : 50}" text-anchor="middle" font-size="24" font-weight="bold" fill="#fff">${esc(title)}</text>`);
-    if (kw) parts.push(`<text x="${W / 2}" y="68" text-anchor="middle" font-size="22" font-weight="bold" fill="#fff">(Berichtszeitraum ${esc(kw)})</text>`);
+  /** Kopf; mit `qr` (V146, F-232 P10, Report S. 24) rechts ein weißes Feld mit dem QR-Code zum Arbeitspaket –
+   *  Titel rückt in die Mitte der restlichen Breite und wird bei Bedarf kleiner (Texte nie über Feldränder). */
+  const head = (title: string, kw: string, qr?: string) => {
+    const box = qr ? 84 : 0;
+    const room = W - box - 16;
+    const fit = (t: string, size: number) => Math.min(size, Math.floor(room / (Math.max(t.length, 1) * 0.6)));
+    const sub = kw ? `(Berichtszeitraum ${kw})` : '';
+    parts.push(`<rect x="0" y="0" width="${W - box}" height="84" fill="url(#fgHead)" stroke="#2a2a2a"/>`);
+    parts.push(`<text x="${(W - box) / 2}" y="${kw ? 36 : 50}" text-anchor="middle" font-size="${fit(title, 24)}" font-weight="bold" fill="#fff">${esc(title)}</text>`);
+    if (kw) parts.push(`<text x="${(W - box) / 2}" y="68" text-anchor="middle" font-size="${fit(sub, 22)}" font-weight="bold" fill="#fff">${esc(sub)}</text>`);
+    if (qr) parts.push(`<rect x="${W - box}" y="0" width="${box}" height="84" fill="#fff" stroke="#2a2a2a"/>`, qrInner(qr, W - box + 5, 5, 74));
     y = 84;
   };
   const pair = (a: string, av: string, b: string, bv: string) => {
@@ -1042,7 +1051,7 @@ const dOf = (v?: string) => (v ? dmy(v) : '');
 const lightWord = (l?: string) => (l === 'red' ? 'rot' : l === 'yellow' ? 'gelb' : l === 'green' ? 'grün' : 'ohne');
 
 /** Abb. 15: AP-Statusbericht als Blatt – Kopf, Tabelle mit Bezeichnungen grau und Werten rot, Ampel, Kreis „erledigt/offen“. */
-export function wpReportSvg(ws: Workspace, p: Project, rowId: string | undefined, inks?: InkMap): string {
+export function wpReportSvg(ws: Workspace, p: Project, rowId: string | undefined, inks?: InkMap, base?: string): string {
   const list = p.wpReports ?? [];
   const r = list.find((x) => x.id === rowId) ?? list[0];
   if (!r) return '';
@@ -1057,7 +1066,8 @@ export function wpReportSvg(ws: Workspace, p: Project, rowId: string | undefined
   const owner = personById(ws, note?.assignee)?.name ?? '';
   const phase = p.phases?.find((x) => x.id === note?.phase)?.name ?? '';
   const k = reportKit(640, [0, 112, 300, 452, 640]);
-  k.head(`AP Statusbericht zum ${dmy(r.date)}`, kwOf(r.from, r.to));
+  // V146 (F-232 P10): QR-Code wie im Report zur Arbeitskarte – hier die Arbeitspaketbeschreibung (8.3) des Arbeitspakets
+  k.head(`AP Statusbericht zum ${dmy(r.date)}`, kwOf(r.from, r.to), base ? projectLinkUrl(base, { project: p.id, form: 'wp', row: r.wp }) : undefined);
   k.pair('AP Bezeichnung', title, 'AP.Nr. (PSP CODE)', node?.code ?? '');
   // V142 (Report Abb. 15): Projektname mit Untertitel (Ziel aus dem Steckbrief)
   k.pair('Projektname', [p.name, (p.brief?.goal ?? '').split('\n')[0]].filter(Boolean).join(' - '), 'Projekt.Nr.', p.charter?.no ?? '');
@@ -1076,13 +1086,13 @@ export function wpReportSvg(ws: Workspace, p: Project, rowId: string | undefined
 /** V144 (Statusbericht 12 als Blatt): Projekt-Statusbericht im Aussehen von Abb. 15 – Kopf mit Stichtag und Berichtszeitraum,
  *  Projekt, Auftraggeber, Projektleiter, Zeitraum; Ampel und Leistungsfortschritt, darunter Termin- und Kostenfortschritt;
  *  Aufwand und Kosten (Plan, Ist, Rest), Aktivitäten, nächste Schritte, Steuerungsmaßnahmen, Bemerkung, Ort und Unterschrift. */
-export function statusReportSvg(ws: Workspace, p: Project, rowId: string | undefined, inks?: InkMap): string {
+export function statusReportSvg(ws: Workspace, p: Project, rowId: string | undefined, inks?: InkMap, base?: string): string {
   const list = p.reports ?? [];
   const r = list.find((x) => x.id === rowId) ?? list[list.length - 1];
   if (!r) return '';
   const lead = personById(ws, rolesOf(p).find((x) => x.id === 'lead')?.person)?.name ?? '';
   const k = reportKit(640, [0, 112, 300, 452, 640]);
-  k.head(`Statusbericht zum ${dmy(r.date)}`, kwOf(r.from, r.to));
+  k.head(`Statusbericht zum ${dmy(r.date)}`, kwOf(r.from, r.to), base ? projectLinkUrl(base, { project: p.id, form: 'reports', row: r.id }) : undefined);
   k.pair('Projektname', [p.name, (p.brief?.goal ?? '').split('\n')[0]].filter(Boolean).join(' - '), 'Projekt.Nr.', p.charter?.no ?? '');
   k.pair('Auftraggeber', p.charter?.client ?? '', 'Projektleiter', lead);
   k.pair('Projektzeitraum', [dOf(p.start), dOf(p.end)].filter(Boolean).join(' – '), 'Berichtszeitraum', [dOf(r.from), dOf(r.to)].filter(Boolean).join(' – '));
@@ -1367,7 +1377,7 @@ export function squareSvg(p: Project, rowId: string | undefined): string {
 /** Kennung der Grafik eines Formulars (FormDef.figure). */
 export type FigureKind = 'goalTree' | 'org' | 'phasePlan' | 'psp' | 'gantt' | 'load' | 'wpReport' | 'statusReport' | 'belbin' | 'eisenhower' | 'square';
 /** Grafik eines Formulars mit Layout `figure` (leer, wenn noch nichts zu zeichnen ist). */
-export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefined, o: { person?: string; row?: string; day?: string; all?: boolean; done?: boolean; inks?: InkMap } = {}): string {
+export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefined, o: { person?: string; row?: string; day?: string; all?: boolean; done?: boolean; inks?: InkMap; base?: string } = {}): string {
   const p = projectById(ws, pid);
   if (!p || !kind) return '';
   switch (kind) {
@@ -1384,9 +1394,9 @@ export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefin
     case 'load':
       return loadSvg(ws, pid, o.person || loadDefault(ws, pid));
     case 'wpReport':
-      return wpReportSvg(ws, p, o.row, o.inks);
+      return wpReportSvg(ws, p, o.row, o.inks, o.base);
     case 'statusReport':
-      return statusReportSvg(ws, p, o.row, o.inks);
+      return statusReportSvg(ws, p, o.row, o.inks, o.base);
     case 'belbin':
       return belbinSvg(ws, p, o.row);
     case 'eisenhower':

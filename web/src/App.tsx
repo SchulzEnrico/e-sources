@@ -58,6 +58,7 @@ import { Help } from './components/Help';
 import { Tour } from './components/Tour';
 import { ProjectCockpit, shownProjectId } from './components/ProjectCockpit';
 import { STEER_EVENT } from './components/ProjectSteer';
+import { holdProjectLink, parseProjectLink, withoutProjectLink } from './workspace/projectLink';
 import { DECISION_EVENT } from './components/ProjectDecisions';
 import { DECISION_TEXT, DESK_PROJECT_TEXT, EXCHANGE_TEXT, LAYOUT_UNDO_TEXT, OVERFLOW_TEXT } from './workspace/terms';
 import { useOverflow } from './components/Overflow';
@@ -1440,6 +1441,14 @@ function DeskApp(props: DeskProps) {
     window.addEventListener(STEER_EVENT, on);
     return () => window.removeEventListener(STEER_EVENT, on);
   }, [projectsMode, notesOff]); // eslint-disable-line react-hooks/exhaustive-deps
+  // V146 (F-232 P10): Adresse aus dem QR-Code eines Blatts (?projekt=…&blatt=…&zeile=…) – einmal beim Start in den Projekt-Modus
+  useEffect(() => {
+    const l = parseProjectLink(window.location.search);
+    if (!l) return;
+    window.history.replaceState(window.history.state, '', withoutProjectLink(window.location.href));
+    holdProjectLink(l);
+    window.dispatchEvent(new CustomEvent(STEER_EVENT));
+  }, []);
   // V81 (D12): im Notizen-Modus gibt es kein Dock – dort zählen alle Pads, auch die aus dem Dock
   const allPads = padsOn(ws, win);
   useEffect(() => {

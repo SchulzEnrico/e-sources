@@ -27,6 +27,7 @@ import { ProjectKanban } from './ProjectKanban';
 import { ProjectDecisions } from './ProjectDecisions';
 import { ProjectFeedback } from './ProjectFeedback';
 import { ProjectSteer, STEER_EVENT, takeSteer } from './ProjectSteer';
+import { takeProjectLink } from '../workspace/projectLink';
 import { ProjectForms } from './ProjectForms';
 import { ProjectCalendar } from './ProjectCalendar';
 import { useExchange, type ImportMsg } from './ProjectExchange';
@@ -113,8 +114,23 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
   }, []);
   // V107 (F-225 P8, R7): „Öffnen“ an der Karte einer Meldung zeigt das Risiko bzw. die Änderung
   const [steerFocus, setSteerFocus] = useState<string | undefined>(undefined);
+  // V146 (F-232 P10): QR-Code bzw. Verweis eines Blatts (?projekt=…&blatt=…&zeile=…) – Projekt, Ansicht „Formulare“, Kapitel und Eintrag
+  const [jump, setJump] = useState<{ form?: string; row?: string; at: number } | undefined>(undefined);
   useEffect(() => {
     const on = () => {
+      const l = takeProjectLink();
+      if (l) {
+        const p = allList.find((x) => x.id === l.project);
+        if (!p) {
+          tell(T.linkMissing);
+          return;
+        }
+        setSel(p.id);
+        setViewState('forms');
+        setJump({ form: l.form, row: l.row, at: Date.now() });
+        tell(T.linkOpened(p.name));
+        return;
+      }
       const t = takeSteer();
       if (!t) return;
       setSel(t.project);
@@ -499,7 +515,7 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
           {view === 'risks' || view === 'changes' ? (
             <ProjectSteer key={`${shown.id}-${view}`} ws={ws} p={shown} kind={view === 'risks' ? 'risk' : 'change'} dispatch={dispatch} say={say} focus={steerFocus} />
           ) : view === 'forms' ? (
-            <ProjectForms key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} openView={(v) => setView(v)} />
+            <ProjectForms key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} openView={(v) => setView(v)} jump={jump} />
           ) : view === 'feedback' ? (
             <ProjectFeedback key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} />
           ) : view === 'decide' ? (

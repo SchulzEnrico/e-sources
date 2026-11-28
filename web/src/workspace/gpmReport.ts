@@ -5,6 +5,8 @@
  * Kostenganglinie mit Summenlinie (ICB4 4.5.7), Umfeld- und Stakeholder-Portfolio (ICB4 4.5.12) – dieselben
  * Bausteine zeigt die Oberfläche (ProjectForms). Reine Funktionen; Tests in gpm.test.ts („Stufe 2“).
  */
+import { qrSvg } from './qr';
+import { projectLinkUrl } from './projectLink';
 import type { FormDef, Project, Workspace } from './types';
 import * as Fk from './formKit';
 import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf, projectStatus, type CostCurve, type EvCurve, type Mta, type PortfolioDot } from './gpmCalc';
@@ -417,7 +419,7 @@ export function signRowHtml(signs: ReportSign[], inks?: ReadonlyMap<string, stri
   return `<tr class="release"><th scope="row">Freigabe</th><td><div class="signs">${signs.map(one).join('')}</div></td></tr>`;
 }
 
-export function reportHtml(ws: Workspace, pid: string, o: { version?: string; day: string; inks?: ReadonlyMap<string, string> }): string {
+export function reportHtml(ws: Workspace, pid: string, o: { version?: string; day: string; inks?: ReadonlyMap<string, string>; base?: string }): string {
   const p = projectById(ws, pid);
   if (!p) return '';
   const tpl = Fk.templateOf(ws, p);
@@ -429,8 +431,9 @@ export function reportHtml(ws: Workspace, pid: string, o: { version?: string; da
 @page { size: A4; margin: 22mm 16mm 20mm;
   @top-left { content: "${cssText(head)}"; font: 9pt sans-serif; color: #555; }
   @top-right { content: "${cssText(tpl.name)}"; font: 9pt sans-serif; color: #555; }
-  @bottom-left { content: "${cssText([no, o.version ? `Version ${o.version}` : '', `Stand ${dmy(o.day)}`].filter(Boolean).join(' · '))}"; font: 9pt sans-serif; color: #555; }
-  @bottom-right { content: "Seite " counter(page) " von " counter(pages); font: 9pt sans-serif; color: #555; } }
+  @bottom-left { content: "${cssText([`Projektbericht ${no || p.name}`, `Stand ${dmy(o.day)}`].join(' · '))}"; font: 9pt sans-serif; color: #888; }
+  @bottom-center { content: "${cssText(`Version ${docVersion(p) ?? o.version ?? '1'}`)}"; font: 9pt sans-serif; color: #888; }
+  @bottom-right { content: "Seite " counter(page) " von " counter(pages); font: 9pt sans-serif; color: #888; } }
 body { font: 10.5pt/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1b1b1b; margin: 0; }
 h1 { font-size: 20pt; margin: 0 0 4pt; } h2 { font-size: 13pt; margin: 18pt 0 6pt; border-bottom: 1px solid #999; padding-bottom: 2pt; break-after: avoid; }
 h3 { font-size: 11pt; margin: 10pt 0 4pt; break-after: avoid; }
@@ -443,6 +446,8 @@ table.kv th { width: 34%; } .empty { color: #777; font-style: italic; } .cover {
 .sum td { font-weight: bold; }
 .signs { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12pt; } .sign { display: flex; flex-direction: column; justify-content: flex-end; min-height: 40pt; }
 .sign__ink { height: 34pt; width: auto; align-self: flex-start; } .sign__name { font: 16pt "Segoe Script", "Brush Script MT", "Snell Roundhand", cursive; color: #1b2f8a; }
+table.sheethead { margin: 0; border: 2px solid #111; border-bottom: 0; } table.sheethead td.sheethead__qr { width: 80pt; padding: 3pt; background: #fff; } table.sheethead svg { display: block; width: 74pt; height: 74pt; }
+table.sheethead th { background: #8a8a8a; color: #fff; font-size: 22pt; vertical-align: middle; padding-left: 12pt; }
 .sign__who { font-size: 8.5pt; } .sign__line { border-top: 1px solid #999; font-size: 8pt; color: #555; padding-top: 1pt; } tr.release td { white-space: normal; } figure { margin: 6pt 0; break-inside: avoid; }
 @media screen { body { max-width: 900px; margin: 24px auto; padding: 0 16px; } .bar { position: sticky; top: 0; background: #fff; padding: 8px 0; border-bottom: 1px solid #ddd; } }
 @media print { .bar { display: none; } }
@@ -461,22 +466,28 @@ table.kv th { width: 34%; } .empty { color: #777; font-style: italic; } .cover {
   out.push(`</tbody></table><h2>Inhalt</h2><ol>`);
   for (const f of tpl.forms) out.push(`<li><a href="#f-${esc(f.id)}">${esc(`${f.chapter} ${f.name}`)}</a></li>`);
   out.push(`</ol></div>`);
-  for (const f of tpl.forms) out.push(formSection(ws, p, f, o.inks));
+  for (const f of tpl.forms) out.push(formSection(ws, p, f, o.inks, o.base));
   // F-234 D7 (V137): Kapitel als Anlage einreihen (z. B. Zentraltabelle der Kosten)
   for (const a of p.annexes ?? []) {
     const f = a.form ? tpl.forms.find((x) => x.id === a.form) : undefined;
     if (!f) continue;
-    out.push(formSection(ws, p, f, o.inks).replace(/<h2>[\s\S]*?<\/h2>/, `<h2>${esc(`${a.code ? `${a.code}: ` : ''}${a.title}`)} <span class="icb">${esc(`${f.chapter} ${f.name}`)}</span></h2>`).replace(/id="f-[^"]*"/, `id="a-${esc(a.id)}"`));
+    out.push(formSection(ws, p, f, o.inks, o.base).replace(/<h2>[\s\S]*?<\/h2>/, `<h2>${esc(`${a.code ? `${a.code}: ` : ''}${a.title}`)} <span class="icb">${esc(`${f.chapter} ${f.name}`)}</span></h2>`).replace(/id="f-[^"]*"/, `id="a-${esc(a.id)}"`));
   }
   out.push(`</body></html>`);
   return out.join('\n');
+}
+/** V146 (F-232 P10): Version in der Fußzeile wie im Report („Version 1“) – aus 6.4 Dokumentation der Eintrag „Projektbericht“
+ *  bzw. „Report“ (Titel oder Art), sonst die Version von E-Sources. */
+export function docVersion(p: Project): string | undefined {
+  const d = (p.docs ?? []).find((x) => /projektbericht|report/i.test(`${x.title} ${x.kind ?? ''}`) && x.version?.trim());
+  return d?.version?.trim().replace(/^v(ersion)?\s*/i, '') || undefined;
 }
 const cssText = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ');
 
 /** Datumsfelder, die in der Freigabe-Zeile unter der Unterschrift stehen (nicht doppelt als eigene Zeile). */
 const SIGN_DATES = new Set(['charter:releaseAg', 'charter:releasePl', 'wp:releasePl', 'wp:releaseOwner']);
 
-function formSection(ws: Workspace, p: Project, f: FormDef, inks?: ReadonlyMap<string, string>): string {
+function formSection(ws: Workspace, p: Project, f: FormDef, inks?: ReadonlyMap<string, string>, base?: string): string {
   const cols = Fk.columnsOf(p, f);
   const rows = Fk.rowsOf(ws, p.id, f);
   const wide = Fk.isWideForm(f, cols.length);
@@ -501,9 +512,11 @@ function formSection(ws: Workspace, p: Project, f: FormDef, inks?: ReadonlyMap<s
         : f.source === 'messages' ? val(r.id, cols.find((c) => c.key === 'topic') ?? cols[0])
         : [val(r.id, cols.find((c) => c.key === 'code') ?? cols[0]), val(r.id, cols.find((c) => c.key === 'title') ?? cols[0])].filter(Boolean).join(' ');
       out.push(`<h3>${esc(title)}</h3>`);
+      // V146 (F-232 P10, Report S. 19): Kopf der Arbeitspaketbeschreibung mit QR-Code links (Verweis auf das Arbeitspaket)
+      if (f.source === 'wp' && base) out.push(`<table class="sheethead"><tbody><tr><td class="sheethead__qr"><a href="${esc(projectLinkUrl(base, { project: p.id, form: f.id, row: r.id }))}">${qrSvg(projectLinkUrl(base, { project: p.id, form: f.id, row: r.id }), 74, `QR-Code: ${title} in E-Sources öffnen`)}</a></td><th scope="col">${esc(f.name)}</th></tr></tbody></table>`);
       // F-234 (V137): Blatt wie im Report (AP-Statusbericht, Teamrollen, Nachrichtenquadrat) vor den Feldern
       if (f.figure) {
-        const svg = figureSvg(ws, p.id, f.figure, { row: r.id, inks });
+        const svg = figureSvg(ws, p.id, f.figure, { row: r.id, inks, base });
         if (svg) out.push(`<figure>${svg}<figcaption class="meta">Abbildung: ${esc(`${f.name} – ${title}`)}</figcaption></figure>`);
       }
       out.push(`<table class="kv"><tbody>${cols.filter((c) => c.key !== 'code' && c.key !== 'title' && !SIGN_DATES.has(`${f.source}:${c.key}`)).map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r.id, c))}</td></tr>`).join('')}${signRowHtml(reportSigns(ws, p, f, r.id), inks)}</tbody></table>`);

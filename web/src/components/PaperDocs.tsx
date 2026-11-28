@@ -78,7 +78,7 @@ function useFieldMsg(say: (t: string) => void) {
         {msg.undo && (
           <>
             {' '}
-            <button type="button" className="note__undo paper__undo" onClick={() => (msg.undo!(), setMsg(null))}>
+            <button type="button" className="note__undo paper__undo" onClick={() => { const u = msg.undo!; setMsg(null); u(); }}>
               {T.undo}
             </button>
           </>
@@ -316,7 +316,9 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
     dispatch({ type: 'dc', id: d.id, o: { op: 'critRemove', c: c.id }, at: new Date().toISOString() });
     tell('addCrit', T.removedCrit(c.name), () => {
       dispatch({ type: 'dc', id: d.id, o: { op: 'back', prev }, at: new Date().toISOString() });
-      say(T.undone(c.name));
+      // V152: Bestätigung am Ort statt nur als Ansage; Fokus auf den Namen der wiederhergestellten Zeile
+      tell('addCrit', T.undone(c.name));
+      setTimeout(() => (document.getElementById(`paper-crit-${c.id}`) as HTMLElement | null)?.focus(), 60);
     });
   };
   const removeOpt = (o: { id: string; name: string }) => {
@@ -324,7 +326,9 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
     dispatch({ type: 'dc', id: d.id, o: { op: 'optRemove', o: o.id }, at: new Date().toISOString() });
     tell('addOpt', T.removedOpt(o.name), () => {
       dispatch({ type: 'dc', id: d.id, o: { op: 'back', prev }, at: new Date().toISOString() });
-      say(T.undone(o.name));
+      // V152: Bestätigung am Ort statt nur als Ansage; Fokus auf den Namen der wiederhergestellten Zeile
+      tell('addOpt', T.undone(o.name));
+      setTimeout(() => (document.getElementById(`paper-opt-${o.id}`) as HTMLElement | null)?.focus(), 60);
     });
   };
   const setMust = (c: { id: string; name: string }, must: boolean) => {

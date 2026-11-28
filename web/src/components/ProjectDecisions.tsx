@@ -24,6 +24,7 @@ import { ModeWheel } from './ModeWheel';
 import { DecisionLinks } from './DecisionLinks';
 import { DecisionSheet, ShapeWheel, useShape } from './PaperDocs';
 import { DOC_SHEET_TEXT as DS } from '../workspace/terms';
+import { noticeLater } from '../workspace/flash';
 
 type Step = 'crit' | 'pair' | 'score' | 'result';
 const STEPS: Step[] = ['crit', 'pair', 'score', 'result'];
@@ -313,6 +314,21 @@ const readPoints = () => {
 function CritStep({ d, lock, op, say }: { d: Decision; lock: boolean; op: OpFn; say: (t: string) => void }) {
   const drag = useRowDrag('crit', lock, (c, to) => (op({ op: 'critMove', c, to }), say(T.moved(d.criteria.find((x) => x.id === c)?.name ?? '', to + 1))));
   const sum = Dc.weightSum({ ...d, criteria: d.criteria.filter((c) => !c.must) });
+  // V152 (NF-08, wie Blatt V151): Muss aus → Gewicht mit dem Rest bis 100 % vorbelegen, Meldung im Gewichtsfeld, Fokus dorthin
+  const [note, setNote] = useState<{ c: string; text: string } | null>(null);
+  const noteTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(noteTimer.current), []);
+  const setMust = (c: { id: string; name: string }, must: boolean) => {
+    op({ op: 'critMust', c: c.id, must });
+    const rest = must ? null : Dc.restWeight(d, c.id);
+    if (rest !== null) op({ op: 'critWeight', c: c.id, weight: rest });
+    const text = must ? DS.mustOnSaid(c.name) : rest !== null ? DS.mustOffRest(c.name, de(rest)) : DS.mustOffSaid(c.name);
+    window.clearTimeout(noteTimer.current);
+    setNote({ c: c.id, text });
+    say(text);
+    noteTimer.current = noticeLater(() => setNote(null));
+    if (!must) setTimeout(() => (document.querySelector(`[data-tool-weight="${c.id}"]`) as HTMLInputElement | null)?.focus(), 60);
+  };
   return (
     <>
       <table className="pc__table dc__table">
@@ -337,11 +353,12 @@ function CritStep({ d, lock, op, say }: { d: Decision; lock: boolean; op: OpFn; 
                 {c.must ? (
                   <span className="lc__muted">–</span>
                 ) : (
-                  <input key={`w-${c.weight}`} type="text" inputMode="decimal" aria-label={`${T.colWeight}: ${c.name}`} defaultValue={c.weight === undefined ? '' : de(c.weight)} disabled={lock} onBlur={(e) => num(e.target.value) !== (c.weight ?? null) && op({ op: 'critWeight', c: c.id, weight: num(e.target.value) })} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
+                  <input key={`w-${c.weight}`} data-tool-weight={c.id} type="text" inputMode="decimal" aria-label={`${T.colWeight}: ${c.name}`} defaultValue={c.weight === undefined ? '' : de(c.weight)} disabled={lock} onBlur={(e) => num(e.target.value) !== (c.weight ?? null) && op({ op: 'critWeight', c: c.id, weight: num(e.target.value) })} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
                 )}
+                {note?.c === c.id && <span className="fbc__saved dc__note" role="status">{note.text}</span>}
               </td>
               <td>
-                <input type="checkbox" aria-label={`${T.colMust}: ${c.name}`} title={T.colMustHint} checked={!!c.must} disabled={lock} onChange={(e) => op({ op: 'critMust', c: c.id, must: e.target.checked })} />
+                <input type="checkbox" aria-label={`${T.colMust}: ${c.name}`} title={T.colMustHint} checked={!!c.must} disabled={lock} onChange={(e) => setMust(c, e.target.checked)} />
               </td>
               <td>
                 <input type="text" aria-label={`${T.colHint}: ${c.name}`} defaultValue={c.hint ?? ''} placeholder={T.colHintPh} disabled={lock} onBlur={(e) => e.target.value.trim() !== (c.hint ?? '') && op({ op: 'critHint', c: c.id, hint: e.target.value })} />

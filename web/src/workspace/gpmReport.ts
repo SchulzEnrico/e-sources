@@ -342,7 +342,14 @@ export function signRowHtml(signs: ReportSign[], inks?: ReadonlyMap<string, stri
   return `<tr class="release"><th scope="row">Freigabe</th><td><div class="signs">${signs.map(one).join('')}</div></td></tr>`;
 }
 
-export function reportHtml(ws: Workspace, pid: string, o: { version?: string; day: string; inks?: ReadonlyMap<string, string>; base?: string }): string {
+/** V152: Bild-Schlüssel der Meldungen am Projekt (Anlage A) – zum Vorladen aus dem Gerätespeicher. */
+export function reportPicRefs(ws: Workspace, pid: string): string[] {
+  return Fb.feedbackOf(ws)
+    .filter((f) => f.project === pid)
+    .flatMap((f) => f.pics ?? []);
+}
+
+export function reportHtml(ws: Workspace, pid: string, o: { version?: string; day: string; inks?: ReadonlyMap<string, string>; base?: string; pics?: ReadonlyMap<string, string> }): string {
   const p = projectById(ws, pid);
   if (!p) return '';
   const tpl = Fk.templateOf(ws, p);
@@ -363,7 +370,7 @@ h3 { font-size: 11pt; margin: 10pt 0 4pt; break-after: avoid; }
 .meta { color: #555; margin: 0 0 12pt; } .icb { color: #666; font-weight: normal; font-size: 9pt; }
 table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt; font-size: 9pt; table-layout: fixed; } th, td { border: 1px solid #bbb; padding: 3pt 4pt; vertical-align: top; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; hyphens: auto; }
 @page wide { size: A4 landscape; margin: 18mm 14mm 16mm; }
-section.wide { page: wide; } #an-fb, #an-dc { break-before: page; } .annex__item { break-before: page; break-inside: avoid; } h2 + .annex__item { break-before: auto; } tr.annex__sec th { background: #d9d9d9; } section.wide table { font-size: 8pt; }
+section.wide { page: wide; } #an-fb, #an-dc { break-before: page; } .annex__item { break-before: page; break-inside: avoid; } h2 + .annex__item { break-before: auto; } tr.annex__sec th { background: #d9d9d9; } .annex__pics { display: flex; flex-wrap: wrap; gap: 6px; } .annex__pics figure { margin: 0; break-inside: avoid; } .annex__pics img { display: block; max-width: 100%; max-height: 8cm; border: 1px solid #bbb; } .annex__pics figcaption { font-size: 8pt; color: #555; } section.wide table { font-size: 8pt; }
 th { background: #eee; } thead { display: table-header-group; } tr { break-inside: avoid; }
 table.kv th { width: 34%; } .empty { color: #777; font-style: italic; } .cover { break-after: page; } section { break-inside: auto; }
 .sum td { font-weight: bold; }
@@ -388,7 +395,7 @@ table.charter > tbody > tr > th { width: 26%; } table.charter td.sub { padding: 
   kv('Vorlage', tpl.name);
   out.push(`</tbody></table><h2>Inhalt</h2><ol>`);
   for (const f of tpl.forms) out.push(`<li><a href="#f-${esc(f.id)}">${esc(`${f.chapter} ${f.name}`)}</a></li>`);
-  const annex = annexSheets(ws, p);
+  const annex = annexSheets(ws, p, o.pics);
   for (const a of annex.toc) out.push(`<li><a href="#${a.id}">${esc(a.name)}</a></li>`);
   out.push(`</ol></div>`);
   for (const f of tpl.forms) out.push(formSection(ws, p, f, o.inks, o.base));
@@ -605,7 +612,7 @@ const dmyIso = (iso?: string) => (iso ? iso.slice(0, 10).split('-').reverse().jo
 
 /** V149 (F-232 P9): Anlagen des Berichts – Blätter „Problemstellung“ (Meldungen am Projekt) und
  *  „Entscheidungsvorlage“ (Nutzwertanalysen am Projekt) in der Anordnung der Blätter am Bildschirm. */
-export function annexSheets(ws: Workspace, p: Project): { toc: { id: string; name: string }[]; html: string } {
+export function annexSheets(ws: Workspace, p: Project, pics?: ReadonlyMap<string, string>): { toc: { id: string; name: string }[]; html: string } {
   const fbs = Fb.feedbackOf(ws).filter((f) => f.project === p.id).sort((a, b) => a.at.localeCompare(b.at));
   const dcs = Dc.decisionsOf(ws).filter((d) => d.projectId === p.id).sort((a, b) => a.at.localeCompare(b.at));
   const toc: { id: string; name: string }[] = [];
@@ -636,7 +643,14 @@ export function annexSheets(ws: Workspace, p: Project): { toc: { id: string; nam
           rows.push(row(r.label, esc(String(v))));
         }
       }
-      if (f.pics?.length) rows.push(sec('Bilder'), row('Bilder', esc(`${f.pics.length} ${f.pics.length === 1 ? 'Bild' : 'Bilder'} (im Gerät gespeichert)`)));
+      // V152 (kleiner Punkt V149): Bilder eingebettet (vorab als Daten-URL geladen); was fehlt, steht als Anzahl da
+      if (f.pics?.length) {
+        const shown = f.pics.map((r, k) => ({ url: pics?.get(r), k })).filter((x): x is { url: string; k: number } => !!x.url && x.url.startsWith('data:image/'));
+        const rest = f.pics.length - shown.length;
+        const figs = shown.map((x) => `<figure><img src="${esc(x.url)}" alt="${esc(`Bild ${x.k + 1} zu „${f.title}“`)}"><figcaption>${esc(`Bild ${x.k + 1}`)}</figcaption></figure>`).join('');
+        const note = rest ? `<p>${esc(`${rest} ${rest === 1 ? 'Bild' : 'Bilder'} nur im Gerät gespeichert`)}</p>` : '';
+        rows.push(sec('Bilder'), row('Bilder', `${figs ? `<div class="annex__pics">${figs}</div>` : ''}${note}`));
+      }
       if (f.marks?.length) {
         rows.push(sec('Spur'));
         rows.push(row('Spur', `<ol>${f.marks.map((m) => `<li>${esc(`${dmyIso(m.at)} · ${m.text}${m.by ? ` (${m.by})` : ''}`)}</li>`).join('')}</ol>`));

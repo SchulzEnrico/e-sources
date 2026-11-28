@@ -18,6 +18,7 @@ import { newId } from '../workspace/workspace';
 import { FORMS_TEXT as T, INK_TEXT as T_INK, PSP_TEXT } from '../workspace/terms';
 import { InkSign } from './InkChips';
 import { INK_EVENT, getInk } from '../workspace/inkStore';
+import { PIC_EVENT, getPic } from '../workspace/imageStore';
 import { inkSvg } from '../workspace/ink';
 import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
@@ -189,8 +190,34 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump }: { 
       window.removeEventListener(INK_EVENT, load);
     };
   }, [inkKey]);
+  // V152: Bilder der Meldungen (Anlage A) ebenso vorab laden – als Daten-URL, damit der Bericht in sich geschlossen bleibt
+  const picKey = Rp.reportPicRefs(ws, p.id).join('|');
+  const [pics, setPics] = useState<Map<string, string>>(() => new Map());
+  useEffect(() => {
+    let live = true;
+    const asUrl = (b: Blob) =>
+      new Promise<string | null>((ok) => {
+        const r = new FileReader();
+        r.onload = () => ok(typeof r.result === 'string' ? r.result : null);
+        r.onerror = () => ok(null);
+        r.readAsDataURL(b);
+      });
+    const load = () =>
+      void Promise.all(picKey.split('|').filter(Boolean).map(async (ref) => [ref, await getPic(ref).then((x) => (x ? asUrl(x.blob) : null), () => null)] as const)).then((all) => {
+        if (!live) return;
+        const m = new Map<string, string>();
+        for (const [ref, url] of all) if (url) m.set(ref, url);
+        setPics(m);
+      });
+    load();
+    window.addEventListener(PIC_EVENT, load);
+    return () => {
+      live = false;
+      window.removeEventListener(PIC_EVENT, load);
+    };
+  }, [picKey]);
   const openReport = () => {
-    const html = Rp.reportHtml(ws, p.id, { version: APP_VERSION, day: todayDay(), inks, base: appBase() });
+    const html = Rp.reportHtml(ws, p.id, { version: APP_VERSION, day: todayDay(), inks, base: appBase(), pics });
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
     const w = window.open(url, '_blank');
     if (w) tell(T.reportOpened);

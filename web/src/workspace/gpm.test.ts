@@ -1380,3 +1380,22 @@ describe('V149 F-232 P9: Problemstellungen und Entscheidungsvorlagen als Anlage 
     expect(b).toContain('Lösung 1');
   });
 });
+describe('V152: Bilder der Meldungen in Anlage A', () => {
+  it('eingebettet, wenn vorgeladen; sonst als Anzahl; nur Bild-Daten-URLs', async () => {
+    const S = await import('./sampleProject');
+    const R = await import('./gpmReport');
+    const Fb = await import('./feedback');
+    let ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    ws = Fb.addFeedback(ws, { kind: 'bug', title: 'Kabine', project: S.SAMPLE_PROJECT, what: 'zu klein' }, { id: 'fb1', now: new Date('2026-11-02T10:00:00Z') })!.ws;
+    ws = Fb.editFeedback(ws, 'fb1', { pics: ['p1', 'p2', 'p3'] });
+    expect(R.reportPicRefs(ws, S.SAMPLE_PROJECT)).toEqual(['p1', 'p2', 'p3']);
+    const pics = new Map([['p1', 'data:image/jpeg;base64,AAAA'], ['p3', 'javascript:alert(1)']]);
+    const a = R.reportHtml(ws, S.SAMPLE_PROJECT, { day: '2026-12-01', pics }).split('id="an-fb"')[1];
+    expect(a).toContain('<img src="data:image/jpeg;base64,AAAA" alt="Bild 1 zu „Kabine“">');
+    expect(a).not.toContain('javascript:');
+    expect(a).toContain('2 Bilder nur im Gerät gespeichert');
+    const none = R.reportHtml(ws, S.SAMPLE_PROJECT, { day: '2026-12-01' }).split('id="an-fb"')[1];
+    expect(none).toContain('3 Bilder nur im Gerät gespeichert');
+    expect(none).not.toContain('annex__pics">');
+  });
+});

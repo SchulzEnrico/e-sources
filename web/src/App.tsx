@@ -35,7 +35,7 @@ import {
 } from './workspace/screen';
 import * as T from './workspace/tree';
 import type { Bookmark, PanelMeta, Slot } from './workspace/types';
-import { loadSyncMeta, saveSyncMeta, storeImported } from './workspace/storage';
+import { loadSyncMeta, mayStore, saveSyncMeta, storeImported } from './workspace/storage';
 import { FILE_NAME, deviceLabel, needsConfirm, readTransferFile, toTransferFile } from './workspace/transfer';
 import { type Action, padOpenResult, useWorkspace } from './workspace/useWorkspace';
 import type { Workspace } from './workspace/types';
@@ -5111,6 +5111,9 @@ export default function App(props: { sent?: string }) {
   const wsNow = useRef(ws);
   wsNow.current = ws;
   useEffect(() => {
+    // V157: nie in der Testbelegung (?test=voll/slot) oder eingebettet – deren Arbeitsfläche kennt die echten
+    // Medien nicht, der Gerätespeicher ist aber derselbe; sonst würden echte Bilder, Töne und Tinte gelöscht.
+    if (!mayStore()) return;
     const t = window.setTimeout(() => (void sweepClips(audioRefs(wsNow.current)), void sweepPics(imageRefs(wsNow.current)), void sweepInk(inkRefs(wsNow.current))), 30000);
     return () => window.clearTimeout(t);
   }, []);

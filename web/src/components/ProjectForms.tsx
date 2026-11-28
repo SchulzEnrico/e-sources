@@ -1270,6 +1270,8 @@ function ToneRow({ p, fig, k, base, name, run, setNote }: { p: Project; fig: str
     timer.current = window.setTimeout(() => (setDraft(null), commit(v)), 400);
   };
   const id = `fgtone-${k.replace(/[^\w-]/g, '')}`;
+  // V157: Knopf verschwindet bzw. wird gesperrt – Fokus bleibt am Ort (Farbfeld) statt auf den Seitenanfang zu springen
+  const refocus = () => window.setTimeout(() => document.getElementById(id)?.focus(), 0);
   return (
     <tr className={own ? 'is-differs' : undefined}>
       <th scope="row"><label htmlFor={id}>{T.figTone}</label></th>
@@ -1297,9 +1299,9 @@ function ToneRow({ p, fig, k, base, name, run, setNote }: { p: Project; fig: str
           }}
         />
         <span className={own ? 'lay__mark' : 'lc__muted'}>{own ? `● ${T.figToneDiffers}` : T.figToneRule}</span>
-        <button type="button" className="lay__reset" disabled={!own} title={T.figToneResetHint} onClick={() => commit(null)}>↺ {T.figToneReset}</button>
+        <button type="button" className="lay__reset" disabled={!own} title={T.figToneResetHint} onClick={() => (commit(null), refocus())}>↺ {T.figToneReset}</button>
         {undo !== null && (
-          <button type="button" className="fmedia__undo" onClick={() => (run({ op: 'figTone', pid: p.id, fig, key: k, color: undo || null, at: Date.now() }), setUndo(null), setNote(undo ? T.figToneSaved : T.figToneBack))}>
+          <button type="button" className="fmedia__undo" onClick={() => (run({ op: 'figTone', pid: p.id, fig, key: k, color: undo || null, at: Date.now() }), setUndo(null), setNote(undo ? T.figToneSaved : T.figToneBack), refocus())}>
             {T.figToneUndo}
           </button>
         )}

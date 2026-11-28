@@ -135,6 +135,9 @@ function MediaItem({ m, onRemove }: { m: FieldMedia; onRemove: () => void }) {
  */
 export function useFieldMedia({ label, media, onChange, say }: { label: string; media: FieldMedia[]; onChange: (m: FieldMedia[]) => void; say?: (t: string) => void }) {
   const input = useRef<HTMLInputElement>(null);
+  // V157: ✕ und Rückgängig verschwinden nach dem Klick – Fokus bleibt am Feld (Rückgängig bzw. „Medien“)
+  const undoBtn = useRef<HTMLButtonElement>(null);
+  const addBtn = useRef<HTMLButtonElement>(null);
   const [msg, setMsg] = useState<{ text: string; undo?: FieldMedia[] } | null>(null);
   const timer = useRef(0);
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -162,13 +165,14 @@ export function useFieldMedia({ label, media, onChange, say }: { label: string; 
                 const before = media;
                 onChange(media.filter((x) => x.id !== m.id));
                 tell(T.removed(m.name), before);
+                window.setTimeout(() => (undoBtn.current ?? addBtn.current)?.focus(), 0);
               }}
             />
           ))}
         </ul>
       )}
       <span className="fmedia__bar">
-        <button type="button" className="fmedia__add" onClick={() => input.current?.click()} title={T.addHint(label)} aria-label={`${T.add}: ${label}`}>
+        <button ref={addBtn} type="button" className="fmedia__add" onClick={() => input.current?.click()} title={T.addHint(label)} aria-label={`${T.add}: ${label}`}>
           <Icon name="clip" size={12} /> {T.add}
         </button>
         <input
@@ -189,7 +193,7 @@ export function useFieldMedia({ label, media, onChange, say }: { label: string; 
             {msg.undo && (
               <>
                 {' '}
-                <button type="button" className="fmedia__undo" onClick={() => (onChange(msg.undo!), setMsg(null))}>
+                <button ref={undoBtn} type="button" className="fmedia__undo" onClick={() => (onChange(msg.undo!), setMsg(null), window.setTimeout(() => addBtn.current?.focus(), 0))}>
                   {T.undo}
                 </button>
               </>

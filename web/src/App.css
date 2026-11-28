@@ -2932,9 +2932,13 @@ button.is-off:hover,
 /* ---------- F-146 Kopfleiste: Logo links, Bedienelemente mittig, Gesamtfokus rechts */
 .toolbar {
   display: grid;
-  /* minmax(0, …): Seitenspalten dürfen schrumpfen statt unter die Mitte zu laufen */
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  /* minmax(0, …): Seitenspalten dürfen schrumpfen statt unter die Mitte zu laufen
+     V157 (Prüfrunde): rechts nie schmaler als der Inhalt (Fokusanzeige „Diese Woche … von 40 h“, Design, Equalizer) –
+     sonst lief die rechte Seite bei 1400 px über „?“ und Feedback; die Mitte gibt nach (Überlauf „weitere Elemente“) */
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, 2.6fr) minmax(max-content, 1fr);
 }
+/* Mitte füllt ihre Spalte, die Knöpfe stehen darin mittig (die Spalte misst nicht am eigenen Inhalt, sonst bliebe der Überlauf hängen) */
+.toolbar > .tb-center { justify-self: stretch; justify-content: center; }
 .toolbar > .brand { justify-self: stretch; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .toolbar > .brand .tb-win { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* V51 (Enrico): Der Desk-Name hat Vorrang vor dem Suchfeld – „Main Desk“ bleibt immer ganz lesbar,
@@ -10275,7 +10279,8 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 @media (max-width: 700px) { .pjf__sheet > thead, .pjf__sheet > thead > tr, .pjf__sheet > thead > tr > th { display: block; width: auto; } }
 /* V142 (Enrico 14:58 „wie im Report“, Tab. 2/9, Abb. 8): Tabellenkopf dunkelgrau mit weißer Schrift, Rahmen außen kräftig schwarz,
    erste Spalte (Kennung) fett weinrot; Spalte der Zeilen-Knöpfe bleibt ohne Rahmen. */
-.paper--form .pjf__table thead th:not(:last-child) { background: linear-gradient(#7c7c7c, #575757); color: #fff; border-color: #4a4a4a; border-top: 2px solid #111; }
+/* V157: Regel „Kopf der Tabellen“ gilt auch hier (vorher blieb der graue Verlauf stehen) */
+.paper--form .pjf__table thead th:not(:last-child) { background: var(--paper-thead, linear-gradient(#7c7c7c, #575757)); color: var(--paper-thead-ink, #fff); border-color: #4a4a4a; border-top: 2px solid #111; }
 .paper--form .pjf__table thead th:first-child, .paper--form .pjf__table tbody td.pjf__cell:first-child { border-left: 2px solid #111; }
 .paper--form .pjf__table thead th:nth-last-child(2), .paper--form .pjf__table tbody td.pjf__cell:nth-last-child(2) { border-right: 2px solid #111; }
 .paper--form .pjf__table tbody tr:last-child td.pjf__cell { border-bottom: 2px solid #111; }
@@ -10772,3 +10777,8 @@ td:hover .fmedia__add, td:focus-within .fmedia__add, .fmedia__add:focus-visible 
 .lay__num { width: 5em; }
 .lay__saved { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .lay__saved li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* V157 (Prüfrunde): Meldungen in der Leiste der Layout-Vorlage nehmen keinen Platz – sonst rutscht „Als Vorlage speichern“
+   beim Verlassen des Namensfelds nach unten und der erste Klick geht ins Leere */
+.lay__bar { padding-bottom: 1.5em; }
+.lay__bar > .lay__field > .paper__msg { position: absolute; top: 100%; left: 0; margin-top: 2px; white-space: nowrap; z-index: 2; }

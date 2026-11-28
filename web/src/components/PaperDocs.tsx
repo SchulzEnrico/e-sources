@@ -63,16 +63,23 @@ export function ShapeWheel<S extends string>({ value, onChange, options, say }: 
 }
 
 /** Meldung am Feld (wie im Steckbrief): verschwindet nach kurzer Zeit. */
+/** V157: Fokus verloren (liegt auf dem Seitenkörper)? */
+const lost = () => !document.activeElement || document.activeElement === document.body;
+
 export function useFieldMsg(say: (t: string) => void) {
   // V150: optional mit Rückgängig – die Meldung steht am Ort und bietet den Knopf direkt an
   const [msg, setMsg] = useState<{ text: string; at: string; undo?: () => void } | null>(null);
   const timer = useRef(0);
+  const undoBtn = useRef<HTMLButtonElement>(null);
   useEffect(() => () => window.clearTimeout(timer.current), []);
   const tell = (at: string, text: string, undo?: () => void) => {
     window.clearTimeout(timer.current);
     setMsg({ text, at, ...(undo ? { undo } : {}) });
     say(text);
     timer.current = noticeLater(() => setMsg(null));
+    // V157: Hat der Klick seinen Knopf mitgenommen (✕, Löschen), springt der Fokus sonst an den Seitenanfang –
+    // dann auf „Rückgängig“ in der Meldung am Ort.
+    if (undo) window.setTimeout(() => lost() && undoBtn.current?.focus(), 0);
   };
   const m = (at: string) =>
     msg?.at === at ? (
@@ -81,7 +88,19 @@ export function useFieldMsg(say: (t: string) => void) {
         {msg.undo && (
           <>
             {' '}
-            <button type="button" className="note__undo paper__undo" onClick={() => { const u = msg.undo!; setMsg(null); u(); }}>
+            <button
+              ref={undoBtn}
+              type="button"
+              className="note__undo paper__undo"
+              onClick={(e) => {
+                const host = e.currentTarget.parentElement?.parentElement ?? null;
+                const u = msg.undo!;
+                setMsg(null);
+                u();
+                // V157: Rückgängig verschwindet – Fokus auf das nächste Bedienelement an derselben Stelle
+                window.setTimeout(() => lost() && host?.querySelector<HTMLElement>('input, textarea, select, button:not([disabled]), [tabindex="0"]')?.focus(), 0);
+              }}
+            >
               {T.undo}
             </button>
           </>

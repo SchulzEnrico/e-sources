@@ -146,6 +146,8 @@ describe('V155 F-236 B Schritt 3 (Farbe je Kasten) und G3 Rest', () => {
     const svg = Gf.figureSvg(ws, id, 'goalTree');
     expect(svg).toContain('flood-opacity="0"');
     expect(svg).toContain('rx="0"');
+    // V157: bei Ecken 0 auch Wurzelkasten und Glanz eckig (vorher rx 2 bzw. 3)
+    expect(svg).not.toMatch(/rx="[1-9]/);
     expect(svg0).toContain('flood-opacity="0.28"');
     // nach dem Zeichnen gilt wieder die Vorgabe
     expect(Gf.figureSvg(editProject(ws, id, { layout: undefined }), id, 'goalTree')).toBe(svg0);

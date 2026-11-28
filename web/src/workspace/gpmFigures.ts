@@ -221,13 +221,13 @@ function drawBox(x0: number, y0: number, w: number, b: Box, fs = 9): string {
     .join('');
   const tab = b.tab ? `<rect x="${x + 6}" y="${y - 13}" width="${w - 12}" height="14" rx="3" fill="url(#fgPale)" stroke="${LOOK.grayLine}" stroke-width="0.8"/><text x="${x + w / 2}" y="${y - 2.5}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="${gy('#9a9a9a')}">${esc(b.tab)}</text>` : '';
   const ed = b.edit ? ` class="fg-edit" data-edit="${esc(b.edit)}" tabindex="0" role="button" aria-label="${esc(`Bearbeiten: ${b.title ?? b.lines.join(' ')}`)}"${toneAttr(b.edit, toneColor(b.tone))}` : '';
-  return `<g${ed}>${b.title ? `<title>${esc(b.title)}</title>` : ''}${own?.defs ?? ''}<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${BOX_R}" fill="${own?.fill ?? FILL[b.tone]}" stroke="${own?.stroke ?? STROKE[b.tone]}" stroke-width="0.8"${SHADOW_ON ? ' filter="url(#fgShadow)"' : ''}/>${tab}${GLOSS_ON && (own ? luminance(TONE[b.edit!]) < 0.4 : GLOSS[b.tone]) ? `<rect x="${x + 1.5}" y="${y + 1}" width="${w - 3}" height="${Math.min(h / 2, 9)}" rx="3" fill="url(#fgGloss)"/>` : ''}${tx}</g>`;
+  return `<g${ed}>${b.title ? `<title>${esc(b.title)}</title>` : ''}${own?.defs ?? ''}<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${BOX_R}" fill="${own?.fill ?? FILL[b.tone]}" stroke="${own?.stroke ?? STROKE[b.tone]}" stroke-width="0.8"${SHADOW_ON ? ' filter="url(#fgShadow)"' : ''}/>${tab}${GLOSS_ON && (own ? luminance(TONE[b.edit!]) < 0.4 : GLOSS[b.tone]) ? `<rect x="${x + 1.5}" y="${y + 1}" width="${w - 3}" height="${Math.min(h / 2, 9)}" rx="${Math.min(3, BOX_R)}" fill="url(#fgGloss)"/>` : ''}${tx}</g>`;
 }
 const svgWrap = (w: number, h: number, label: string, body: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(label)}" font-family="${TEXT_FONT === FONT_CSS.sans ? "'Open Sans', system-ui, sans-serif" : TEXT_FONT.replace(/"/g, "'")}">${defs()}${body}</svg>`;
 function legend(x: number, y: number, items: [BoxTone, string][]): string {
   const w = 104;
-  const parts = [`<rect x="${x}" y="${y}" width="${w + 12}" height="${22 + items.length * 18}" rx="3" fill="#fff" stroke="${LOOK.grayLine}" stroke-width="0.6"/>`, `<rect x="${x + 6}" y="${y + 4}" width="56" height="14" rx="2" fill="${LOOK.ink}"/><text x="${x + 34}" y="${y + 14.5}" text-anchor="middle" font-size="8.5" font-weight="bold" fill="#fff">Legende</text>`];
+  const parts = [`<rect x="${x}" y="${y}" width="${w + 12}" height="${22 + items.length * 18}" rx="${Math.min(3, BOX_R)}" fill="#fff" stroke="${LOOK.grayLine}" stroke-width="0.6"/>`, `<rect x="${x + 6}" y="${y + 4}" width="56" height="14" rx="${Math.min(2, BOX_R)}" fill="${LOOK.ink}"/><text x="${x + 34}" y="${y + 14.5}" text-anchor="middle" font-size="8.5" font-weight="bold" fill="#fff">Legende</text>`];
   items.forEach(([tone, name], i) => parts.push(drawBox(x + 6, y + 22 + i * 18, w, { lines: [name], tone, bold: true }, 8).replace(/height="21"/, 'height="15"').replace(/y="(\d+(?:\.\d+)?)" text-anchor/, (_m, v) => `y="${Number(v) - 2.5}" text-anchor`)));
   return parts.join('');
 }
@@ -258,7 +258,7 @@ export function columnTreeSvg(root: Box, columns: TreeColumn[], o: { label: stri
     const own = root.edit && TONE[root.edit] ? ownLook(TONE[root.edit]) : undefined;
     const ed = root.edit ? ` class="fg-edit" data-edit="${esc(root.edit)}" tabindex="0" role="button" aria-label="${esc(`Bearbeiten: ${root.title ?? root.lines[0]}`)}"${toneAttr(root.edit, LOOK.gray)}` : '';
     const big = own ? own.text : '#2b2b2b';
-    parts.push(`<g${ed}>${root.title ? `<title>${esc(root.title)}</title>` : ''}${own?.defs ?? ''}<rect x="${x}" y="${y}" width="${rootW}" height="${rh}" rx="${BOX_R + 2}" fill="${own?.fill ?? FILL.root}" stroke="${own?.stroke ?? '#555'}" stroke-width="1.4"${SHADOW_ON ? ' filter="url(#fgShadow)"' : ''}/>`);
+    parts.push(`<g${ed}>${root.title ? `<title>${esc(root.title)}</title>` : ''}${own?.defs ?? ''}<rect x="${x}" y="${y}" width="${rootW}" height="${rh}" rx="${BOX_R ? BOX_R + 2 : 0}" fill="${own?.fill ?? FILL.root}" stroke="${own?.stroke ?? '#555'}" stroke-width="1.4"${SHADOW_ON ? ' filter="url(#fgShadow)"' : ''}/>`);
     parts.push(`<text x="${x + rootW / 2}" y="${y + 25}" text-anchor="middle" font-family="${HEAD_FONT}" font-size="19" font-weight="bold" fill="${big}">${esc(root.lines[0])}</text>`);
     sub.forEach((l, i) => parts.push(`<text x="${x + rootW / 2}" y="${y + 41 + i * 12}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="${own ? own.text : LOOK.wine}">${esc(l)}</text>`));
     if (o.code) parts.push(`<text x="${x + rootW / 2}" y="${y + 41 + sub.length * 12 + 3}" text-anchor="middle" font-family="${HEAD_FONT}" font-size="12" font-weight="bold" fill="${big}">${esc(o.code)}</text>`);
@@ -798,7 +798,7 @@ export function phasePlanSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws, 
     const key = `phases:${b.id}`;
     const own = TONE[key] ? ownLook(TONE[key]) : undefined;
     const pt = own ? own.text : TEXT.wine;
-    parts.push(`<g${edg(key, `Phase ${b.name}`)}${toneAttr(key, LOOK.wine)}><title>${esc(`${b.name}: ${dmy(b.start)} – ${dmy(b.end)}`)}</title>${own?.defs ?? ''}<rect x="${x1}" y="${y}" width="${x2 - x1}" height="${barH}" rx="${Math.min(BOX_R, 3)}" fill="${own?.fill ?? FILL.wine}" stroke="${own?.stroke ?? STROKE.wine}" stroke-width="0.6"${SHADOW_ON ? ' filter="url(#fgShadow)"' : ''}/>${GLOSS_ON ? `<rect x="${x1 + 1.5}" y="${y + 1}" width="${Math.max(0, x2 - x1 - 3)}" height="${barH / 2 - 2}" rx="2" fill="url(#fgGloss)"/>` : ''}`);
+    parts.push(`<g${edg(key, `Phase ${b.name}`)}${toneAttr(key, LOOK.wine)}><title>${esc(`${b.name}: ${dmy(b.start)} – ${dmy(b.end)}`)}</title>${own?.defs ?? ''}<rect x="${x1}" y="${y}" width="${x2 - x1}" height="${barH}" rx="${Math.min(BOX_R, 3)}" fill="${own?.fill ?? FILL.wine}" stroke="${own?.stroke ?? STROKE.wine}" stroke-width="0.6"${SHADOW_ON ? ' filter="url(#fgShadow)"' : ''}/>${GLOSS_ON ? `<rect x="${x1 + 1.5}" y="${y + 1}" width="${Math.max(0, x2 - x1 - 3)}" height="${barH / 2 - 2}" rx="${Math.min(2, BOX_R)}" fill="url(#fgGloss)"/>` : ''}`);
     const fits = x2 - x1 > b.name.length * 5.8 + 10;
     const lines = fits ? [b.name] : wrap(b.name, Math.max(6, Math.floor((x2 - x1 - 8) / 5.6)), 2);
     const inside = fits || (x2 - x1 > 44 && lines.every((l) => l.length * 5.6 + 8 < x2 - x1));

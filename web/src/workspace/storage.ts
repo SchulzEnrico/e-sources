@@ -458,6 +458,11 @@ export function loadWorkspace(): Workspace {
 // Testbelegung (?test=voll) speichert ebenfalls nichts.
 const EMBEDDED = (typeof window !== 'undefined' && window.self !== window.top) || PROBE;
 
+/** V157: Darf diese Seite speichern und den Gerätespeicher aufräumen? Nein in der Testbelegung und eingebettet. */
+export function mayStore(): boolean {
+  return !EMBEDDED;
+}
+
 /** Zeitpunkte für die Abgleich-Regel (F-121), in Millisekunden. */
 export interface SyncMeta {
   /** Letzte Änderung der Arbeitsfläche auf diesem Gerät. */

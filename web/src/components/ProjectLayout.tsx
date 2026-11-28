@@ -305,10 +305,11 @@ export function ProjectLayout({ ws, p, dispatch, say }: { ws: Workspace; p: Proj
               {g === 'text' && <p className="lc__muted">{T.sizeNote}</p>}
             </fieldset>
           ))}
-          {saved.length > 0 && (
+          {/* V157: auch nach dem Löschen der letzten Vorlage bleibt der Abschnitt stehen, solange die Meldung mit „Rückgängig“ steht */}
+          {(saved.length > 0 || m('saved')) && (
             <fieldset className="lay__group">
               <legend>{T.savedGroup}</legend>
-              <ul className="lay__saved">
+              {saved.length > 0 && <ul className="lay__saved">
                 {saved.map((t, i) => (
                   <li key={t.id}>
                     <span>{t.name}</span>
@@ -326,7 +327,7 @@ export function ProjectLayout({ ws, p, dispatch, say }: { ws: Workspace; p: Proj
                     </button>
                   </li>
                 ))}
-              </ul>
+              </ul>}
               {m('saved')}
             </fieldset>
           )}

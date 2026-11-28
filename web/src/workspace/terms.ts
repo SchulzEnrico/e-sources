@@ -3743,6 +3743,8 @@ export const STEER_TEXT = {
 export const FORMS_TEXT = {
   // V133 (F-232 P9): jedes Formular als Blatt wie im Report
   sheetTitle: (f: string, p: string) => `Formular ${f}, Projekt ${p} – Blatt wie im Report`,
+  sheetProject: 'Projektname',
+  sheetProjectNo: 'Projekt.Nr.',
   sheetCaption: (f: string) => `Formular: ${f}`,
   sheetHint: 'Blatt wie im Report (Hochformat) – direkt in die Felder schreiben; Enter übernimmt, Esc verwirft.',
   sheetWide: 'Breite Tabelle: Blatt im Querformat wie im Report – direkt in die Felder schreiben; Enter übernimmt, Esc verwirft.',

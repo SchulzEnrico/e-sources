@@ -8,7 +8,7 @@
  * (ProjectForms) und der Bericht (gpmReport). Tests in gpm.test.ts („F-234“).
  */
 import type { NoteView, Project, ProjectRole, Workspace } from './types';
-import { ganttOf, phaseBars, type Gantt } from './gantt';
+import { ganttOf, phaseBars, predText, type Gantt } from './gantt';
 import { pspRows, pspTree, type PspNode } from './psp';
 import { resourceUse, type ResRow } from './resources';
 import { personById } from './persons';
@@ -38,7 +38,7 @@ export const LOOK = {
   grid: '#d9d9d9',
   red: '#d0021b',
 };
-export type BoxTone = 'wine' | 'orange' | 'yellow' | 'gray' | 'pale' | 'root';
+export type BoxTone = 'wine' | 'orange' | 'yellow' | 'gray' | 'pale' | 'root' | 'head' | 'sky' | 'steel' | 'slate' | 'white';
 
 const DEFS = `<defs>
 <linearGradient id="fgWine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${LOOK.wineHi}"/><stop offset="1" stop-color="${LOOK.wine}"/></linearGradient>
@@ -46,6 +46,10 @@ const DEFS = `<defs>
 <linearGradient id="fgYellow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffbe0"/><stop offset="1" stop-color="${LOOK.yellow}"/></linearGradient>
 <linearGradient id="fgGray" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${LOOK.grayHi}"/><stop offset="1" stop-color="${LOOK.gray}"/></linearGradient>
 <linearGradient id="fgPale" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#ececec"/></linearGradient>
+<linearGradient id="fgSkyBox" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef6ff"/><stop offset="1" stop-color="#c7dcf3"/></linearGradient>
+<linearGradient id="fgSteel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfe5ec"/><stop offset="1" stop-color="#aab6c4"/></linearGradient>
+<linearGradient id="fgSlate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7d8a99"/><stop offset="1" stop-color="#44505e"/></linearGradient>
+<linearGradient id="fgGloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.38"/><stop offset="1" stop-color="#fff" stop-opacity="0.04"/></linearGradient>
 <linearGradient id="fgHead" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b5b5b"/><stop offset="1" stop-color="#2f2f2f"/></linearGradient>
 <radialGradient id="fgDark" cx="0.4" cy="0.3" r="0.8"><stop offset="0" stop-color="#9a9a9a"/><stop offset="1" stop-color="#2a2a2a"/></radialGradient>
 <linearGradient id="fgSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fb4e3"/><stop offset="1" stop-color="#d8d8d8"/></linearGradient>
@@ -54,9 +58,13 @@ const DEFS = `<defs>
 <linearGradient id="fgRose" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#ec8f8f"/><stop offset="1" stop-color="#d8d8d8"/></linearGradient>
 <filter id="fgShadow" x="-10%" y="-10%" width="130%" height="140%"><feDropShadow dx="1.2" dy="1.6" stdDeviation="1.2" flood-color="#000" flood-opacity="0.28"/></filter>
 </defs>`;
-const FILL: Record<BoxTone, string> = { wine: 'url(#fgWine)', orange: 'url(#fgOrange)', yellow: 'url(#fgYellow)', gray: 'url(#fgGray)', pale: 'url(#fgPale)', root: 'url(#fgGray)' };
-const TEXT: Record<BoxTone, string> = { wine: '#fff', orange: '#fff', yellow: LOOK.ink, gray: LOOK.wine, pale: LOOK.muted, root: LOOK.wine };
-const STROKE: Record<BoxTone, string> = { wine: '#4a0a0b', orange: '#9b5310', yellow: '#b8a845', gray: LOOK.grayLine, pale: '#bdbdbd', root: LOOK.grayLine };
+const FILL: Record<BoxTone, string> = { wine: 'url(#fgWine)', orange: 'url(#fgOrange)', yellow: 'url(#fgYellow)', gray: 'url(#fgGray)', pale: 'url(#fgPale)', root: 'url(#fgGray)', head: 'url(#fgPale)', sky: 'url(#fgSkyBox)', steel: 'url(#fgSteel)', slate: 'url(#fgSlate)', white: 'url(#fgPale)' };
+const TEXT: Record<BoxTone, string> = { wine: '#fff', orange: '#fff', yellow: LOOK.ink, gray: LOOK.wine, pale: LOOK.muted, root: LOOK.wine, head: LOOK.wine, sky: LOOK.ink, steel: LOOK.ink, slate: '#fff', white: LOOK.ink };
+const STROKE: Record<BoxTone, string> = { wine: '#4a0a0b', orange: '#9b5310', yellow: '#b8a845', gray: LOOK.grayLine, pale: '#bdbdbd', root: LOOK.grayLine, head: LOOK.wine, sky: '#2b2b2b', steel: '#2b2b2b', slate: '#1d242c', white: '#2b2b2b' };
+/** V142: Glanz oben auf den farbigen Kästen wie im Report. */
+const GLOSS: Partial<Record<BoxTone, boolean>> = { wine: true, orange: true, slate: true };
+/** V142 (Report): Schrift in den Kästen fett wie in Abb. 4/7/10 – außer bei blassen Kästen (Nichtziele). */
+const BOLD_ALL: Partial<Record<BoxTone, boolean>> = { wine: true, orange: true, yellow: true, gray: true, head: true, sky: true, steel: true, slate: true, white: true };
 
 /** Zeilenumbruch nach Zeichen (Kästen haben feste Breite); höchstens `max` Zeilen, Rest mit „…“. */
 export function wrap(text: string, chars: number, max = 4): string[] {
@@ -92,12 +100,16 @@ interface Box {
   title?: string;
   /** V137 (Bearbeiten im Blatt): „Formular:Zeile“ – Kasten anklickbar, bearbeitbar und von Hand verschiebbar (D3) */
   edit?: string;
+  /** V142 (Abb. 7): erste Zeile groß (Name), übrige Zeilen in `accent` (z. B. Projektleitung rot), Reiter über dem Kasten */
+  big?: boolean;
+  accent?: string;
+  tab?: string;
 }
 /** D3: Versatz der Kästen der gerade gezeichneten Grafik (Project.figLayout[fig]). */
 let OFF: Record<string, { dx: number; dy: number }> = {};
 const offOf = (b: Box) => (b.edit ? OFF[b.edit] : undefined) ?? { dx: 0, dy: 0 };
 const LH = 11;
-const boxH = (b: Box) => 10 + b.lines.length * LH;
+const boxH = (b: Box) => 10 + b.lines.length * LH + (b.big ? 5 : 0);
 function drawBox(x0: number, y0: number, w: number, b: Box, fs = 9): string {
   const h = boxH(b);
   const { dx, dy } = offOf(b);
@@ -105,10 +117,11 @@ function drawBox(x0: number, y0: number, w: number, b: Box, fs = 9): string {
   const y = y0 + dy;
   const t = TEXT[b.tone];
   const tx = b.lines
-    .map((l, i) => `<text x="${x + w / 2}" y="${y + 13 + i * LH}" text-anchor="middle" font-size="${fs}" font-weight="${i === 0 || b.bold ? 'bold' : 'normal'}" fill="${t}">${esc(l)}</text>`)
+    .map((l, i) => `<text x="${x + w / 2}" y="${y + 13 + i * LH + (b.big ? (i ? 5 : 2) : 0)}" text-anchor="middle" font-size="${b.big && !i ? fs + 4 : fs}" font-weight="${i === 0 || b.bold || BOLD_ALL[b.tone] ? 'bold' : 'normal'}" fill="${i && b.accent ? b.accent : t}">${esc(l)}</text>`)
     .join('');
+  const tab = b.tab ? `<rect x="${x + 6}" y="${y - 13}" width="${w - 12}" height="14" rx="3" fill="url(#fgPale)" stroke="${LOOK.grayLine}" stroke-width="0.8"/><text x="${x + w / 2}" y="${y - 2.5}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#9a9a9a">${esc(b.tab)}</text>` : '';
   const ed = b.edit ? ` class="fg-edit" data-edit="${esc(b.edit)}" tabindex="0" role="button" aria-label="${esc(`Bearbeiten: ${b.title ?? b.lines.join(' ')}`)}"` : '';
-  return `<g${ed}>${b.title ? `<title>${esc(b.title)}</title>` : ''}<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${FILL[b.tone]}" stroke="${STROKE[b.tone]}" stroke-width="0.8" filter="url(#fgShadow)"/>${tx}</g>`;
+  return `<g${ed}>${b.title ? `<title>${esc(b.title)}</title>` : ''}<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${FILL[b.tone]}" stroke="${STROKE[b.tone]}" stroke-width="0.8" filter="url(#fgShadow)"/>${tab}${GLOSS[b.tone] ? `<rect x="${x + 1.5}" y="${y + 1}" width="${w - 3}" height="${Math.min(h / 2, 9)}" rx="3" fill="url(#fgGloss)"/>` : ''}${tx}</g>`;
 }
 const svgWrap = (w: number, h: number, label: string, body: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(label)}" font-family="'Open Sans', system-ui, sans-serif">${DEFS}${body}</svg>`;
@@ -125,24 +138,37 @@ export interface TreeColumn {
   head: Box;
   items: { box: Box; depth: number }[];
 }
-/** Wurzel oben, darunter eine Reihe von Spaltenköpfen; Kinder stehen untereinander an einer Linie links (wie Abb. 4/10). */
-export function columnTreeSvg(root: Box, columns: TreeColumn[], o: { label: string; legend?: [BoxTone, string][]; colW?: number; chars?: number }): string {
+/** Wurzel oben, darunter eine Reihe von Spaltenköpfen; Kinder stehen untereinander an einer Linie links (wie Abb. 4/10).
+ *  V142 (Report): Wurzel mit großem Projektnamen, Untertitel fett weinrot, Projektnummer; Legende in der freien Fläche
+ *  unter der kürzesten Spalte (wie Abb. 4/10), nur wenn dort kein Platz ist unten rechts. */
+export function columnTreeSvg(root: Box, columns: TreeColumn[], o: { label: string; legend?: [BoxTone, string][]; colW?: number; chars?: number; code?: string; sub?: string[] }): string {
   const colW = o.colW ?? 124;
   const gap = 14;
   const n = Math.max(1, columns.length);
   const width = Math.max(420, n * (colW + gap) + gap);
   const parts: string[] = [];
-  const rootW = Math.min(width - 40, 300);
+  const rootW = Math.min(width - 40, 380);
   const rootX = (width - rootW) / 2;
-  const rootBox = { ...root, lines: root.lines };
-  const rh = boxH(rootBox) + 8;
-  parts.push(drawBox(rootX, 8, rootW, rootBox, 11).replace(/height="(\d+)"/, `height="${rh}"`));
+  const sub = o.sub ?? root.lines.slice(1);
+  const rh = 36 + sub.length * 12 + (o.code ? 15 : 0);
+  {
+    const ro = offOf(root);
+    const x = rootX + ro.dx;
+    const y = 8 + ro.dy;
+    const ed = root.edit ? ` class="fg-edit" data-edit="${esc(root.edit)}" tabindex="0" role="button" aria-label="${esc(`Bearbeiten: ${root.title ?? root.lines[0]}`)}"` : '';
+    parts.push(`<g${ed}>${root.title ? `<title>${esc(root.title)}</title>` : ''}<rect x="${x}" y="${y}" width="${rootW}" height="${rh}" rx="6" fill="url(#fgGray)" stroke="#555" stroke-width="1.4" filter="url(#fgShadow)"/>`);
+    parts.push(`<text x="${x + rootW / 2}" y="${y + 25}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="19" font-weight="bold" fill="#2b2b2b">${esc(root.lines[0])}</text>`);
+    sub.forEach((l, i) => parts.push(`<text x="${x + rootW / 2}" y="${y + 41 + i * 12}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="${LOOK.wine}">${esc(l)}</text>`));
+    if (o.code) parts.push(`<text x="${x + rootW / 2}" y="${y + 41 + sub.length * 12 + 3}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="12" font-weight="bold" fill="#2b2b2b">${esc(o.code)}</text>`);
+    parts.push('</g>');
+  }
   const busY = 8 + rh + 14;
   const headY = busY + 12;
-  parts.push(`<line x1="${width / 2}" y1="${8 + rh}" x2="${width / 2}" y2="${busY}" stroke="${LOOK.wine}" stroke-width="1.6"/>`);
+  parts.unshift(`<line x1="${width / 2}" y1="${8 + rh}" x2="${width / 2}" y2="${busY}" stroke="${LOOK.wine}" stroke-width="1.6"/>`);
   const cx = (i: number) => gap + i * (colW + gap);
-  if (columns.length > 1) parts.push(`<line x1="${cx(0) + colW / 2}" y1="${busY}" x2="${cx(columns.length - 1) + colW / 2}" y2="${busY}" stroke="${LOOK.wine}" stroke-width="1.6"/>`);
+  if (columns.length > 1) parts.unshift(`<line x1="${cx(0) + colW / 2}" y1="${busY}" x2="${cx(columns.length - 1) + colW / 2}" y2="${busY}" stroke="${LOOK.wine}" stroke-width="1.6"/>`);
   let bottom = headY;
+  const bottoms: number[] = [];
   columns.forEach((c, i) => {
     const x = cx(i);
     const ho = offOf(c.head);
@@ -162,13 +188,20 @@ export function columnTreeSvg(root: Box, columns: TreeColumn[], o: { label: stri
       y += h + 9;
     }
     if (lastMid > 0) parts.unshift(`<line x1="${lineX}" y1="${headY + boxH(c.head) / 2}" x2="${lineX}" y2="${lastMid}" stroke="${LOOK.wine}" stroke-width="1.4"/>`);
+    bottoms.push(y);
     bottom = Math.max(bottom, y);
   });
   let height = bottom + 6;
   if (o.legend?.length) {
     const lh = 22 + o.legend.length * 18;
-    parts.push(legend(width - 130, height, o.legend));
-    height += lh + 8;
+    // freie Fläche: Spalte mit dem kürzesten Inhalt, in die die Legende unterhalb passt (nicht die erste/letzte, wenn es geht)
+    const order = bottoms.map((b, i) => ({ b, i })).filter(({ b }) => b + 14 + lh <= bottom).sort((p, q) => p.b - q.b || Math.abs(p.i - (n - 1) / 2) - Math.abs(q.i - (n - 1) / 2));
+    const spot = order[0];
+    if (spot) parts.push(legend(cx(spot.i) + Math.max(0, (colW - 116) / 2), spot.b + 14, o.legend));
+    else {
+      parts.push(legend(width - 130, height, o.legend));
+      height += lh + 8;
+    }
   }
   return svgWrap(width, height, o.label, parts.join(''));
 }
@@ -176,7 +209,7 @@ export function columnTreeSvg(root: Box, columns: TreeColumn[], o: { label: stri
 // ---------------------------------------------------------------- Zielhierarchie (Abb. 4)
 
 const toneOfLevel = (lv?: string, kind?: string): BoxTone => (kind === 'non' ? 'pale' : lv === 'should' ? 'orange' : lv === 'can' ? 'yellow' : 'wine');
-const goalLines = (code: string | undefined, text: string, chars: number) => [...(code ? [code] : []), ...wrap(text.split('\n')[0], chars, 3)];
+const goalLines = (code: string | undefined, text: string, chars: number) => [...(code ? [code] : []), ...wrap(text.split('\n')[0].replace(/v\. B\./g, 'v.B.'), chars, 3)];
 
 /** Zielhierarchie: oberste Leistungsziele je eine Spalte (mit Unterzielen), dazu Spalten „Soziale Ziele“ und „Nichtziele“. */
 export function goalTreeSvg(p: Project): string {
@@ -186,7 +219,7 @@ export function goalTreeSvg(p: Project): string {
   const ids = new Set(goals.map((g) => g.id));
   const kids = (id: string) => goals.filter((g) => g.parent === id);
   const top = goals.filter((g) => !g.parent || !ids.has(g.parent));
-  const chars = 20;
+  const chars = 19;
   const columns: TreeColumn[] = [];
   const walk = (id: string, depth: number, into: TreeColumn['items']) => {
     for (const k of kids(id)) {
@@ -202,9 +235,9 @@ export function goalTreeSvg(p: Project): string {
     }
     const items: TreeColumn['items'] = [];
     walk(g.id, 0, items);
-    columns.push({ head: { lines: goalLines(g.code, g.text, chars), tone: 'pale', title: g.text, edit: `goals:${g.id}` }, items });
+    columns.push({ head: { lines: goalLines(g.code, g.text, chars), tone: 'head', title: g.text, edit: `goals:${g.id}` }, items });
   }
-  if (loose.length) columns.push({ head: { lines: ['L', 'Leistungsziele'], tone: 'pale' }, items: loose });
+  if (loose.length) columns.push({ head: { lines: ['L', 'Leistungsziele'], tone: 'head' }, items: loose });
   for (const [kind, code, name] of [['social', 'S', 'Soziale Ziele'], ['non', 'N', 'Nichtziele']] as const) {
     const list = top.filter((x) => x.kind === kind);
     if (!list.length) continue;
@@ -213,14 +246,22 @@ export function goalTreeSvg(p: Project): string {
       items.push({ depth: 0, box: { lines: goalLines(g.code, g.text, chars), tone: kind === 'non' ? 'pale' : toneOfLevel(g.level, g.kind), title: g.text, edit: `${kind === 'non' ? 'nongoals' : 'goals'}:${g.id}` } });
       walk(g.id, 1, items);
     }
-    columns.push({ head: { lines: [code, name], tone: 'pale' }, items });
+    columns.push({ head: { lines: [code, name], tone: kind === 'non' ? 'pale' : 'head' }, items });
   }
+  // V142 (Report Abb. 4): Reihenfolge Leistungsziele · Soziale Ziele · Termine · Kosten · Nichtziele
+  const rank = (c: TreeColumn) => {
+    const code = c.head.lines[0] ?? '';
+    return code === 'N' ? 4 : code === 'S' ? 1 : /^T\d*$/.test(code) ? 2 : /^K\d*$/.test(code) ? 3 : 0;
+  };
+  columns.sort((x, y) => rank(x) - rank(y));
   const sub = p.brief?.goal ?? '';
-  return columnTreeSvg({ lines: [p.name, ...(sub ? wrap(sub.split('\n')[0], 52, 1) : [])], tone: 'root', title: p.name, edit: `charter:${p.id}` }, columns, {
+  return columnTreeSvg({ lines: [p.name], tone: 'root', title: p.name, edit: `charter:${p.id}` }, columns, {
     label: `Zielhierarchie ${p.name}: ${goals.length} Ziele in ${columns.length} Gruppen`,
     legend: [['wine', 'MUSS'], ['orange', 'SOLL'], ['yellow', 'KANN']],
+    sub: sub ? wrap(sub.split('\n')[0], 70, 2) : [],
   });
 }
+
 
 // ---------------------------------------------------------------- PSP (Abb. 10)
 
@@ -230,7 +271,7 @@ export function pspSheetSvg(ws: Workspace, pid: string): string {
   const tree = pspTree(ws, pid);
   if (!p || !tree.length) return '';
   OFF = p.figLayout?.psp ?? {};
-  const chars = 19;
+  const chars = 18;
   const lines = (n: PspNode, c = chars) => [...wrap(n.title, c, 3), n.code];
   // Meilensteine gehören in den Phasen- und Balkenplan, nicht in den PSP (wie Abb. 10 im Report)
   const columns: TreeColumn[] = tree.filter((t) => !t.milestone).map((top) => {
@@ -246,7 +287,9 @@ export function pspSheetSvg(ws: Workspace, pid: string): string {
   });
   const no = p.charter?.no ?? '';
   const sub = p.brief?.goal ?? '';
-  return columnTreeSvg({ lines: [p.name, ...(sub ? wrap(sub, 52, 1) : []), ...(no ? [no] : [])], tone: 'root', title: p.name, edit: `charter:${p.id}` }, columns, {
+  return columnTreeSvg({ lines: [p.name], tone: 'root', title: p.name, edit: `charter:${p.id}` }, columns, {
+    sub: sub ? wrap(sub, 70, 2) : [],
+    code: no,
     label: `Projektstrukturplan ${p.name}: ${columns.length} Teilaufgaben der ersten Ebene`,
     legend: [['root', 'Wurzelelement'], ['wine', 'Teilaufgabe'], ['gray', 'Arbeitspaket']],
   });
@@ -293,6 +336,26 @@ export function orgParents(roles: readonly ProjectRole[]): Map<string, string | 
   return out;
 }
 
+/** V142 (Abb. 7): Name kurz (ohne „– Funktion“ und Klammern, „n. N.“ bleibt), Rolle kurz (Klammer weg; „Auftraggeber (X)“ → Reiter
+ *  „Auftraggeber“, Rolle X). Ohne Person: „Name – Rolle“ aus dem Rollennamen. */
+export function orgLabel(roleName: string, person: string): { name: string; role: string; tab?: string } {
+  let name = person;
+  let role = roleName.trim();
+  if (!name) {
+    const m = role.split(/\s+[–-]\s+/);
+    if (m.length > 1) [name, role] = [m[0], m.slice(1).join(' – ')];
+  }
+  const nn = /n\.\s?N\./i.test(name) ? 'n. N.' : '';
+  name = nn || name.split(/\s+[–-]\s+/)[0].replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+  let tab: string | undefined;
+  const inner = role.match(/\(([^)]+)\)/)?.[1];
+  const outer = role.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+  if (/^auftraggeber/i.test(outer) && inner) [tab, role] = ['Auftraggeber', inner];
+  else if (outer) role = outer;
+  if (!name) [name, role] = [role, ''];
+  return { name, role, ...(tab ? { tab } : {}) };
+}
+
 export function orgChartSvg(ws: Workspace, p: Project): string {
   const roles = p.roles ?? [];
   if (!roles.length) return '';
@@ -311,8 +374,15 @@ export function orgChartSvg(ws: Workspace, p: Project): string {
   const roots = internal.filter((r) => { const up = parentOf.get(r.id); return !up || ext(byId.get(up)!) || (r.kind === 'staff' && !internal.some((x) => x.id === up)); });
   const BW = 150;
   const GX = 22;
-  const toneOf = (r: ProjectRole): BoxTone => (ext(r) ? 'pale' : isLead(r) ? 'wine' : r.kind === 'staff' ? 'orange' : 'gray');
-  const boxOf = (r: ProjectRole): Box => ({ lines: [...(who(r.person) ? wrap(who(r.person), 26, 2) : []), ...wrap(r.name, 26, 2), ...(ext(r) && r.org ? wrap(r.org, 26, 1) : [])], tone: toneOf(r), title: [r.name, who(r.person), r.org].filter(Boolean).join(': '), edit: `roles:${r.id}` });
+  // V142 (Report Abb. 7): intern weinrot mit Name groß und kurzer Rolle, Projektleitung rot, Auftraggeber als Reiter;
+  // extern je Firma eine eigene Farbe (weiß, hellblau, stahlblau, schiefer)
+  const EXT_TONES: BoxTone[] = ['white', 'sky', 'steel', 'slate'];
+  const extOrgs = [...new Set(roles.filter(ext).map((r) => r.org || r.id))];
+  const toneOf = (r: ProjectRole): BoxTone => (ext(r) ? EXT_TONES[extOrgs.indexOf(r.org || r.id) % EXT_TONES.length] : 'wine');
+  const boxOf = (r: ProjectRole): Box => {
+    const n = orgLabel(r.name, who(r.person));
+    return { lines: [...wrap(n.name, 20, 1), ...wrap(n.role, 26, 2), ...(ext(r) && r.org ? wrap(r.org, 26, 1) : [])], tone: toneOf(r), big: true, ...(isLead(r) ? { accent: '#ff7a7a' } : {}), ...(n.tab ? { tab: n.tab } : {}), title: [r.name, who(r.person), r.org].filter(Boolean).join(': '), edit: `roles:${r.id}` };
+  };
   const widthOf = (r: ProjectRole, seen = new Set<string>()): number => {
     if (seen.has(r.id)) return BW;
     seen.add(r.id);
@@ -353,7 +423,7 @@ export function orgChartSvg(ws: Workspace, p: Project): string {
   let bottom = 10;
   const seen = new Set<string>();
   for (const r of roots) {
-    bottom = Math.max(bottom, place(r, x, 10, seen));
+    bottom = Math.max(bottom, place(r, x, 26, seen));
     x += widthOf(r) + GX * 2;
   }
   let width = Math.max(x, 560);
@@ -423,9 +493,9 @@ export function orgChartSvg(ws: Workspace, p: Project): string {
   // Legende wie im Report
   const lx = width + 16;
   const items: [string, string][] = [['Abgrenzung Organisation', `stroke="${LOOK.ink}" stroke-width="5" stroke-dasharray="5 9"`], ['Vertrag', STYLE.contract], ['fachliche Weisung', STYLE.tech], ['fach. &amp; disz. Weisung', STYLE.full]];
-  parts.push(`<rect x="${lx}" y="10" width="190" height="${30 + items.length * 18 + 3 * 18}" fill="#fff" stroke="${LOOK.grayLine}" stroke-width="0.8"/><text x="${lx + 8}" y="26" font-size="10" font-weight="bold" fill="${LOOK.ink}">Legende</text>`);
+  parts.push(`<rect x="${lx}" y="10" width="190" height="${30 + items.length * 18 + 2 * 18}" fill="#fff" stroke="${LOOK.grayLine}" stroke-width="0.8"/><text x="${lx + 8}" y="26" font-size="10" font-weight="bold" fill="${LOOK.ink}">Legende</text>`);
   items.forEach(([t, st], i) => parts.push(`<text x="${lx + 8}" y="${46 + i * 18}" font-size="9" fill="${LOOK.ink}">${t}</text><line x1="${lx + 128}" y1="${42 + i * 18}" x2="${lx + 182}" y2="${42 + i * 18}" ${st}/>`));
-  ([['wine', 'Projektleitung'], ['orange', 'Stabsstelle'], ['pale', 'extern']] as [BoxTone, string][]).forEach(([tone, t], i) => {
+  ([['wine', 'intern'], ['white', 'extern (je Firma)'], ['sky', '']] as [BoxTone, string][]).filter(([, t]) => t).forEach(([tone, t], i) => {
     const y = 46 + (items.length + i) * 18;
     parts.push(`<text x="${lx + 8}" y="${y}" font-size="9" fill="${LOOK.ink}">${t}</text><rect x="${lx + 128}" y="${y - 9}" width="54" height="12" rx="2" fill="${FILL[tone]}" stroke="${STROKE[tone]}"/>`);
   });
@@ -473,7 +543,9 @@ const edg = (key: string, label: string) => ` class="fg-edit" data-edit="${esc(k
 const hit = (x: number, y: number, w: number, h: number) => `<rect class="fg-hit" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1, w).toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" fill="#fff" fill-opacity="0"/>`;
 const diamond = (x: number, y: number, r: number, fill: string) => `<path d="M${x} ${y - r}L${x + r} ${y}L${x} ${y + r}L${x - r} ${y}Z" fill="${fill}" stroke="#3a0607" stroke-width="0.6"/>`;
 
-/** Phasenplan (Abb. 9): Phasen als Treppe über den Monaten, Meilensteine als Raute mit Kürzel und Datum, unten Projektmonate. */
+/** Phasenplan (Abb. 9): Phasen als Treppe über den Monaten, Meilensteine als Raute mit Kürzel und Datum, unten Projektmonate.
+ *  V142 (Report): oben Jahresbänder als Pfeil, Meilensteine an ihrer Phase (am Ende der Phase bzw. über der laufenden Phase)
+ *  mit gestrichelter Linie nach unten und Datum rot unter dem Pfeil „Projektmonat“. */
 export function phasePlanSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws, pid)): string {
   const p = projectById(ws, pid);
   const bars = phaseBars(ws, pid, g);
@@ -482,36 +554,86 @@ export function phasePlanSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws, 
   const start = [...bars.map((b) => b.start), ...ms.map((m) => m.start)].sort()[0];
   const end = [...bars.map((b) => b.end), ...ms.map((m) => m.end)].sort().reverse()[0];
   const width = 760;
-  const a = axisOf(start, end, 16, width - 32);
-  const top = 46;
-  const rowH = 34;
-  const body = bars.length * rowH + 30;
-  const parts: string[] = [monthHeads(a, top, body)];
-  bars.forEach((b, i) => {
-    const y = top + 10 + i * rowH;
+  const a = axisOf(start, end, 16, width - 40);
+  const day = a.w / Math.max(1, a.d1 - a.d0);
+  const top = 40;
+  const rowH = 40;
+  const barH = 24;
+  const body = bars.length * rowH + 22;
+  const axisY = top + body + 8;
+  const parts: string[] = [];
+  // Jahresbänder (Pfeil) oben
+  {
+    const y = 8;
+    const h = 16;
+    const years: { y: number; x1: number; x2: number }[] = [];
+    for (let d = a.d0; d < a.d1; ) {
+      const dt = new Date(d * 864e5);
+      const next = Math.min(a.d1, Math.round(Date.UTC(dt.getUTCFullYear() + 1, 0, 1, 12) / 864e5));
+      years.push({ y: dt.getUTCFullYear(), x1: a.x0 + (d - a.d0) * day, x2: a.x0 + (next - a.d0) * day });
+      d = next;
+    }
+    years.forEach((yr, i) => {
+      const last = i === years.length - 1;
+      const tip = last ? 10 : 0;
+      parts.push(`<path d="M${yr.x1 + 1} ${y}H${yr.x2 - 1 - tip}${last ? `L${yr.x2 + 6} ${y + h / 2}L${yr.x2 - 1 - tip} ${y + h}` : `V${y + h}`}H${yr.x1 + 1}Z" fill="url(#fgGray)" stroke="${LOOK.orangeHi}" stroke-width="1"/>`);
+      if (yr.x2 - yr.x1 > 34) parts.push(`<text x="${(yr.x1 + yr.x2) / 2}" y="${y + 12}" text-anchor="middle" font-size="11" font-weight="bold" fill="#9a9a9a">${yr.y}</text>`);
+      if (i) parts.push(`<line x1="${yr.x1}" y1="${y + h}" x2="${yr.x1}" y2="${axisY + 16}" stroke="#a9a9a9" stroke-width="2"/>`);
+    });
+    parts.push(`<line x1="${a.x0}" y1="${y + h}" x2="${a.x0}" y2="${axisY + 16}" stroke="${LOOK.orangeHi}" stroke-width="1.2"/>`);
+  }
+  // Phasen
+  const rowY = (i: number) => top + 8 + i * rowH;
+  const spans = bars.map((b, i) => {
     const x1 = a.x(b.start);
-    const x2 = Math.max(x1 + 6, a.x(b.end) + (a.w / (a.d1 - a.d0)));
-    parts.push(`<g${edg(`phases:${b.id}`, `Phase ${b.name}`)}><title>${esc(`${b.name}: ${dmy(b.start)} – ${dmy(b.end)}`)}</title><rect x="${x1}" y="${y}" width="${x2 - x1}" height="${rowH - 12}" rx="3" fill="url(#fgWine)" stroke="#4a0a0b" stroke-width="0.6" filter="url(#fgShadow)"/>`);
-    const label = esc(b.name);
-    const fits = (x2 - x1) > b.name.length * 6 + 8;
-    parts.push(`<text x="${fits ? x1 + 6 : x2 + 4}" y="${y + (rowH - 12) / 2 + 3.5}" font-size="9.5" font-weight="bold" fill="${fits ? '#fff' : LOOK.wine}">${label}</text></g>`);
+    const x2 = Math.max(x1 + 6, a.x(b.end) + day);
+    return { b, i, x1, x2, y: rowY(i) };
   });
-  // Meilensteine auf der unteren Linie und an ihrer Phase
-  const mY = top + body - 14;
-  parts.push(`<line x1="${a.x0}" y1="${mY}" x2="${a.x0 + a.w}" y2="${mY}" stroke="${LOOK.wine}" stroke-width="1.2"/>`);
-  ms.forEach((m, i) => {
+  // Meilensteine: Lage an ihrer Phase
+  const near = (d1: string, d2: string) => Math.abs(dayNo(d1) - dayNo(d2)) <= 3;
+  const msAt = ms.map((m, k) => {
     const x = a.x(m.start);
-    const code = (m.node.title.match(/^M\s?\d+/i)?.[0] ?? `M${i + 1}`).replace(/\s/, '');
-    const own = m.node.kind === 'task' && m.node.owner === pid;
-    parts.push(`<g${own ? edg(`milestones:${m.id}`, `Meilenstein ${m.node.title}`) : ''}><title>${esc(`${m.node.code} ${m.node.title}: ${dmy(m.start)}`)}</title>${own ? hit(x - 12, mY - 20, 24, 42) : ''}${diamond(x, mY, 6, m.critical ? LOOK.red : LOOK.orange)}<text x="${x}" y="${mY - 9}" text-anchor="middle" font-size="8.5" font-weight="bold" fill="${LOOK.ink}">${esc(code)}</text><text x="${x}" y="${mY + 16}" text-anchor="middle" font-size="7.5" fill="${LOOK.muted}">${dm(m.start)}</text></g>`);
+    const ending = [...spans].reverse().find((sp) => near(sp.b.end, m.start));
+    const running = [...spans].reverse().find((sp) => sp.b.start <= m.start && m.start <= sp.b.end);
+    const y = ending ? ending.y + barH + 2 : running ? running.y - 7 : spans[spans.length - 1].y + barH + 12;
+    const code = (m.node.title.match(/^M\s?\d+/i)?.[0] ?? m.node.code.match(/M[-\w]*$/)?.[0] ?? `M${k + 1}`).replace(/\s/, '');
+    return { m, x, y, code };
   });
-  // Projektmonate
-  const pmY = top + body + 26;
-  const months = Math.round((a.d1 - a.d0) / 30.4);
-  parts.push(`<rect x="${a.x0}" y="${pmY - 10}" width="${a.w}" height="14" fill="#efefef"/>`);
-  for (let k = 0; k < months; k++) parts.push(`<text x="${a.x0 + ((k + 0.5) / months) * a.w}" y="${pmY}" text-anchor="middle" font-size="8.5" fill="${LOOK.ink}">${k + 1}</text>`);
-  parts.push(`<text x="${a.x0}" y="${pmY + 14}" font-size="8.5" fill="${LOOK.muted}">Projektmonat · Raute = Meilenstein (rot = auf dem kritischen Pfad)</text>`);
-  return svgWrap(width, pmY + 22, `Phasenplan ${p.name}: ${bars.length} Phasen, ${ms.length} Meilensteine, ${dmy(start)} bis ${dmy(end)}`, parts.join(''));
+  // gestrichelte Linien von den Meilensteinen nach unten
+  for (const t of msAt) parts.push(`<line x1="${t.x}" y1="${t.y + 6}" x2="${t.x}" y2="${axisY + 16}" stroke="#a9a9a9" stroke-width="1.3" stroke-dasharray="4 4"/>`);
+  for (const { b, x1, x2, y } of spans) {
+    parts.push(`<g${edg(`phases:${b.id}`, `Phase ${b.name}`)}><title>${esc(`${b.name}: ${dmy(b.start)} – ${dmy(b.end)}`)}</title><rect x="${x1}" y="${y}" width="${x2 - x1}" height="${barH}" rx="3" fill="url(#fgWine)" stroke="#4a0a0b" stroke-width="0.6" filter="url(#fgShadow)"/><rect x="${x1 + 1.5}" y="${y + 1}" width="${Math.max(0, x2 - x1 - 3)}" height="${barH / 2 - 2}" rx="2" fill="url(#fgGloss)"/>`);
+    const fits = x2 - x1 > b.name.length * 5.8 + 10;
+    const lines = fits ? [b.name] : wrap(b.name, Math.max(6, Math.floor((x2 - x1 - 8) / 5.6)), 2);
+    const inside = fits || (x2 - x1 > 44 && lines.every((l) => l.length * 5.6 + 8 < x2 - x1));
+    if (inside) lines.forEach((l, j) => parts.push(`<text x="${x1 + 5}" y="${y + barH - 6 - (lines.length - 1 - j) * 10}" font-size="9" font-weight="bold" fill="#fff">${esc(l)}</text>`));
+    else parts.push(`<text x="${x2 + 4}" y="${y + barH / 2 + 3.5}" font-size="9" font-weight="bold" fill="${LOOK.wine}">${esc(b.name)}</text>`);
+    parts.push('</g>');
+  }
+  for (const t of msAt) {
+    const own = t.m.node.kind === 'task' && t.m.node.owner === pid;
+    parts.push(`<g${own ? edg(`milestones:${t.m.id}`, `Meilenstein ${t.m.node.title}`) : ''}><title>${esc(`${t.m.node.code} ${t.m.node.title}: ${dmy(t.m.start)}`)}</title>${own ? hit(t.x - 12, t.y - 12, 24, 24) : ''}${diamond(t.x, t.y, 6.5, t.m.critical ? LOOK.red : LOOK.orange)}<text x="${t.x + 9}" y="${t.y - 3}" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">${esc(t.code)}</text></g>`);
+  }
+  // Pfeil „Projektmonat“ mit Monatsnummern, darunter die Daten rot
+  const months = Math.max(1, Math.round((a.d1 - a.d0) / 30.4));
+  parts.push(`<path d="M${a.x0} ${axisY}H${a.x0 + a.w}L${a.x0 + a.w + 10} ${axisY + 8}L${a.x0 + a.w} ${axisY + 16}H${a.x0}Z" fill="url(#fgGray)" stroke="#bdbdbd" stroke-width="0.6"/>`);
+  for (let k = 0; k < months; k++) {
+    const x = a.x0 + (k / months) * a.w;
+    if (k) parts.push(`<line x1="${x}" y1="${axisY}" x2="${x}" y2="${axisY + 16}" stroke="#fff" stroke-width="1"/>`);
+    parts.push(`<text x="${a.x0 + ((k + 0.5) / months) * a.w}" y="${axisY + 12}" text-anchor="middle" font-size="9" font-weight="bold" fill="${LOOK.muted}">${k + 1}</text>`);
+  }
+  parts.push(`<text x="${a.x0 + 3}" y="${axisY + 26}" font-size="7.5" fill="${LOOK.muted}">Projektmonat</text>`);
+  const dates = [...new Set([start, ...msAt.map((t) => t.m.start), end])].sort();
+  let lastX = -99;
+  for (const d of dates) {
+    const x = Math.min(a.x0 + a.w, a.x(d) + (d === end ? day : 0));
+    const yy = axisY + 36 + (x - lastX < 26 ? 9 : 0);
+    if (x - lastX >= 26) lastX = x;
+    parts.push(`<line x1="${x}" y1="${axisY + 18}" x2="${x}" y2="${yy - 8}" stroke="${LOOK.red}" stroke-width="1" stroke-dasharray="1.5 2"/><text x="${x}" y="${yy}" text-anchor="middle" font-size="7.5" font-weight="bold" fill="${LOOK.red}">${dm(d)}</text>`);
+  }
+  const H = axisY + 58;
+  parts.push(`<text x="${a.x0}" y="${H - 4}" font-size="8" fill="${LOOK.muted}">Raute = Meilenstein (rot = auf dem kritischen Pfad)</text>`);
+  return svgWrap(width, H, `Phasenplan ${p.name}: ${bars.length} Phasen, ${ms.length} Meilensteine, ${dmy(start)} bis ${dmy(end)}`, parts.join(''));
 }
 
 /** Vernetzter Balkenplan mit kritischem Pfad (Abb. 13): links Nr., Code, Vorgang, Dauer; rechts Balken je Monat, Pfeile der Abhängigkeiten. */
@@ -524,14 +646,26 @@ export function ganttSheetSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws,
   const colCode = 52;
   const colName = 190;
   const colDur = 34;
-  const left = colNr + colCode + colName + colDur;
-  const width = 1080;
+  // V142 (Report Abb. 13): Spalten wie MS Project – Anfang, Ende, Vorgänger
+  const colStart = 50;
+  const colEnd = 50;
+  const colPred = 62;
+  const left = colNr + colCode + colName + colDur + colStart + colEnd + colPred;
+  const width = 1240;
+  const preds = new Map<string, string[]>();
+  for (const ar of g.arrows) {
+    const f = g.byId.get(ar.from);
+    if (f) preds.set(ar.to, [...(preds.get(ar.to) ?? []), predText({ nr: f.nr, rel: ar.rel, lag: ar.lag })]);
+  }
+  const cStart = colNr + colCode + colName + colDur;
   const top = 34;
   const a = axisOf(g.start, g.end, left + 8, width - left - 16);
   const h = rows.length * rowH;
   const parts: string[] = [];
   parts.push(`<rect x="0" y="${top}" width="${left}" height="${h}" fill="#fff" stroke="${LOOK.grid}"/>`);
-  const heads: [number, string][] = [[2, 'Nr.'], [colNr + 2, 'Code'], [colNr + colCode + 2, 'Vorgang'], [colNr + colCode + colName + 2, 'Dauer']];
+  const heads: [number, string][] = [[2, 'Nr.'], [colNr + 2, 'Code'], [colNr + colCode + 2, 'Vorgang'], [colNr + colCode + colName + 2, 'Dauer'], [cStart + 2, 'Anfang'], [cStart + colStart + 2, 'Ende'], [cStart + colStart + colEnd + 2, 'Vorgänger']];
+  parts.push(`<rect x="0" y="${top - 14}" width="${left}" height="14" fill="#e6e6e6" stroke="${LOOK.grid}"/>`);
+  for (const x of [colNr, colNr + colCode, colNr + colCode + colName, cStart, cStart + colStart, cStart + colStart + colEnd]) parts.push(`<line x1="${x}" y1="${top - 14}" x2="${x}" y2="${top + rows.length * rowH}" stroke="${LOOK.grid}" stroke-width="0.6"/>`);
   for (const [x, t] of heads) parts.push(`<text x="${x}" y="${top - 4}" font-size="8.5" font-weight="bold" fill="${LOOK.ink}">${t}</text>`);
   parts.push(monthHeads(a, top, h));
   const yOf = new Map<string, number>();
@@ -548,6 +682,9 @@ export function ganttSheetSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws,
     parts.push(`<text x="${colNr + 2}" y="${y + 11}" font-size="8" fill="${LOOK.ink}"${bold}>${esc(r.node.code)}</text>`);
     parts.push(`<text x="${colNr + colCode + 2 + ind}" y="${y + 11}" font-size="8" fill="${nameFill}"${bold}><title>${esc(r.node.title)}</title>${esc(wrap(r.node.title, Math.floor((colName - ind) / 4.6), 1)[0])}</text>`);
     parts.push(`<text x="${colNr + colCode + colName + 2}" y="${y + 11}" font-size="8" fill="${LOOK.ink}">${r.node.milestone ? '0 T' : `${r.days} T`}</text>`);
+    parts.push(`<text x="${cStart + 2}" y="${y + 11}" font-size="7.5" fill="${LOOK.ink}"${bold}>${dmy(r.start).slice(0, 6)}${r.start.slice(2, 4)}</text><text x="${cStart + colStart + 2}" y="${y + 11}" font-size="7.5" fill="${LOOK.ink}"${bold}>${dmy(r.end).slice(0, 6)}${r.end.slice(2, 4)}</text>`);
+    const pt = (preds.get(r.id) ?? []).join('; ');
+    if (pt) parts.push(`<text x="${cStart + colStart + colEnd + 2}" y="${y + 11}" font-size="7.5" fill="${LOOK.ink}"><title>${esc(pt)}</title>${esc(pt.length > 13 ? `${pt.slice(0, 12)}…` : pt)}</text>`);
     const x1 = a.x(r.start);
     const x2 = a.x(r.end) + a.w / (a.d1 - a.d0);
     if (r.node.milestone) parts.push(`<g><title>${esc(`${r.node.title}: ${dmy(r.start)}`)}</title>${diamond(x1, y + rowH / 2, 5, r.critical ? LOOK.red : LOOK.ink)}<text x="${x1 + 8}" y="${y + 11}" font-size="7.5" fill="${LOOK.ink}">${dm(r.start)}</text></g>`);
@@ -595,63 +732,91 @@ export function loadDefault(ws: Workspace, pid: string): string {
   return [...list].sort((a, b) => b.total - a.total)[0]?.id ?? '';
 }
 
-/** Auslastungsdiagramm einer Ressource: Stunden je Woche als gestapelte Balken je Arbeitspaket, Vorrat (Kapazität) als rote Linie. */
+const MONTH_FULL = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+/** V142: Wochen (Montag) zu Monaten – eine Woche zählt zu dem Monat, in dem ihr Mittwoch liegt. */
+export function weeksToMonths(weeks: readonly string[]): { months: string[]; of: number[] } {
+  const months: string[] = [];
+  const of = weeks.map((w) => {
+    const d = new Date(`${w}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 2);
+    const m = d.toISOString().slice(0, 7);
+    if (months[months.length - 1] !== m) months.push(m);
+    return months.length - 1;
+  });
+  return { months, of };
+}
+
+/** Auslastungsdiagramm einer Ressource (Abb. 14): Menge Ph je Monat als gestapelte Säulen je Arbeitspaket (Kürzel in der
+ *  Säule), Vorrat rot gestrichelt, Bedarf als dicke schwarze Stufenlinie, graue Fläche mit weißem Raster, unten
+ *  Monatsnamen und Pfeil „Projektmonat“ (V142 wie im Report; vorher je Woche). */
 export function loadSvg(ws: Workspace, pid: string, person: string): string {
   const use = resourceUse(ws, pid);
   const row: ResRow | undefined = use.rows.find((r) => r.person.id === person);
   if (!row || !use.weeks.length || row.total <= 0) return '';
   const tasks = row.tasks.filter((t) => t.total > 0);
+  const { months, of } = weeksToMonths(use.weeks);
+  const n = months.length;
+  const sumBy = (vals: readonly number[]) => {
+    const out = months.map(() => 0);
+    vals.forEach((v, i) => (out[of[i]] += v));
+    return out.map((v) => Math.round(v * 10) / 10);
+  };
+  const hours = sumBy(row.hours);
+  const cap = sumBy(row.capacity);
+  const per = tasks.map((t) => sumBy(t.hours));
   const width = 760;
-  const pad = { l: 44, r: 16, t: 34, b: 64 };
-  const ih = 260;
+  const pad = { l: 46, r: 46, t: 40, b: 62 };
+  const ih = 300;
   const iw = width - pad.l - pad.r;
-  const n = use.weeks.length;
   const bw = iw / n;
-  const max = Math.max(1, ...row.hours, ...row.capacity) * 1.12;
+  const max = Math.max(1, ...hours, ...cap) * 1.1;
   const y = (v: number) => pad.t + ih - (v / max) * ih;
   const parts: string[] = [];
-  parts.push(`<text x="${pad.l + iw / 2}" y="16" text-anchor="middle" font-size="13" font-weight="bold" fill="${LOOK.ink}">Einsatzmittelganglinie ${esc(row.person.name)}</text>`);
-  const step = max > 60 ? 10 : max > 24 ? 5 : 2;
+  parts.push(`<rect x="${pad.l}" y="${pad.t - 30}" width="${iw}" height="${ih + 30}" fill="#c4c4c4"/>`);
+  parts.push(`<rect x="${pad.l}" y="${pad.t - 30}" width="${iw}" height="26" fill="url(#fgPale)"/>`);
+  parts.push(`<text x="${pad.l + iw / 2}" y="${pad.t - 11}" text-anchor="middle" font-size="16" font-weight="bold" fill="#9a9a9a">Einsatzmittelganglinie ${esc(row.person.name.split(/\s+[–-]\s+/)[0])}</text>`);
+  const step = [5, 10, 20, 25, 50, 100, 200, 250, 500].find((s) => max / s <= 12) ?? 1000;
   for (let v = 0; v <= max; v += step) {
-    parts.push(`<line x1="${pad.l}" y1="${y(v)}" x2="${pad.l + iw}" y2="${y(v)}" stroke="${LOOK.grid}" stroke-width="0.6"/><text x="${pad.l - 4}" y="${y(v) + 3}" text-anchor="end" font-size="8" fill="${LOOK.muted}">${v}</text>`);
+    parts.push(`<line x1="${pad.l}" y1="${y(v)}" x2="${pad.l + iw}" y2="${y(v)}" stroke="#fff" stroke-width="${v ? 1.4 : 0}"/><text x="${pad.l - 5}" y="${y(v) + 3}" text-anchor="end" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">${v}</text><text x="${pad.l + iw + 5}" y="${y(v) + 3}" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">${v}</text>`);
   }
-  parts.push(`<text x="10" y="${pad.t + ih / 2}" text-anchor="middle" font-size="9" fill="${LOOK.ink}" transform="rotate(-90 10 ${pad.t + ih / 2})">Stunden je Woche</text>`);
+  parts.push(`<text x="4" y="${pad.t - 22}" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">Menge Ph</text><text x="${width - 4}" y="${pad.t - 22}" text-anchor="end" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">Menge Ph</text>`);
+  const unlabeled = new Set<number>();
+  const labeled = new Set<number>();
   for (let i = 0; i < n; i++) {
     let acc = 0;
-    tasks.forEach((t, k) => {
-      const v = t.hours[i] ?? 0;
+    const x = pad.l + i * bw;
+    per.forEach((vals, k) => {
+      const v = vals[i];
       if (v <= 0) return;
-      parts.push(`<rect x="${pad.l + i * bw + 0.5}" y="${y(acc + v)}" width="${Math.max(1, bw - 1)}" height="${y(acc) - y(acc + v)}" fill="${LOAD_TONES[k % LOAD_TONES.length]}" fill-opacity="0.85"><title>${esc(`${t.code} ${t.title}: ${v.toLocaleString('de-DE')} h in KW ab ${dmy(use.weeks[i])}`)}</title></rect>`);
+      const t = tasks[k];
+      const y1 = y(acc + v);
+      const h = y(acc) - y1;
+      parts.push(`<rect x="${x + 1}" y="${y1}" width="${Math.max(1, bw - 2)}" height="${h}" fill="${LOAD_TONES[k % LOAD_TONES.length]}"><title>${esc(`${t.code} ${t.title}: ${v.toLocaleString('de-DE')} Ph im ${MONTH_FULL[Number(months[i].slice(5, 7)) - 1]} ${months[i].slice(0, 4)}`)}</title></rect>`);
+      const label = t.code || t.title;
+      if (h >= 11 && bw >= label.length * 5 + 6) parts.push(`<text x="${x + 6}" y="${y1 + Math.min(h / 2 + 3.5, 13)}" font-size="${h >= 16 ? 9 : 7.5}" font-weight="bold" fill="#fff" pointer-events="none">${esc(label)}</text>`), labeled.add(k);
+      else unlabeled.add(k);
       acc += v;
     });
-    if (acc > (row.capacity[i] ?? 0) + 0.01) parts.push(`<rect x="${pad.l + i * bw}" y="${y(acc)}" width="${bw}" height="${y(row.capacity[i] ?? 0) - y(acc)}" fill="none" stroke="${LOOK.ink}" stroke-width="1.2"/>`);
   }
-  // Vorrat als rote Stufenlinie, Summe als schwarze Linie
-  const cap = row.capacity.map((c, i) => `${i ? 'H' : `M${pad.l} ${y(c)}H`}${pad.l + (i + 1) * bw}${i < n - 1 ? `V${y(row.capacity[i + 1])}` : ''}`).join('');
-  parts.push(`<path d="${cap}" fill="none" stroke="${LOOK.red}" stroke-width="1.6" stroke-dasharray="6 4"/>`);
-  const sum = row.hours.map((c, i) => `${i ? 'H' : `M${pad.l} ${y(c)}H`}${pad.l + (i + 1) * bw}${i < n - 1 ? `V${y(row.hours[i + 1])}` : ''}`).join('');
-  parts.push(`<path d="${sum}" fill="none" stroke="${LOOK.ink}" stroke-width="1.4"/>`);
-  // Monate unten
-  let last = '';
-  use.weeks.forEach((w, i) => {
-    const m = w.slice(0, 7);
-    if (m === last) return;
-    last = m;
-    parts.push(`<line x1="${pad.l + i * bw}" y1="${pad.t + ih}" x2="${pad.l + i * bw}" y2="${pad.t + ih + 6}" stroke="${LOOK.muted}"/><text x="${pad.l + i * bw + 2}" y="${pad.t + ih + 15}" font-size="8" fill="${LOOK.muted}">${MONTHS[Number(w.slice(5, 7)) - 1]} ${w.slice(2, 4)}</text>`);
-  });
-  parts.push(`<line x1="${pad.l}" y1="${pad.t + ih}" x2="${pad.l + iw}" y2="${pad.t + ih}" stroke="${LOOK.ink}"/>`);
-  // Legende
+  // Vorrat rot gestrichelt, Bedarf dicke schwarze Stufenlinie
+  const stepPath = (vals: number[]) => vals.map((c, i) => `${i ? `V${y(c)}H` : `M${pad.l} ${y(c)}H`}${pad.l + (i + 1) * bw}`).join('');
+  parts.push(`<path d="${stepPath(cap)}" fill="none" stroke="${LOOK.red}" stroke-width="2.4" stroke-dasharray="7 5"/>`);
+  parts.push(`<path d="${stepPath(hours)}V${y(0)}" fill="none" stroke="#000" stroke-width="3.2"/>`);
+  months.forEach((m, i) => parts.push(`<text x="${pad.l + (i + 0.5) * bw}" y="${pad.t + ih + 13}" text-anchor="middle" font-size="8" font-weight="bold" fill="${LOOK.ink}">${MONTH_FULL[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}</text>`));
+  const ay = pad.t + ih + 22;
+  parts.push(`<path d="M${pad.l} ${ay}H${pad.l + iw}L${pad.l + iw + 10} ${ay + 8}L${pad.l + iw} ${ay + 16}H${pad.l}Z" fill="url(#fgGray)"/><text x="${pad.l + 6}" y="${ay + 12}" font-size="9" font-weight="bold" fill="${LOOK.muted}">Projektmonat</text>`);
+  // Legende: Linien und nur die Kürzel, die nicht in ihre Säule passten
   let lx = pad.l;
-  let ly = pad.t + ih + 32;
-  const items: [string, string][] = [...tasks.map((t, k): [string, string] => [LOAD_TONES[k % LOAD_TONES.length], t.code || t.title]), [LOOK.red, 'Vorrat (Kapazität)'], [LOOK.ink, 'Bedarf (Summe)']];
-  for (const [c, t] of items) {
+  let ly = ay + 32;
+  const items: [string, string, boolean][] = [[LOOK.red, 'Vorrat (Kapazität)', true], ['#000', 'Bedarf (Summe)', true], ...[...unlabeled].filter((k) => !labeled.has(k)).map((k): [string, string, boolean] => [LOAD_TONES[k % LOAD_TONES.length], tasks[k].code || tasks[k].title, false])];
+  for (const [c, t, line] of items) {
     const w = 18 + t.length * 5.2;
     if (lx + w > width - 10) (lx = pad.l), (ly += 13);
-    parts.push(`<rect x="${lx}" y="${ly - 7}" width="9" height="8" fill="${c}"/><text x="${lx + 12}" y="${ly}" font-size="8" fill="${LOOK.ink}">${esc(t)}</text>`);
-    lx += w + 8;
+    parts.push(`${line ? `<line x1="${lx}" y1="${ly - 3}" x2="${lx + 12}" y2="${ly - 3}" stroke="${c}" stroke-width="2.4"${c === LOOK.red ? ' stroke-dasharray="4 2"' : ''}/>` : `<rect x="${lx}" y="${ly - 7}" width="9" height="8" fill="${c}"/>`}<text x="${lx + 15}" y="${ly}" font-size="8" fill="${LOOK.ink}">${esc(t)}</text>`);
+    lx += w + 10;
   }
-  const over = row.over;
-  return svgWrap(width, ly + 10, `Auslastungsdiagramm ${row.person.name}: ${row.total.toLocaleString('de-DE')} h in ${n} Wochen${over ? `, ${over} Wochen über dem Vorrat` : ''}`, parts.join(''));
+  const over = hours.filter((h, i) => h > cap[i] + 0.01).length;
+  return svgWrap(width, ly + 10, `Auslastungsdiagramm ${row.person.name}: ${row.total.toLocaleString('de-DE')} Ph in ${n} Monaten${over ? `, ${over} Monate über dem Vorrat` : ''}`, parts.join(''));
 }
 
 // ---------------------------------------------------------------- F-234 (V137): AP-Statusbericht wie Abb. 15
@@ -704,7 +869,8 @@ export function wpReportSvg(ws: Workspace, p: Project, rowId: string | undefined
     y += h;
   };
   pair('AP Bezeichnung', title, 'AP.Nr. (PSP CODE)', node?.code ?? '');
-  pair('Projektname', p.name, 'Projekt.Nr.', p.charter?.no ?? '');
+  // V142 (Report Abb. 15): Projektname mit Untertitel (Ziel aus dem Steckbrief)
+  pair('Projektname', [p.name, (p.brief?.goal ?? '').split('\n')[0]].filter(Boolean).join(' - '), 'Projekt.Nr.', p.charter?.no ?? '');
   pair('Teilaufgabe', parent ? [parent.title, parent.code].filter(Boolean).join(' / ') : '', 'Phase', phase);
   pair('Projektleiter', lead, 'Verantwortlicher', owner);
   // Status: Ampel und Fortschrittskreis
@@ -769,6 +935,7 @@ export function wpReportSvg(ws: Workspace, p: Project, rowId: string | undefined
   parts.push(txt(5, y + 21, [`${r.place ? `${r.place}, ` : ''} ${dmy(r.date)}`.trim()], { bold: true }));
   parts.push(`<line x1="${W - 190}" y1="${y + 24}" x2="${W - 10}" y2="${y + 24}" stroke="#9a9a9a" stroke-dasharray="2 2"/><text x="${W - 10}" y="${y + 11}" text-anchor="end" font-size="7.5" font-weight="bold" fill="${LOOK.ink}">Unterschrift PL</text>`);
   y += 34;
+  parts.push(`<rect x="1" y="1" width="${W - 2}" height="${y - 1}" fill="none" stroke="#111" stroke-width="2.4"/>`);
   return svgWrap(W, y + 1, `AP-Statusbericht ${node?.code ?? ''} ${title} zum ${dmy(r.date)}: Ampel ${r.light === 'red' ? 'rot' : r.light === 'yellow' ? 'gelb' : 'grün'}, ${nf(prog, ' %')} erledigt`, parts.join(''));
 }
 

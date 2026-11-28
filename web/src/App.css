@@ -10249,6 +10249,25 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 .paper--form .pjf__table { width: 100%; border-collapse: collapse; font-size: 0.95em; margin: 4px 0 8px; }
 .paper--form .pjf__table th, .paper--form .pjf__table td { border: 1px solid var(--paper-line); padding: 3px 5px; vertical-align: top; text-align: left; color: var(--paper-ink); font-weight: 400; }
 .paper--form .pjf__table thead th { background: var(--paper-label); font-weight: 700; }
+/* V142 (Report Abb. 11): Arbeitspaketbeschreibung als Blatt mit vier Spalten */
+.pjf__sheet { border: 2px solid #111; }
+.pjf__sheetL { width: 18%; }
+.pjf__sheet > thead > tr > th.pjf__sheethead { background: linear-gradient(#8c8c8c, #6a6a6a); color: #fff; font-size: 1.9em; font-weight: 700; text-align: center; padding: 12px 8px; border: 1px solid var(--paper-line); }
+.pjf__sheet > tbody > tr > td { color: var(--paper-red); font-weight: 700; }
+.pjf__sheet > tbody > tr > td :is(input, textarea, select) { color: inherit; font-weight: inherit; }
+.pjf__sheet > tbody > tr > td.is-long, .pjf__sheet > tbody > tr > td.is-lines { color: var(--paper-ink); font-weight: 400; }
+.pjf__sheet td.pjf__static { color: var(--paper-red); }
+@media (max-width: 700px) { .pjf__sheet > thead, .pjf__sheet > thead > tr, .pjf__sheet > thead > tr > th { display: block; width: auto; } }
+/* V142 (Enrico 14:58 „wie im Report“, Tab. 2/9, Abb. 8): Tabellenkopf dunkelgrau mit weißer Schrift, Rahmen außen kräftig schwarz,
+   erste Spalte (Kennung) fett weinrot; Spalte der Zeilen-Knöpfe bleibt ohne Rahmen. */
+.paper--form .pjf__table thead th:not(:last-child) { background: linear-gradient(#7c7c7c, #575757); color: #fff; border-color: #4a4a4a; border-top: 2px solid #111; }
+.paper--form .pjf__table thead th:first-child, .paper--form .pjf__table tbody td.pjf__cell:first-child { border-left: 2px solid #111; }
+.paper--form .pjf__table thead th:nth-last-child(2), .paper--form .pjf__table tbody td.pjf__cell:nth-last-child(2) { border-right: 2px solid #111; }
+.paper--form .pjf__table tbody tr:last-child td.pjf__cell { border-bottom: 2px solid #111; }
+.paper--form .pjf__table thead th:last-child { background: none; border: 0; }
+.paper--form .pjf__table tbody td.pjf__cell:first-child, .paper--form .pjf__table tbody td.pjf__cell:first-child :is(input, textarea, select) { color: var(--paper-red); font-weight: 700; }
+.paper--form .pjf__table tbody tr:nth-child(even) td.pjf__cell { background: #f6f6f6; }
+@media (forced-colors: active), (prefers-contrast: more) { .paper--form .pjf__table thead th:not(:last-child) { background: #fff; color: #000; } }
 .paper--form .pjf__table td.pjf__acts { border: 0; white-space: nowrap; padding: 3px 0 3px 4px; }
 .paper--form .pjf__table td.pjf__cell input, .paper--form .pjf__table td.pjf__cell textarea, .paper--form .pjf__table td.pjf__cell select { min-width: 4em; }
 .paper--form .pjf__sum > td { border-top: 2px solid #555; font-weight: 700; }
@@ -10421,6 +10440,10 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
 /* V134 (Enrico 11:49 „Das darf nie aus dem Bild laufen“): Projektliste mit Projekt- und Ansicht-Rad bleibt beim Scrollen oben stehen */
 .pj .pc__tablewrap { position: sticky; top: 0; z-index: 40; background: var(--panel, #1b1d22); box-shadow: 0 6px 10px -8px rgba(0, 0, 0, 0.6); }
 .pj .pc__tablewrap thead th { position: static; }
+/* V142 (Enrico 15:20, Bildschirmfoto): Kartenfenster im Netzplan lag unter der stehenden Projektliste – offenes Fenster geht vor */
+.pj .cardwin { z-index: 60; }
+/* bildet der Netzplan eine eigene Ebene, hilft z-index allein nicht – Liste steht solange nicht fest und liegt in der Grundebene */
+.pj:has(.cardwin) .pc__tablewrap { position: static; z-index: auto; box-shadow: none; }
 
 /* ---------------------------------------------------------------- F-234 (V135) Grafik-Blätter wie im Report */
 .paper--form .pjf__fig { position: relative; }

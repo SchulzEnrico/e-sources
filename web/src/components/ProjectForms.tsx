@@ -7,7 +7,7 @@
  * Tastatur (NF-03): Tab durch die Felder, Enter übernimmt, Esc verwirft, Alt+↑/↓ verschiebt die Zeile.
  * Meldungen am Ort (F-214). Logik in workspace/formKit.ts und gpm.ts.
  */
-import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { Fragment, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import type { Action } from '../workspace/useWorkspace';
 import type { FormDef, FormFieldType, Project, Workspace } from '../workspace/types';
 import * as Fk from '../workspace/formKit';
@@ -602,6 +602,56 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
     );
   };
   /** Feldliste wie im Report: zweispaltige Tabelle Bezeichnung | Wert */
+  /** V142 (Report Abb. 11): Arbeitspaketbeschreibung als Blatt mit vier Spalten – kurze Angaben paarweise, lange über die ganze
+   *  Breite, Kopf dunkel mit dem Namen des Formulars, Projektname und -nummer aus dem Steckbrief. */
+  const sheetKv = (rowId: string, list: Fk.FormCol[], layout: readonly (readonly string[])[]) => {
+    const byKey = new Map(list.map((c) => [c.key, c]));
+    const used = new Set(layout.flat());
+    const rest = list.filter((c) => !used.has(c.key)).map((c) => [c.key]);
+    const cell = (c: Fk.FormCol, span = false) => {
+      const m = miss.has(`${rowId}|${c.key}`);
+      return (
+        <>
+          <th scope="row" className={m ? 'is-miss' : undefined}>
+            {c.label}
+            {c.required && <span className="pjf__req" title={T.required} aria-label={T.required}>*</span>}
+          </th>
+          <td colSpan={span ? 3 : undefined} className={`pjf__cell is-${c.kind}${m ? ' is-miss' : ''}`}>
+            <Cell ws={ws} p={p} form={form} rowId={rowId} col={c} miss={m} label={c.label} onSet={setValue} />
+            {c.help && <span className="pjf__help">{c.help}</span>}
+          </td>
+        </>
+      );
+    };
+    return (
+      <table className="paper__table pjf__kv pjf__sheet">
+        <colgroup>
+          <col className="pjf__sheetL" />
+          <col />
+          <col className="pjf__sheetL" />
+          <col />
+        </colgroup>
+        <thead>
+          <tr>
+            <th colSpan={4} scope="col" className="pjf__sheethead">{form.name}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">{T.sheetProject}</th>
+            <td className="pjf__static">{[p.name, (p.brief?.goal ?? '').split('\n')[0]].filter(Boolean).join(' – ')}</td>
+            <th scope="row">{T.sheetProjectNo}</th>
+            <td className="pjf__static">{p.charter?.no ?? ''}</td>
+          </tr>
+          {[...layout, ...rest].map((keys) => {
+            const cs = keys.map((k) => byKey.get(k)).filter((c): c is Fk.FormCol => !!c);
+            if (!cs.length) return null;
+            return <tr key={keys.join('|')}>{cs.length === 1 ? cell(cs[0], true) : cs.map((c) => <Fragment key={c.key}>{cell(c)}</Fragment>)}</tr>;
+          })}
+        </tbody>
+      </table>
+    );
+  };
   const kv = (rowId: string, list: Fk.FormCol[]) => (
     <table className="paper__table pjf__kv">
       <colgroup>
@@ -846,7 +896,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView }: { ws: Wo
               {form.source === 'reports' && <p className="help__text">{T.reportFrozen}</p>}
               {form.figure && figureBlock()}
               <div className="pjf__fields is-kv" data-row={recRow.id} key={recRow.id}>
-                {kv(recRow.id, cols)}
+                {form.source === 'wp' ? sheetKv(recRow.id, cols, WP_SHEET) : kv(recRow.id, cols)}
               </div>
             </>
           )
@@ -1041,6 +1091,21 @@ function FigEditor({ edit, fig, ws, p, tpl, run, tell, say, by, onOpen, onClose 
     </div>
   );
 }
+
+/** V142 (Report Abb. 11): Anordnung der Arbeitspaketbeschreibung – Paare nebeneinander, einzelne über die ganze Breite. */
+const WP_SHEET: readonly (readonly string[])[] = [
+  ['title', 'code'],
+  ['phase', 'assignee'],
+  ['start', 'end'],
+  ['hours', 'cost'],
+  ['inputs'],
+  ['goal'],
+  ['activities'],
+  ['results'],
+  ['risks'],
+  ['method', 'progress'],
+  ['releasePl', 'releaseOwner'],
+];
 
 /** Eine Zelle: Eingabe je nach Art; übernimmt bei Enter bzw. beim Verlassen, Esc verwirft. */
 function Cell({ ws, p, form, rowId, col, miss, label, onSet }: { ws: Workspace; p: Project; form: FormDef; rowId: string; col: Fk.FormCol; miss: boolean; label: string; onSet: (row: string, key: string, v: Fk.CellValue) => void }) {

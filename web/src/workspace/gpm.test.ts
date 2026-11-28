@@ -746,7 +746,7 @@ describe('F-235 (V135): Live-Projekt E-Sources', () => {
     const D = await import('./liveProjectData');
     const ids = D.LIVE_ITEMS.map((i) => i.f);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids.length).toBe(202); // 205 im Lastenheft, 3 ersetzt (⇢, V141 auch F-233) fallen weg
+    expect(ids.length).toBe(203); // 206 im Lastenheft (V142 F-238), 3 ersetzt (⇢, V141 auch F-233) fallen weg
     const st = (f: string) => D.LIVE_ITEMS.find((i) => i.f === f)?.state;
     for (const f of ['F-16', 'F-19', 'F-38', 'F-53', 'F-62', 'F-100', 'F-119', 'F-148', 'F-157', 'F-198', 'F-199']) expect(st(f)).toBe('open');
     for (const f of ['F-160', 'F-179', 'F-181', 'F-184']) expect(st(f)).toBe('done');
@@ -1060,5 +1060,19 @@ describe('F-234 (V137): AP-Statusbericht, Persönliche Kompetenzen, Anlagen, Bea
     expect(loop.get('client')).toBe('pa');
     expect(loop.get('pa')).toBeUndefined();
     expect(loop.get('lead')).toBe('client');
+  });
+
+  it('V142: Organigramm-Beschriftung und Monate wie im Report', async () => {
+    const F = await import('./gpmFigures');
+    expect(F.orgLabel('Auftraggeber (Geschäftsführung)', 'Hr. Meier – Geschäftsführer FIT GmbH (CG)')).toEqual({ name: 'Hr. Meier', role: 'Geschäftsführung', tab: 'Auftraggeber' });
+    expect(F.orgLabel('Werkstattleitung (Lackiermeister/in)', 'Lackiermeister/in (CG, n. N.)')).toEqual({ name: 'n. N.', role: 'Werkstattleitung' });
+    expect(F.orgLabel('Hr. Thomsen – Vertrieb', '')).toEqual({ name: 'Hr. Thomsen', role: 'Vertrieb' });
+    const m = F.weeksToMonths(['2026-11-30', '2026-12-07', '2026-12-28', '2027-01-04']);
+    expect(m.months).toEqual(['2026-12', '2027-01']);
+    expect(m.of).toEqual([0, 0, 0, 1]);
+    const ws = Sp.addSampleProject(W.defaultWorkspace());
+    const svg = F.figureSvg(ws, Sp.SAMPLE_PROJECT, 'gantt');
+    expect(svg).toContain('Vorgänger');
+    expect(F.figureSvg(ws, Sp.SAMPLE_PROJECT, 'load')).toContain('Menge Ph');
   });
 });

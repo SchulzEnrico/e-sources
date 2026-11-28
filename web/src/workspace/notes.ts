@@ -777,7 +777,7 @@ const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isDay = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 const EVENT_KINDS = new Set<NoteEventKind>(['created', 'edited', 'state', 'parent', 'link', 'unlink', 'placed', 'moved', 'removed', 'delegated', 'forwarded', 'attached', 'restored', 'comment']);
-const ORIGIN_VIA = new Set<NoteOrigin['via']>(['hand', 'quick', 'voice', 'slot', 'import']);
+const ORIGIN_VIA = new Set<NoteOrigin['via']>(['hand', 'quick', 'voice', 'ink', 'slot', 'import']);
 
 /** Vorgänger lesen; bis v7 hieß die Art `kind` ('done' = EA + wartet, 'date' = EA). */
 function parseLink(l: unknown, self: string): NoteLink | null {
@@ -832,14 +832,17 @@ function parseNote(v: unknown, catIds: Set<string>): Note | null {
   if (v.urgent === true) n.urgent = true;
   if (Array.isArray(v.attach)) {
     const attach = v.attach
-      .filter((a): a is Record<string, unknown> => isObj(a) && (a.kind === 'file' || a.kind === 'note' || a.kind === 'source' || a.kind === 'audio') && typeof a.ref === 'string')
+      .filter((a): a is Record<string, unknown> => isObj(a) && (a.kind === 'file' || a.kind === 'note' || a.kind === 'source' || a.kind === 'audio' || a.kind === 'ink') && typeof a.ref === 'string')
       .map((a) => ({
         kind: a.kind as NoteAttachment['kind'],
         ref: a.ref as string,
         ...(typeof a.name === 'string' ? { name: a.name } : {}),
         ...(a.kind === 'audio' && isNum(a.dur) && a.dur >= 0 ? { dur: a.dur } : {}),
-        ...(a.kind === 'audio' && typeof a.at === 'string' ? { at: a.at } : {}),
-        ...(a.kind === 'audio' && typeof a.dev === 'string' ? { dev: a.dev } : {}),
+        ...((a.kind === 'audio' || a.kind === 'ink') && typeof a.at === 'string' ? { at: a.at } : {}),
+        ...((a.kind === 'audio' || a.kind === 'ink') && typeof a.dev === 'string' ? { dev: a.dev } : {}),
+        ...(a.kind === 'ink' && isNum(a.w) && a.w > 0 ? { w: a.w } : {}),
+        ...(a.kind === 'ink' && isNum(a.h) && a.h > 0 ? { h: a.h } : {}),
+        ...(a.kind === 'ink' && typeof a.text === 'string' && a.text ? { text: a.text } : {}),
         ...(a.kind === 'audio' && typeof a.mime === 'string' ? { mime: a.mime } : {}),
       }));
     if (attach.length) n.attach = attach;
@@ -1083,10 +1086,12 @@ export type NoteHit = { kind: 'note'; note: Note; title: string; snippet: string
  * V78 (F-215 Schritt 4, „Suche“ im Halbkreis): passt die Notiz zur Suche im Notizblock?
  * Alle Wörter müssen vorkommen – in Titel, Text oder Tags (# davor erlaubt), Groß/klein egal. Leere Suche = alle.
  */
-export function noteMatches(n: Pick<Note, 'title' | 'text' | 'tags'>, query: string): boolean {
+export function noteMatches(n: Pick<Note, 'title' | 'text' | 'tags' | 'attach'>, query: string): boolean {
   const words = query.toLowerCase().split(/\s+/).map((w) => w.replace(/^#/, '')).filter(Boolean);
   if (!words.length) return true;
-  const hay = [titleOf(n), plainText(n.text), ...(n.tags ?? [])].join(' ').toLowerCase();
+  // V143 (F-238): umgewandelter Text der Handschrift zählt mit
+  const ink = (n.attach ?? []).filter((a) => a.kind === 'ink' && a.text).map((a) => a.text as string);
+  const hay = [titleOf(n), plainText(n.text), ...(n.tags ?? []), ...ink].join(' ').toLowerCase();
   return words.every((w) => hay.includes(w));
 }
 

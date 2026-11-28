@@ -15,6 +15,8 @@ import { flash } from '../workspace/flash';
 import { NoteEditor } from './NoteEditor';
 import { RemindChips } from './RemindChips';
 import { AudioChips } from './AudioChips';
+import { InkChips } from './InkChips';
+import * as Ink from '../workspace/ink';
 import { SourceChips } from './SourceChips';
 import { TrelloExtras } from './TrelloExtras';
 import { ProjectChip } from './ProjectChips';
@@ -305,6 +307,21 @@ export function NoteTab({ ws, noteId, dispatch, draft, sheet }: NoteProps) {
           const before = audios[index];
           const at = before ? list.indexOf(before) : list.length;
           list.splice(at, 0, a);
+          dispatch({ type: 'noteEdit', id: cur.id, patch: { attach: list }, by });
+        }}
+      />
+      {/* V143 (F-238 S4): Handschrift – Tinte über dem Text, umgewandelter Text darunter; wie Ton nicht Teil des Entwurfs */}
+      <InkChips
+        note={noteId}
+        inks={Ink.inkOf(raw ?? n)}
+        onRemove={(ref) => raw && dispatch({ type: 'noteEdit', id: raw.id, patch: { attach: Ink.dropInk(raw, ref) }, by })}
+        onUndo={(a, index) => {
+          const cur = No.noteById(ws, noteId);
+          if (!cur) return;
+          const list = [...(cur.attach ?? [])];
+          const inks = list.filter((x) => x.kind === 'ink');
+          const before = inks[index];
+          list.splice(before ? list.indexOf(before) : list.length, 0, a);
           dispatch({ type: 'noteEdit', id: cur.id, patch: { attach: list }, by });
         }}
       />

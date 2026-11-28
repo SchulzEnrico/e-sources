@@ -13,7 +13,8 @@ import * as Ps from '../workspace/persons';
 import { risksOf } from '../workspace/risks';
 import { titleOf } from '../workspace/notes';
 import { noticeLater } from '../workspace/flash';
-import { PAPER_TEXT as S } from '../workspace/terms';
+import { INK_TEXT as T_INK, PAPER_TEXT as S } from '../workspace/terms';
+import { InkSign } from './InkChips';
 import { ModeWheel } from './ModeWheel';
 
 const SIZE_KEY = 'esource.paperSize.v1';
@@ -340,11 +341,13 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
                 <div className="paper__signs">
                   {(
                     [
-                      ['releaseAg', 'signAg', S.signAg],
-                      ['releasePl', 'signPl', S.signPl],
+                      ['releaseAg', 'signAg', S.signAg, 'inkAg'],
+                      ['releasePl', 'signPl', S.signPl, 'inkPl'],
                     ] as const
-                  ).map(([d, n, l]) => (
-                    <div key={d} className="paper__sign">
+                  ).map(([d, n, l, ink]) => (
+                    <div key={d} className={`paper__sign${c[ink] ? ' has-ink' : ''}`}>
+                      {/* V143 (F-238 S6): Unterschrift als Handschrift; ohne bleibt der Name in Schreibschrift */}
+                      <InkSign project={p.id} field={ink} label={l} inkRef={c[ink]} name={c[n]} onRemove={() => (dispatch({ type: 'charterEdit', id: p.id, patch: { [ink]: null } }), tell(n, T_INK.signRemoved))} onDone={(t) => tell(n, t)} />
                       <Field label={`${l}: ${S.signName}`} value={c[n]} placeholder={S.signName} onSave={charter(n, `${l}: ${S.signName}`)} />
                       <span className="paper__signline">{l}</span>
                       <Field label={`${l}: ${S.signDate}`} value={c[d]} kind="date" onSave={charter(d, `${l}: ${S.signDate}`)} />

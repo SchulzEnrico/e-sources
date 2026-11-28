@@ -33,7 +33,9 @@ import { CardFields } from './CardFields';
 import { StarMark } from './StarMark';
 import { Icon } from './Icon';
 import * as In from '../workspace/inbox';
-import { INBOX_TEXT } from '../workspace/terms';
+import { INBOX_TEXT, INK_TEXT } from '../workspace/terms';
+import * as Ink from '../workspace/ink';
+import { openInk } from '../workspace/inkStore';
 
 export type SheetCmd = { k: 'home' | 'new' | 'go' | 'search'; n: number; id?: string };
 export type Show = 'open' | 'all';
@@ -450,7 +452,10 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
           />
         ) : (
           <button type="button" data-row={n.id} className="todo__title" title={`${SHEET_TEXT.open(t)} – ${SHEET_TEXT.rowKeys}`} aria-describedby={`${sheetId}-rowkeys`} onClick={() => setCard(n.id)} onKeyDown={(e) => rowKey(e, n)}>
+            {/* V143 (F-238 S8): Handschrift – Stift-Symbol, gedämpft, keine eigene Farbe; vorgelesen „Handschrift“ */}
+            {Ink.hasInk(n) && <Icon name="pen" size={13} className="icon todo__ink" />}
             <span className="todo__text">{t}</span>
+            {Ink.hasInk(n) && <span className="sr-only">, {INK_TEXT.listInk}</span>}
             <Signs ws={ws} n={n} />
             <span className="sr-only">, {fin ? NOTE_TEXT.states.done : NOTE_TEXT.states[No.stateOf(ws, n).state]}{lock.length ? `, ${lockText(lock)}` : ''}</span>
           </button>
@@ -485,6 +490,12 @@ export function TodoSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; de
             else if (e.key === 'ArrowDown') (e.preventDefault(), focusRow());
           }}
         />
+        {/* V143 (F-238): im Eingang direkt mit der Hand schreiben */}
+        {In.isInbox(sheetId) && (
+          <button type="button" className="todo__inkbtn" title={INK_TEXT.openHint} aria-label={INK_TEXT.parkInk} onClick={() => openInk()}>
+            <Icon name="pen" size={14} />
+          </button>
+        )}
       </div>
       <span id={`${sheetId}-rowkeys`} className="sr-only">{SHEET_TEXT.rowKeys}</span>
       <span className="sr-only" role="status">{SHEET_TEXT.sheetInfo(all.rows.filter((r) => r.depth === 0).length, all.done.length)}</span>

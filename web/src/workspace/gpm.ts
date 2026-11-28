@@ -72,7 +72,7 @@ export const USE_MAX = 20;
 
 // ---------------------------------------------------------------- Lesen (Speicher)
 
-const CHARTER_TEXT = ['no', 'kind', 'client', 'clientAddress', 'benefit', 'benefitMeasure', 'businessCase', 'reporting', 'special', 'success', 'tailoring', 'main', 'team', 'steering', 'vendors', 'others', 'signAg', 'signPl'] as const;
+const CHARTER_TEXT = ['no', 'kind', 'client', 'clientAddress', 'benefit', 'benefitMeasure', 'businessCase', 'reporting', 'special', 'success', 'tailoring', 'main', 'team', 'steering', 'vendors', 'others', 'signAg', 'signPl', 'inkAg', 'inkPl'] as const;
 const CHARTER_MONEY = ['ownEffort', 'extEffort', 'costPm', 'costStaff', 'costMaterial', 'reserve'] as const;
 
 export function sanitizeCharter(v: unknown): ProjectCharter | undefined {

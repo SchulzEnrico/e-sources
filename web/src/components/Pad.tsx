@@ -17,10 +17,12 @@ import { PAD_MIN, type PadUndo, padUndoOf, padWith } from '../workspace/pads';
 import { PAD_SHEETS_MAX } from '../workspace/noteObjects';
 import { noticeLater } from '../workspace/flash';
 import { switchOf } from '../workspace/ruleSet';
-import { AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_MORE_TEXT, TAG_TEXT, KANBAN_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, STAGE_TEXT, STAR_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
+import { INK_TEXT, AUDIO_TEXT, BOARD_TPL_TEXT, DOCK_TEXT, DRAFT_TEXT, FOOT_TEXT, KANBAN_MORE_TEXT, TAG_TEXT, KANBAN_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PLAN_TEXT, STAGE_TEXT, STAR_TEXT, TERMS, VOICE_TEXT } from '../workspace/terms';
 import { starredViews } from '../workspace/stars';
 import { archiveCount } from '../workspace/kanbanMore';
 import { newId } from '../workspace/workspace';
+import { openInk } from '../workspace/inkStore';
+import * as Ink from '../workspace/ink';
 import { type Notice, NoteTab, freshNotes } from './NoteTab';
 import { type FootItem, PadFooter, type VoiceProps } from './PadFooter';
 import type { AudioTake } from './useVoice';
@@ -1069,6 +1071,17 @@ export function Pad({ ws, dispatch, pad, desk, place, box, top, z, picked, onPic
             <Icon name="image" size={14} />
             <span>{FOOT_TEXT.pickPic}</span>
           </button>
+          {/* V143 (F-238 S2): Handschrift – an die offene Notiz, sonst neue Notiz im Eingang */}
+          <button
+            type="button"
+            role="menuitem"
+            className="padfoot__recentitem"
+            title={editor() && curNote ? INK_TEXT.attachHint : INK_TEXT.openHint}
+            onClick={() => (setShareOpen(false), openInk(editor() && curNote ? { note: curNote } : {}))}
+          >
+            <Icon name="pen" size={14} />
+            <span>{INK_TEXT.parkInk}</span>
+          </button>
           <button type="button" role="menuitem" className="padfoot__recentitem" onClick={() => void shareNote()}>
             <Icon name="share" size={14} />
             <span>{FOOT_TEXT.shareNote}</span>
@@ -1323,8 +1336,15 @@ function NoteBlock(props: {
                           <Icon name="image" size={13} />
                         </span>
                       )}
+                      {/* V143 (F-238 S8): Handschrift – Stift-Symbol, gedämpft, keine eigene Farbe */}
+                      {Ink.hasInk(raw) && (
+                        <span className="nblock__pic" aria-hidden="true">
+                          <Icon name="pen" size={13} />
+                        </span>
+                      )}
                       {t}
                       {mark && <span className="sr-only">, {tone && No.isVoiceNote(raw) ? `${AUDIO_TEXT.listVoice} ${mark}` : mark}</span>}
+                      {Ink.hasInk(raw) && <span className="sr-only">, {INK_TEXT.listInk}</span>}
                       {pic && <span className="sr-only">, {NOTE_TEXT.imgListMark}</span>}
                     </span>
                     <span className="nblock__state">

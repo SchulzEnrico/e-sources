@@ -646,7 +646,9 @@ export interface NoteEvent {
  *  F-215 (V79, Entscheidung T1): `audio` = Tonaufnahme einer Sprachnotiz; der Ton liegt nur auf dem Gerät, auf dem
  *  er aufgenommen wurde (IndexedDB, Schlüssel `ref`), abgeglichen wird nur dieser Verweis. */
 export interface NoteAttachment {
-  kind: 'file' | 'note' | 'source' | 'audio';
+  /** V143 (F-238 Handschrift): `ink` = handschriftliche Notiz; die Striche liegen nur auf dem Gerät (IndexedDB
+   *  `esource.ink`, Schlüssel `ref`), abgeglichen werden Verweis, Größe und umgewandelter Text. */
+  kind: 'file' | 'note' | 'source' | 'audio' | 'ink';
   /** Id der Notiz bzw. Source; bei Dateien und Ton eine Id im Gerätespeicher. */
   ref: string;
   name?: string;
@@ -658,6 +660,11 @@ export interface NoteAttachment {
   dev?: string;
   /** Ton: Format (z. B. audio/webm). */
   mime?: string;
+  /** Handschrift: Größe der Schreibfläche in Punkten. */
+  w?: number;
+  h?: number;
+  /** Handschrift: umgewandelter bzw. dazugeschriebener Text (Textalternative, Suche). */
+  text?: string;
 }
 
 /** V124 (F-231 K6): Titelbild einer Karte. Entweder `color` (Trello-Farbe, ohne Stufe) oder `img` (Schlüssel im
@@ -689,7 +696,7 @@ export type CardFieldValue = string | number | true;
 
 /** F-206: Wie eine Notiz entstand (wie BookmarkOrigin). */
 export interface NoteOrigin {
-  via: 'hand' | 'quick' | 'voice' | 'slot' | 'import';
+  via: 'hand' | 'quick' | 'voice' | 'ink' | 'slot' | 'import';
   /** Zeitpunkt (ISO 8601). */
   at: string;
   by?: string;
@@ -1534,6 +1541,9 @@ export interface ProjectCharter {
   others?: string;
   signAg?: string;
   signPl?: string;
+  /** V143 (F-238 S6): Unterschrift als Handschrift – Schlüssel im Tintenspeicher des Geräts (inkStore). */
+  inkAg?: string;
+  inkPl?: string;
   fixed?: string[];
 }
 

@@ -13,7 +13,7 @@ import { type Profile, setProfile } from './profile';
 import * as Win from './windows';
 import * as Mv from './move';
 import type { Min, Node, Zone } from './tree';
-import type { Arrangement, Bookmark, Workspace } from './types';
+import type { Arrangement, Bookmark, NoteAttachment, Workspace } from './types';
 import * as B from './bookmarks';
 import * as W from './workspace';
 import * as C from './closed';
@@ -29,6 +29,7 @@ import { setCategoryIcon, setCategoryTint, setPanelCategory, setPanelNewCategory
 import * as Cs from './cases';
 import * as NS from './noteSources';
 import * as No from './notes';
+import * as Ink from './ink';
 import * as Pd from './pads';
 import * as Sr from './stars';
 import * as NT from './noteTree';
@@ -361,6 +362,8 @@ export type Action =
   | { type: 'padNote'; id: string; sheet: string; note: string; by?: string; inbox?: boolean }
   // V141 (F-231 K14): Eingang
   | { type: 'inboxCapture'; text: string; note: string; by?: string }
+  // V143 (F-238 S8): neue Handschrift-Notiz im Eingang
+  | { type: 'inkCapture'; note: string; att: NoteAttachment; title: string; by?: string }
   | { type: 'inboxDrop'; note: string }
   | { type: 'inboxToProject'; note: string; project: string; by?: string }
   | { type: 'inboxFromProject'; note: string; project?: string; by?: string }
@@ -958,6 +961,8 @@ function step(ws: Workspace, a: Action): Workspace {
     }
     case 'inboxCapture':
       return In.captureToInbox(ws, a.text, { id: a.note, by: a.by })?.ws ?? ws;
+    case 'inkCapture':
+      return Ink.captureInk(ws, a.att, { id: a.note, by: a.by, title: a.title }).ws;
     case 'inboxDrop': {
       // Rückgängig nach dem Gedankenparkplatz: Notiz wieder ganz weg
       return No.deleteNote(ws, a.note)?.ws ?? ws;

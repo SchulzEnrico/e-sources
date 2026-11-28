@@ -75,7 +75,7 @@ import type { NoteViewKind, Pad as PadT, PadPlace } from './workspace/types';
 import { activeTab, loadColor, FOCUS_WARN, NEW_AREA, STACK_MAX, TAB_MAX, newId, panelsIn, addPanel as addTo, areaIn, canAddArea, areaLabel, areaOf, slotNameId, describe, hostOf, isBlocked, panelUrl, normalizeUrl, setupFor, splitSelection, stackFull, tabLabel, tryPlace, viewOf, setPanelSize, resetPanel, addArea as addAreaTo, distribute as distributeIn } from './workspace/workspace';
 import { DESK_MODE_TEXT, DOCK_TEXT, NOTES_LAYOUT_TEXT, NOTES_TREE_TEXT, NT_TEXT, PLAN_TEXT, sampleText, STAGE_TEXT, VIEW_TEXT } from './workspace/terms';
 import { type DeskMode, PHONE_MQ, loadModes, modeOf, saveModes, withMode } from './workspace/deskMode';
-import { INBOX_TEXT, CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, RULE_SET_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
+import { INBOX_TEXT, INK_TEXT, CASE_TEXT, CATEGORY_ICON_LABEL, CATEGORY_TEXT, DESK_GONE_TEXT, DESK_LAYOUT_TEXT, DESK_LOOK_TEXT, DEV_TEXT, DIALOG_TEXT, DISPLAY_TEXT, GREET_TEXT, JACKPOT_TEXT, NOTE_TEXT, PAD_TEXT, PAUSE_TEXT, PICKER_TEXT, RULE_SET_TEXT, SEND_TEXT, SLOT_FILE_TEXT, TERMS, SYNC_TEXT, TINT_TEXT, TRANSFER_TEXT, WEB_TEXT, ZOOM_TEXT } from './workspace/terms';
 import { ENGINES, engineOf, openBeside, searchUrl } from './workspace/websearch';
 import { BOOKMARK_FILE, BOOKMARK_NAME, bookmarkFile, bookmarklet, sendBase } from './workspace/send';
 import { browserOf, currentUa, modKey } from './workspace/browser';
@@ -112,6 +112,9 @@ import { ModeWheel } from './components/ModeWheel';
 import { SyncDialog } from './components/Sync';
 import { type Anchor as FbAnchor, FEEDBACK_EVENT, FeedbackQuick, domPlace, mainView } from './components/FeedbackQuick';
 import { ParkingLot } from './components/ParkingLot';
+import { InkDialog } from './components/InkDialog';
+import { INK_OPEN, type InkOpenDetail, openInk, sweepInk } from './workspace/inkStore';
+import { inkRefs } from './workspace/ink';
 import * as In from './workspace/inbox';
 import { FeedbackCard } from './components/FeedbackCard';
 import { setWheelSource } from './components/wheelPrefs';
@@ -433,6 +436,16 @@ function DeskApp(props: DeskProps) {
   // F-221 (V102, FB4/FB5): Feedback „Schnell erfassen“ am Ort des Geschehens
   // V141 (F-106, K14 I4): Gedankenparkplatz
   const [parkOpen, setParkOpen] = useState(false);
+  // V143 (F-238 S2): Handschrift – ein Fenster für alle Wege (Ereignis esource:ink)
+  const [inkReq, setInkReq] = useState<InkOpenDetail | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => {
+      setParkOpen(false);
+      setInkReq({ ...((e as CustomEvent<InkOpenDetail>).detail ?? {}) });
+    };
+    window.addEventListener(INK_OPEN, on);
+    return () => window.removeEventListener(INK_OPEN, on);
+  }, []);
   const [fbAt, setFbAt] = useState<{ anchor: FbAnchor | null; place: FeedbackPlace; env: FeedbackEnv; kind?: FeedbackKind } | null>(null);
   // F-221 Bau 3 (V103): Feedback ausarbeiten – Kartenfenster
   const [fbCard, setFbCard] = useState<string | null>(null);
@@ -2874,6 +2887,12 @@ function DeskApp(props: DeskProps) {
       e.stopImmediatePropagation();
       return setParkOpen(true);
     }
+    // V143 (F-238 S2): Alt/⌥+W öffnet überall die Schreibfläche „Handschrift“ (vorher frei)
+    if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyW' && !e.repeat && !document.querySelector('dialog.inkdlg[open]')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return openInk();
+    }
     // F-221 (FB4): Alt/⌥+F öffnet Feedback am Ort (auch über offenen Fenstern, nicht über Feedback selbst)
     if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyF' && !e.repeat && !document.querySelector('dialog.fbq')) {
       e.preventDefault();
@@ -4056,6 +4075,9 @@ function DeskApp(props: DeskProps) {
               <Item icon="inbox" hint={INBOX_TEXT.parkHint} onClick={() => (close(), setParkOpen(true))}>
                 {INBOX_TEXT.park} (Alt/⌥+E)
               </Item>
+              <Item icon="pen" hint={INK_TEXT.openHint} onClick={() => (close(), openInk())}>
+                {INK_TEXT.open} ({INK_TEXT.openKey})
+              </Item>
               <Item icon="newPad" hint={PAD_TEXT.menuNewHint} onClick={() => (!notesMode && switchOf(ws, 'newPad') === 'plan' ? go('place') : (close(), newPad()))}>
                 {PAD_TEXT.menuNew}
               </Item>
@@ -4771,7 +4793,9 @@ function DeskApp(props: DeskProps) {
           return { id, title: (n && noteTitleOf(n)) || NOTE_TEXT.untitled, count: In.inboxCount(r.ws) };
         }}
         onUndo={(id) => dispatch({ type: 'inboxDrop', note: id })}
+        onInk={() => (setParkOpen(false), openInk())}
       />
+      <InkDialog ws={ws} req={inkReq} dispatch={dispatch} say={sayLive} onClose={() => setInkReq(null)} />
       {fbAt && (
         <FeedbackQuick
           ws={ws}
@@ -5032,7 +5056,7 @@ export default function App(props: { sent?: string }) {
   const wsNow = useRef(ws);
   wsNow.current = ws;
   useEffect(() => {
-    const t = window.setTimeout(() => (void sweepClips(audioRefs(wsNow.current)), void sweepPics(imageRefs(wsNow.current))), 30000);
+    const t = window.setTimeout(() => (void sweepClips(audioRefs(wsNow.current)), void sweepPics(imageRefs(wsNow.current)), void sweepInk(inkRefs(wsNow.current))), 30000);
     return () => window.clearTimeout(t);
   }, []);
   // F-231 K10a (V129): Lauf einer Regel-Kette, den kein Board am Ort gemeldet hat (z. B. Zustand in einer Notiz geändert)

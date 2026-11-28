@@ -4,7 +4,7 @@
  * der Fokus dorthin zurück, wo er war. Die Meldung erscheint am selben Ort (2 s) mit „Rückgängig“.
  */
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
-import { INBOX_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
+import { INBOX_TEXT, INK_TEXT, PAUSE_TEXT, TERMS } from '../workspace/terms';
 import { Icon } from './Icon';
 
 const explain = (t: string) => t.replace(/^[^=]*=\s*/, '');
@@ -17,6 +17,8 @@ export interface ParkingLotProps {
   onUndo: (id: string) => void;
   onClose: () => void;
   say: (t: string) => void;
+  /** V143 (F-238): Schreibfläche statt Tastatur */
+  onInk?: () => void;
 }
 
 export function ParkingLot(p: ParkingLotProps) {
@@ -71,6 +73,11 @@ export function ParkingLot(p: ParkingLotProps) {
           <label className="park__cap" htmlFor="park-field" title={explain(TERMS.parkingLot)}>
             <Icon name="inbox" size={13} className="icon icon--inline" /> {INBOX_TEXT.park}
           </label>
+          {p.onInk && (
+            <button type="button" className="park__ink" title={INK_TEXT.parkInkHint} aria-label={INK_TEXT.parkInk} onClick={p.onInk}>
+              <Icon name="pen" size={14} /> <span className="park__inklbl">{INK_TEXT.parkInk}</span>
+            </button>
+          )}
           <textarea
             id="park-field"
             ref={field}

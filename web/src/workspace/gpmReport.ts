@@ -368,6 +368,7 @@ body { font: 10.5pt/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color:
 h1 { font-size: 20pt; margin: 0 0 4pt; } h2 { font-size: 13pt; margin: 18pt 0 6pt; border-bottom: 1px solid #999; padding-bottom: 2pt; break-after: avoid; }
 h3 { font-size: 11pt; margin: 10pt 0 4pt; break-after: avoid; }
 .meta { color: #555; margin: 0 0 12pt; } .icb { color: #666; font-weight: normal; font-size: 9pt; }
+.calc { display: block; color: #666; font-style: italic; font-weight: normal; font-size: 8.5pt; } .over { color: #d00000; }
 table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt; font-size: 9pt; table-layout: fixed; } th, td { border: 1px solid #bbb; padding: 3pt 4pt; vertical-align: top; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; hyphens: auto; }
 @page wide { size: A4 landscape; margin: 18mm 14mm 16mm; }
 section.wide { page: wide; } #an-fb, #an-dc { break-before: page; } .annex__item { break-before: page; break-inside: avoid; } h2 + .annex__item { break-before: auto; } tr.annex__sec th { background: #d9d9d9; } .annex__pics { display: flex; flex-wrap: wrap; gap: 6px; } .annex__pics figure { margin: 0; break-inside: avoid; } .annex__pics img { display: block; max-width: 100%; max-height: 8cm; border: 1px solid #bbb; } .annex__pics figcaption { font-size: 8pt; color: #555; } section.wide table { font-size: 8pt; }
@@ -451,16 +452,17 @@ export function charterHtml(ws: Workspace, p: Project, f: FormDef, cols: Fk.Form
   out.push(row('Hauptziele/ Kurzbeschreibung Projektinhalt', txt(c.main), true));
   out.push(row('Angestrebter Nutzen', txt(c.benefit)));
   const miles = v.fixed.length ? v.fixed.map((m) => esc([m.title, m.due ? dmy(m.due) : ''].filter(Boolean).join(' '))).join('<br>') : '';
-  out.push(sub('Termine', `<table class="grid"><thead><tr><th scope="col">Starttermin</th><th scope="col">Endtermin</th><th scope="col">Fixierte Meilensteine</th><th scope="col">Gesamtdauer</th></tr></thead><tbody><tr><td class="is-strong">${p.start ? dmy(p.start) : ''}</td><td class="is-strong">${p.end ? dmy(p.end) : ''}</td><td class="is-strong">${miles}</td><td class="is-strong">${v.months !== undefined ? `${v.months} ${v.months === 1 ? 'Monat' : 'Monate'}` : ''}</td></tr></tbody></table>`));
-  out.push(sub('Kapazitätsaufwand', pairs([['Eigenaufwand (ph)', num(c.ownEffort, 'Ph')], ['Fremdaufwand (€)', num(c.extEffort)]])));
+  out.push(sub('Termine', `<table class="grid"><thead><tr><th scope="col">Starttermin</th><th scope="col">Endtermin</th><th scope="col">Fixierte Meilensteine</th><th scope="col">Gesamtdauer</th></tr></thead><tbody><tr><td class="is-strong">${v.start ? dmy(v.start) : ''}${v.datesFrom.start === 'gantt' ? '<span class="calc">aus dem Gantt</span>' : ''}</td><td class="is-strong">${v.end ? dmy(v.end) : ''}${v.datesFrom.end === 'gantt' ? '<span class="calc">aus dem Gantt</span>' : ''}</td><td class="is-strong">${miles}</td><td class="is-strong">${v.months !== undefined ? `${v.months} ${v.months === 1 ? 'Monat' : 'Monate'}<span class="calc">${v.datesFrom.start === 'gantt' || v.datesFrom.end === 'gantt' ? 'gerechnet aus dem Gantt' : 'gerechnet aus Start und Ende'}</span>` : ''}</td></tr></tbody></table>`));
+  const plan: [string, string][] = v.planHours > 0 || v.planCost > 0 ? [['Plan aus den Arbeitspaketen', `${num(v.planHours, 'Ph')} · ${num(v.planCost)}<span class="calc">gerechnet</span>`]] : [];
+  out.push(sub('Kapazitätsaufwand', pairs([['Eigenaufwand (ph)', num(c.ownEffort, 'Ph')], ['Fremdaufwand (€)', num(c.extEffort)], ...plan])));
   out.push(row('Budget insgesamt', num(p.budget), true));
   const costs: [string, string][] = [['PM-Kosten', num(c.costPm)], ['Personalkosten allg.', num(c.costStaff)], ['Sachkosten allg.', num(c.costMaterial)]];
-  if (v.costSum) costs.push(['Summe (gerechnet)', `${num(v.costSum)}${v.rest !== undefined ? ` · mit Rücklage ${num(Math.abs(v.rest))} ${v.over ? 'über' : 'unter'} Budget` : ''}`]);
+  if (v.costSum) costs.push(['Summe (gerechnet)', `${v.over ? '<span class="over">' : ''}${num(v.costSum)}${v.rest !== undefined ? ` · mit Rücklage ${num(Math.abs(v.rest))} ${v.over ? 'über' : 'unter'} Budget` : ''}${v.over ? '</span>' : ''}<span class="calc">gerechnet aus PM-, Personal- und Sachkosten</span>`]);
   out.push(sub('Kosten €', pairs(costs)));
   out.push(sub('Risikorücklage €', pairs([[v.reservePct !== undefined ? `${v.reservePct.toLocaleString('de-DE')} % vom Budget` : '% vom Budget', num(c.reserve)]])));
   out.push(sub('Projektbeteiligte', pairs([['Fachteam', txt(c.team)], ['Lenkungsausschuss', txt(c.steering)], ['Externe Dienstleister', txt(c.vendors)], ['Weitere wichtige SH', txt(c.others)]])));
   out.push(row('Berichterstattung', txt(c.reporting)));
-  out.push(row('Mögliche Störungen/Risiken', esc(v.risks.join('; '))));
+  out.push(row('Mögliche Störungen/Risiken', `${esc(v.risks.join('; '))}${v.riskCount ? `<span class="calc">${esc(`Risikowert gesamt ${v.riskSum} (W × A aus ${v.riskCount} offenen Risiken${v.riskHigh ? `, davon ${v.riskHigh} hoch` : ''})`)}</span>` : ''}`));
   out.push(row('Besonderheiten', txt(c.special)));
   // eigene Felder der Vorlage bzw. des Projekts – vor der Freigabe wie eine weitere Zeile des Blatts
   for (const x of cols) if (x.custom) out.push(row(x.label, esc(displayValue(ws, p, x, Fk.cellValue(ws, p.id, f, p.id, x.key)))));

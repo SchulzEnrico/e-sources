@@ -1,5 +1,5 @@
 /** F-235 (V135): aus dem Lastenheft erzeugt von tools/live_project.py – nicht von Hand ändern. */
-export const LIVE_STAND = { chat: "V152", day: "2026-11-28" };
+export const LIVE_STAND = { chat: "V153", day: "2026-11-28" };
 export interface LiveItem { f: string; title: string; state: 'done' | 'part' | 'open'; group: string; chats: number; day: string; base: boolean }
 export const LIVE_ITEMS: LiveItem[] = [
   {"f": "F-01", "title": "Panels liegen in einem Kachel-Raster und überlappen sich nie", "state": "done", "group": "Arbeitsfläche und Raster", "chats": 1, "day": "2026-11-20", "base": true},
@@ -199,10 +199,10 @@ export const LIVE_ITEMS: LiveItem[] = [
   {"f": "F-230", "title": "Import/Export ohne Verlust", "state": "part", "group": "Notizen und Ansichten", "chats": 3, "day": "2026-11-26", "base": false},
   {"f": "F-231", "title": "Kanban mindestens so leistungsfähig wie Trello", "state": "part", "group": "Notizen und Ansichten", "chats": 15, "day": "2026-11-26", "base": false},
   {"f": "F-232", "title": "Dokumente wie auf Papier", "state": "part", "group": "Notizen und Ansichten", "chats": 2, "day": "2026-11-27", "base": false},
-  {"f": "F-234", "title": "Fehlende Darstellungen", "state": "part", "group": "Notizen und Ansichten", "chats": 2, "day": "2026-11-27", "base": false},
+  {"f": "F-234", "title": "Fehlende Darstellungen", "state": "done", "group": "Notizen und Ansichten", "chats": 4, "day": "2026-11-27", "base": false},
   {"f": "F-238", "title": "Handschrift mit Apple Pencil", "state": "done", "group": "Notizen und Ansichten", "chats": 2, "day": "2026-11-27", "base": false},
   {"f": "F-237", "title": "Eisenhower-Matrizen unabhängig vom PSP", "state": "done", "group": "Notizen und Ansichten", "chats": 2, "day": "2026-11-27", "base": false},
-  {"f": "F-236", "title": "Farben und Layout-Generator", "state": "part", "group": "Notizen und Ansichten", "chats": 1, "day": "2026-11-27", "base": false},
+  {"f": "F-236", "title": "Farben und Layout-Generator", "state": "part", "group": "Notizen und Ansichten", "chats": 2, "day": "2026-11-27", "base": false},
   {"f": "F-235", "title": "Live-Projekt E-Sources", "state": "done", "group": "Notizen und Ansichten", "chats": 2, "day": "2026-11-27", "base": false},
   {"f": "F-227", "title": "Handbuch für E-Sources", "state": "open", "group": "Notizen und Ansichten", "chats": 1, "day": "2026-11-26", "base": false},
 ];
@@ -246,9 +246,9 @@ export const LIVE_CHANGES: LiveChange[] = [
   {"no": 36, "day": "2026-11-26", "group": "Notizen und Ansichten", "fs": ["F-231"], "title": "F-231 Kanban mindestens so leistungsfähig wie Trello", "why": "Das Kanban sollte mindestens so stark sein wie Trello – mit Regeln, Knöpfen und Zeitplänen.", "hours": 30, "done": 0},
   {"no": 37, "day": "2026-11-26", "group": "Notizen und Ansichten", "fs": ["F-227"], "title": "F-227 Handbuch für E-Sources", "why": "Aus der Arbeit mit E-Sources kam ein neuer Wunsch dazu.", "hours": 2, "done": 0},
   {"no": 38, "day": "2026-11-27", "group": "Notizen und Ansichten", "fs": ["F-232"], "title": "F-232 Dokumente wie auf Papier", "why": "Dokumente sollten aussehen wie auf Papier – so wie im eigenen ICB4-Report.", "hours": 4, "done": 0},
-  {"no": 39, "day": "2026-11-27", "group": "Notizen und Ansichten", "fs": ["F-234"], "title": "F-234 Fehlende Darstellungen", "why": "Was im Report als Grafik steht, sollte auch E-Sources als Grafik zeigen: Zielhierarchie, Organigramm, PSP, Balkenplan.", "hours": 4, "done": 0},
+  {"no": 39, "day": "2026-11-27", "group": "Notizen und Ansichten", "fs": ["F-234"], "title": "F-234 Fehlende Darstellungen", "why": "Was im Report als Grafik steht, sollte auch E-Sources als Grafik zeigen: Zielhierarchie, Organigramm, PSP, Balkenplan.", "hours": 8, "done": 1},
   {"no": 40, "day": "2026-11-27", "group": "Notizen und Ansichten", "fs": ["F-238"], "title": "F-238 Handschrift mit Apple Pencil", "why": "Aus der Arbeit mit E-Sources kam ein neuer Wunsch dazu.", "hours": 4, "done": 1},
   {"no": 41, "day": "2026-11-27", "group": "Notizen und Ansichten", "fs": ["F-237"], "title": "F-237 Eisenhower-Matrizen unabhängig vom PSP", "why": "Aus der Arbeit mit E-Sources kam ein neuer Wunsch dazu.", "hours": 4, "done": 1},
-  {"no": 42, "day": "2026-11-27", "group": "Notizen und Ansichten", "fs": ["F-236"], "title": "F-236 Farben und Layout-Generator", "why": "Aus der Arbeit mit E-Sources kam ein neuer Wunsch dazu.", "hours": 2, "done": 0},
+  {"no": 42, "day": "2026-11-27", "group": "Notizen und Ansichten", "fs": ["F-236"], "title": "F-236 Farben und Layout-Generator", "why": "Aus der Arbeit mit E-Sources kam ein neuer Wunsch dazu.", "hours": 4, "done": 0},
   {"no": 43, "day": "2026-11-27", "group": "Notizen und Ansichten", "fs": ["F-235"], "title": "F-235 Live-Projekt E-Sources", "why": "Zum Schluss wurde E-Sources selbst zum Projekt in E-Sources – ein Live-Testobjekt, das jeder in der Demo ansehen kann.", "hours": 4, "done": 1},
 ];

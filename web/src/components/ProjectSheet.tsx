@@ -214,8 +214,8 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
                   </thead>
                   <tbody>
                     <tr>
-                      <td className="is-strong"><Field label={S.start} value={p.start} kind="date" onSave={proj('start', S.start)} /></td>
-                      <td className="is-strong"><Field label={S.end} value={p.end} kind="date" onSave={proj('end', S.end)} /></td>
+                      <td className="is-strong"><Field label={S.start} value={p.start} kind="date" onSave={proj('start', S.start)} />{view.datesFrom.start === 'gantt' && view.start && <span className="paper__calc" title={S.ganttDateHint}>{S.ganttDate(dmy(view.start))}</span>}</td>
+                      <td className="is-strong"><Field label={S.end} value={p.end} kind="date" onSave={proj('end', S.end)} />{view.datesFrom.end === 'gantt' && view.end && <span className="paper__calc" title={S.ganttDateHint}>{S.ganttDate(dmy(view.end))}</span>}</td>
                       <td className="is-strong">
                         {fixed.length ? (
                           <ul className="paper__miles">
@@ -240,7 +240,7 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
                           </details>
                         )}
                       </td>
-                      <td className="is-strong" title={S.durationHint}>{months !== undefined ? S.months(months) : <span className="paper__muted">{S.empty}</span>}</td>
+                      <td className="is-strong" title={S.durationHint}>{months !== undefined ? <>{S.months(months)}<span className="paper__calc">{view.datesFrom.start === 'gantt' || view.datesFrom.end === 'gantt' ? S.calcGantt : S.calcDates}</span></> : <span className="paper__muted">{S.empty}</span>}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -258,6 +258,7 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
                   <span>{S.ext}</span>
                   <Field label={S.ext} value={c.extEffort} kind="money" strong onSave={charter('extEffort', S.ext)} />
                 </div>
+                {(view.planHours > 0 || view.planCost > 0) && <span className="paper__calc" title={S.planFromHint}>{S.planFrom(view.planHours.toLocaleString('de-DE'), view.planCost.toLocaleString('de-DE', { maximumFractionDigits: 2 }))}</span>}
                 {m('ownEffort')}
                 {m('extEffort')}
               </td>
@@ -285,6 +286,7 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
                       <td className={over ? 'is-strong paper__over' : 'is-strong'} title={S.costSumHint}>
                         {costSum ? `${costSum.toLocaleString('de-DE', { maximumFractionDigits: 2 })} €` : <span className="paper__muted">{S.empty}</span>}
                         {p.budget !== undefined && costSum > 0 && <span className="paper__check">{over ? S.overBudget(costSum + (c.reserve ?? 0) - p.budget) : S.inBudget(p.budget - costSum - (c.reserve ?? 0))}</span>}
+                        {costSum > 0 && <span className="paper__calc">{S.costCalc}</span>}
                       </td>
                     </tr>
                   </tbody>
@@ -326,6 +328,7 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
             <Row label={S.reporting} msg={m('reporting')}><Field label={S.reporting} value={c.reporting} multi onSave={charter('reporting', S.reporting)} /></Row>
             <Row label={S.risks} msg={m('risks')}>
               <span className="paper__ro is-strong" title={S.risksHint}>{risks.length ? risks.join('; ') : <span className="paper__muted">{S.risksNone}</span>}</span>
+              {view.riskCount > 0 && <span className="paper__calc">{S.riskSum(view.riskSum, view.riskCount, view.riskHigh)}</span>}
             </Row>
             <Row label={S.special} msg={m('special')}><Field label={S.special} value={c.special} multi onSave={charter('special', S.special)} /></Row>
             <tr className="paper__release">

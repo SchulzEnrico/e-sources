@@ -6,6 +6,8 @@ import * as W from './workspace';
 import * as In from './inbox';
 import { addProject } from './projects';
 import { reducer } from './useWorkspace';
+import * as RK from './ruleKit';
+import * as RR from './ruleRun';
 
 const base = (): Workspace => {
   let ws: Workspace = In.ensureInbox(W.defaultWorkspace());
@@ -75,5 +77,37 @@ describe('V141 F-231 K14 Eingang', () => {
     const back = reducer(p, { type: 'inboxFromProject', note: 'n1' });
     expect(No.noteById(back, 'n1')!.project).toBeUndefined();
     expect(In.inboxOf(back)!.ids).toEqual(['n1']);
+  });
+
+  it('V153 Regel-Auslöser „Notiz kommt in den Eingang“ (K10a)', () => {
+    const ws0 = base();
+    const r = { ...RK.newRule([], 'r-in'), name: 'Eingang markieren', when: { k: 'inbox' as const }, then: [{ k: 'tagAdd' as const, a: 'eingang' }] };
+    const ws = RK.saveRule(ws0, r);
+    const got = In.captureToInbox(ws, 'Idee\nmehr');
+    expect(got).not.toBeNull();
+    const after = RR.applyRules(ws, got!.ws);
+    expect(No.noteById(after, got!.id)!.tags).toEqual(['eingang']);
+    // nicht im Eingang angelegt → löst nicht aus
+    const other = No.createNote(ws, { title: 'Woanders' });
+    expect(No.noteById(RR.applyRules(ws, other.ws), other.id)!.tags ?? []).toEqual([]);
+  });
+
+  it('V153 Eisenhower: eigene Reihenfolge im Feld (Alt+↑/↓)', () => {
+    let ws = base();
+    const ids: string[] = [];
+    for (const title of ['A', 'B', 'C']) {
+      const m = No.createNote(ws, { title });
+      ws = Sh.setQuad(m.ws, 'em', m.id, 1);
+      ids.push(m.id);
+    }
+    const other = No.createNote(ws, { title: 'D' });
+    ws = Sh.setQuad(other.ws, 'em', other.id, 2);
+    const order = (w: Workspace) => Sh.matrixOf(w, No.viewById(w, 'em')!).quads[1].map((n) => n.title);
+    expect(order(ws)).toEqual(['A', 'B', 'C']);
+    const up = reducer(ws, { type: 'sheetShift', view: 'em', note: ids[2], by: -1 });
+    expect(order(up)).toEqual(['A', 'C', 'B']);
+    expect(order(Sh.shiftInQuad(up, 'em', ids[0], 1))).toEqual(['C', 'A', 'B']);
+    expect(Sh.shiftInQuad(ws, 'em', ids[0], -1)).toBe(ws);
+    expect(Sh.matrixOf(up, No.viewById(up, 'em')!).quads[2].map((n) => n.title)).toEqual(['D']);
   });
 });

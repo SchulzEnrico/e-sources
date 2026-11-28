@@ -14,7 +14,8 @@ import * as Sch from './schedule';
 import * as H from './help';
 import { TOURS } from './tour';
 import * as Rpt from './gpmReport';
-import * as Cs from './charterSheet';
+import * as Cs from './charterSheet'
+import * as Ct from './contents';
 import * as Lv from './liveProject';
 
 describe('F-226 Datenmodell (V109): Ziele, Stakeholder, Phasen, Risiken quantitativ, Einsätze', () => {
@@ -1269,6 +1270,45 @@ describe('V147: Projektsteckbrief im Bericht wie Abbildung 3', () => {
     expect(keys.indexOf('goal')).toBeLessThan(keys.indexOf('main'));
     expect(keys.indexOf('others')).toBeLessThan(keys.indexOf('reporting'));
     expect(Cs.CHARTER_EXTRAS.every((k) => keys.indexOf(k) > keys.indexOf('releasePl'))).toBe(true);
+  });
+});
+
+describe('V153: F-232 P14 – gerechnete Werte im Steckbrief', () => {
+  it('Termine aus dem Gantt, Plan aus den Arbeitspaketen, Risikowert; Bericht zeigt „gerechnet aus …“', () => {
+    const ws = Sp.addSampleProject(W.defaultWorkspace(), 5);
+    const id = Sp.SAMPLE_PROJECT;
+    const p = Pj.projectById(ws, id)!;
+    const v = Cs.charterView(ws, p);
+    expect(v.datesFrom.start).toBe(p.start ? 'charter' : v.start ? 'gantt' : 'none');
+    // ohne Termine im Steckbrief: aus dem Gantt
+    const bare = { ...p, start: undefined, end: undefined };
+    const vb = Cs.charterView(ws, bare);
+    const g = Gt.ganttOf(ws, id);
+    expect([vb.start, vb.end]).toEqual([g.start, g.end]);
+    expect(vb.datesFrom).toEqual({ start: 'gantt', end: 'gantt' });
+    expect(vb.months).toBe(Cs.monthsBetween(g.start, g.end));
+    expect(v.planHours).toBeGreaterThan(0);
+    expect(v.riskCount).toBeGreaterThan(0);
+    expect(v.riskSum).toBeGreaterThanOrEqual(v.riskCount);
+    const html = Rpt.reportHtml(ws, id, { day: '2021-01-15' });
+    const sec = html.slice(html.indexOf('id="f-charter"'), html.indexOf('id="f-goals"'));
+    expect(sec.includes('gerechnet aus PM-, Personal- und Sachkosten')).toBe(true);
+    expect(sec.includes('Plan aus den Arbeitspaketen')).toBe(true);
+    expect(sec.includes('Risikowert gesamt')).toBe(true);
+  });
+});
+
+describe('V153: F-232 P13 – Inhalt des Projekts', () => {
+  it('Formulare in Report-Reihenfolge, dann Anlagen und Ansichten; Zahlen je Dokument', () => {
+    const ws = Sp.addSampleProject(W.defaultWorkspace(), 5);
+    const p = Pj.projectById(ws, Sp.SAMPLE_PROJECT)!;
+    const list = Ct.contentsOf(ws, p);
+    const forms = list.filter((x) => x.group === 'forms');
+    expect(forms.map((x) => x.id)).toEqual(Fk.templateOf(ws, p).forms.map((f) => f.id));
+    expect(forms[0]).toMatchObject({ id: 'charter', chapter: '2.1' });
+    expect(list.findIndex((x) => x.group === 'annex')).toBeGreaterThan(forms.length - 1);
+    expect(list.find((x) => x.id === 'v-risks')!.count).toBe(Rk.risksOf(ws, p.id).length);
+    expect(forms.find((x) => x.id === 'goals')!.count).toBeGreaterThan(0);
   });
 });
 

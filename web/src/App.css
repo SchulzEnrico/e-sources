@@ -10522,7 +10522,9 @@ input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
 .paper__req { color: #999; font-weight: 700; }
 .paper__req.is-open { color: var(--paper-red, #a3141b); }
 .paper__gaps { font-size: 0.9em; color: #e0a400; }
-.paper__calc { color: #777; font-style: italic; }
+.paper__calc { color: #666; font-style: italic; }
+/* V153 (F-232 P14): Hinweis „gerechnet aus …“ unter dem Wert in einer eigenen Zeile */
+td > .paper__calc, .paper__sub > .paper__calc, .paper__ro + .paper__calc { display: block; font-size: 0.85em; font-weight: 400; margin-top: 0.15em; }
 .paper__calc.is-bad { color: #d00000; font-style: normal; font-weight: 700; }
 .paper__list { margin: 0; padding-left: 1.1em; }
 .paper__num { text-align: center; }
@@ -10655,3 +10657,19 @@ textarea.paper__namein { display: block; box-sizing: border-box; resize: none; o
 .paper__list .paper__rowtools { margin-left: 6px; vertical-align: middle; }
 .paper__undo { margin-left: 4px; font-size: 0.95em; }
 @media print { .paper__rowtools, .paper__undo { display: none; } }
+
+/* V153 (F-232 P13): Ansicht „Inhalt“ */
+.toc { max-width: 60rem; padding: 0.5rem 0.75rem 1rem; }
+.toc__head { margin: 0 0 0.25rem; }
+.toc__group h4 { margin: 1rem 0 0.35rem; font-size: 0.95em; }
+.toc__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.toc__row { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr) auto auto; gap: 0.75rem; align-items: baseline; width: 100%; text-align: left; padding: 0.4rem 0.6rem; border: 1px solid transparent; border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.toc__row:hover { background: color-mix(in srgb, currentColor 7%, transparent); }
+.toc__row:focus-visible { outline: 2px solid var(--accent, #4c8dff); outline-offset: 1px; }
+.toc__ch { font-variant-numeric: tabular-nums; font-weight: 600; }
+.toc__name { overflow-wrap: anywhere; }
+.toc__icb { font-size: 0.8em; opacity: 0.75; white-space: nowrap; }
+.toc__info { display: flex; gap: 0.6rem; font-size: 0.85em; opacity: 0.85; white-space: nowrap; }
+.toc__miss { color: #d00000; opacity: 1; }
+[data-theme='dark'] .toc__miss { color: #ff8a8a; }
+@media (max-width: 700px) { .toc__row { grid-template-columns: 2.75rem minmax(0, 1fr); } .toc__icb, .toc__info { grid-column: 2; } }

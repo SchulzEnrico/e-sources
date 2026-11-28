@@ -163,6 +163,16 @@ export function MatrixSheet(props: { ws: Workspace; dispatch: Dispatch<Action>; 
       (list[Math.min(i, list.length - 1)] ?? t?.querySelector<HTMLElement>('[data-cell]'))?.focus();
     };
     const q = key === 'u' ? null : (Number(key) as Sh.Quad);
+    // V153: Alt+↑/↓ stellt im Feld um (eigene Reihenfolge), Meldung am Ort über die Ansage, Fokus bleibt auf der Karte
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && e.altKey) {
+      e.preventDefault();
+      const d = e.key === 'ArrowUp' ? -1 : 1;
+      if (!mine[i + d]) return say(d < 0 ? M.orderTop : M.orderEnd);
+      dispatch({ type: 'sheetShift', view: sheetId, note: n.id, by: d });
+      say(SHEET_TEXT.moved(d));
+      const id = n.id;
+      return focusCard(id);
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (mine[i + 1]) return mine[i + 1].focus();

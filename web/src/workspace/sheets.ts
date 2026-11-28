@@ -333,6 +333,30 @@ export function shiftIn(ws: Workspace, viewId: string, noteId: string, by: numbe
   return r.ok ? r.ws : ws;
 }
 
+/**
+ * V153 (kleiner Punkt V139/V140, „wie Vorschlag“): eigene Reihenfolge innerhalb eines Felds der Eisenhower-Matrix.
+ * Tauscht mit dem Nachbarn im selben Feld (Alt+↑/↓); eingesammelte Notizen der persönlichen Matrix kommen dabei
+ * ins Sheet. Bericht und Formular folgen derselben Reihenfolge (`matrixEntries`).
+ */
+export function shiftInQuad(ws: Workspace, viewId: string, noteId: string, by: -1 | 1): Workspace {
+  const v = No.viewById(ws, viewId);
+  if (!v || v.kind !== 'eisenhower') return ws;
+  const m = matrixOf(ws, v, 'all');
+  const list = [m.unsorted, ...([1, 2, 3, 4] as Quad[]).map((q) => m.quads[q])].find((l) => l.some((n) => n.id === noteId));
+  if (!list) return ws;
+  const i = list.findIndex((n) => n.id === noteId);
+  const other = list[i + by];
+  if (!other) return ws;
+  // fehlende (eingesammelte) Einträge in Feld-Reihenfolge ans Ende des Sheets, dann umstellen
+  const ids = [...v.ids];
+  for (const n of list) if (!ids.includes(n.id)) ids.push(n.id);
+  const from = ids.indexOf(noteId);
+  ids.splice(from, 1);
+  const to = ids.indexOf(other.id) + (by > 0 ? 1 : 0);
+  ids.splice(to, 0, noteId);
+  return { ...ws, noteViews: No.viewsOf(ws).map((x) => (x.id === viewId ? { ...x, ids } : x)) };
+}
+
 // ---------- Checkliste (T1, wie Trello) ----------
 
 /** Fortschritt der Checkliste im Text (`null` = keine Checkliste). */

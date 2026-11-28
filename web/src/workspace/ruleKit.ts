@@ -32,7 +32,9 @@ export type TrigKind =
   | 'colIn' | 'colOut' | 'created' | 'arrive' | 'done' | 'reopen' | 'tagAdd' | 'tagDel' | 'assignSet' | 'assignDel'
   | 'dueSet' | 'checksDone' | 'checkTick' | 'comment' | 'field' | 'check'
   // V131 (K10c): Zeitplan (Kalender-Befehle) und Fälligkeit
-  | 'daily' | 'workdays' | 'weekly' | 'monthly' | 'dueNear';
+  | 'daily' | 'workdays' | 'weekly' | 'monthly' | 'dueNear'
+  // V153 (K14/K10a): Notiz kommt in den Eingang (Gedankenparkplatz, Dock-Notiz, „Neue Notiz“, V zurück)
+  | 'inbox';
 export type CondKind = 'inCol' | 'onBoard' | 'state' | 'hasTag' | 'assignee' | 'dueIn' | 'overdue' | 'noDue' | 'checks' | 'field' | 'titleHas' | 'doneSince' | 'urgent';
 export type ActKind =
   | 'toCol' | 'nextCol' | 'sortCol' | 'toBoard' | 'copyBoard' | 'mirrorBoard' | 'setDone' | 'reopen' | 'archive'
@@ -92,6 +94,7 @@ export const TRIGS: Record<TrigKind, Spec> = {
   monthly: { n: 'mday', b: 'time' },
   // `a` = vor | nach, `n` = Anzahl, `b` = Tage | Stunden
   dueNear: { a: 'rel', n: 'num', b: 'unit' },
+  inbox: {},
 };
 /** V131 (K10c): Auslöser nach der Uhr – laufen nicht bei Änderungen, sondern über `runCheck` (ruleTime.ts). */
 export const SCHEDULE_TRIGS: readonly TrigKind[] = ['daily', 'workdays', 'weekly', 'monthly'];

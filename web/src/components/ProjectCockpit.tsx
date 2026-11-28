@@ -7,6 +7,7 @@
  * Logik in workspace/projects.ts (V98).
  */
 import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { ProjectContents } from './ProjectContents';
 import type { Action } from '../workspace/useWorkspace';
 import type { Project, Workspace } from '../workspace/types';
 import * as Pj from '../workspace/projects';
@@ -51,12 +52,12 @@ const dmy = (day: string) => `${day.slice(8, 10)}.${day.slice(5, 7)}.${day.slice
 const euro = (n: number) => `${n.toLocaleString('de-DE', { maximumFractionDigits: 2 })} €`;
 
 /** V100 (J2): Ansicht rechts neben der Projektliste – je Gerät gemerkt; weitere (Gantt …) folgen. */
-type ProjectView = 'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback';
+type ProjectView = 'toc' | 'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback';
 // V120 (F-230 Schritt 5, F-231): Kanban nach dem Netzplan – Ausführung nach der Planung
 // V107 (F-225 P8, R1/R3): Risiken und Änderungen nach dem Gantt – Steuerung nach dem Plan
 // V109 (F-226, G2): „Formulare“ direkt nach dem Steckbrief – Kapitel nach GPM-Leitfaden
 // V115 (Schritt 10): Netzplan nach dem Gantt
-const VIEWS: ProjectView[] = ['brief', 'forms', 'psp', 'gantt', 'net', 'kanban', 'res', 'risks', 'changes', 'decide', 'feedback'];
+const VIEWS: ProjectView[] = ['toc', 'brief', 'forms', 'psp', 'gantt', 'net', 'kanban', 'res', 'risks', 'changes', 'decide', 'feedback'];
 const VIEW_KEY = 'esource.projectView.v1';
 function loadView(): ProjectView {
   try {
@@ -512,7 +513,14 @@ export function ProjectCockpit({ ws, dispatch, say, desk }: { ws: Workspace; dis
             />
           )}
 
-          {view === 'risks' || view === 'changes' ? (
+          {view === 'toc' ? (
+            <ProjectContents key={shown.id} ws={ws} p={shown} onOpen={(x) => {
+              if (x.kind === 'form') {
+                setJump({ form: x.id, at: Date.now() });
+                setView('forms');
+              } else if (x.view) setView(x.view);
+            }} />
+          ) : view === 'risks' || view === 'changes' ? (
             <ProjectSteer key={`${shown.id}-${view}`} ws={ws} p={shown} kind={view === 'risks' ? 'risk' : 'change'} dispatch={dispatch} say={say} focus={steerFocus} />
           ) : view === 'forms' ? (
             <ProjectForms key={shown.id} ws={ws} p={shown} dispatch={dispatch} say={say} openView={(v) => setView(v)} jump={jump} />

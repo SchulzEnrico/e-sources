@@ -8,7 +8,9 @@
 import type { Note, Project, Workspace } from './types';
 import { meOf, personById } from './persons';
 import { rolesOf, tasksOfProject } from './projects';
-import { risksOf } from './risks';
+import { riskScore, riskTone, risksOf } from './risks';
+import { planCost, planHours } from './gpm';
+import { ganttOf } from './gantt';
 import { titleOf } from './notes';
 
 /** Gesamtdauer in Monaten (gerundet, wie im Report „7 Monate“). */
@@ -41,6 +43,17 @@ export interface CharterView {
   rest?: number;
   reservePct?: number;
   risks: string[];
+  /** V153 (F-232 P14): Start/Ende fürs Blatt – eingetragen, sonst aus dem Gantt; `from` sagt woher. */
+  start?: string;
+  end?: string;
+  datesFrom: { start: 'charter' | 'gantt' | 'none'; end: 'charter' | 'gantt' | 'none' };
+  /** Plan-Aufwand (h) und Plan-Kosten (€) aus den Arbeitspaketen (ohne Sammelvorgänge). */
+  planHours: number;
+  planCost: number;
+  /** Risikowert gesamt = Summe W × A der offenen Risiken; `high` = davon rot (ab 15). */
+  riskSum: number;
+  riskHigh: number;
+  riskCount: number;
 }
 
 /** Werte des Blatts, die nicht einfach ein Feld sind. */
@@ -54,13 +67,31 @@ export function charterView(ws: Workspace, p: Project): CharterView {
   const fixed = (c.fixed ?? []).map((id) => miles.find((m) => m.id === id)).filter((m): m is CharterMile => !!m);
   const costSum = (c.costPm ?? 0) + (c.costStaff ?? 0) + (c.costMaterial ?? 0);
   const rest = p.budget !== undefined ? p.budget - costSum - (c.reserve ?? 0) : undefined;
+  // V153 (F-232 P14): Termine aus dem Gantt, wenn im Steckbrief keine stehen
+  const tasks = tasksOfProject(ws, p.id);
+  const g = !p.start || !p.end ? ganttOf(ws, p.id) : undefined;
+  const start = p.start ?? (g?.start || undefined);
+  const end = p.end ?? (g?.end || undefined);
+  const parents = new Set(tasks.map((n) => n.parent).filter((x): x is string => !!x));
+  const leaves = tasks.filter((n) => !parents.has(n.id) && !n.milestone);
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const open = risksOf(ws, p.id).filter((r) => r.risk?.state !== 'closed' && !r.risk?.chance);
+  const scores = open.map((r) => riskScore(r.risk) ?? 0);
   return {
+    start,
+    end,
+    datesFrom: { start: p.start ? 'charter' : start ? 'gantt' : 'none', end: p.end ? 'charter' : end ? 'gantt' : 'none' },
+    planHours: r2(leaves.reduce((s, n) => s + (planHours(ws, n) ?? 0), 0)),
+    planCost: r2(leaves.reduce((s, n) => s + (planCost(ws, n) ?? 0), 0)),
+    riskSum: scores.reduce((s, x) => s + x, 0),
+    riskHigh: scores.filter((x) => riskTone(x) === 'alert').length,
+    riskCount: open.length,
     lead: leadName,
     clientIn: c.clientKind !== 'ex',
     client: [c.client, c.clientAddress].filter(Boolean).join(', '),
     miles,
     fixed,
-    months: monthsBetween(p.start, p.end),
+    months: monthsBetween(start, end),
     costSum,
     over: rest !== undefined && rest < 0,
     rest,

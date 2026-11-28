@@ -2438,6 +2438,8 @@ export const MATRIX_TEXT = {
   onlyThis: 'Nur diese Notiz',
   cancel: 'Abbrechen',
   lifted: (t: string) => `„${t}“ aufgenommen. Pfeile wählen das Feld, Leertaste oder Enter legt ab, Esc bricht ab.`,
+  orderTop: 'Steht schon oben im Feld.',
+  orderEnd: 'Steht schon unten im Feld.',
   at: (name: string, hint: string) => `${name} – ${hint}`,
   dropped: (t: string, name: string) => `„${t}“ in „${name}“`,
   cancelled: 'Verschieben abgebrochen',
@@ -2450,7 +2452,7 @@ export const MATRIX_TEXT = {
   archive: 'Archivieren',
   archived: (t: string) => `„${t}“ archiviert`,
   notHere: 'Diese Notiz liegt hier, weil wichtig oder dringend gesetzt ist. Zum Entfernen in „ablegen“ und dann in den Mülleimer ziehen oder archivieren.',
-  cardKeys: 'Enter öffnet, Leertaste nimmt auf (dann Pfeile zwischen den Feldern, Leertaste legt ab, Esc bricht ab), Pfeile wandern, Strg/⌘+Enter erledigt, F2 benennt um, V verschiebt in ein anderes Sheet, Entf nimmt aus der Matrix. Mit Maus ziehen, auf Touch lange drücken.',
+  cardKeys: 'Enter öffnet, Leertaste nimmt auf (dann Pfeile zwischen den Feldern, Leertaste legt ab, Esc bricht ab), Pfeile wandern, Alt/⌥+↑/↓ stellt im Feld um (eigene Reihenfolge), Strg/⌘+Enter erledigt, F2 benennt um, V verschiebt in ein anderes Sheet, Entf nimmt aus der Matrix. Mit Maus ziehen, auf Touch lange drücken.',
   info: (n: number, u: number) => `${n === 1 ? '1 Karte' : `${n} Karten`}, davon ${u} noch nicht eingeordnet`,
 };
 
@@ -2775,8 +2777,8 @@ export const PROJECT_KANBAN_TEXT = {
 export const PSP_TEXT = {
   view: 'Ansicht',
   viewLabel: 'Ansicht des gewählten Projekts',
-  views: { brief: 'Steckbrief', forms: 'Formulare', psp: 'PSP', gantt: 'Gantt', net: 'Netzplan', kanban: 'Kanban', res: 'Ressourcen', risks: 'Risiken', changes: 'Änderungen', decide: 'Entscheidungen', feedback: 'Meldungen' } as Record<'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
-  viewHint: { brief: 'Steckbrief nach IPMA ICB4: Ziel, Termine, Budget, Organisation', forms: 'Projektformulare nach GPM-Leitfaden (Level D): Eingabe und Ausgabe wie im Report, Kapitel für Kapitel, erweiterbar', psp: 'Projektstrukturplan: Teilprojekte, Vorgänge und Arbeitspakete als Baum mit Code', gantt: 'Balkenplan: Vorgänge auf der Zeitachse mit Vorgängern, Puffer und kritischem Pfad', net: 'Netzplan: Vorgänge als Kästen mit frühesten und spätesten Terminen, Puffer und Pfeilen zu den Nachfolgern', kanban: 'Kanban-Board des Projekts wie Trello: Vorgänge als Karten in Spalten nach ihrem Zustand, ziehen, Checklisten, WIP-Limit', res: 'Ressourceneinsatz: geplante Stunden je Ressource und Woche gegen die Kapazität, mit den Vorgängen darunter', risks: 'Risikoliste nach IPMA ICB4: Ursache, Ereignis, Auswirkung, Bewertung, Strategie und Maßnahme', changes: 'Änderungsanträge (Change Requests): Auswirkung auf Termin, Kosten, Leistung und Umfang, Entscheidung durch die Instanz', decide: 'Nutzwertanalyse: Lösungen nach gewichteten Kriterien vergleichen und begründet entscheiden', feedback: 'Projektmeldungen: Probleme, Wünsche und Fragen an die Instanzen des Projekts' } as Record<'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
+  views: { toc: 'Inhalt', brief: 'Steckbrief', forms: 'Formulare', psp: 'PSP', gantt: 'Gantt', net: 'Netzplan', kanban: 'Kanban', res: 'Ressourcen', risks: 'Risiken', changes: 'Änderungen', decide: 'Entscheidungen', feedback: 'Meldungen' } as Record<'toc' | 'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
+  viewHint: { toc: 'Inhalt des Projekts: alle Dokumente in der Reihenfolge des Reports mit Kapitel, Einträgen und leeren Pflichtfeldern – Enter öffnet', brief: 'Steckbrief nach IPMA ICB4: Ziel, Termine, Budget, Organisation', forms: 'Projektformulare nach GPM-Leitfaden (Level D): Eingabe und Ausgabe wie im Report, Kapitel für Kapitel, erweiterbar', psp: 'Projektstrukturplan: Teilprojekte, Vorgänge und Arbeitspakete als Baum mit Code', gantt: 'Balkenplan: Vorgänge auf der Zeitachse mit Vorgängern, Puffer und kritischem Pfad', net: 'Netzplan: Vorgänge als Kästen mit frühesten und spätesten Terminen, Puffer und Pfeilen zu den Nachfolgern', kanban: 'Kanban-Board des Projekts wie Trello: Vorgänge als Karten in Spalten nach ihrem Zustand, ziehen, Checklisten, WIP-Limit', res: 'Ressourceneinsatz: geplante Stunden je Ressource und Woche gegen die Kapazität, mit den Vorgängen darunter', risks: 'Risikoliste nach IPMA ICB4: Ursache, Ereignis, Auswirkung, Bewertung, Strategie und Maßnahme', changes: 'Änderungsanträge (Change Requests): Auswirkung auf Termin, Kosten, Leistung und Umfang, Entscheidung durch die Instanz', decide: 'Nutzwertanalyse: Lösungen nach gewichteten Kriterien vergleichen und begründet entscheiden', feedback: 'Projektmeldungen: Probleme, Wünsche und Fragen an die Instanzen des Projekts' } as Record<'toc' | 'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
   head: (name: string) => `PSP: ${name}`,
   prefix: 'Präfix',
   prefixHint: 'Steht vor jedem Code, z. B. WEB → WEB-1.2',
@@ -4184,6 +4186,7 @@ export const KIT_TEXT = {
     field: 'Feld wird geändert', check: 'regelmäßig (beim Start und stündlich)',
     daily: 'Zeitplan: jeden Tag', workdays: 'Zeitplan: an Arbeitstagen', weekly: 'Zeitplan: jede Woche am …', monthly: 'Zeitplan: jeden Monat am …',
     dueNear: 'Fälligkeit: vor oder nach „fällig“',
+    inbox: 'Notiz kommt in den Eingang',
   } as Record<string, string>,
   cond: {
     inCol: 'liegt in Spalte …', onBoard: 'liegt auf Board …', state: 'ist offen / erledigt', hasTag: 'hat Tag …', assignee: 'Zuständiger ist …',
@@ -4217,6 +4220,7 @@ export const KIT_TEXT = {
       comment: a ? `ein Kommentar mit ${q(a)} geschrieben wird` : 'ein Kommentar geschrieben wird',
       field: `das Feld ${q(a)} geändert wird`,
       check: 'die regelmäßige Prüfung läuft (beim Start und stündlich)',
+      inbox: 'eine Notiz in den Eingang kommt',
     })[k] ?? k,
   /** V131 (K10c): Zeitplan als Satzanfang („Jeden Montag um 09:00 Uhr“) – `n` Wochentag/Tag, `b` Uhrzeit. */
   schedSay: (k: string, n: number | undefined, time: string | undefined): string => {
@@ -4407,6 +4411,15 @@ export const PAPER_TEXT = {
   fixedOff: (t: string) => `„${t}“ ist nicht mehr fixiert.`,
   duration: 'Gesamtdauer',
   durationHint: 'Gerechnet aus Start- und Endtermin',
+  // V153 (F-232 P14): gerechnete Werte sichtbar, blass mit „gerechnet aus …“
+  calcDates: 'gerechnet aus Start und Ende',
+  calcGantt: 'gerechnet aus dem Gantt',
+  ganttDate: (d: string) => `${d} · aus dem Gantt`,
+  ganttDateHint: 'Kein Termin im Steckbrief eingetragen – E-Sources nimmt den Termin aus dem Gantt. Eintragen überschreibt ihn.',
+  planFrom: (h: string, c: string) => `Plan aus den Arbeitspaketen: ${h} Ph · ${c} €`,
+  planFromHint: 'Gerechnet aus Plan-Aufwand und Plan-Kosten der Arbeitspakete (ohne Sammelvorgänge und Meilensteine)',
+  costCalc: 'gerechnet aus PM-, Personal- und Sachkosten',
+  riskSum: (sum: number, n: number, high: number) => `Risikowert gesamt ${sum} (W × A aus ${n} offenen Risiken${high ? `, davon ${high} hoch` : ''})`,
   months: (n: number) => `${n} ${n === 1 ? 'Monat' : 'Monate'}`,
   capacity: 'Kapazitätsaufwand',
   own: 'Eigenaufwand (ph)',
@@ -4574,3 +4587,15 @@ export const DOC_SHEET_TEXT = {
   locked: 'Entschieden – zum Ändern im Werkzeug „Wieder öffnen“.',
   noCrit: 'Noch keine Kriterien – im Werkzeug › Kriterien anlegen.',
 } as const;
+
+/** V153 (F-232 P13): Ansicht „Inhalt“ – Inhaltsverzeichnis des Projekts. */
+export const CONTENTS_TEXT = {
+  head: (p: string) => `Inhalt: ${p}`,
+  lead: 'Alle Dokumente des Projekts in der Reihenfolge des Reports. Enter oder Klick öffnet das Dokument; ↑/↓ wandern, Pos1/Ende springen. Der Bericht (Druck/PDF) hat dasselbe Inhaltsverzeichnis vorn.',
+  groups: { forms: 'Formulare (Kapitel nach GPM-Leitfaden)', annex: 'Anlagen', views: 'Weitere Ansichten' } as Record<'forms' | 'annex' | 'views', string>,
+  count: (n: number) => (n === 1 ? '1 Eintrag' : `${n} Einträge`),
+  empty: 'leer',
+  missing: (n: number) => (n === 1 ? '1 Pflichtfeld leer' : `${n} Pflichtfelder leer`),
+  open: (name: string) => `${name} öffnen`,
+  opened: (name: string) => `${name} geöffnet`,
+};

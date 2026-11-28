@@ -22,6 +22,7 @@ import { fold } from './tags';
 import { allChecked, checkAll, checksOf, doneAt, ruleSetOf, withRan } from './ruleSet';
 import { type Act, CHAIN_MAX, type Cond, type KitButton, type KitRule, type TrigKind, buttonLabel, isSchedule, isTimed, kitOf, ruleLabel } from './ruleKit';
 import * as RT from './ruleTime';
+import { INBOX_ID } from './inbox';
 import type { CardFieldDef, Note, NoteView, Workspace } from './types';
 
 /** Ein Ereignis aus dem Unterschied zweier Stände. */
@@ -120,6 +121,10 @@ export function eventsOf(prev: Workspace, next: Workspace): RuleEvent[] {
       // Karte hat das Board verlassen (verschoben, archiviert aus der Spalte)
       if (pv) for (const id of before) if (!No.idsIn(v).includes(id)) { const from = colName(pv, id); if (from !== undefined) out.push({ k: 'colOut', note: id, view: v.id, col: from }); }
     }
+    // V153 (K14/K10a): neu im Eingang – nur bei einem Eingang, den es vorher schon gab (nicht beim ersten Anlegen)
+    const inb = No.viewById(next, INBOX_ID);
+    const pin = old.get(INBOX_ID);
+    if (inb && pin && inb !== pin) for (const id of inb.ids) if (!pin.ids.includes(id)) out.push({ k: 'inbox', note: id, view: INBOX_ID });
   }
   return out;
 }

@@ -476,6 +476,18 @@ export const TOURS: Record<TourId, TourStep[]> = {
       target: '.pad .pad__tabs',
       text: 'Jedes Pad hat Reiter – die Sheets: Notizblock, To-do-Liste, Kanban-Board, Eisenhower-Matrix. Mit + legst du eins an; F2 benennt um. Eine Notiz lässt sich in mehreren Sheets zeigen.',
     },
+    // V153 (K14, I1–I9 entschieden): Eingang und Gedankenparkplatz
+    {
+      id: 'inbox',
+      title: 'Eingang',
+      target: '.pad .pad__tab[data-sheet="inbox"]',
+      text: 'Der Eingang sammelt alles, was du schnell erfasst: Gedankenparkplatz, Dock-Notiz und „Neue Notiz“ im Portal. Die Zahl am Reiter zeigt die offenen Einträge. Mit V sortierst du ein – in ein anderes Sheet, eine Eisenhower-Matrix oder ein Projekt. Den Eingang gibt es immer genau einmal; umbenennen geht, löschen nicht.',
+    },
+    {
+      id: 'parking',
+      title: 'Gedankenparkplatz',
+      text: 'Alt/⌥+E öffnet überall ein kleines Feld oben in der Mitte. Enter legt den Gedanken in den Eingang, Umschalt+Enter macht eine neue Zeile, Esc schließt – und du bist wieder genau dort, wo du warst.',
+    },
     {
       id: 'sources',
       title: 'Quellen',

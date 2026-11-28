@@ -742,7 +742,7 @@ function step(ws: Workspace, a: Action): Workspace {
     case 'sheetAdd':
       return Sh.addTask(ws, a.view, a.title, { by: a.by, id: a.note, col: a.col, index: a.index })?.ws ?? ws;
     case 'sheetShift':
-      return Sh.shiftIn(ws, a.view, a.note, a.by);
+      return No.viewById(ws, a.view)?.kind === 'eisenhower' ? Sh.shiftInQuad(ws, a.view, a.note, a.by < 0 ? -1 : 1) : Sh.shiftIn(ws, a.view, a.note, a.by);
     case 'sheetRemove':
       return No.removeFromView(ws, a.note, a.view, { by: a.by });
     case 'sheetRestore':

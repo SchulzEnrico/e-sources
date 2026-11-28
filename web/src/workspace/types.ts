@@ -1431,6 +1431,9 @@ export interface NoteWp {
   inputs?: string;
   /** Chancen und Risiken im Arbeitspaket */
   risks?: string;
+  /** V148 (Report Abb. 11): Sachmittel bzw. Anlagen (Beilagen) der Arbeitspaketbeschreibung */
+  material?: string;
+  annex?: string;
   /** Fortschrittsmessung */
   method?: ProgressMethod;
   /** Fertigstellungsgrad in % (bei Schätzung bzw. aufwandsproportional von Hand) */

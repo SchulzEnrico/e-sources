@@ -26,6 +26,9 @@ import { OVERFLOW_TEXT } from '../workspace/terms';
 import { WorkPadButton } from './WorkPadOpen';
 import { requestTour, tourAutoStart } from '../workspace/tour';
 import * as Rp from '../workspace/gpmReport';
+import { staffLines, wpView } from '../workspace/wpSheet';
+import { LIVE_PROJECT, liveLocked } from '../workspace/liveProject';
+import { PROJECTS_TEXT as T_PJ } from '../workspace/terms';
 import { costCurve, earnedValue, evCurve, mtaOf, portfolioOf } from '../workspace/gpmCalc';
 import { APP_VERSION } from '../workspace/feedback';
 import { PaperSizeWheel, ProjectSheet, paperZoom, usePaperSize } from './ProjectSheet';
@@ -698,6 +701,30 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump }: { 
         </>
       );
     };
+    const wv = form.source === 'wp' ? wpView(ws, p, rowId) : undefined;
+    const calc = (k: string, span = false) => {
+      const [label, value, help] = (
+        {
+          '=project': [T.sheetProject, wv?.project ?? ''],
+          '=projectNo': [T.sheetProjectNo, wv?.projectNo ?? ''],
+          '=part': [T.wpPart, wv?.part ?? ''],
+          '=lead': [T.wpLead, wv?.lead ?? ''],
+          '=duration': [T.wpDuration, wv?.duration ?? '', T.wpFromGantt],
+          '=preds': [T.wpPreds, (wv?.preds ?? []).join('\n'), T.wpFromNet],
+          '=succs': [T.wpSuccs, (wv?.succs ?? []).join('\n'), T.wpFromNet],
+          '=staff': [T.wpStaff, wv ? staffLines(wv).join('\n') : '', T.wpFromUse],
+        } as Record<string, [string, string, string?]>
+      )[k] ?? [k, ''];
+      return (
+        <>
+          <th scope="row">{label}</th>
+          <td colSpan={span ? 3 : undefined} className="pjf__static">
+            <span className="pjf__lines">{value || '–'}</span>
+            {help && <span className="pjf__help">{help}</span>}
+          </td>
+        </>
+      );
+    };
     return (
       <table className="paper__table pjf__kv pjf__sheet">
         <colgroup>
@@ -720,17 +747,13 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump }: { 
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <th scope="row">{T.sheetProject}</th>
-            <td className="pjf__static">{[p.name, (p.brief?.goal ?? '').split('\n')[0]].filter(Boolean).join(' – ')}</td>
-            <th scope="row">{T.sheetProjectNo}</th>
-            <td className="pjf__static">{p.charter?.no ?? ''}</td>
-          </tr>
           {[...layout, ...rest].map((keys) => {
-            const cs = keys.map((k) => byKey.get(k)).filter((c): c is Fk.FormCol => !!c);
-            if (!cs.length) return null;
+            // V148: gerechnete Angaben (Projektname, Teilaufgabe, Projektleiter, Dauer, Vorgänger/Nachfolger, Personal) als Text
+            const parts = keys.map((k) => (k.startsWith('=') ? k : byKey.get(k))).filter((c): c is Fk.FormCol | string => !!c);
+            if (!parts.length) return null;
             if (form.source === 'wp' && keys.join('|') === 'releasePl|releaseOwner') return <Fragment key="release">{releaseRow(rowId, list, 3)}</Fragment>;
-            return <tr key={keys.join('|')}>{cs.length === 1 ? cell(cs[0], true) : cs.map((c) => <Fragment key={c.key}>{cell(c)}</Fragment>)}</tr>;
+            const one = (c: Fk.FormCol | string, span: boolean) => (typeof c === 'string' ? <Fragment key={c}>{calc(c, span)}</Fragment> : <Fragment key={c.key}>{cell(c, span)}</Fragment>);
+            return <tr key={keys.join('|')}>{parts.length === 1 ? one(parts[0], true) : parts.map((c) => one(c, false))}</tr>;
           })}
         </tbody>
       </table>
@@ -1147,6 +1170,12 @@ function FigEditor({ edit, fig, ws, p, tpl, run, tell, say, by, onOpen, onClose 
       }}
     >
       <p className="fbq__label">{T.figEditTitle(`${form.chapter} ${form.name}`)}</p>
+      {/* V148 (offen seit V138): im schreibgeschützten Live-Projekt der Hinweis am Ort, nicht erst nach dem Abweisen */}
+      {p.id === LIVE_PROJECT && liveLocked() && (
+        <p className="pj__readonly" role="note">
+          <Icon name="lock" size={13} className="icon icon--inline" /> <strong>{T_PJ.liveLocked}</strong> {T_PJ.liveEditHint}
+        </p>
+      )}
       <table className="paper__table pjf__kv">
         <tbody>
           {cols.map((c) => (
@@ -1177,18 +1206,26 @@ function FigEditor({ edit, fig, ws, p, tpl, run, tell, say, by, onOpen, onClose 
   );
 }
 
-/** V142 (Report Abb. 11): Anordnung der Arbeitspaketbeschreibung – Paare nebeneinander, einzelne über die ganze Breite. */
+/** V142/V148 (Report Abb. 11): Anordnung der Arbeitspaketbeschreibung – Paare nebeneinander, einzelne über die ganze
+ *  Breite, Reihenfolge wie auf dem Blatt des Reports. Schlüssel mit „=“ sind gerechnete Angaben (`wpView`). */
 const WP_SHEET: readonly (readonly string[])[] = [
   ['title', 'code'],
-  ['phase', 'assignee'],
+  ['=project', '=projectNo'],
+  ['=part', 'phase'],
+  ['=lead', 'assignee'],
   ['start', 'end'],
-  ['hours', 'cost'],
+  ['=duration'],
+  ['risks'],
+  ['=preds'],
   ['inputs'],
-  ['goal'],
+  ['=succs'],
   ['activities'],
   ['results'],
-  ['risks'],
-  ['method', 'progress'],
+  ['=staff', 'material'],
+  ['hours', 'cost'],
+  ['annex', 'method'],
+  ['progress'],
+  ['goal'],
   ['releasePl', 'releaseOwner'],
 ];
 

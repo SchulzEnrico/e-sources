@@ -65,9 +65,9 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
   const run = (a: Pick<Ask, 'kind' | 'text' | 'name'>, merge: string[]) => {
     setAsk(null);
     const before = ws;
-    // V141 (F-230 F7): CSV/Excel und iCal – neues Projekt, gleiche Namen = dieselbe Person
+    // V141 (F-230 F7): CSV/Excel und iCal – neues Projekt; V148: gleiche Namen nur nach Rückfrage zusammen
     if (a.kind === 'csv' || a.kind === 'ics') {
-      const r = a.kind === 'csv' ? Tf.importCsv(ws, a.text, { name: a.name }) : Tf.importIcs(ws, a.text, { name: a.name });
+      const r = a.kind === 'csv' ? Tf.importCsv(ws, a.text, { name: a.name, merge }) : Tf.importIcs(ws, a.text, { name: a.name });
       if (!r.ok) return tell(T.error[r.error]);
       dispatch({ type: 'exchange', ws: r.ws });
       const pj = projectById(r.ws, r.project)!;
@@ -105,8 +105,9 @@ export function useExchange(ws: Workspace, dispatch: (a: Action) => void, tell: 
     if (/\.mpp$/i.test(f.name)) return tell(T.mpp);
     const text = await f.text();
     const kind: Kind = Tf.isIcs(text) || /\.ics$/i.test(f.name) ? 'ics' : /\.(csv|tsv|txt)$/i.test(f.name) ? 'csv' : /\.json$/i.test(f.name) || Tr.isTrello(text) ? 'trello' : 'mspdi';
-    if (kind === 'csv' || kind === 'ics') return run({ kind, text, name: f.name }, []);
-    const clashes = kind === 'trello' ? Tr.trelloNameClashes(ws, text) : Mx.mspdiNameClashes(ws, text);
+    if (kind === 'ics') return run({ kind, text, name: f.name }, []);
+    // V148: auch CSV fragt bei gleichnamigen Personen nach (wie XML/Trello, F5)
+    const clashes = kind === 'csv' ? Tf.csvNameClashes(ws, text) : kind === 'trello' ? Tr.trelloNameClashes(ws, text) : Mx.mspdiNameClashes(ws, text);
     if (clashes.length) return setAsk({ kind, text, name: f.name, clashes, merge: new Set(clashes) });
     run({ kind, text, name: f.name }, []);
   };

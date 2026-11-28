@@ -15,6 +15,9 @@ import { noticeLater } from '../workspace/flash';
 import { DOC_SHEET_TEXT as T } from '../workspace/terms';
 import { ModeWheel } from './ModeWheel';
 import { Field, PaperSizeWheel, Row, paperZoom, usePaperSize } from './ProjectSheet';
+import { Thumb, storePics } from './FeedbackCard';
+import { FEEDBACK_CARD_TEXT as C } from '../workspace/terms';
+import { Icon } from './Icon';
 
 const de = (n: number) => n.toLocaleString('de-DE', { maximumFractionDigits: 1 });
 const dmy = (iso?: string) => {
@@ -201,6 +204,39 @@ function FeedbackSheet({ f, p, dispatch, say }: { f: Feedback; p: Project; dispa
                 </tr>
               )),
             ])}
+            {/* V148 (offen seit V139): Bilder der Meldung auch auf dem Blatt – ansehen, entfernen, hinzufügen */}
+            <tr className="paper__section">
+              <th scope="rowgroup" colSpan={2}>{C.groups.pics}</th>
+            </tr>
+            <tr>
+              <th scope="row">{C.groups.pics}</th>
+              <td>
+                {(f.pics ?? []).length > 0 && (
+                  <ul className="fbc__pics">
+                    {(f.pics ?? []).map((x, i) => (
+                      <Thumb key={x} picRef={x} n={i + 1} onRemove={() => edit({ pics: (f.pics ?? []).filter((y) => y !== x) }, 'pics', C.groups.pics)} />
+                    ))}
+                  </ul>
+                )}
+                {(f.pics ?? []).length < Fb.PICS_MAX && (
+                  <label className="fbc__picAdd">
+                    <Icon name="plus" size={12} /> {C.picsAdd}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="sr-only"
+                      onChange={(e) => {
+                        const files = [...(e.target.files ?? [])];
+                        e.target.value = '';
+                        void storePics(f.pics ?? [], files).then((r) => (r.pics ? edit({ pics: r.pics }, 'pics', C.groups.pics) : r.msg && tell('pics', r.msg)));
+                      }}
+                    />
+                  </label>
+                )}
+                {m('pics')}
+              </td>
+            </tr>
           </tbody>
         </table>
         <p className="paper__caption">{T.fbCaption}</p>

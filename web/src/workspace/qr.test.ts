@@ -82,13 +82,14 @@ describe('V146 F-232 P10 QR-Code und Verweis', () => {
     const html = R.reportHtml(ws, pid, { version: 'V146', day: '2027-05-17', base });
     expect(html).toContain('@bottom-center');
     expect(html).toContain('"Seite " counter(page) " von " counter(pages)');
-    expect(html).toContain('table class="sheethead"');
+    // V148: Kopf mit QR-Code jetzt Teil des Blatts wie Abb. 11
+    expect(html).toContain('<td class="sheethead__qr">');
     expect(html).toContain(`href="${base}?projekt=${pid}&amp;blatt=wp&amp;zeile=`);
     const ap = F.figureSvg(ws, pid, 'wpReport', { base });
     expect(ap).toContain('<svg x="561" y="5" width="74" height="74"');
     expect(F.figureSvg(ws, pid, 'wpReport').includes('<svg x="561"')).toBe(false);
     // ohne Basis (z. B. Test, Bericht im eigenen Fenster) kein QR-Code
-    expect(R.reportHtml(ws, pid, { version: 'V146', day: '2027-05-17' }).includes('table class="sheethead"')).toBe(false);
+    expect(R.reportHtml(ws, pid, { version: 'V146', day: '2027-05-17' }).includes('<td class="sheethead__qr">')).toBe(false);
     // Version aus 6.4 Dokumentation („Projektbericht“), sonst E-Sources
     const p = ws.projects!.find((x) => x.id === pid)!;
     expect(R.docVersion({ ...p, docs: [{ id: 'd1', title: 'Projektbericht', version: 'V 2' }] })).toBe('2');

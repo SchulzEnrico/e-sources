@@ -243,6 +243,8 @@ export function parseWp(v: unknown): NoteWp | undefined {
     activities: txt(v.activities),
     inputs: txt(v.inputs),
     risks: txt(v.risks),
+    material: txt(v.material),
+    annex: txt(v.annex),
     method: pick(v.method, PROGRESS_METHODS),
     progress: pct(v.progress),
     releasePl: isDay(v.releasePl) ? v.releasePl : undefined,

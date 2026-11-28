@@ -15,6 +15,7 @@ import { projectById, rolesOf } from './projects';
 import { envPortfolioSvg, figureSvg, shPortfolioSvg } from './gpmFigures';
 import * as Sh from './sheets';
 import { charterView, CHARTER_EXTRAS } from './charterSheet';
+import { staffLines, wpView } from './wpSheet';
 
 export const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
@@ -301,6 +302,14 @@ export function reportSigns(ws: Workspace, p: Project, f: FormDef, rowId?: strin
       { label: 'Unterschrift Projektleitung', name: leadName(ws, p), date: r.date, ref: r.inkPl },
     ];
   }
+  // V148: Projektabschluss – Abnahme durch den Auftraggeber und Projektleitung (wie die Freigabe im Steckbrief)
+  if (f.source === 'close') {
+    const c = p.close ?? {};
+    return [
+      { label: 'Abnahme Auftraggeber', name: c.acceptedBy, date: c.acceptedOn },
+      { label: 'Unterschrift Projektleitung', name: leadName(ws, p), date: c.date },
+    ];
+  }
   return [];
 }
 /** Alle Tinten-Schlüssel, die der Bericht eines Projekts braucht (zum Vorladen aus dem Gerätespeicher). */
@@ -325,7 +334,7 @@ export function signRowHtml(signs: ReportSign[], inks?: ReadonlyMap<string, stri
       : g.name
         ? `<span class="sign__name">${esc(g.name)}</span>`
         : '<span class="sign__blank"></span>';
-    return `<div class="sign">${top}${svg && g.name ? `<span class="sign__who">${esc(g.name)}</span>` : ''}<div class="sign__line">${esc([g.date ? dmy(g.date) : '', g.label].filter(Boolean).join(', '))}</div></div>`;
+    return `<div class="sign">${top}${svg && g.name ? `<span class="sign__who">${esc(g.name)}</span>` : ''}<div class="sign__line">${esc([g.date ? dmy(g.date) : 'Datum', g.label].join(', '))}</div></div>`;
   };
   return `<tr class="release"><th scope="row">Freigabe</th><td><div class="signs">${signs.map(one).join('')}</div></td></tr>`;
 }
@@ -357,8 +366,7 @@ table.kv th { width: 34%; } .empty { color: #777; font-style: italic; } .cover {
 .sum td { font-weight: bold; }
 .signs { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12pt; } .sign { display: flex; flex-direction: column; justify-content: flex-end; min-height: 40pt; }
 .sign__ink { height: 34pt; width: auto; align-self: flex-start; } .sign__name { font: 16pt "Segoe Script", "Brush Script MT", "Snell Roundhand", cursive; color: #1b2f8a; }
-table.sheethead { margin: 0; border: 2px solid #111; border-bottom: 0; } table.sheethead td.sheethead__qr { width: 80pt; padding: 3pt; background: #fff; } table.sheethead svg { display: block; width: 74pt; height: 74pt; }
-table.sheethead th { background: #8a8a8a; color: #fff; font-size: 22pt; vertical-align: middle; padding-left: 12pt; }
+table.wpsheet { border: 2px solid #111; break-inside: avoid; } table.kv.wpsheet th { width: auto; background: #d9d9d9; } table.wpsheet col.wpsheet__l { width: 17%; } table.wpsheet th.wpsheet__head { background: #8a8a8a; color: #fff; font-size: 18pt; vertical-align: middle; padding-left: 12pt; } table.wpsheet td.sheethead__qr { padding: 3pt; background: #fff; } table.wpsheet td.sheethead__qr svg { display: block; width: 74pt; height: 74pt; }
 table.charter > tbody > tr > th { width: 26%; } table.charter td.sub { padding: 0; } table.charter .grid { margin: 0; border: 0; } table.charter .grid th { background: #f6f6f6; font-weight: normal; } table.charter .grid.rows th { width: 34%; } td.is-strong { font-weight: bold; }
 .sign__who { font-size: 8.5pt; } .sign__line { border-top: 1px solid #999; font-size: 8pt; color: #555; padding-top: 1pt; } tr.release td { white-space: normal; } figure { margin: 6pt 0; break-inside: avoid; }
 @media screen { body { max-width: 900px; margin: 24px auto; padding: 0 16px; } .bar { position: sticky; top: 0; background: #fff; padding: 8px 0; border-bottom: 1px solid #ddd; } }
@@ -397,7 +405,9 @@ export function docVersion(p: Project): string | undefined {
 const cssText = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ');
 
 /** Datumsfelder, die in der Freigabe-Zeile unter der Unterschrift stehen (nicht doppelt als eigene Zeile). */
-const SIGN_DATES = new Set(['charter:releaseAg', 'charter:releasePl', 'wp:releasePl', 'wp:releaseOwner']);
+const SIGN_DATES = new Set(['charter:releaseAg', 'charter:releasePl', 'wp:releasePl', 'wp:releaseOwner', 'close:acceptedBy', 'close:acceptedOn']);
+/** V148: Blätter, die alle Felder des Eintrags schon zeigen (Abb. 15) – darunter keine zweite Feldliste, nur eigene Felder. */
+const SHEET_HAS_ALL = new Set(['wpReport', 'statusReport']);
 
 /** V147 (F-232): Kapitel 2.1 im Bericht in der Anordnung von Abbildung 3 – dieselben Werte wie das Blatt
  *  (`charterView`); eigene Felder der Vorlage vor der Freigabe, Ergänzungen nach ICB4 als Abschnitt darunter. */
@@ -442,6 +452,47 @@ export function charterHtml(ws: Workspace, p: Project, f: FormDef, cols: Fk.Form
   return out.join('');
 }
 
+/** V148 (F-232, Abgleich 8.3 mit dem Report): Arbeitspaketbeschreibung wie Abbildung 11 – vier Spalten (Bezeichnung grau,
+ *  Wert), Paare nebeneinander, Chancen/Risiken neben Start/Ende/Dauer, Personal neben Sachmittel, Anlagen neben
+ *  Fortschrittsmessung, unten die Freigabe „Datum, Unterschrift PL“ links und „Unterschrift AP-V“ rechts. Dieselben
+ *  Werte wie das Blatt (`wpView`); „Ziel und Inhalt“ und eigene Felder als Ergänzung darunter. */
+export function wpSheetHtml(ws: Workspace, p: Project, f: FormDef, cols: Fk.FormCol[], rowId: string, inks?: ReadonlyMap<string, string>, base?: string, title = ''): string {
+  const v = wpView(ws, p, rowId);
+  const val = (k: string) => { const c = cols.find((x) => x.key === k); return c ? displayValue(ws, p, c, Fk.cellValue(ws, p.id, f, rowId, k)) : ''; };
+  const t = (s: string) => esc(s);
+  const lines = (l: string[]) => l.map(esc).join('<br>');
+  const th = (k: string, rows = 1) => `<th scope="row"${rows > 1 ? ` rowspan="${rows}"` : ''}>${esc(k)}</th>`;
+  const td = (x: string, span = 1, rows = 1) => `<td${span > 1 ? ` colspan="${span}"` : ''}${rows > 1 ? ` rowspan="${rows}"` : ''}>${x}</td>`;
+  const out: string[] = [];
+  const link = base ? projectLinkUrl(base, { project: p.id, form: f.id, row: rowId }) : '';
+  out.push('<table class="kv wpsheet"><colgroup><col class="wpsheet__l"><col><col class="wpsheet__l"><col></colgroup><tbody><tr>');
+  out.push(link ? `<td class="sheethead__qr"><a href="${esc(link)}">${qrSvg(link, 74, `QR-Code: ${title} in E-Sources öffnen`)}</a></td><th scope="col" colspan="3" class="wpsheet__head">${esc(f.name)}</th>` : `<th scope="col" colspan="4" class="wpsheet__head">${esc(f.name)}</th>`);
+  out.push('</tr>');
+  out.push(`<tr>${th('AP Bezeichnung')}${td(t(val('title')))}${th('AP.Nr. (PSP CODE)')}${td(t(val('code')))}</tr>`);
+  out.push(`<tr>${th('Projektname')}${td(t(v.project))}${th('Projekt.Nr.')}${td(t(v.projectNo))}</tr>`);
+  out.push(`<tr>${th('Teilaufgabe')}${td(t(v.part))}${th('Phase')}${td(t(v.phase))}</tr>`);
+  out.push(`<tr>${th('Projektleiter')}${td(t(v.lead))}${th('Verantwortlicher')}${td(t(v.owner))}</tr>`);
+  out.push(`<tr>${th('Start')}${td(t(v.start ? dmy(v.start) : ''))}${th('Chancen/Risiken', 3)}${td(t(val('risks')), 1, 3)}</tr>`);
+  out.push(`<tr>${th('Ende')}${td(t(v.end ? dmy(v.end) : ''))}</tr>`);
+  out.push(`<tr>${th('Dauer')}${td(t(v.duration))}</tr>`);
+  const pre = [...v.preds, ...(val('inputs') ? [val('inputs')] : [])];
+  out.push(`<tr>${th('Vorgänger/Voraussetzungen')}${td(lines(pre), 3)}</tr>`);
+  out.push(`<tr>${th('Nachfolger')}${td(lines(v.succs), 3)}</tr>`);
+  out.push(`<tr>${th('Aktivitäten')}${td(t(val('activities')), 3)}</tr>`);
+  out.push(`<tr>${th('Ergebnisse')}${td(t(val('results')), 3)}</tr>`);
+  const staff = [...staffLines(v), '', ...(val('hours') ? [`Arbeitsaufwand: ${val('hours')} Ph`] : []), ...(val('cost') ? [`Personalkosten: ${val('cost')}`] : [])];
+  out.push(`<tr>${th('Personal')}${td(lines(staff.join('\n').trim().split('\n')))}${th('Sachmittel')}${td(t(val('material')))}</tr>`);
+  const meth = [val('method'), val('progress') ? `Fertigstellungsgrad ${val('progress')}` : ''].filter(Boolean).join(' · ');
+  out.push(`<tr>${th('Anlagen')}${td(t(val('annex') || 'keine'))}${th('Fortschrittsmessung')}${td(t(meth))}</tr>`);
+  // Freigabe wie im Report: PL links, AP-Verantwortliche/r rechts
+  const signs = reportSigns(ws, p, f, rowId).map((g) => ({ ...g, label: g.label.replace('Projektleitung', 'PL').replace('AP-Verantwortlich', 'AP-V') })).reverse();
+  out.push(signRowHtml(signs, inks).replace('<td>', '<td colspan="3">'));
+  out.push('</tbody></table>');
+  const extra = cols.filter((c) => c.key === 'goal' || c.custom).map((c) => [c.label, val(c.key)] as const).filter(([, x]) => x);
+  if (extra.length) out.push(`<table class="kv"><tbody>${extra.map(([k, x]) => `<tr><th scope="row">${esc(k)}</th><td>${esc(x)}</td></tr>`).join('')}</tbody></table>`);
+  return out.join('');
+}
+
 function formSection(ws: Workspace, p: Project, f: FormDef, inks?: ReadonlyMap<string, string>, base?: string): string {
   const cols = Fk.columnsOf(p, f);
   const rows = Fk.rowsOf(ws, p.id, f);
@@ -457,7 +508,8 @@ function formSection(ws: Workspace, p: Project, f: FormDef, inks?: ReadonlyMap<s
     out.push(charterHtml(ws, p, f, cols, inks));
   } else if (f.layout === 'fields') {
     const r = rows[0]?.id ?? p.id;
-    out.push(`<table class="kv"><tbody>${cols.filter((c) => !SIGN_DATES.has(`${f.source}:${c.key}`)).map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r, c))}</td></tr>`).join('')}${signRowHtml(reportSigns(ws, p, f), inks)}</tbody></table>`);
+    const sign = signRowHtml(reportSigns(ws, p, f), inks);
+    out.push(`<table class="kv"><tbody>${cols.filter((c) => !SIGN_DATES.has(`${f.source}:${c.key}`)).map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r, c))}</td></tr>`).join('')}${f.source === 'close' ? sign.replace('>Freigabe<', '>Abnahme<') : sign}</tbody></table>`);
   } else if (f.layout === 'record') {
     // Arbeitspakete: nur die beschriebenen (wie im Report – sonst stünde jedes Arbeitspaket leer da)
     const shown = f.source === 'wp' ? rows.filter((r) => { const n = (ws.notes ?? []).find((x) => x.id === r.id); return !!(n?.wp && Object.keys(n.wp).length) || !!n?.results?.length; }) : rows;
@@ -470,12 +522,18 @@ function formSection(ws: Workspace, p: Project, f: FormDef, inks?: ReadonlyMap<s
         : f.source === 'messages' ? val(r.id, cols.find((c) => c.key === 'topic') ?? cols[0])
         : [val(r.id, cols.find((c) => c.key === 'code') ?? cols[0]), val(r.id, cols.find((c) => c.key === 'title') ?? cols[0])].filter(Boolean).join(' ');
       out.push(`<h3>${esc(title)}</h3>`);
-      // V146 (F-232 P10, Report S. 19): Kopf der Arbeitspaketbeschreibung mit QR-Code links (Verweis auf das Arbeitspaket)
-      if (f.source === 'wp' && base) out.push(`<table class="sheethead"><tbody><tr><td class="sheethead__qr"><a href="${esc(projectLinkUrl(base, { project: p.id, form: f.id, row: r.id }))}">${qrSvg(projectLinkUrl(base, { project: p.id, form: f.id, row: r.id }), 74, `QR-Code: ${title} in E-Sources öffnen`)}</a></td><th scope="col">${esc(f.name)}</th></tr></tbody></table>`);
+      // V148 (F-232, Report Abb. 11): Arbeitspaketbeschreibung als Blatt mit QR-Code statt Feldliste
+      if (f.source === 'wp') { out.push(wpSheetHtml(ws, p, f, cols, r.id, inks, base, title)); continue; }
       // F-234 (V137): Blatt wie im Report (AP-Statusbericht, Teamrollen, Nachrichtenquadrat) vor den Feldern
       if (f.figure) {
         const svg = figureSvg(ws, p.id, f.figure, { row: r.id, inks, base });
         if (svg) out.push(`<figure>${svg}<figcaption class="meta">Abbildung: ${esc(`${f.name} – ${title}`)}</figcaption></figure>`);
+      }
+      // V148: Statusberichte (Abb. 15) zeigen schon alle Felder und die Unterschrift – darunter nur eigene Felder
+      if (f.figure && SHEET_HAS_ALL.has(f.figure)) {
+        const own = cols.filter((c) => c.custom).map((c) => [c.label, val(r.id, c)] as const).filter(([, x]) => x);
+        if (own.length) out.push(`<table class="kv"><tbody>${own.map(([k, x]) => `<tr><th scope="row">${esc(k)}</th><td>${esc(x)}</td></tr>`).join('')}</tbody></table>`);
+        continue;
       }
       out.push(`<table class="kv"><tbody>${cols.filter((c) => c.key !== 'code' && c.key !== 'title' && !SIGN_DATES.has(`${f.source}:${c.key}`)).map((c) => `<tr><th scope="row">${esc(c.label)}</th><td>${esc(val(r.id, c))}</td></tr>`).join('')}${signRowHtml(reportSigns(ws, p, f, r.id), inks)}</tbody></table>`);
     }

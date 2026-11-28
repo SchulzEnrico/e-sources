@@ -2971,6 +2971,7 @@ export const PROJECTS_TEXT = {
   liveShow: 'Live-Projekt E-Sources ansehen',
   liveShowHint: 'Das Projekt E-Sources selbst – so, wie es nach IPMA ICB4 geplant und gesteuert wird (nur zum Ansehen)',
   liveLocked: 'Live-Projekt – nur zum Ansehen.',
+  liveEditHint: 'Änderungen in diesem Fenster werden nicht gespeichert.',
   liveLockedMore: (chat: string) => `Stand ${chat}. Änderungen werden hier nicht gespeichert – mit „Kopie anlegen“ entsteht ein eigenes Projekt zum Ausprobieren.`,
   liveBlocked: 'Nicht gespeichert: Das Live-Projekt ist nur zum Ansehen.',
   liveCopy: 'Kopie anlegen',
@@ -3818,6 +3819,16 @@ export const FORMS_TEXT = {
   sheetTitle: (f: string, p: string) => `Formular ${f}, Projekt ${p} – Blatt wie im Report`,
   sheetProject: 'Projektname',
   sheetProjectNo: 'Projekt.Nr.',
+  // V148 (Report Abb. 11): gerechnete Angaben der Arbeitspaketbeschreibung
+  wpPart: 'Teilaufgabe',
+  wpLead: 'Projektleiter',
+  wpDuration: 'Dauer',
+  wpPreds: 'Vorgänger',
+  wpSuccs: 'Nachfolger',
+  wpStaff: 'Personal',
+  wpFromGantt: 'aus dem Gantt',
+  wpFromNet: 'aus dem Netzplan (Vorgänger im Gantt eintragen)',
+  wpFromUse: 'aus den Einsätzen des Arbeitspakets',
   // V146 (F-232 P10): QR-Code wie im Report (S. 19, 24) – Verweis auf das Arbeitspaket bzw. den Bericht in E-Sources
   qrLabel: 'QR-Code: öffnet dieses Arbeitspaket in E-Sources (Projekt-Modus › Formulare)',
   // V144 (F-238 S6): Unterschriften in 8.3 Arbeitspaketbeschreibung und 12.1 AP-Statusbericht

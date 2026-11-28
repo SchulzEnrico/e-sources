@@ -72,3 +72,26 @@ describe('V141 F-230 F7 CSV/Excel und iCal', () => {
     expect(Tf.importIcs(ws, 'kein Kalender')).toEqual({ ok: false, error: 'ics' });
   });
 });
+
+describe('V148 CSV-Import: gleichnamige Personen mit Rückfrage', () => {
+  const csv = 'Task Name,Duration,Resource Names\nA,1 day,Anna\nB,1 day,"Anna,Ben"\n';
+  it('meldet vorhandene Namen einmal und führt nur die gewählten zusammen', () => {
+    const r0 = Tf.importCsv(W.defaultWorkspace(), csv, { name: 'erst.csv' });
+    if (!r0.ok) throw new Error('import');
+    const ws = r0.ws;
+    expect(Tf.csvNameClashes(ws, csv)).toEqual(['Anna', 'Ben']);
+    const r = Tf.importCsv(ws, csv, { name: 'zwei.csv', merge: ['anna'] });
+    if (!r.ok) throw new Error('import');
+    const names = (r.ws.persons ?? []).map((p) => p.name);
+    expect(names.filter((n) => n === 'Anna').length).toBe(1);
+    expect(names.includes('Ben (Import)')).toBe(true);
+    expect(r.persons).toBe(1);
+    // „Ben (Import)“ ist in beiden Zeilen dieselbe Person
+    const ns = (r.ws.notes ?? []).filter((n) => n.project === r.project);
+    const ben = (r.ws.persons ?? []).find((p) => p.name === 'Ben (Import)')!.id;
+    expect(ns[1].use!.some((u) => u.person === ben)).toBe(true);
+    // ohne Angabe wie bisher: alles zusammen
+    const all = Tf.importCsv(ws, csv);
+    expect(all.ok && all.persons).toBe(0);
+  });
+});

@@ -78,7 +78,22 @@ const when = (iso: string) => {
 /** Spur: „new → dropped: Grund“ in Klartext */
 const stateLine = (t: string) => t.replace(/\b(new|seen|planned|done|dropped)\b/g, (s) => C.states[s] ?? s);
 
-function Thumb({ picRef, n, onRemove }: { picRef: string; n: number; onRemove: () => void }) {
+/** V148: Bilder verkleinern und ablegen (Board-Fenster und Blatt der Problemstellung); `pics` = neue Liste, `msg` = Hinweis. */
+export async function storePics(have: string[], files: Blob[]): Promise<{ pics?: string[]; msg: string }> {
+  const room = Fb.PICS_MAX - have.length;
+  if (room <= 0) return { msg: C.picsFull(Fb.PICS_MAX) };
+  const refs: string[] = [];
+  for (const file of files.filter((x) => x.type.startsWith('image/')).slice(0, room)) {
+    const sm = await shrinkImage(file);
+    if (!sm) continue;
+    const pid = newId();
+    if (await putPic({ id: pid, blob: sm.blob, mime: sm.mime, w: sm.w, h: sm.h, at: Date.now() })) refs.push(pid);
+  }
+  if (!refs.length) return { msg: C.picsFailed };
+  return { pics: [...have, ...refs], msg: files.length > room ? C.picsFull(Fb.PICS_MAX) : '' };
+}
+
+export function Thumb({ picRef, n, onRemove }: { picRef: string; n: number; onRemove: () => void }) {
   const [url, setUrl] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     let live = true;
@@ -314,19 +329,9 @@ export function FeedbackCard(props: {
   };
 
   const addPics = async (files: Blob[]) => {
-    const have = f.pics ?? [];
-    const room = Fb.PICS_MAX - have.length;
-    if (room <= 0) return setPicMsg(C.picsFull(Fb.PICS_MAX));
-    const refs: string[] = [];
-    for (const file of files.filter((x) => x.type.startsWith('image/')).slice(0, room)) {
-      const sm = await shrinkImage(file);
-      if (!sm) continue;
-      const pid = newId();
-      if (await putPic({ id: pid, blob: sm.blob, mime: sm.mime, w: sm.w, h: sm.h, at: Date.now() })) refs.push(pid);
-    }
-    if (!refs.length) return setPicMsg(C.picsFailed);
-    setPicMsg(files.length > room ? C.picsFull(Fb.PICS_MAX) : '');
-    edit({ pics: [...have, ...refs] }, 'pics');
+    const r = await storePics(f.pics ?? [], files);
+    setPicMsg(r.msg);
+    if (r.pics) edit({ pics: r.pics }, 'pics');
   };
   const onPaste = (e: ClipboardEvent) => {
     const files = [...e.clipboardData.files].filter((x) => x.type.startsWith('image/'));

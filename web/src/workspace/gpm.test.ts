@@ -1099,7 +1099,8 @@ describe('V144 F-238 S6: Unterschriften in 8.3 und 12.1, Tinte im Bericht', () =
     expect(rr.includes('sigR') && rr.includes('sigW')).toBe(true);
     const html = R.reportHtml(back, pid, { day: '2026-12-01', inks: new Map([['sigW', '<svg xmlns="http://www.w3.org/2000/svg"></svg>']]) });
     expect(html).toContain('class="sign__ink"');
-    expect(html).toContain('Unterschrift AP-Verantwortlich');
+    // V148: Freigabe wie Abb. 11 („Unterschrift AP-V“ rechts neben „Unterschrift PL“)
+    expect(html).toContain('Unterschrift AP-V');
     // entfernen
     const gone = Fk.setSignInk(back, pid, form('wp'), 'cg-31', 'inkOwner', null);
     expect(gone.notes!.find((n) => n.id === 'cg-31')!.wp?.inkOwner).toBeUndefined();
@@ -1282,5 +1283,56 @@ describe('V147: Eisenhower-Merker', () => {
     // Projekt mit Merker (von Hand angelegt) bekommt beim Laden keine Matrix
     const made = Pj.addProject(ws, 'Neu', { eisenInit: true }, 9)!;
     expect(Fk.ensureMatrices(made.ws, 10)).toBe(made.ws);
+  });
+});
+
+describe('V148 F-232: Arbeitspaketbeschreibung wie Abb. 11, Statusberichte ohne zweite Feldliste, Abschluss mit Abnahme', () => {
+  const fm = (id: string) => Fk.GPM_D.forms.find((f) => f.id === id)!;
+  it('8.3 im Bericht als Blatt mit Projektname, Teilaufgabe, Dauer, Vorgänger, Personal und Sachmittel', async () => {
+    const S = await import('./sampleProject');
+    const R = await import('./gpmReport');
+    const V = await import('./wpSheet');
+    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const p = ws.projects!.find((x) => x.id === S.SAMPLE_PROJECT)!;
+    const v = V.wpView(ws, p, 'cg-31');
+    expect(v.projectNo).toBe('CG-1');
+    expect(v.part.includes('Organisation und Prozesse')).toBe(true);
+    expect(v.lead.length > 0).toBe(true);
+    expect(v.duration).toBe('2 Monate');
+    expect(v.preds.length).toBe(4);
+    expect(v.staff.length).toBe(4);
+    expect(V.staffLines(v)[0].endsWith('10 Ph')).toBe(true);
+    const html = R.reportHtml(ws, p.id, { day: '2026-12-01', base: 'https://x.test/' });
+    const sec = html.slice(html.indexOf('id="f-wp"'), html.indexOf('</section>', html.indexOf('id="f-wp"')));
+    expect(sec).toContain('class="kv wpsheet"');
+    for (const k of ['AP Bezeichnung', 'Teilaufgabe', 'Dauer', 'Vorgänger/Voraussetzungen', 'Nachfolger', 'Personal', 'Sachmittel', 'Anlagen', 'Fortschrittsmessung', 'Arbeitsaufwand: ', 'Unterschrift PL', 'Unterschrift AP-V']) expect(sec).toContain(k);
+    expect(sec).toContain('Glasklar GmbH');
+    // PL links, AP-V rechts
+    expect(sec.indexOf('Unterschrift PL') < sec.indexOf('Unterschrift AP-V')).toBe(true);
+    // Feld „Ziel und Inhalt“ als Ergänzung unter dem Blatt
+    expect(sec).toContain('Ziel und Inhalt');
+  });
+  it('Felder Sachmittel und Anlagen lassen sich setzen und bleiben beim Laden', async () => {
+    const S = await import('./sampleProject');
+    let ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    ws = Fk.setCell(ws, S.SAMPLE_PROJECT, fm('wp'), 'cg-31', 'annex', 'Anlage 3');
+    const back = parseWorkspace(JSON.parse(JSON.stringify(ws)))!;
+    expect(back.notes!.find((n) => n.id === 'cg-31')!.wp?.annex).toBe('Anlage 3');
+    expect(back.notes!.find((n) => n.id === 'cg-31')!.wp?.material?.startsWith('Die Sachmittel')).toBe(true);
+  });
+  it('12.1 zeigt das Blatt ohne zweite Feldliste; 14 mit Abnahme Auftraggeber und „Datum“ als Platzhalter', async () => {
+    const S = await import('./sampleProject');
+    const R = await import('./gpmReport');
+    const ws = S.addSampleProject(W.defaultWorkspace(), 5);
+    const html = R.reportHtml(ws, S.SAMPLE_PROJECT, { day: '2026-12-01' });
+    const at = html.indexOf('id="f-wpReports"');
+    const sec = html.slice(at, html.indexOf('</section>', at));
+    expect(sec).toContain('<figure>');
+    expect(sec.includes('Berichtszeitraum von')).toBe(false);
+    const c = html.indexOf('id="f-close"');
+    const close = html.slice(c, html.indexOf('</section>', c));
+    expect(close).toContain('Abnahme Auftraggeber');
+    expect(close).toContain('Datum, Unterschrift Projektleitung');
+    expect(close.includes('>Abnahme am<')).toBe(false);
   });
 });

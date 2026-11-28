@@ -10260,6 +10260,7 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 .pjf__sheet > tbody > tr > td :is(input, textarea, select) { color: inherit; font-weight: inherit; }
 .pjf__sheet > tbody > tr > td.is-long, .pjf__sheet > tbody > tr > td.is-lines { color: var(--paper-ink); font-weight: 400; }
 .pjf__sheet td.pjf__static { color: var(--paper-red); }
+.pjf__sheet td.pjf__static .pjf__lines { white-space: pre-line; display: block; }
 @media (max-width: 700px) { .pjf__sheet > thead, .pjf__sheet > thead > tr, .pjf__sheet > thead > tr > th { display: block; width: auto; } }
 /* V142 (Enrico 14:58 „wie im Report“, Tab. 2/9, Abb. 8): Tabellenkopf dunkelgrau mit weißer Schrift, Rahmen außen kräftig schwarz,
    erste Spalte (Kennung) fett weinrot; Spalte der Zeilen-Knöpfe bleibt ohne Rahmen. */

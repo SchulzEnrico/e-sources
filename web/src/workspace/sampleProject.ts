@@ -400,7 +400,8 @@ export function addSampleProject(ws: Workspace, now = Date.now()): Workspace {
             wp: {
               goal: 'Die Arbeitsprozesse der neuen Lackiererei festlegen: übergabefertige Prozessbeschreibungen und Ablaufdiagramme.',
               activities: 'Der Lackiermeister erarbeitet zusammen mit dem Anwendungstechniker der Glasklar GmbH (SH-EX 05 – Herr Talib) die einzelnen Prozessschritte und stellt sie zu sinnvollen Prozessketten zusammen.\nDie Fachbereiche Qualitätsmanagement und Buchhaltung leiten unterstützend an und helfen bei der Dokumentation und Systemimplementierung.',
-              inputs: 'Vorgänger: CG-M-LA1 Lackieranlage 1 ist in Betrieb (CG-1.5.3 Lackieranlage 1 installieren, CG-1.6.2 Aufbaustruktur festlegen, CG-1.4.2 Ausstattung mit neuer Technik).\nNachfolger: CG-M4 Umbau & Inbetriebnahme abgeschlossen.\nSachmittel: übernimmt die Glasklar GmbH (wie die Arbeitsleistung von Herrn Talib, Servicebestandteil des Lackausrüster-Vertrags). Anlagen: keine.',
+              material: 'Die Sachmittel, die zum Erstellen der Prozesse benötigt werden, übernimmt die Glasklar GmbH – wie die Arbeitsleistung von Herrn Talib Servicebestandteil des Lackausrüster-Vertrags.',
+              annex: 'keine',
               risks: 'Bei gut optimierten Prozessen steigert sich die Wirtschaftlichkeit der Lackieranlagen sowie der Lackmittel, und die Reklamationsquote sinkt.',
               method: 'effort' as const,
               releasePl: shift('2021-01-21'),

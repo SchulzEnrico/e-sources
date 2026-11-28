@@ -200,7 +200,7 @@ interface TaskIn {
 }
 
 /** Vorgänge anlegen: Gliederung, Dauer, „nicht vor“ für Vorgänge ohne Vorgänger, Personen (gleiche Namen = dieselbe Person, F5). */
-function build(ws0: Workspace, name: string, tasks: TaskIn[], now: number): TableResult {
+function build(ws0: Workspace, name: string, tasks: TaskIn[], now: number, merge?: ReadonlySet<string>): TableResult {
   if (!tasks.length) return { ok: false, error: 'empty' };
   const before = (ws0.persons ?? []).length;
   const pr = addProject(ws0, name, {}, now);
@@ -211,6 +211,26 @@ function build(ws0: Workspace, name: string, tasks: TaskIn[], now: number): Tabl
   const order: Record<string, string[]> = {};
   const idByNr = new Map<number, string>();
   const ids: string[] = [];
+  // V148: gleiche Namen wie vorhandene Personen nur nach Rückfrage zusammenführen (`merge`, wie XML/Trello F5);
+  // ohne Angabe wie bisher zusammenführen. Nicht gewählte kommen als „Name (Import)“ dazu – je Name einmal.
+  const had = new Set((ws0.persons ?? []).map((p) => fold(p.name)));
+  const made = new Map<string, string>();
+  const personFor = (raw: string): { ws: Workspace; id: string } | null => {
+    const key = fold(raw);
+    if (!key) return null;
+    const done = made.get(key);
+    if (done) return { ws, id: done };
+    let nm = raw;
+    if (merge && had.has(key) && !merge.has(key)) {
+      const taken = new Set((ws.persons ?? []).map((p) => fold(p.name)));
+      let k = 1;
+      nm = `${raw} (Import)`;
+      while (taken.has(fold(nm))) nm = `${raw} (Import ${++k})`;
+    }
+    const a = addPerson(ws, nm, 'person');
+    if (a) made.set(key, a.id);
+    return a;
+  };
   const starts = tasks.map((t) => t.start).filter((d): d is string => !!d).sort();
   const pStart = starts[0];
   tasks.forEach((t, i) => {
@@ -220,7 +240,7 @@ function build(ws0: Workspace, name: string, tasks: TaskIn[], now: number): Tabl
     const isSum = (tasks[i + 1]?.level ?? 0) > level;
     let use: { person: string; hours?: number }[] = [];
     for (const r of t.res ?? []) {
-      const a = addPerson(ws, r.replace(/\[[^\]]*\]$/, '').trim(), 'person');
+      const a = personFor(r.replace(/\[[^\]]*\]$/, '').trim());
       if (!a) continue;
       ws = a.ws;
       if (!use.some((u) => u.person === a.id)) use.push({ person: a.id });
@@ -275,13 +295,14 @@ function build(ws0: Workspace, name: string, tasks: TaskIn[], now: number): Tabl
 }
 
 /** CSV als neues Projekt (F4). Ohne Spalte „Name“ geht es nicht. */
-export function importCsv(ws: Workspace, text: string, o: { name?: string; now?: number } = {}): TableResult {
+/** Zeilen einer CSV-Datei als Vorgänge (ohne anzulegen). */
+function csvTasks(text: string): { tasks: TaskIn[]; skipped: number } | { error: 'empty' | 'noName' } {
   const rows = parseCsv(text);
-  if (rows.length < 2) return { ok: false, error: 'empty' };
+  if (rows.length < 2) return { error: 'empty' };
   const head = rows[0].map((h) => fold(h.replace(/^\uFEFF/, '')));
   const at = (k: string) => head.findIndex((h) => COLS[k].includes(h));
   const ix = Object.fromEntries(Object.keys(COLS).map((k) => [k, at(k)])) as Record<string, number>;
-  if (ix.name < 0) return { ok: false, error: 'noName' };
+  if (ix.name < 0) return { error: 'noName' };
   const get = (r: string[], k: string) => (ix[k] >= 0 ? (r[ix[k]] ?? '').trim() : '');
   let skipped = 0;
   const tasks: TaskIn[] = [];
@@ -311,8 +332,28 @@ export function importCsv(ws: Workspace, text: string, o: { name?: string; now?:
       ...(num(get(r, 'nr')) !== undefined ? { nr: num(get(r, 'nr')) } : {}),
     });
   }
-  const out = build(ws, newProjectName(ws, o.name ? baseName(o.name, 'CSV-Import') : 'CSV-Import'), tasks, o.now ?? Date.now());
-  return out.ok ? { ...out, skipped } : out;
+  return { tasks, skipped };
+}
+
+/** V148: Personen der CSV-Datei, die es dem Namen nach schon gibt (Rückfrage „zusammenführen?“ wie bei XML/Trello). */
+export function csvNameClashes(ws: Workspace, text: string): string[] {
+  const t = csvTasks(text);
+  if ('error' in t) return [];
+  const have = new Set((ws.persons ?? []).map((p) => fold(p.name)));
+  const out = new Map<string, string>();
+  for (const x of t.tasks) for (const r of x.res ?? []) {
+    const n = r.replace(/\[[^\]]*\]$/, '').trim();
+    if (n && have.has(fold(n)) && !out.has(fold(n))) out.set(fold(n), n);
+  }
+  return [...out.values()];
+}
+
+/** CSV/Excel als neues Projekt. `merge`: Namen, die mit vorhandenen Personen zusammengeführt werden (ohne Angabe alle). */
+export function importCsv(ws: Workspace, text: string, o: { name?: string; now?: number; merge?: string[] } = {}): TableResult {
+  const t = csvTasks(text);
+  if ('error' in t) return { ok: false, error: t.error };
+  const out = build(ws, newProjectName(ws, o.name ? baseName(o.name, 'CSV-Import') : 'CSV-Import'), t.tasks, o.now ?? Date.now(), o.merge ? new Set(o.merge.map(fold)) : undefined);
+  return out.ok ? { ...out, skipped: t.skipped } : out;
 }
 
 // ---------- iCal ----------

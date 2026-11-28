@@ -10167,13 +10167,13 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
   width: calc(210mm * var(--paper-zoom, 1)); max-width: 100%; min-height: calc(297mm * var(--paper-zoom, 1));
   box-sizing: border-box; padding: calc(14mm * var(--paper-zoom, 1)) calc(16mm * var(--paper-zoom, 1));
   background: #fff; color: var(--paper-ink); border-radius: 3px; box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45);
-  font-family: "Open Sans", "Segoe UI", system-ui, sans-serif; font-size: calc(12.5px * var(--paper-zoom, 1)); line-height: 1.35;
+  font-family: var(--paper-font, "Open Sans", "Segoe UI", system-ui, sans-serif); font-size: calc(12.5px * var(--paper-zoom, 1) * var(--paper-scale, 1)); line-height: 1.35;
 }
 .paper__head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #bbb; padding-bottom: 4px; margin-bottom: 10px; color: #666; font-size: 0.85em; }
 .paper__project { font-weight: 700; color: var(--paper-ink); font-size: 1.3em; letter-spacing: 0.02em; }
-.paper__chapter { color: var(--paper-red); font-weight: 700; font-size: 1.25em; }
-.paper__h { margin: 0 0 8px; font-size: 1.15em; color: #555; font-weight: 700; }
-.paper__table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.paper__chapter { color: var(--paper-red); font-weight: 700; font-size: calc(1.25em * var(--paper-hscale, 1)); font-family: var(--paper-hfont, inherit); }
+.paper__h { margin: 0 0 8px; font-size: calc(1.15em * var(--paper-hscale, 1)); font-family: var(--paper-hfont, inherit); color: #555; font-weight: 700; }
+.paper__table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: calc(1em * var(--paper-tscale, 1)); }
 .paper__colL { width: 28%; }
 .paper__table > tbody > tr > th, .paper__table > tbody > tr > td { border: 1px solid var(--paper-line); padding: 5px 8px; vertical-align: top; text-align: left; }
 .paper__table > tbody > tr > th { background: var(--paper-label); font-weight: 700; font-size: 0.92em; }
@@ -10248,13 +10248,13 @@ li.menu__note { padding: 4px 10px; font-size: 12px; color: var(--muted); max-wid
 .paper.is-wide { width: calc(297mm * var(--paper-zoom, 1)); min-height: calc(210mm * var(--paper-zoom, 1)); }
 .paper--form .pjf__body { margin-top: 0; overflow-x: auto; }
 .paper--form .pjs__left { min-width: 0; }
-.paper--form .pjf__table { width: 100%; border-collapse: collapse; font-size: 0.95em; margin: 4px 0 8px; }
+.paper--form .pjf__table { width: 100%; border-collapse: collapse; font-size: calc(0.95em * var(--paper-tscale, 1)); margin: 4px 0 8px; }
 .paper--form .pjf__table th, .paper--form .pjf__table td { border: 1px solid var(--paper-line); padding: 3px 5px; vertical-align: top; text-align: left; color: var(--paper-ink); font-weight: 400; }
-.paper--form .pjf__table thead th { background: var(--paper-label); font-weight: 700; }
+.paper--form .pjf__table thead th { background: var(--paper-thead, var(--paper-label)); color: var(--paper-thead-ink, inherit); font-weight: 700; }
 /* V142 (Report Abb. 11): Arbeitspaketbeschreibung als Blatt mit vier Spalten */
 .pjf__sheet { border: 2px solid #111; }
 .pjf__sheetL { width: 18%; }
-.pjf__sheet > thead > tr > th.pjf__sheethead { background: linear-gradient(#8c8c8c, #6a6a6a); color: #fff; font-size: 1.9em; font-weight: 700; text-align: center; padding: 12px 8px; border: 1px solid var(--paper-line); }
+.pjf__sheet > thead > tr > th.pjf__sheethead { background: var(--paper-thead, linear-gradient(#8c8c8c, #6a6a6a)); color: var(--paper-thead-ink, #fff); font-family: var(--paper-hfont, inherit); font-size: calc(1.9em * var(--paper-hscale, 1)); font-weight: 700; text-align: center; padding: 12px 8px; border: 1px solid var(--paper-line); }
 /* V146 (F-232 P10): QR-Code oben links wie im Report (S. 19) – weißes Feld, Code bleibt scharf und quadratisch */
 .pjf__sheet > thead > tr > td.pjf__sheetqr { background: #fff; padding: 4px; width: 82px; border: 1px solid var(--paper-line); vertical-align: middle; }
 .pjf__sheetqr svg { display: block; width: 74px; height: 74px; }
@@ -10750,3 +10750,16 @@ td:hover .fmedia__add, td:focus-within .fmedia__add, .fmedia__add:focus-visible 
 .lay__fig { background: #fff; border-radius: 4px; padding: 6px; max-height: 420px; overflow: auto; }
 .lay__rule input:focus-visible, .lay__rule button:focus-visible, .lay__bar :is(input, select, button):focus-visible { outline: 2px solid var(--accent, #4c8dff); outline-offset: 1px; }
 @media (max-width: 900px) { .lay__cols { grid-template-columns: minmax(0, 1fr); } .lay__preview { position: static; } }
+
+/* V155 (F-236 G3 Rest): Raster der Tabellen und Logo im Druck nach der Layout-Vorlage (Variablen am Blatt, nur wenn abweichend) */
+.paper:is([style*="--paper-grid: rows"], [style*="--paper-grid:rows"]) :is(th, td) { border-left-color: transparent !important; border-right-color: transparent !important; }
+.paper:is([style*="--paper-grid: none"], [style*="--paper-grid:none"]) :is(th, td) { border-color: transparent !important; }
+.paper:is([style*="--paper-grid: none"], [style*="--paper-grid:none"]) .pjf__sheet { border-color: transparent; }
+@media print { .paper:is([style*="--paper-logo: none"], [style*="--paper-logo:none"]) .paper__logo { display: none !important; } }
+.pjf__tone { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.pjf__tone .lay__hex { width: 7.5em; }
+.pjf__tone input[type='color'] { width: 2.2em; height: 1.7em; padding: 0; border: 1px solid #999; }
+.lay__sel { width: 100%; }
+.lay__num { width: 5em; }
+.lay__saved { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.lay__saved li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

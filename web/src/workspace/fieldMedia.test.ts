@@ -78,3 +78,105 @@ describe('V154 F-236 B Layout-Vorlage (Schritt 1)', () => {
     expect(L.textOn('#1f4e79')).toBe('#ffffff');
   });
 });
+
+describe('V155 F-236 B Schritt 3 (Farbe je Kasten) und G3 Rest', () => {
+  it('Kasten mit eigener Farbe: Hinweis-Daten, Zeichnung, zurücksetzen, Lesen beim Laden', async () => {
+    const Fk = await import('./formKit');
+    const Gf = await import('./gpmFigures');
+    const Gp = await import('./gpm');
+    const { editProject } = await import('./projects');
+    const made = addProject(W.defaultWorkspace(), 'Töne')!;
+    const id = made.id;
+    let ws = editProject(made.ws, id, { goals: [{ id: 'g1', code: 'L1', text: 'Werkstatt eröffnet', level: 'must', kind: 'perf' }] });
+    let svg = Gf.figureSvg(ws, id, 'goalTree');
+    expect(svg).toContain('data-base="#7b1113"');
+    expect(svg).not.toContain('data-own=');
+    ws = Fk.applyForm(ws, { op: 'figTone', pid: id, fig: 'goalTree', key: 'goals:g1', color: '#1F4E79', at: 1 });
+    const p = ws.projects!.find((x) => x.id === id)!;
+    expect(p.figTone).toEqual({ goalTree: { 'goals:g1': '#1f4e79' } });
+    expect(Fk.figToneCount(p)).toBe(1);
+    svg = Gf.figureSvg(ws, id, 'goalTree');
+    expect(svg).toContain('data-own="#1f4e79"');
+    expect(svg).toContain('fgOwn1f4e79');
+    // ungültige Farbe ändert nichts, gleiche Farbe auch nicht
+    expect(Fk.applyForm(ws, { op: 'figTone', pid: id, fig: 'goalTree', key: 'goals:g1', color: 'blau', at: 2 })).toBe(ws);
+    expect(Fk.applyForm(ws, { op: 'figTone', pid: id, fig: 'goalTree', key: 'goals:g1', color: '#1f4e79', at: 2 })).toBe(ws);
+    // Lesen beim Laden
+    expect(Gp.parseFigTone({ goalTree: { 'goals:g1': '#ABC', x: 'rot' }, 'bad-fig': { a: '#000000' } })).toEqual({ goalTree: { 'goals:g1': '#aabbcc' } });
+    // alle zurück, dann wieder her (Rückgängig der Ansicht „Layout“)
+    const before = p.figTone;
+    ws = Fk.applyForm(ws, { op: 'figToneReset', pid: id, at: 3 });
+    expect(ws.projects!.find((x) => x.id === id)!.figTone).toBeUndefined();
+    ws = Fk.applyForm(ws, { op: 'figToneAll', pid: id, tones: before, at: 4 });
+    expect(ws.projects!.find((x) => x.id === id)!.figTone).toEqual(before);
+    ws = Fk.applyForm(ws, { op: 'figTone', pid: id, fig: 'goalTree', key: 'goals:g1', color: null, at: 5 });
+    expect(ws.projects!.find((x) => x.id === id)!.figTone).toBeUndefined();
+    // Töne bleiben nicht für das nächste Projekt hängen
+    expect(Gf.figureSvg(ws, id, 'goalTree')).not.toContain('data-own=');
+  });
+
+  it('Schrift, Größen, Ecken, Schatten, Tabellen und Druck als Regeln; Vorgabe ändert nichts', async () => {
+    const L = await import('./layoutRules');
+    const Gp = await import('./gpm');
+    const Gf = await import('./gpmFigures');
+    const { editProject } = await import('./projects');
+    expect(L.sanitizeLayout({ font: 'sans', textSize: 100, radius: 4, shadow: true, tableGrid: 'full', printPage: true })).toBeUndefined();
+    expect(L.sanitizeLayout({ font: 'comic', textSize: 300, radius: -3, tableGrid: 'dots', printNo: 'nein' })).toEqual({ textSize: 140, radius: 0 });
+    const made = addProject(W.defaultWorkspace(), 'Satz')!;
+    const id = made.id;
+    let ws = editProject(made.ws, id, { charter: { no: 'Z20-0173' }, goals: [{ id: 'g1', text: 'Ziel', level: 'must', kind: 'perf' }] });
+    const plain = reportHtml(ws, id, { day: '2026-11-28' });
+    expect(plain).toContain('Projektbericht Z20-0173');
+    expect(plain).toContain('counter(pages)');
+    const svg0 = Gf.figureSvg(ws, id, 'goalTree');
+    ws = Gp.editLayout(ws, id, { font: 'serif', headSize: 120, tableSize: 90, radius: 0, shadow: false, tableHead: '#1f4e79', tableGrid: 'rows', printNo: false, printPage: false, printLogo: false });
+    const p = ws.projects!.find((x) => x.id === id)!;
+    const v = L.paperVars(L.layoutOf(p));
+    expect(v['--paper-font']).toContain('Georgia');
+    expect(v['--paper-hscale']).toBe('1.2');
+    expect(v['--paper-tscale']).toBe('0.9');
+    expect(v['--paper-thead-ink']).toBe('#ffffff');
+    expect(v['--paper-grid']).toBe('rows');
+    expect(v['--paper-logo']).toBe('none');
+    const html = reportHtml(ws, id, { day: '2026-11-28' });
+    expect(html).not.toContain('counter(pages)');
+    expect(html).toContain('Projektbericht Satz');
+    expect(html).toContain('h1 { font-size: 24pt; }');
+    expect(html).toContain('border-left-color: transparent');
+    const svg = Gf.figureSvg(ws, id, 'goalTree');
+    expect(svg).toContain('flood-opacity="0"');
+    expect(svg).toContain('rx="0"');
+    expect(svg0).toContain('flood-opacity="0.28"');
+    // nach dem Zeichnen gilt wieder die Vorgabe
+    expect(Gf.figureSvg(editProject(ws, id, { layout: undefined }), id, 'goalTree')).toBe(svg0);
+  });
+});
+
+describe('V155 F-236 G2 Vorlagen im Arbeitsbereich', () => {
+  it('speichern, gleicher Name ersetzt, anwenden, löschen und wieder her, Lesen beim Laden', async () => {
+    const L = await import('./layoutRules');
+    const Gp = await import('./gpm');
+    const a = addProject(W.defaultWorkspace(), 'A')!;
+    const b = addProject(a.ws, 'B')!;
+    let ws = b.ws;
+    expect(Gp.saveLayoutTemplate(ws, a.id, 't1')).toBeNull();
+    ws = Gp.editLayout(ws, a.id, { name: 'FIT GmbH', primary: '#1f4e79', radius: 0 });
+    let r = Gp.saveLayoutTemplate(ws, a.id, 't1')!;
+    expect(r.name).toBe('FIT GmbH');
+    ws = r.ws;
+    expect(ws.layoutTemplates).toEqual([{ id: 't1', name: 'FIT GmbH', rules: { primary: '#1f4e79', radius: 0 } }]);
+    ws = Gp.editLayout(ws, a.id, { primary: '#203040' });
+    r = Gp.saveLayoutTemplate(ws, a.id, 't2')!;
+    expect(r.replaced?.id).toBe('t1');
+    ws = r.ws;
+    expect(ws.layoutTemplates!.length).toBe(1);
+    expect(ws.layoutTemplates![0].rules.primary).toBe('#203040');
+    ws = Gp.applyLayoutTemplate(ws, b.id, 't1');
+    expect(ws.projects!.find((x) => x.id === b.id)!.layout).toEqual({ name: 'FIT GmbH', primary: '#203040', radius: 0 });
+    const rm = Gp.removeLayoutTemplate(ws, 't1')!;
+    expect(rm.ws.layoutTemplates).toBeUndefined();
+    ws = Gp.restoreLayoutTemplate(rm.ws, rm.undo.t, rm.undo.index);
+    expect(ws.layoutTemplates!.map((t) => t.id)).toEqual(['t1']);
+    expect(L.parseLayoutTemplates([{ id: 'x', name: 'Blau', rules: { primary: '#00f', font: 'comic' } }, { id: 'y', name: 'blau', rules: {} }, { name: 'ohne Id' }])).toEqual([{ id: 'x', name: 'Blau', rules: { primary: '#0000ff' } }]);
+  });
+});

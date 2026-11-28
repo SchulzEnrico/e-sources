@@ -20,7 +20,7 @@ import { BELBIN } from './gpm';
 import * as Fb from './feedback';
 import * as Dc from './decisions';
 import { embedMedia, logoId } from './fieldMedia';
-import { layoutOf, svgColorsOf } from './layoutRules';
+import { FONT_CSS, REPORT_LAYOUT, layoutOf, printFooter, svgColorsOf, textOn } from './layoutRules';
 
 export const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
@@ -365,14 +365,16 @@ export function reportHtml(ws: Workspace, pid: string, o: { version?: string; da
   const no = p.charter?.no ?? '';
   const head = [no, p.name].filter(Boolean).join(' · ');
   const st = projectStatus(ws, pid, o.day);
+  // V155 (F-236 G3 Rest): Fußzeile nach der Layout-Vorlage (Projektnummer, Seite)
+  const foot = printFooter(layoutOf(p), { no, name: p.name, stand: `Stand ${dmy(o.day)}` });
   const out: string[] = [];
   out.push(`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>${esc(`Projektbericht ${head}`)}</title><style>
 @page { size: A4; margin: 22mm 16mm 20mm;
   @top-left { content: "${cssText(head)}"; font: 9pt sans-serif; color: #555; }
   @top-right { content: "${cssText(tpl.name)}"; font: 9pt sans-serif; color: #555; }
-  @bottom-left { content: "${cssText([`Projektbericht ${no || p.name}`, `Stand ${dmy(o.day)}`].join(' · '))}"; font: 9pt sans-serif; color: #888; }
+  @bottom-left { content: "${cssText(foot.left)}"; font: 9pt sans-serif; color: #888; }
   @bottom-center { content: "${cssText(`Version ${docVersion(p) ?? o.version ?? '1'}`)}"; font: 9pt sans-serif; color: #888; }
-  @bottom-right { content: "Seite " counter(page) " von " counter(pages); font: 9pt sans-serif; color: #888; } }
+  ${foot.page ? '@bottom-right { content: "Seite " counter(page) " von " counter(pages); font: 9pt sans-serif; color: #888; }' : ''} }
 body { font: 10.5pt/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1b1b1b; margin: 0; }
 h1 { font-size: 20pt; margin: 0 0 4pt; } h2 { font-size: 13pt; margin: 18pt 0 6pt; border-bottom: 1px solid #999; padding-bottom: 2pt; break-after: avoid; }
 h3 { font-size: 11pt; margin: 10pt 0 4pt; break-after: avoid; }
@@ -396,7 +398,7 @@ ${layoutCss(p)}</style></head><body>`);
   out.push(`<div class="bar"><button type="button" onclick="window.print()">Drucken bzw. als PDF sichern</button></div>`);
   const logo = logoId(p.charter?.logo);
   const logoUrl = logo ? o.pics?.get(logo) : undefined;
-  out.push(`<div class="cover">${logoUrl && /^data:image\//.test(logoUrl) ? `<img class="logo" src="${esc(logoUrl)}" alt="Logo">` : ''}<h1>Projektbericht ${esc(p.name)}</h1><p class="meta">${esc([no ? `Projektnummer ${no}` : '', p.charter?.client ? `Auftraggeber ${p.charter.client}` : '', `Stand ${dmy(o.day)}`].filter(Boolean).join(' · '))}</p>`);
+  out.push(`<div class="cover">${logoUrl && layoutOf(p).printLogo && /^data:image\//.test(logoUrl) ? `<img class="logo" src="${esc(logoUrl)}" alt="Logo">` : ''}<h1>Projektbericht ${esc(p.name)}</h1><p class="meta">${esc([no ? `Projektnummer ${no}` : '', p.charter?.client ? `Auftraggeber ${p.charter.client}` : '', `Stand ${dmy(o.day)}`].filter(Boolean).join(' · '))}</p>`);
   out.push(`<table class="kv"><tbody>`);
   const kv = (k: string, v: string) => v && out.push(`<tr><th scope="row">${esc(k)}</th><td>${esc(v)}</td></tr>`);
   kv('Projektzeitraum', [p.start ? dmy(p.start) : '', p.end ? dmy(p.end) : ''].filter(Boolean).join(' – '));
@@ -716,5 +718,21 @@ export function annexSheets(ws: Workspace, p: Project, pics?: ReadonlyMap<string
 function layoutCss(p: Project): string {
   if (!p.layout) return '';
   const l = layoutOf(p);
-  return `body { color: ${l.ink}; } td.is-strong, .over { color: ${l.head}; } th, table.kv th, table.charter .grid th { background: ${l.label}; } th, td { border-color: ${l.line}; } h2 { border-bottom-color: ${l.line}; } .calc, .meta, .icb { color: ${l.muted}; }`;
+  const D = REPORT_LAYOUT;
+  const css: string[] = [];
+  if (l.ink !== D.ink) css.push(`body { color: ${l.ink}; }`);
+  if (l.head !== D.head) css.push(`td.is-strong, .over { color: ${l.head}; }`);
+  if (l.label !== D.label) css.push(`th, table.kv th, table.charter .grid th { background: ${l.label}; }`);
+  if (l.line !== D.line) css.push(`th, td { border-color: ${l.line}; } h2 { border-bottom-color: ${l.line}; }`);
+  if (l.muted !== D.muted) css.push(`.calc, .meta, .icb { color: ${l.muted}; }`);
+  // V155 (G3 Rest): Schrift und Größen, Tabellen (Kopf, Raster)
+  if (l.font !== D.font) css.push(`body { font-family: ${FONT_CSS[l.font]}; }`);
+  if (l.textSize !== D.textSize) css.push(`body { font-size: ${(10.5 * l.textSize) / 100}pt; }`);
+  if (l.headFont !== D.headFont) css.push(`h1, h2, h3 { font-family: ${FONT_CSS[l.headFont]}; }`);
+  if (l.headSize !== D.headSize) css.push(`h1 { font-size: ${(20 * l.headSize) / 100}pt; } h2 { font-size: ${(13 * l.headSize) / 100}pt; } h3 { font-size: ${(11 * l.headSize) / 100}pt; }`);
+  if (l.tableSize !== D.tableSize) css.push(`table { font-size: ${(9 * l.tableSize) / 100}pt; } section.wide table { font-size: ${(8 * l.tableSize) / 100}pt; }`);
+  if (l.tableHead !== D.tableHead) css.push(`thead th, table.wpsheet th.wpsheet__head { background: ${l.tableHead}; color: ${textOn(l.tableHead)}; }`);
+  if (l.tableGrid === 'rows') css.push('th, td { border-left-color: transparent; border-right-color: transparent; }');
+  if (l.tableGrid === 'none') css.push('th, td { border-color: transparent; } table.wpsheet { border-color: transparent; }');
+  return css.join(' ');
 }

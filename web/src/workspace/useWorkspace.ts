@@ -425,6 +425,10 @@ export type Action =
   | { type: 'charterEdit'; id: string; patch: Record<string, unknown> }
   /** V154 (F-236 B): Regeln der Layout-Vorlage ändern bzw. alle auf die Vorgabe zurücksetzen */
   | { type: 'layoutEdit'; id: string; patch: Record<string, unknown> | 'reset' }
+  | { type: 'layoutTemplate'; op: 'save'; pid: string; id: string }
+  | { type: 'layoutTemplate'; op: 'apply'; pid: string; id: string }
+  | { type: 'layoutTemplate'; op: 'remove'; id: string }
+  | { type: 'layoutTemplate'; op: 'restore'; t: { id: string; name: string; rules: Record<string, unknown> }; index: number }
   /** V132 (F-231 K10d): Beobachten an/aus. */
   | { type: 'watch'; target: Wt.WatchTarget; on: boolean }
   | { type: 'boardVotes'; view: string; on: boolean }
@@ -865,6 +869,11 @@ function step(ws: Workspace, a: Action): Workspace {
       return Gp.editCharter(ws, a.id, a.patch);
     case 'layoutEdit':
       return Gp.editLayout(ws, a.id, a.patch);
+    case 'layoutTemplate':
+      if (a.op === 'save') return Gp.saveLayoutTemplate(ws, a.pid, a.id)?.ws ?? ws;
+      if (a.op === 'apply') return Gp.applyLayoutTemplate(ws, a.pid, a.id);
+      if (a.op === 'remove') return Gp.removeLayoutTemplate(ws, a.id)?.ws ?? ws;
+      return Gp.restoreLayoutTemplate(ws, a.t as Parameters<typeof Gp.restoreLayoutTemplate>[1], a.index);
     case 'watch':
       return Wt.setWatch(ws, a.target, a.on);
     case 'vote':

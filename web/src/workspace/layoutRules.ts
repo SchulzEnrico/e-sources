@@ -39,10 +39,51 @@ export interface LayoutRules {
   label: string;
   /** Kästen mit Verlauf (sonst flach) */
   gradient: boolean;
+  // V155 (G3 Rest): Schrift und Größen, Kästen, Tabellen, Kopf- und Fußzeile im Druck
+  /** Schriftart des Texts (Blätter, Grafiken, Bericht) */
+  font: LayoutFont;
+  /** Schriftart der Überschriften (Projektname in den Grafiken, Überschriften im Bericht) */
+  headFont: LayoutFont;
+  /** Grundgröße des Texts in % (Blätter, Bericht) */
+  textSize: number;
+  /** Größe der Überschriften in % */
+  headSize: number;
+  /** Größe der Tabellen in % */
+  tableSize: number;
+  /** Ecken der Kästen in px (0 = eckig) */
+  radius: number;
+  /** Schatten unter den Kästen */
+  shadow: boolean;
+  /** Kopf der Tabellen (Titelzeile der Formular-Blätter, Spaltenköpfe) */
+  tableHead: string;
+  /** Raster der Tabellen: alle Linien, nur waagerecht, ohne */
+  tableGrid: LayoutGrid;
+  /** Druck: Logo auf Deckblatt und Blättern */
+  printLogo: boolean;
+  /** Druck: Projektnummer in der Fußzeile */
+  printNo: boolean;
+  /** Druck: „Seite x von y“ in der Fußzeile */
+  printPage: boolean;
 }
+export type LayoutFont = 'sans' | 'serif' | 'system';
+export type LayoutGrid = 'full' | 'rows' | 'none';
+export const LAYOUT_FONTS: readonly LayoutFont[] = ['sans', 'serif', 'system'];
+export const LAYOUT_GRIDS: readonly LayoutGrid[] = ['full', 'rows', 'none'];
+/** CSS-Schriftfamilien der Schriftarten */
+export const FONT_CSS: Record<LayoutFont, string> = {
+  sans: "'Open Sans', 'Segoe UI', system-ui, sans-serif",
+  serif: "Georgia, 'Times New Roman', serif",
+  system: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+};
+/** Größen in % und Ecken in px: erlaubte Bereiche */
+export const SIZE_RANGE = { textSize: [80, 140], headSize: [80, 160], tableSize: [80, 130], radius: [0, 12] } as const;
+export type LayoutSize = keyof typeof SIZE_RANGE;
+export const LAYOUT_SIZES: readonly LayoutSize[] = ['textSize', 'headSize', 'tableSize', 'radius'];
+export type LayoutFlag = 'gradient' | 'shadow' | 'printLogo' | 'printNo' | 'printPage';
+export const LAYOUT_FLAGS: readonly LayoutFlag[] = ['gradient', 'shadow', 'printLogo', 'printNo', 'printPage'];
 
-export type LayoutColor = Exclude<keyof LayoutRules, 'name' | 'gradient'>;
-export const LAYOUT_COLORS: readonly LayoutColor[] = ['primary', 'accent', 'soft', 'neutral', 'critical', 'bar', 'ok', 'ink', 'muted', 'grid', 'line', 'head', 'label'];
+export type LayoutColor = Exclude<keyof LayoutRules, 'name' | LayoutFlag | LayoutSize | 'font' | 'headFont' | 'tableGrid'>;
+export const LAYOUT_COLORS: readonly LayoutColor[] = ['primary', 'accent', 'soft', 'neutral', 'critical', 'bar', 'ok', 'ink', 'muted', 'grid', 'line', 'head', 'label', 'tableHead'];
 
 /** G2: Vorgabe – genau die bisherigen Werte (Report ColorGentlemen, IPMA ICB4 Level D) */
 export const REPORT_LAYOUT: LayoutRules = {
@@ -61,6 +102,18 @@ export const REPORT_LAYOUT: LayoutRules = {
   head: '#a3141b',
   label: '#ececec',
   gradient: true,
+  font: 'sans',
+  headFont: 'serif',
+  textSize: 100,
+  headSize: 100,
+  tableSize: 100,
+  radius: 4,
+  shadow: true,
+  tableHead: '#7b7b7b',
+  tableGrid: 'full',
+  printLogo: true,
+  printNo: true,
+  printPage: true,
 };
 
 const HEX = /^#[0-9a-f]{6}$/;
@@ -82,7 +135,14 @@ export function sanitizeLayout(v: unknown): Partial<LayoutRules> | undefined {
     const c = normHex(r[k]);
     if (c && c !== REPORT_LAYOUT[k]) out[k] = c;
   }
-  if (r.gradient === false) out.gradient = false;
+  for (const k of LAYOUT_FLAGS) if (typeof r[k] === 'boolean' && r[k] !== REPORT_LAYOUT[k]) out[k] = r[k] as boolean;
+  for (const k of LAYOUT_SIZES) {
+    const n = typeof r[k] === 'number' && Number.isFinite(r[k]) ? Math.round(r[k] as number) : undefined;
+    const [lo, hi] = SIZE_RANGE[k];
+    if (n !== undefined && n !== REPORT_LAYOUT[k]) out[k] = Math.max(lo, Math.min(hi, n));
+  }
+  for (const k of ['font', 'headFont'] as const) if (LAYOUT_FONTS.includes(r[k] as LayoutFont) && r[k] !== REPORT_LAYOUT[k]) out[k] = r[k] as LayoutFont;
+  if (LAYOUT_GRIDS.includes(r.tableGrid as LayoutGrid) && r.tableGrid !== REPORT_LAYOUT.tableGrid) out.tableGrid = r.tableGrid as LayoutGrid;
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -90,7 +150,7 @@ export function sanitizeLayout(v: unknown): Partial<LayoutRules> | undefined {
 export function layoutOf(p: Pick<Project, 'layout'> | undefined): LayoutRules {
   return { ...REPORT_LAYOUT, ...(p?.layout ?? {}) };
 }
-export const isDefaultLayout = (l: LayoutRules): boolean => LAYOUT_COLORS.every((k) => l[k] === REPORT_LAYOUT[k]) && l.gradient === REPORT_LAYOUT.gradient;
+export const isDefaultLayout = (l: LayoutRules): boolean => (Object.keys(REPORT_LAYOUT) as (keyof LayoutRules)[]).every((k) => k === 'name' || l[k] === REPORT_LAYOUT[k]);
 
 // ---------------------------------------------------------------- Farben rechnen
 
@@ -161,5 +221,40 @@ export function paperVars(l: LayoutRules): Record<string, string> {
   if (l.head !== REPORT_LAYOUT.head) out['--paper-red'] = l.head;
   if (l.line !== REPORT_LAYOUT.line) out['--paper-line'] = shade(l.line, -0.45);
   if (l.label !== REPORT_LAYOUT.label) out['--paper-label'] = l.label;
+  // V155 (G3 Rest)
+  if (l.font !== REPORT_LAYOUT.font) out['--paper-font'] = FONT_CSS[l.font];
+  if (l.headFont !== REPORT_LAYOUT.headFont) out['--paper-hfont'] = FONT_CSS[l.headFont];
+  if (l.textSize !== REPORT_LAYOUT.textSize) out['--paper-scale'] = String(l.textSize / 100);
+  if (l.headSize !== REPORT_LAYOUT.headSize) out['--paper-hscale'] = String(l.headSize / 100);
+  if (l.tableSize !== REPORT_LAYOUT.tableSize) out['--paper-tscale'] = String(l.tableSize / 100);
+  if (l.tableHead !== REPORT_LAYOUT.tableHead) (out['--paper-thead'] = l.tableHead), (out['--paper-thead-ink'] = textOn(l.tableHead));
+  if (l.tableGrid !== REPORT_LAYOUT.tableGrid) out['--paper-grid'] = l.tableGrid;
+  if (!l.printLogo) out['--paper-logo'] = 'none';
+  return out;
+}
+
+/** V155 (G3 Rest): Kopf- und Fußzeile des Berichts im Druck (@page) nach den Regeln */
+export function printFooter(l: LayoutRules, o: { no: string; name: string; stand: string }): { left: string; page: boolean } {
+  return { left: [`Projektbericht ${l.printNo && o.no ? o.no : o.name}`, o.stand].join(' · '), page: l.printPage };
+}
+
+// ---------------------------------------------------------------- V155 (G2): Vorlagen im Arbeitsbereich
+
+export type LayoutTemplate = { id: string; name: string; rules: Partial<LayoutRules> };
+export const LAYOUT_TEMPLATES_MAX = 20;
+/** Liest `Workspace.layoutTemplates`: gültige Regeln, eindeutige Ids und Namen */
+export function parseLayoutTemplates(v: unknown): LayoutTemplate[] {
+  if (!Array.isArray(v)) return [];
+  const out: LayoutTemplate[] = [];
+  for (const t of v.slice(0, LAYOUT_TEMPLATES_MAX)) {
+    if (!t || typeof t !== 'object') continue;
+    const r = t as Record<string, unknown>;
+    const id = typeof r.id === 'string' && r.id ? r.id.slice(0, 60) : '';
+    const name = typeof r.name === 'string' ? r.name.trim().slice(0, 60) : '';
+    if (!id || !name || out.some((x) => x.id === id || x.name.toLowerCase() === name.toLowerCase())) continue;
+    const rules = sanitizeLayout({ ...(r.rules as object), name }) ?? {};
+    delete rules.name;
+    out.push({ id, name, rules });
+  }
   return out;
 }

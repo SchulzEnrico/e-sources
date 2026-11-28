@@ -8,6 +8,7 @@ import { parseFeedback, parseFeedbackPrefs, parseWheels } from './feedback';
 import { parseDecisions } from './decisions';
 import { cleanGpmRefs } from './gpm';
 import { parseFormTemplates } from './formKit';
+import { parseLayoutTemplates } from './layoutRules';
 import type { Arrangement, Bookmark, BookmarkOrigin, Category, Closed, DeskNotes, OriginVia, Named, PanelMeta, Tab, Workspace } from './types';
 import { cleanProjectRefs, cleanRefs, parseFocusViews, parsePadDesks, parsePads, parsePersons, parseProjects, personsFromDelegated } from './noteObjects';
 import { parseDeskLooks, parseLook } from './look';
@@ -377,7 +378,10 @@ function parseWorkspaceRaw(data: unknown): Workspace | null {
   const decisions = parseDecisions(data.decisions, new Set(projects.map((p) => p.id)));
   // F-226 (V109, G4): eigene Formular-Vorlagen
   const formTemplates = parseFormTemplates(data.formTemplates);
+  // V155 (F-236 G2): Layout-Vorlagen ohne Projekt
+  const layoutTemplates = parseLayoutTemplates(data.layoutTemplates);
   return {
+    ...(layoutTemplates.length ? { layoutTemplates } : {}),
     ...(decisions.length ? { decisions } : {}),
     ...(formTemplates.length ? { formTemplates } : {}),
     ...(feedback.length ? { feedback } : {}),

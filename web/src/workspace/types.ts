@@ -286,6 +286,8 @@ export interface Workspace {
   decisions?: Decision[];
   /** F-226 (G4): eigene Formular-Vorlagen (die Vorlage „GPM Level D“ ist eingebaut). */
   formTemplates?: FormTemplate[];
+  /** V155 (F-236 G2): gespeicherte Layout-Vorlagen ohne Projekt – nur die Abweichungen von „Report ColorGentlemen“. */
+  layoutTemplates?: { id: string; name: string; rules: Partial<import('./layoutRules').LayoutRules> }[];
   /** F-206 Schritt 10 (V116, K7): Arbeitskalender für alle Projekte – Feiertage nach Bundesland, eigene freie Tage; fehlt = Mo–Fr. */
   calendar?: WorkCalendar;
   /**
@@ -1000,6 +1002,8 @@ export interface Project {
   annexes?: AnnexItem[];
   /** F-234 D3 (V137): von Hand verschobene Kästen je Grafik (Zielhierarchie, Organigramm) – Kasten-Id › Versatz in px. */
   figLayout?: Record<string, Record<string, { dx: number; dy: number }>>;
+  /** V155 (F-236 B Schritt 3, G5): Farbe einzelner Kästen je Grafik, abweichend von der Layout-Vorlage – Kasten-Id › #rrggbb. */
+  figTone?: Record<string, Record<string, string>>;
   /** V140 (F-237 H6): Eisenhower-Matrizen aus dem Notizen-Modus, die in 15.2 abgebildet sind (Ids von Sheets). */
   eisenMaps?: string[];
   /** V140 (F-237): in 15.2 gewählte Matrix. */

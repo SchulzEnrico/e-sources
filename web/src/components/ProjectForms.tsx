@@ -253,7 +253,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onTo
   const wide = Fk.isWideForm(form, cols.length);
   const isCharter = form.source === 'charter' && form.layout === 'fields';
   // V137 (Enrico 12:59 „Alle Ansichten … müssen auch in ihrer Ansicht bearbeitbar sein“): Kästen der Grafik am Ort bearbeiten und verschieben (D3)
-  const [figEdit, setFigEdit] = useState<{ key: string; x: number; y: number } | null>(null);
+  const [figEdit, setFigEdit] = useState<{ key: string; x: number; y: number; base?: string } | null>(null);
   const figRef = useRef<HTMLElement>(null);
   const drag = useRef<{ key: string; el: SVGGElement; sx: number; sy: number; k: number; moved: boolean; dx0: number; dy0: number } | null>(null);
   const skipClick = useRef(false);
@@ -400,7 +400,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onTo
     if (!key || !host) return;
     const b = el.getBoundingClientRect();
     const h = host.getBoundingClientRect();
-    setFigEdit({ key, x: Math.max(0, Math.min(b.left - h.left, h.width - 340)), y: b.bottom - h.top + 6 });
+    setFigEdit({ key, x: Math.max(0, Math.min(b.left - h.left, h.width - 340)), y: b.bottom - h.top + 6, base: el.getAttribute('data-base') ?? undefined });
   };
   const focusBox = (key: string) => window.setTimeout(() => figRef.current?.querySelector<SVGGElement>(`[data-edit="${CSS.escape(key)}"]`)?.focus(), 0);
   const moveBox = (key: string, dx: number, dy: number) => {
@@ -1154,7 +1154,7 @@ const FIG_NO_REMOVE = new Set(['messages', 'teamRoles']);
  * V137 (Enrico 12:59): Bearbeiten in der Grafik – Felder des Kastens am Ort (unter dem Kasten), dazu „Unterpunkt anlegen“
  * und Löschen mit Rückgängig. Esc schließt und gibt den Fokus an den Kasten zurück (NF-03), Meldungen im Fenster (F-214).
  */
-function FigEditor({ edit, fig, ws, p, tpl, run, tell, say, by, onOpen, onClose }: { edit: { key: string; x: number; y: number }; fig?: string; ws: Workspace; p: Project; tpl: ReturnType<typeof Fk.templateOf>; run: (o: Fk.FormOp) => void; tell: (t: string, undo?: () => void) => void; say: (t: string) => void; by?: string; onOpen: (key: string) => void; onClose: (back: boolean) => void }) {
+function FigEditor({ edit, fig, ws, p, tpl, run, tell, say, by, onOpen, onClose }: { edit: { key: string; x: number; y: number; base?: string }; fig?: string; ws: Workspace; p: Project; tpl: ReturnType<typeof Fk.templateOf>; run: (o: Fk.FormOp) => void; tell: (t: string, undo?: () => void) => void; say: (t: string) => void; by?: string; onOpen: (key: string) => void; onClose: (back: boolean) => void }) {
   // „Formular:Zeile“ oder (V138) „Formular:Zeile:Feld“ – dann nur dieses eine Feld (Nachrichtenquadrat, Belbin)
   const [fid, row, field] = edit.key.split(':');
   const form = tpl.forms.find((f) => f.id === fid) ?? Fk.GPM_D.forms.find((f) => f.id === fid);
@@ -1221,6 +1221,7 @@ function FigEditor({ edit, fig, ws, p, tpl, run, tell, say, by, onOpen, onClose 
               </td>
             </tr>
           ))}
+          {fig && edit.base && !field && TONE_FIGS.has(fig) && <ToneRow p={p} fig={fig} k={edit.key} base={edit.base} name={name || form.name} run={run} setNote={setNote} />}
         </tbody>
       </table>
       {note && <p className="sheet__msg" role="status">{note}</p>}
@@ -1238,6 +1239,71 @@ function FigEditor({ edit, fig, ws, p, tpl, run, tell, say, by, onOpen, onClose 
         <button type="button" className="help__run" onClick={() => (onClose(true), say(T.figClose))}>{T.figClose}</button>
       </div>
     </div>
+  );
+}
+
+/** V155 (F-236 B Schritt 3, G5): Grafiken, deren Kästen eine eigene Farbe bekommen können */
+const TONE_FIGS = new Set(['goalTree', 'psp', 'org', 'phasePlan']);
+/** Farbe eines Kastens im Bearbeiten-Fenster: Regel-Farbe der Layout-Vorlage oder eigene, mit Hinweis und Zurücksetzen am Ort */
+function ToneRow({ p, fig, k, base, name, run, setNote }: { p: Project; fig: string; k: string; base: string; name: string; run: (o: Fk.FormOp) => void; setNote: (t: string) => void }) {
+  const own = p.figTone?.[fig]?.[k];
+  const value = own ?? base;
+  const [draft, setDraft] = useState<string | null>(null);
+  const [hex, setHex] = useState<string | null>(null);
+  const [bad, setBad] = useState(false);
+  const [undo, setUndo] = useState<string | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const commit = (c: string | null) => {
+    const v = c && c.toLowerCase() === base.toLowerCase() ? null : c;
+    if ((v ?? null) === (own ?? null)) return;
+    run({ op: 'figTone', pid: p.id, fig, key: k, color: v, at: Date.now() });
+    setUndo(own ?? '');
+    setNote(v === null ? T.figToneBack : T.figToneSaved);
+  };
+  const pick = (v: string) => {
+    setDraft(v);
+    window.clearTimeout(timer.current);
+    // Farbwähler meldet jede Bewegung – erst nach einer kurzen Pause speichern (ein Eintrag, ein Rückgängig)
+    timer.current = window.setTimeout(() => (setDraft(null), commit(v)), 400);
+  };
+  const id = `fgtone-${k.replace(/[^\w-]/g, '')}`;
+  return (
+    <tr className={own ? 'is-differs' : undefined}>
+      <th scope="row"><label htmlFor={id}>{T.figTone}</label></th>
+      <td className="pjf__tone">
+        <input type="color" aria-label={T.figTonePick(name)} value={draft ?? value} onChange={(e) => pick(e.target.value)} />
+        <input
+          id={id}
+          className={`lay__hex${bad ? ' is-bad' : ''}`}
+          value={hex ?? draft ?? value}
+          maxLength={7}
+          spellCheck={false}
+          aria-label={T.figToneHex(name)}
+          aria-invalid={bad || undefined}
+          onChange={(e) => (setHex(e.target.value), setBad(false))}
+          onBlur={(e) => {
+            if (hex === null) return;
+            const c = /^#?[0-9a-f]{6}$/i.test(e.target.value.trim()) ? `#${e.target.value.trim().replace('#', '').toLowerCase()}` : null;
+            if (!c) return setBad(true);
+            setHex(null);
+            commit(c);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.preventDefault(), e.currentTarget.blur());
+            else if (e.key === 'Escape' && hex !== null) (e.stopPropagation(), setHex(null), setBad(false));
+          }}
+        />
+        <span className={own ? 'lay__mark' : 'lc__muted'}>{own ? `● ${T.figToneDiffers}` : T.figToneRule}</span>
+        <button type="button" className="lay__reset" disabled={!own} title={T.figToneResetHint} onClick={() => commit(null)}>↺ {T.figToneReset}</button>
+        {undo !== null && (
+          <button type="button" className="fmedia__undo" onClick={() => (run({ op: 'figTone', pid: p.id, fig, key: k, color: undo || null, at: Date.now() }), setUndo(null), setNote(undo ? T.figToneSaved : T.figToneBack))}>
+            {T.figToneUndo}
+          </button>
+        )}
+        {bad && <span className="lay__warn" role="status">{T.figToneBad}</span>}
+      </td>
+    </tr>
   );
 }
 

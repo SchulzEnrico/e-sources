@@ -4,7 +4,7 @@
  * mit Stundensatz, Beschaffung. Reine Funktionen; die Formulare (formKit.ts) lesen und schreiben nur hier.
  * Alle Felder sind optional, Dateiformat 11 bleibt. Tests in workspace.test.ts („F-226“).
  */
-import { sanitizeLayout } from './layoutRules';
+import { LAYOUT_TEMPLATES_MAX, layoutOf, normHex, sanitizeLayout, type LayoutRules, type LayoutTemplate } from './layoutRules';
 import type {
   ChangeItem,
   CommItem,
@@ -326,12 +326,28 @@ export function parseFigLayout(v: unknown): Project['figLayout'] {
   return Object.keys(out).length ? out : undefined;
 }
 
+/** V155 (F-236 G5): abweichende Farbe je Grafik und Kasten (#rrggbb), höchstens 300 Kästen je Grafik. */
+export function parseFigTone(v: unknown): Project['figTone'] {
+  if (!isObj(v)) return undefined;
+  const out: NonNullable<Project['figTone']> = {};
+  for (const [fig, m] of Object.entries(v).slice(0, 20)) {
+    if (!isObj(m) || !/^[a-zA-Z]{1,20}$/.test(fig)) continue;
+    const boxes: Record<string, string> = {};
+    for (const [k, c] of Object.entries(m).slice(0, 300)) {
+      const h = normHex(c);
+      if (id(k) && h) boxes[k] = h;
+    }
+    if (Object.keys(boxes).length) out[fig] = boxes;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 export function parseCheckGpm(c: Record<string, unknown>): { due?: string; by?: string; acceptor?: string; doc?: string } {
   return tidy({ due: isDay(c.due) ? c.due : undefined, by: txt(c.by, 200), acceptor: txt(c.acceptor, 200), doc: txt(c.doc, 300) });
 }
 
 /** Liest die GPM-Teile eines Projekts; Bezüge (Oberziel, Konfliktziele, Personen) werden bereinigt. */
-type GpmPart = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'close' | 'wpReports' | 'teamRoles' | 'messages' | 'moderations' | 'actions' | 'annexes' | 'figLayout' | 'eisenMaps' | 'eisenSel' | 'eisenInit' | 'layout';
+type GpmPart = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'close' | 'wpReports' | 'teamRoles' | 'messages' | 'moderations' | 'actions' | 'annexes' | 'figLayout' | 'figTone' | 'eisenMaps' | 'eisenSel' | 'eisenInit' | 'layout';
 export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, GpmPart> {
   const out: Pick<Project, GpmPart> = {};
   const charter = sanitizeCharter(r.charter);
@@ -382,6 +398,8 @@ export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, GpmPa
   if (anx) out.annexes = anx;
   const fl = parseFigLayout(r.figLayout);
   if (fl) out.figLayout = fl;
+  const ft = parseFigTone(r.figTone);
+  if (ft) out.figTone = ft;
   // V140 (F-237): abgebildete und gewählte Eisenhower-Matrix, einmalige Anlage
   if (Array.isArray(r.eisenMaps)) {
     const maps = [...new Set((r.eisenMaps as unknown[]).filter((x): x is string => typeof x === 'string' && !!x))].slice(0, 50);
@@ -837,6 +855,44 @@ export const notesOfPhase = (ws: Workspace, pid: string, phase: string): Note[] 
 export const goalsOf = (p: Project | undefined, kind?: GoalKind): ProjectGoal[] => (p?.goals ?? []).filter((g) => !kind || (g.kind ?? 'perf') === kind);
 
 /** V154 (F-236 B): Regeln der Layout-Vorlage ändern (null = auf die Vorgabe zurück); `reset` setzt alle zurück. */
+/**
+ * V155 (F-236 G2): Regeln eines Projekts als Vorlage im Arbeitsbereich speichern – gleicher Name ersetzt die Vorlage
+ * (Name = Name der Vorlage im Projekt). Gibt null zurück, wenn es nichts zu speichern gibt oder die Liste voll ist.
+ */
+export function saveLayoutTemplate(ws: Workspace, pid: string, id: string): { ws: Workspace; name: string; replaced?: LayoutTemplate } | null {
+  const p = (ws.projects ?? []).find((x) => x.id === pid);
+  if (!p?.layout) return null;
+  const name = layoutOf(p).name;
+  const rules: Partial<LayoutRules> = { ...p.layout };
+  delete rules.name;
+  const list = [...(ws.layoutTemplates ?? [])];
+  const at = list.findIndex((t) => t.name.toLowerCase() === name.toLowerCase());
+  const replaced = at >= 0 ? list[at] : undefined;
+  if (at >= 0) list[at] = { ...list[at], rules };
+  else if (list.length >= LAYOUT_TEMPLATES_MAX) return null;
+  else list.push({ id, name, rules });
+  return { ws: { ...ws, layoutTemplates: list }, name, ...(replaced ? { replaced } : {}) };
+}
+export function removeLayoutTemplate(ws: Workspace, id: string): { ws: Workspace; undo: { t: LayoutTemplate; index: number } } | null {
+  const list = ws.layoutTemplates ?? [];
+  const index = list.findIndex((t) => t.id === id);
+  if (index < 0) return null;
+  const rest = list.filter((t) => t.id !== id);
+  const out: Workspace = { ...ws, layoutTemplates: rest };
+  if (!rest.length) delete out.layoutTemplates;
+  return { ws: out, undo: { t: list[index], index } };
+}
+export function restoreLayoutTemplate(ws: Workspace, t: LayoutTemplate, index: number): Workspace {
+  const list = (ws.layoutTemplates ?? []).filter((x) => x.id !== t.id && x.name.toLowerCase() !== t.name.toLowerCase());
+  list.splice(Math.max(0, Math.min(index, list.length)), 0, t);
+  return { ...ws, layoutTemplates: list.slice(0, LAYOUT_TEMPLATES_MAX) };
+}
+/** Regeln einer gespeicherten Vorlage auf ein Projekt anwenden (ersetzt alle Regeln, Name kommt mit) */
+export function applyLayoutTemplate(ws: Workspace, pid: string, tid: string, now = Date.now()): Workspace {
+  const t = (ws.layoutTemplates ?? []).find((x) => x.id === tid);
+  return t ? editLayout(editLayout(ws, pid, 'reset', now), pid, { ...t.rules, name: t.name }, now) : ws;
+}
+
 export function editLayout(ws: Workspace, pid: string, patch: Record<string, unknown> | 'reset', now = Date.now()): Workspace {
   return withProject(
     ws,

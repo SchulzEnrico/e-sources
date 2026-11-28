@@ -18,7 +18,7 @@ import { matrixEntries, projectMatrix } from './sheets';
 import { qrInner } from './qr';
 import { projectLinkUrl } from './projectLink';
 import type { PortfolioDot } from './gpmCalc';
-import { REPORT_LAYOUT, layoutOf, shade, textOn, type LayoutRules } from './layoutRules';
+import { FONT_CSS, REPORT_LAYOUT, contrast, layoutOf, luminance, shade, textOn, type LayoutRules } from './layoutRules';
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
@@ -61,7 +61,7 @@ const defs = () => `<defs>
 <linearGradient id="fgSun" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fbf59a"/><stop offset="1" stop-color="#d8d8d8"/></linearGradient>
 <linearGradient id="fgLeaf" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8fe38f"/><stop offset="1" stop-color="#d8d8d8"/></linearGradient>
 <linearGradient id="fgRose" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#ec8f8f"/><stop offset="1" stop-color="#d8d8d8"/></linearGradient>
-<filter id="fgShadow" x="-10%" y="-10%" width="130%" height="140%"><feDropShadow dx="1.2" dy="1.6" stdDeviation="1.2" flood-color="#000" flood-opacity="0.28"/></filter>
+<filter id="fgShadow" x="-10%" y="-10%" width="130%" height="140%"><feDropShadow dx="1.2" dy="1.6" stdDeviation="1.2" flood-color="#000" flood-opacity="${SHADOW_ON ? 0.28 : 0}"/></filter>
 </defs>`;
 const GRAD_FILL: Record<BoxTone, string> = { wine: 'url(#fgWine)', orange: 'url(#fgOrange)', yellow: 'url(#fgYellow)', gray: 'url(#fgGray)', pale: 'url(#fgPale)', root: 'url(#fgGray)', head: 'url(#fgPale)', sky: 'url(#fgSkyBox)', steel: 'url(#fgSteel)', slate: 'url(#fgSlate)', white: 'url(#fgPale)' };
 const FILL: Record<BoxTone, string> = { ...GRAD_FILL };
@@ -95,10 +95,20 @@ function applyLook(l: LayoutRules): void {
   Object.assign(STROKE, baseStroke(), same('primary') ? {} : { wine: shade(l.primary, -0.4) }, same('accent') ? {} : { orange: shade(l.accent, -0.4) }, same('soft') ? {} : { yellow: shade(l.soft, -0.35) });
   Object.assign(FILL, GRAD_FILL, l.gradient ? {} : { wine: LOOK.wine, orange: LOOK.orange, yellow: LOOK.yellow, gray: LOOK.gray, root: LOOK.gray, pale: '#f4f4f4', head: '#f4f4f4', white: '#ffffff', sky: '#d9e8f8', steel: '#c3ccd6', slate: '#56626f' });
   GLOSS_ON = l.gradient;
+  // V155 (G3 Rest): Ecken, Schatten und Schriftarten der Kästen; Größen bleiben (Texte nie über Feldränder)
+  BOX_R = l.radius;
+  SHADOW_ON = l.shadow;
+  TEXT_FONT = FONT_CSS[l.font];
+  HEAD_FONT = FONT_CSS[l.headFont];
 }
 let GLOSS_ON = true;
+let BOX_R = REPORT_LAYOUT.radius;
+let SHADOW_ON = true;
+let TEXT_FONT = FONT_CSS.sans;
+let HEAD_FONT = FONT_CSS.serif;
 /** Zeichnen mit den Farben eines Projekts – danach gilt wieder die Vorgabe (reine Funktionen bleiben rein). */
 export function withLook<T>(p: Pick<Project, 'layout'> | undefined, draw: () => T): T {
+  TONE = {};
   if (!p?.layout) return draw();
   applyLook(layoutOf(p));
   try {
@@ -154,6 +164,23 @@ interface Box {
 /** D3: Versatz der Kästen der gerade gezeichneten Grafik (Project.figLayout[fig]). */
 let OFF: Record<string, { dx: number; dy: number }> = {};
 const offOf = (b: Box) => (b.edit ? OFF[b.edit] : undefined) ?? { dx: 0, dy: 0 };
+/** V155 (F-236 B Schritt 3, G5): eigene Farbe der Kästen der gerade gezeichneten Grafik (Project.figTone[fig]). */
+let TONE: Record<string, string> = {};
+/** Farbe, die die Regel der Layout-Vorlage einem Kasten gibt (für „weicht von der Vorlage ab“ im Bearbeiten-Fenster) */
+export const toneColor = (t: BoxTone): string =>
+  ({ wine: LOOK.wine, orange: LOOK.orange, yellow: LOOK.yellow, gray: LOOK.gray, root: LOOK.gray, pale: '#ececec', head: '#ececec', sky: '#c7dcf3', steel: '#aab6c4', slate: '#44505e', white: '#ffffff' })[t];
+/** Fläche, Schrift und Kante eines Kastens mit eigener Farbe (Verlauf wie die Regel-Kästen, sonst flach) */
+export function ownLook(c: string): { fill: string; text: string; stroke: string; defs: string } {
+  const gid = `fgOwn${c.slice(1)}`;
+  return {
+    fill: GLOSS_ON ? `url(#${gid})` : c,
+    text: textOn(c, LOOK.ink),
+    stroke: shade(c, -0.4),
+    defs: GLOSS_ON ? `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${shade(c, 0.3)}"/><stop offset="1" stop-color="${c}"/></linearGradient></defs>` : '',
+  };
+}
+/** data-Attribute für das Bearbeiten-Fenster: Regel-Farbe und ob der Kasten abweicht */
+const toneAttr = (key: string, base: string) => ` data-base="${base}"${TONE[key] ? ` data-own="${TONE[key]}"` : ''}`;
 const LH = 11;
 const boxH = (b: Box) => 10 + b.lines.length * LH + (b.big ? 5 : 0);
 function drawBox(x0: number, y0: number, w: number, b: Box, fs = 9): string {
@@ -161,16 +188,17 @@ function drawBox(x0: number, y0: number, w: number, b: Box, fs = 9): string {
   const { dx, dy } = offOf(b);
   const x = x0 + dx;
   const y = y0 + dy;
-  const t = TEXT[b.tone];
+  const own = b.edit && TONE[b.edit] ? ownLook(TONE[b.edit]) : undefined;
+  const t = own ? own.text : TEXT[b.tone];
   const tx = b.lines
     .map((l, i) => `<text x="${x + w / 2}" y="${y + 13 + i * LH + (b.big ? (i ? 5 : 2) : 0)}" text-anchor="middle" font-size="${b.big && !i ? fs + 4 : fs}" font-weight="${i === 0 || b.bold || BOLD_ALL[b.tone] ? 'bold' : 'normal'}" fill="${i && b.accent ? b.accent : t}">${esc(l)}</text>`)
     .join('');
   const tab = b.tab ? `<rect x="${x + 6}" y="${y - 13}" width="${w - 12}" height="14" rx="3" fill="url(#fgPale)" stroke="${LOOK.grayLine}" stroke-width="0.8"/><text x="${x + w / 2}" y="${y - 2.5}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#9a9a9a">${esc(b.tab)}</text>` : '';
-  const ed = b.edit ? ` class="fg-edit" data-edit="${esc(b.edit)}" tabindex="0" role="button" aria-label="${esc(`Bearbeiten: ${b.title ?? b.lines.join(' ')}`)}"` : '';
-  return `<g${ed}>${b.title ? `<title>${esc(b.title)}</title>` : ''}<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${FILL[b.tone]}" stroke="${STROKE[b.tone]}" stroke-width="0.8" filter="url(#fgShadow)"/>${tab}${GLOSS_ON && GLOSS[b.tone] ? `<rect x="${x + 1.5}" y="${y + 1}" width="${w - 3}" height="${Math.min(h / 2, 9)}" rx="3" fill="url(#fgGloss)"/>` : ''}${tx}</g>`;
+  const ed = b.edit ? ` class="fg-edit" data-edit="${esc(b.edit)}" tabindex="0" role="button" aria-label="${esc(`Bearbeiten: ${b.title ?? b.lines.join(' ')}`)}"${toneAttr(b.edit, toneColor(b.tone))}` : '';
+  return `<g${ed}>${b.title ? `<title>${esc(b.title)}</title>` : ''}${own?.defs ?? ''}<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${BOX_R}" fill="${own?.fill ?? FILL[b.tone]}" stroke="${own?.stroke ?? STROKE[b.tone]}" stroke-width="0.8"${SHADOW_ON ? ' filter="url(#fgShadow)"' : ''}/>${tab}${GLOSS_ON && (own ? luminance(TONE[b.edit!]) < 0.4 : GLOSS[b.tone]) ? `<rect x="${x + 1.5}" y="${y + 1}" width="${w - 3}" height="${Math.min(h / 2, 9)}" rx="3" fill="url(#fgGloss)"/>` : ''}${tx}</g>`;
 }
 const svgWrap = (w: number, h: number, label: string, body: string) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(label)}" font-family="'Open Sans', system-ui, sans-serif">${defs()}${body}</svg>`;
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(label)}" font-family="${TEXT_FONT === FONT_CSS.sans ? "'Open Sans', system-ui, sans-serif" : TEXT_FONT.replace(/"/g, "'")}">${defs()}${body}</svg>`;
 function legend(x: number, y: number, items: [BoxTone, string][]): string {
   const w = 104;
   const parts = [`<rect x="${x}" y="${y}" width="${w + 12}" height="${22 + items.length * 18}" rx="3" fill="#fff" stroke="${LOOK.grayLine}" stroke-width="0.6"/>`, `<rect x="${x + 6}" y="${y + 4}" width="56" height="14" rx="2" fill="${LOOK.ink}"/><text x="${x + 34}" y="${y + 14.5}" text-anchor="middle" font-size="8.5" font-weight="bold" fill="#fff">Legende</text>`];
@@ -201,11 +229,13 @@ export function columnTreeSvg(root: Box, columns: TreeColumn[], o: { label: stri
     const ro = offOf(root);
     const x = rootX + ro.dx;
     const y = 8 + ro.dy;
-    const ed = root.edit ? ` class="fg-edit" data-edit="${esc(root.edit)}" tabindex="0" role="button" aria-label="${esc(`Bearbeiten: ${root.title ?? root.lines[0]}`)}"` : '';
-    parts.push(`<g${ed}>${root.title ? `<title>${esc(root.title)}</title>` : ''}<rect x="${x}" y="${y}" width="${rootW}" height="${rh}" rx="6" fill="url(#fgGray)" stroke="#555" stroke-width="1.4" filter="url(#fgShadow)"/>`);
-    parts.push(`<text x="${x + rootW / 2}" y="${y + 25}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="19" font-weight="bold" fill="#2b2b2b">${esc(root.lines[0])}</text>`);
-    sub.forEach((l, i) => parts.push(`<text x="${x + rootW / 2}" y="${y + 41 + i * 12}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="${LOOK.wine}">${esc(l)}</text>`));
-    if (o.code) parts.push(`<text x="${x + rootW / 2}" y="${y + 41 + sub.length * 12 + 3}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="12" font-weight="bold" fill="#2b2b2b">${esc(o.code)}</text>`);
+    const own = root.edit && TONE[root.edit] ? ownLook(TONE[root.edit]) : undefined;
+    const ed = root.edit ? ` class="fg-edit" data-edit="${esc(root.edit)}" tabindex="0" role="button" aria-label="${esc(`Bearbeiten: ${root.title ?? root.lines[0]}`)}"${toneAttr(root.edit, LOOK.gray)}` : '';
+    const big = own ? own.text : '#2b2b2b';
+    parts.push(`<g${ed}>${root.title ? `<title>${esc(root.title)}</title>` : ''}${own?.defs ?? ''}<rect x="${x}" y="${y}" width="${rootW}" height="${rh}" rx="${BOX_R + 2}" fill="${own?.fill ?? FILL.root}" stroke="${own?.stroke ?? '#555'}" stroke-width="1.4"${SHADOW_ON ? ' filter="url(#fgShadow)"' : ''}/>`);
+    parts.push(`<text x="${x + rootW / 2}" y="${y + 25}" text-anchor="middle" font-family="${HEAD_FONT}" font-size="19" font-weight="bold" fill="${big}">${esc(root.lines[0])}</text>`);
+    sub.forEach((l, i) => parts.push(`<text x="${x + rootW / 2}" y="${y + 41 + i * 12}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="${own ? own.text : LOOK.wine}">${esc(l)}</text>`));
+    if (o.code) parts.push(`<text x="${x + rootW / 2}" y="${y + 41 + sub.length * 12 + 3}" text-anchor="middle" font-family="${HEAD_FONT}" font-size="12" font-weight="bold" fill="${big}">${esc(o.code)}</text>`);
     parts.push('</g>');
   }
   const busY = 8 + rh + 14;
@@ -260,6 +290,7 @@ const goalLines = (code: string | undefined, text: string, chars: number) => [..
 /** Zielhierarchie: oberste Leistungsziele je eine Spalte (mit Unterzielen), dazu Spalten „Soziale Ziele“ und „Nichtziele“. */
 export function goalTreeSvg(p: Project): string {
   OFF = p.figLayout?.goalTree ?? {};
+  TONE = p.figTone?.goalTree ?? {};
   const goals = p.goals ?? [];
   if (!goals.length) return '';
   const ids = new Set(goals.map((g) => g.id));
@@ -317,6 +348,7 @@ export function pspSheetSvg(ws: Workspace, pid: string): string {
   const tree = pspTree(ws, pid);
   if (!p || !tree.length) return '';
   OFF = p.figLayout?.psp ?? {};
+  TONE = p.figTone?.psp ?? {};
   const chars = 18;
   const lines = (n: PspNode, c = chars) => [...wrap(n.title, c, 3), n.code];
   // Meilensteine gehören in den Phasen- und Balkenplan, nicht in den PSP (wie Abb. 10 im Report)
@@ -406,6 +438,7 @@ export function orgChartSvg(ws: Workspace, p: Project): string {
   const roles = p.roles ?? [];
   if (!roles.length) return '';
   OFF = p.figLayout?.org ?? {};
+  TONE = p.figTone?.org ?? {};
   const who = (id?: string) => (id ? personById(ws, id)?.name ?? '' : '');
   const isLead = (r: ProjectRole) => r.id === 'lead' || /projektleit/i.test(r.name);
   const byId = new Map(roles.map((r) => [r.id, r]));
@@ -683,6 +716,7 @@ export function phasePlanSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws, 
   const p = projectById(ws, pid);
   const bars = phaseBars(ws, pid, g);
   if (!p || !bars.length) return '';
+  TONE = p.figTone?.phasePlan ?? {};
   const ms = g.rows.filter((r) => r.planned && r.node.milestone);
   const start = [...bars.map((b) => b.start), ...ms.map((m) => m.start)].sort()[0];
   const end = [...bars.map((b) => b.end), ...ms.map((m) => m.end)].sort().reverse()[0];
@@ -735,12 +769,15 @@ export function phasePlanSvg(ws: Workspace, pid: string, g: Gantt = ganttOf(ws, 
   // gestrichelte Linien von den Meilensteinen nach unten
   for (const t of msAt) parts.push(`<line x1="${t.x}" y1="${t.y + 6}" x2="${t.x}" y2="${axisY + 16}" stroke="#a9a9a9" stroke-width="1.3" stroke-dasharray="4 4"/>`);
   for (const { b, x1, x2, y } of spans) {
-    parts.push(`<g${edg(`phases:${b.id}`, `Phase ${b.name}`)}><title>${esc(`${b.name}: ${dmy(b.start)} – ${dmy(b.end)}`)}</title><rect x="${x1}" y="${y}" width="${x2 - x1}" height="${barH}" rx="3" fill="url(#fgWine)" stroke="#4a0a0b" stroke-width="0.6" filter="url(#fgShadow)"/><rect x="${x1 + 1.5}" y="${y + 1}" width="${Math.max(0, x2 - x1 - 3)}" height="${barH / 2 - 2}" rx="2" fill="url(#fgGloss)"/>`);
+    const key = `phases:${b.id}`;
+    const own = TONE[key] ? ownLook(TONE[key]) : undefined;
+    const pt = own ? own.text : TEXT.wine;
+    parts.push(`<g${edg(key, `Phase ${b.name}`)}${toneAttr(key, LOOK.wine)}><title>${esc(`${b.name}: ${dmy(b.start)} – ${dmy(b.end)}`)}</title>${own?.defs ?? ''}<rect x="${x1}" y="${y}" width="${x2 - x1}" height="${barH}" rx="${Math.min(BOX_R, 3)}" fill="${own?.fill ?? FILL.wine}" stroke="${own?.stroke ?? STROKE.wine}" stroke-width="0.6"${SHADOW_ON ? ' filter="url(#fgShadow)"' : ''}/>${GLOSS_ON ? `<rect x="${x1 + 1.5}" y="${y + 1}" width="${Math.max(0, x2 - x1 - 3)}" height="${barH / 2 - 2}" rx="2" fill="url(#fgGloss)"/>` : ''}`);
     const fits = x2 - x1 > b.name.length * 5.8 + 10;
     const lines = fits ? [b.name] : wrap(b.name, Math.max(6, Math.floor((x2 - x1 - 8) / 5.6)), 2);
     const inside = fits || (x2 - x1 > 44 && lines.every((l) => l.length * 5.6 + 8 < x2 - x1));
-    if (inside) lines.forEach((l, j) => parts.push(`<text x="${x1 + 5}" y="${y + barH - 6 - (lines.length - 1 - j) * 10}" font-size="9" font-weight="bold" fill="#fff">${esc(l)}</text>`));
-    else parts.push(`<text x="${x2 + 4}" y="${y + barH / 2 + 3.5}" font-size="9" font-weight="bold" fill="${LOOK.wine}">${esc(b.name)}</text>`);
+    if (inside) lines.forEach((l, j) => parts.push(`<text x="${x1 + 5}" y="${y + barH - 6 - (lines.length - 1 - j) * 10}" font-size="9" font-weight="bold" fill="${pt}">${esc(l)}</text>`));
+    else parts.push(`<text x="${x2 + 4}" y="${y + barH / 2 + 3.5}" font-size="9" font-weight="bold" fill="${TONE[key] && contrast(TONE[key], '#ffffff') >= 3 ? TONE[key] : LOOK.wine}">${esc(b.name)}</text>`);
     parts.push('</g>');
   }
   // V145: Kürzel naher Meilensteine stapeln statt überlagern (Texte nie über andere Texte)

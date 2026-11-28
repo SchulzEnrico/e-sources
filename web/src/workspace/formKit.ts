@@ -26,6 +26,7 @@ import { addSteer, editRisk, risksOf, RISK_STATES, RISK_STRATEGIES, steerCode } 
 import { editPerson, personById } from './persons';
 import { pspRows, pspTree } from './psp';
 import * as Sh from './sheets';
+import { normHex } from './layoutRules';
 import { createView, deleteView, placeNote, removeFromView, restoreView, viewById, viewsOf, type ViewUndo } from './notes';
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -1655,6 +1656,9 @@ export type FormOp =
   | { op: 'eisen'; pid: string; act: EisenAct; at: number }
   | { op: 'figMove'; pid: string; fig: string; key: string; dx: number; dy: number; at: number }
   | { op: 'figReset'; pid: string; fig: string; at: number }
+  | { op: 'figTone'; pid: string; fig: string; key: string; color: string | null; at: number }
+  | { op: 'figToneReset'; pid: string; fig?: string; at: number }
+  | { op: 'figToneAll'; pid: string; tones: Project['figTone']; at: number }
   | { op: 'remove'; pid: string; form: FormDef; row: string; at: number }
   | { op: 'undoRow'; undo: RowUndo; at: number }
   | { op: 'move'; pid: string; form: FormDef; row: string; by: number; at: number }
@@ -1690,8 +1694,40 @@ export function resetFigLayout(ws: Workspace, pid: string, fig: string, now = Da
   return editProject(ws, pid, { figLayout: Object.keys(all).length ? all : undefined }, now);
 }
 
+/** V155 (F-236 B Schritt 3, G5): Farbe eines Kastens abweichend von der Layout-Vorlage (null = „auf Regel zurücksetzen“). */
+export function setFigTone(ws: Workspace, pid: string, fig: string, key: string, color: string | null, now = Date.now()): Workspace {
+  const p = projectById(ws, pid);
+  if (!p || !/^[a-zA-Z]{1,20}$/.test(fig) || !key) return ws;
+  const c = color === null ? undefined : normHex(color);
+  if (color !== null && !c) return ws;
+  const all = JSON.parse(JSON.stringify(p.figTone ?? {})) as NonNullable<Project['figTone']>;
+  const m = all[fig] ?? {};
+  if ((m[key] ?? null) === (c ?? null)) return ws;
+  if (c) m[key] = c;
+  else delete m[key];
+  if (Object.keys(m).length) all[fig] = m;
+  else delete all[fig];
+  return editProject(ws, pid, { figTone: Object.keys(all).length ? all : undefined }, now);
+}
+/** Alle Abweichungen einer Grafik (oder aller Grafiken) auf die Regel zurücksetzen */
+export function resetFigTone(ws: Workspace, pid: string, fig?: string, now = Date.now()): Workspace {
+  const p = projectById(ws, pid);
+  if (!p?.figTone || (fig && !p.figTone[fig])) return ws;
+  const all = { ...p.figTone };
+  if (fig) delete all[fig];
+  return editProject(ws, pid, { figTone: fig && Object.keys(all).length ? all : undefined }, now);
+}
+/** Anzahl der Kästen mit eigener Farbe (für die Ansicht „Layout“) */
+export const figToneCount = (p: Pick<Project, 'figTone'>): number => Object.values(p.figTone ?? {}).reduce((s, m) => s + Object.keys(m).length, 0);
+
 export function applyForm(ws: Workspace, o: FormOp): Workspace {
   switch (o.op) {
+    case 'figTone':
+      return setFigTone(ws, o.pid, o.fig, o.key, o.color, o.at);
+    case 'figToneReset':
+      return resetFigTone(ws, o.pid, o.fig, o.at);
+    case 'figToneAll':
+      return projectById(ws, o.pid) ? editProject(ws, o.pid, { figTone: o.tones && Object.keys(o.tones).length ? JSON.parse(JSON.stringify(o.tones)) : undefined }, o.at) : ws;
     case 'figMove':
       return setFigOffset(ws, o.pid, o.fig, o.key, o.dx, o.dy, o.at);
     case 'eisen':

@@ -931,6 +931,8 @@ export interface PadDesk {
 export interface Project {
   id: string;
   name: string;
+  /** V154 (F-236 B): Layout-Vorlage – nur Regeln, die von „Report ColorGentlemen“ abweichen (layoutRules.ts) */
+  layout?: Partial<import('./layoutRules').LayoutRules>;
   /** Scope (Id aus Workspace.scenarios). */
   scope?: string;
   /** Übergeordnetes Projekt. */
@@ -1514,6 +1516,8 @@ export interface NoteProcure {
 
 /** F-226 (L9, ICB4 4.5.1 / 4.3.1): Steckbrief-Felder. */
 export interface ProjectCharter {
+  /** V154 (F-232 P12): Logo der Kopfzeile – `es-img:<Schlüssel>`, das Bild liegt nur auf dem Gerät */
+  logo?: string;
   /** Projektnummer, z. B. Z20-0173 */
   no?: string;
   /** Projektart, z. B. Organisationsprojekt */

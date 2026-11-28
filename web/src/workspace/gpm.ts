@@ -4,6 +4,7 @@
  * mit Stundensatz, Beschaffung. Reine Funktionen; die Formulare (formKit.ts) lesen und schreiben nur hier.
  * Alle Felder sind optional, Dateiformat 11 bleibt. Tests in workspace.test.ts („F-226“).
  */
+import { sanitizeLayout } from './layoutRules';
 import type {
   ChangeItem,
   CommItem,
@@ -85,6 +86,8 @@ export function sanitizeCharter(v: unknown): ProjectCharter | undefined {
   out.complexity = int(v.complexity, 1, 5);
   if (isDay(v.releasePl)) out.releasePl = v.releasePl;
   if (isDay(v.releaseAg)) out.releaseAg = v.releaseAg;
+  // V154 (F-232 P12): Logo der Kopfzeile (nur der Verweis)
+  if (typeof v.logo === 'string' && /^es-img:[A-Za-z0-9_-]{1,64}$/.test(v.logo)) out.logo = v.logo;
   // V132 (F-232 P6): fixierte Meilensteine
   if (Array.isArray(v.fixed)) {
     const f = [...new Set(v.fixed.filter((x): x is string => typeof x === 'string' && !!x))].slice(0, 20);
@@ -328,11 +331,14 @@ export function parseCheckGpm(c: Record<string, unknown>): { due?: string; by?: 
 }
 
 /** Liest die GPM-Teile eines Projekts; Bezüge (Oberziel, Konfliktziele, Personen) werden bereinigt. */
-type GpmPart = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'close' | 'wpReports' | 'teamRoles' | 'messages' | 'moderations' | 'actions' | 'annexes' | 'figLayout' | 'eisenMaps' | 'eisenSel' | 'eisenInit';
+type GpmPart = 'charter' | 'goals' | 'conflicts' | 'stakeholders' | 'phases' | 'comms' | 'reports' | 'docs' | 'checks' | 'lessons' | 'changes' | 'rules' | 'close' | 'wpReports' | 'teamRoles' | 'messages' | 'moderations' | 'actions' | 'annexes' | 'figLayout' | 'eisenMaps' | 'eisenSel' | 'eisenInit' | 'layout';
 export function parseProjectGpm(r: Record<string, unknown>): Pick<Project, GpmPart> {
   const out: Pick<Project, GpmPart> = {};
   const charter = sanitizeCharter(r.charter);
   if (charter) out.charter = charter;
+  // V154 (F-236 B): Layout-Vorlage
+  const layout = sanitizeLayout(r.layout);
+  if (layout) out.layout = layout;
   const goals = list(r.goals, parseGoal);
   if (goals) {
     const ids = new Set(goals.map((g) => g.id));
@@ -829,3 +835,25 @@ export const notesOfPhase = (ws: Workspace, pid: string, phase: string): Note[] 
 
 /** F-226 (ICB4 4.5.2): Ziele nach Art (Leistung, Sozial, Nicht-Ziel). */
 export const goalsOf = (p: Project | undefined, kind?: GoalKind): ProjectGoal[] => (p?.goals ?? []).filter((g) => !kind || (g.kind ?? 'perf') === kind);
+
+/** V154 (F-236 B): Regeln der Layout-Vorlage ändern (null = auf die Vorgabe zurück); `reset` setzt alle zurück. */
+export function editLayout(ws: Workspace, pid: string, patch: Record<string, unknown> | 'reset', now = Date.now()): Workspace {
+  return withProject(
+    ws,
+    pid,
+    (p) => {
+      const merged: Record<string, unknown> = patch === 'reset' ? {} : { ...p.layout };
+      if (patch !== 'reset')
+        for (const [k, v] of Object.entries(patch)) {
+          if (v === null) delete merged[k];
+          else if (v !== undefined) merged[k] = v;
+        }
+      const layout = sanitizeLayout(merged);
+      const q = { ...p };
+      if (layout) q.layout = layout;
+      else delete q.layout;
+      return q;
+    },
+    now,
+  );
+}

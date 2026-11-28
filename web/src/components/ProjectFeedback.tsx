@@ -17,12 +17,13 @@ import { canTriage } from '../workspace/persons';
 import { PROJECT_FEEDBACK_TEXT as T } from '../workspace/terms';
 import { FeedbackCockpit } from './FeedbackCockpit';
 import { FeedbackPaper, ShapeWheel, useShape } from './PaperDocs';
+import type { ContentsEntry } from '../workspace/contents';
 import { DOC_SHEET_TEXT as DS } from '../workspace/terms';
 
 type Key = Fb.FeedbackText | 'severity';
 const KEYS: readonly Key[] = [...Fb.FEEDBACK_TEXTS, 'severity'];
 
-export function ProjectFeedback({ ws, p, dispatch, say }: { ws: Workspace; p: Project; dispatch: Dispatch<Action>; say: (t: string) => void }) {
+export function ProjectFeedback({ ws, p, dispatch, say, onToc }: { ws: Workspace; p: Project; dispatch: Dispatch<Action>; say: (t: string) => void; onToc?: (x: ContentsEntry) => void }) {
   const may = canTriage(ws);
   const form = Fb.formOf(p.feedbackForm);
   const [msg, setMsg] = useState('');
@@ -79,7 +80,7 @@ export function ProjectFeedback({ ws, p, dispatch, say }: { ws: Workspace; p: Pr
           <FormKinds p={p} dispatch={dispatch} say={say} />
         </details>
       )}
-      {shape === 'sheet' ? <FeedbackPaper ws={ws} p={p} dispatch={dispatch} say={say} /> : <FeedbackCockpit key={p.id} ws={ws} dispatch={dispatch} say={say} project={p.id} />}
+      {shape === 'sheet' ? <FeedbackPaper ws={ws} p={p} dispatch={dispatch} say={say} onToc={onToc} /> : <FeedbackCockpit key={p.id} ws={ws} dispatch={dispatch} say={say} project={p.id} />}
     </div>
   );
 }

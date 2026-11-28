@@ -2777,8 +2777,8 @@ export const PROJECT_KANBAN_TEXT = {
 export const PSP_TEXT = {
   view: 'Ansicht',
   viewLabel: 'Ansicht des gewählten Projekts',
-  views: { toc: 'Inhalt', brief: 'Steckbrief', forms: 'Formulare', psp: 'PSP', gantt: 'Gantt', net: 'Netzplan', kanban: 'Kanban', res: 'Ressourcen', risks: 'Risiken', changes: 'Änderungen', decide: 'Entscheidungen', feedback: 'Meldungen' } as Record<'toc' | 'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
-  viewHint: { toc: 'Inhalt des Projekts: alle Dokumente in der Reihenfolge des Reports mit Kapitel, Einträgen und leeren Pflichtfeldern – Enter öffnet', brief: 'Steckbrief nach IPMA ICB4: Ziel, Termine, Budget, Organisation', forms: 'Projektformulare nach GPM-Leitfaden (Level D): Eingabe und Ausgabe wie im Report, Kapitel für Kapitel, erweiterbar', psp: 'Projektstrukturplan: Teilprojekte, Vorgänge und Arbeitspakete als Baum mit Code', gantt: 'Balkenplan: Vorgänge auf der Zeitachse mit Vorgängern, Puffer und kritischem Pfad', net: 'Netzplan: Vorgänge als Kästen mit frühesten und spätesten Terminen, Puffer und Pfeilen zu den Nachfolgern', kanban: 'Kanban-Board des Projekts wie Trello: Vorgänge als Karten in Spalten nach ihrem Zustand, ziehen, Checklisten, WIP-Limit', res: 'Ressourceneinsatz: geplante Stunden je Ressource und Woche gegen die Kapazität, mit den Vorgängen darunter', risks: 'Risikoliste nach IPMA ICB4: Ursache, Ereignis, Auswirkung, Bewertung, Strategie und Maßnahme', changes: 'Änderungsanträge (Change Requests): Auswirkung auf Termin, Kosten, Leistung und Umfang, Entscheidung durch die Instanz', decide: 'Nutzwertanalyse: Lösungen nach gewichteten Kriterien vergleichen und begründet entscheiden', feedback: 'Projektmeldungen: Probleme, Wünsche und Fragen an die Instanzen des Projekts' } as Record<'toc' | 'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback', string>,
+  views: { toc: 'Inhalt', brief: 'Steckbrief', forms: 'Formulare', psp: 'PSP', gantt: 'Gantt', net: 'Netzplan', kanban: 'Kanban', res: 'Ressourcen', risks: 'Risiken', changes: 'Änderungen', decide: 'Entscheidungen', feedback: 'Meldungen', layout: 'Layout' } as Record<'toc' | 'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback' | 'layout', string>,
+  viewHint: { toc: 'Inhalt des Projekts: alle Dokumente in der Reihenfolge des Reports mit Kapitel, Einträgen und leeren Pflichtfeldern – Enter öffnet', brief: 'Steckbrief nach IPMA ICB4: Ziel, Termine, Budget, Organisation', forms: 'Projektformulare nach GPM-Leitfaden (Level D): Eingabe und Ausgabe wie im Report, Kapitel für Kapitel, erweiterbar', psp: 'Projektstrukturplan: Teilprojekte, Vorgänge und Arbeitspakete als Baum mit Code', gantt: 'Balkenplan: Vorgänge auf der Zeitachse mit Vorgängern, Puffer und kritischem Pfad', net: 'Netzplan: Vorgänge als Kästen mit frühesten und spätesten Terminen, Puffer und Pfeilen zu den Nachfolgern', kanban: 'Kanban-Board des Projekts wie Trello: Vorgänge als Karten in Spalten nach ihrem Zustand, ziehen, Checklisten, WIP-Limit', res: 'Ressourceneinsatz: geplante Stunden je Ressource und Woche gegen die Kapazität, mit den Vorgängen darunter', risks: 'Risikoliste nach IPMA ICB4: Ursache, Ereignis, Auswirkung, Bewertung, Strategie und Maßnahme', changes: 'Änderungsanträge (Change Requests): Auswirkung auf Termin, Kosten, Leistung und Umfang, Entscheidung durch die Instanz', decide: 'Nutzwertanalyse: Lösungen nach gewichteten Kriterien vergleichen und begründet entscheiden', feedback: 'Projektmeldungen: Probleme, Wünsche und Fragen an die Instanzen des Projekts', layout: 'Layout-Generator: Farben und Regeln für alle Dokumente dieses Projekts (Blätter, Grafiken, Bericht) mit Vorschau' } as Record<'toc' | 'brief' | 'forms' | 'psp' | 'gantt' | 'net' | 'kanban' | 'res' | 'risks' | 'changes' | 'decide' | 'feedback' | 'layout', string>,
   head: (name: string) => `PSP: ${name}`,
   prefix: 'Präfix',
   prefixHint: 'Steht vor jedem Code, z. B. WEB → WEB-1.2',
@@ -4380,6 +4380,66 @@ export const BTN_TEXT = {
 };
 
 /** V132 (F-232): Projektsteckbrief als Blatt wie Abbildung 3 im Report (ProjectSheet.tsx). */
+/** V154 (F-236 B, Schritt 2): Generator-Blatt „Layout“ */
+export const LAYOUT_TEXT = {
+  title: (p: string) => `Layout-Vorlage ${p}`,
+  lead: 'Regeln für alle Dokumente dieses Projekts: Blätter, Grafiken und Bericht nehmen ihre Farben von hier. Abweichende Regeln sind markiert und lassen sich einzeln auf die Vorgabe zurücksetzen. Die Oberfläche bleibt beim Design-Rad.',
+  name: 'Name der Vorlage',
+  nameHint: 'z. B. „FIT GmbH“ – steht im Rad „Vorlage“ der anderen Projekte',
+  from: 'Übernehmen von',
+  fromHint: 'Alle Regeln eines anderen Projekts übernehmen (Rückgängig am Ort)',
+  fromNone: 'Projekt wählen …',
+  fromDone: (n: string) => `Regeln von „${n}“ übernommen.`,
+  reset: 'Alles auf „Report ColorGentlemen“',
+  resetDone: 'Alle Regeln auf die Vorgabe zurückgesetzt.',
+  undo: 'Rückgängig',
+  groups: { boxes: 'Kästen (MUSS · SOLL · KANN · neutral)', lines: 'Linien und Hervorhebung', text: 'Schrift', tables: 'Tabellen', curves: 'Kurven (Ganglinie, MTA)' } as Record<'boxes' | 'lines' | 'text' | 'tables' | 'curves', string>,
+  rules: { primary: 'Primär (MUSS, Linien)', accent: 'Akzent (SOLL, Meilensteine)', soft: 'KANN', neutral: 'Neutral (graue Kästen)', critical: 'Kritischer Pfad, Überschreitung', line: 'Kanten und Rahmen', grid: 'Raster', head: 'Kopfzeile und Hervorhebung', ink: 'Text', muted: 'Nebentext', label: 'Hintergrund der Bezeichnungen', bar: 'Balken', ok: 'Im Plan, Budget' } as Record<string, string>,
+  gradient: 'Kästen mit Verlauf und Glanz',
+  gradientHint: 'Aus = flache Kästen in der Regelfarbe',
+  differs: 'weicht von der Vorgabe ab',
+  toRule: 'auf Vorgabe',
+  toRuleHint: (r: string) => `„${r}“ auf die Vorgabe „Report ColorGentlemen“ zurücksetzen`,
+  saved: (r: string) => `${r}: gespeichert.`,
+  back: (r: string) => `${r}: Vorgabe.`,
+  bad: 'Farbe als #rrggbb, z. B. #7b1113',
+  warn: (ratio: string, need: string, on: string) => `Kontrast ${ratio} : 1 auf ${on} – nötig ${need} : 1 (WCAG AA)`,
+  warnOn: (on: string) => (on === 'paper' ? 'Weiß' : `„${on}“`),
+  preview: 'Vorschau',
+  previewHint: 'Ändert sich sofort mit jeder Regel – so sehen Blätter, Grafiken und Bericht aus.',
+  sample: { chapter: 'Anforderung und Ziele [4.5.2]', heading: 'Projektsteckbrief', label: 'Projektnummer', value: 'Z20-0173', must: 'MUSS', should: 'SOLL', can: 'KANN', neutral: 'Arbeitspaket', critical: 'kritischer Pfad', budget: 'Budget', bars: 'Kosten je Monat' },
+  figure: 'Grafik dieses Projekts',
+  noFigure: 'Noch keine Ziele oder Rollen – die Vorschau zeigt die Musterkästen.',
+};
+
+/** V154 (F-232 P12): Medien in den Feldern der Blätter und Logo der Kopfzeile */
+export const MEDIA_TEXT = {
+  add: 'Medien',
+  addHint: (l: string) => `Bild, PDF, Ton oder Video in „${l}“ einfügen – auch per Ziehen oder Einfügen (Strg/⌘+V) ins Feld. Die Datei bleibt auf diesem Gerät, im Feld steht nur der Verweis.`,
+  list: (l: string) => `Medien in „${l}“`,
+  added: (n: number) => (n === 1 ? 'Datei eingefügt.' : `${n} Dateien eingefügt.`),
+  refusedKind: (n: string) => `„${n}“: nur Bilder (PNG, JPG, SVG), PDF, Ton und Video.`,
+  refusedSize: (n: string) => `„${n}“ ist größer als 50 MB.`,
+  full: (max: number) => `Höchstens ${max} Medien je Feld.`,
+  failed: 'Die Datei ließ sich auf diesem Gerät nicht speichern.',
+  removed: (n: string) => `„${n}“ entfernt.`,
+  undo: 'Rückgängig',
+  remove: (n: string) => `„${n}“ entfernen`,
+  open: (n: string) => `„${n}“ groß öffnen`,
+  missing: (n: string) => `„${n}“ liegt nicht auf diesem Gerät`,
+  kind: { img: 'Bild', pdf: 'PDF', audio: 'Ton', video: 'Video', file: 'Datei' } as Record<string, string>,
+  pdfFallback: 'PDF öffnen',
+  logo: 'Logo',
+  logoAdd: 'Logo einfügen',
+  logoHint: 'Logo für die Kopfzeile aller Blätter dieses Projekts (PNG, JPG, SVG) – auch per Ziehen auf die Kopfzeile. Bleibt auf diesem Gerät.',
+  logoChange: 'Logo ändern',
+  logoRemove: 'Logo entfernen',
+  logoSaved: 'Logo gespeichert.',
+  logoGone: 'Logo entfernt.',
+  logoAlt: (p: string) => `Logo ${p}`,
+  logoOnlyImg: 'Als Logo gehen nur Bilder (PNG, JPG, SVG).',
+};
+
 export const PAPER_TEXT = {
   title: (p: string) => `Projektsteckbrief ${p} – Blatt wie im Report`,
   chapter: 'Anforderung und Ziele [4.5.2]',
@@ -4598,4 +4658,8 @@ export const CONTENTS_TEXT = {
   missing: (n: number) => (n === 1 ? '1 Pflichtfeld leer' : `${n} Pflichtfelder leer`),
   open: (name: string) => `${name} öffnen`,
   opened: (name: string) => `${name} geöffnet`,
+  rail: 'Inhalt des Projekts',
+  railName: 'Inhalt',
+  railOpen: 'Inhalt neben dem Blatt aufklappen (je Gerät gemerkt)',
+  railClose: 'Inhalt zuklappen – mehr Platz für das Blatt',
 };

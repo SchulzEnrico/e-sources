@@ -27,6 +27,7 @@ import type {
 } from './types';
 import { TAB_MAX, newId } from './workspace';
 import * as ND from './noteDoc';
+import { wsMediaRefs } from './fieldMedia';
 import { parseNoteExtras, parseSheetExtras, parseWip } from './noteObjects';
 import { cleanFieldDefs } from './cardFields';
 import { parseColColor } from './columnLook';
@@ -1402,6 +1403,8 @@ export function imageRefs(ws: Workspace): Set<string> {
   for (const n of notesOf(ws)) if (n.cover?.img) out.add(n.cover.img);
   // F-221 (FB7): Bilder an Feedback-Meldungen
   for (const f of ws.feedback ?? []) for (const p of f.pics ?? []) out.add(p);
+  // V154 (F-232 P12): Medien in den Feldern der Blätter und Logos der Kopfzeile
+  for (const r of wsMediaRefs(ws)) out.add(r);
   return out;
 }
 /** Enthält die (gezeigte) Notiz ein Bild? (B5: Symbol in der Liste) */

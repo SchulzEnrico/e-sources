@@ -23,6 +23,7 @@ import { requestTour, tourAutoStart } from '../workspace/tour';
 import { ModeWheel } from './ModeWheel';
 import { DecisionLinks } from './DecisionLinks';
 import { DecisionSheet, ShapeWheel, useShape } from './PaperDocs';
+import type { ContentsEntry } from '../workspace/contents';
 import { DOC_SHEET_TEXT as DS } from '../workspace/terms';
 import { noticeLater } from '../workspace/flash';
 
@@ -56,15 +57,15 @@ export function openDecision(id: string): void {
 export const prepareNames = () => ({ criterion: [1, 2, 3].map(T.criterion), option: [1, 2].map(T.option), changeCriteria: [...T.changeCriteria], changeOptions: [...T.changeOptions] });
 
 /** Projekt-Ansicht „Entscheidungen“ (V104). */
-export function ProjectDecisions({ ws, p, dispatch, say }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void }) {
-  return <Decisions ws={ws} p={p} dispatch={dispatch} say={say} />;
+export function ProjectDecisions({ ws, p, dispatch, say, onToc }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void; onToc?: (x: ContentsEntry) => void }) {
+  return <Decisions ws={ws} p={p} dispatch={dispatch} say={say} onToc={onToc} />;
 }
 
 /** V108 (E1): Zeigen im Cockpit – alle, nur freie oder die eines Projekts (Id). */
 type Scope = 'all' | 'free' | string;
 
 /** V108 (E1): Entscheidungen mit oder ohne Projekt; ohne `p` mit Rad „Zeigen“ (Cockpit-Modus „Entscheidungen“). */
-export function Decisions({ ws, p, dispatch, say, open, scope: scope0, inPad }: { ws: Workspace; p?: Project; dispatch: (a: Action) => void; say: (t: string) => void; open?: string | null; scope?: string; inPad?: boolean }) {
+export function Decisions({ ws, p, dispatch, say, open, scope: scope0, inPad, onToc }: { ws: Workspace; p?: Project; dispatch: (a: Action) => void; say: (t: string) => void; open?: string | null; scope?: string; inPad?: boolean; onToc?: (x: ContentsEntry) => void }) {
   const projects = ws.projects ?? [];
   // V112 F-228 Stufe 2: Kopf mit Überlauf – Überschrift und Rad „Zeigen“ bleiben
   const topRef = useRef<HTMLElement>(null);
@@ -177,12 +178,12 @@ export function Decisions({ ws, p, dispatch, say, open, scope: scope0, inPad }: 
           {msg.undo && <button type="button" className="note__undo" onClick={() => (msg.undo!(), setMsg(null))}>{T.undo}</button>}
         </p>
       )}
-      {d && <DecisionTool key={d.id} d={d} ws={ws} dispatch={dispatch} say={say} onRemove={() => remove(d)} />}
+      {d && <DecisionTool key={d.id} d={d} ws={ws} dispatch={dispatch} say={say} onRemove={() => remove(d)} onToc={onToc} />}
     </section>
   );
 }
 
-function DecisionTool({ d, ws, dispatch, say, onRemove }: { d: Decision; ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void; onRemove: () => void }) {
+function DecisionTool({ d, ws, dispatch, say, onRemove, onToc }: { d: Decision; ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void; onRemove: () => void; onToc?: (x: ContentsEntry) => void }) {
   const [step, setStep] = useState<Step>('crit');
   // V139 (F-232 P9): Rad „Darstellung“ Werkzeug · Blatt (Entscheidungsvorlage wie auf Papier), je Gerät gemerkt
   const [shape, setShape] = useShape('esource.decisionShape.v1', ['tool', 'sheet'] as const, 'tool');
@@ -225,7 +226,7 @@ function DecisionTool({ d, ws, dispatch, say, onRemove }: { d: Decision; ws: Wor
       <div className="paper__bar">
         <ShapeWheel value={shape} onChange={setShape} say={say} options={[{ id: 'tool', name: DS.dcTool, hint: DS.dcToolHint }, { id: 'sheet', name: DS.dcSheet, hint: DS.dcSheetHint }]} />
       </div>
-      {shape === 'sheet' ? <DecisionSheet d={d} ws={ws} dispatch={dispatch} say={say} /> : <>
+      {shape === 'sheet' ? <DecisionSheet d={d} ws={ws} dispatch={dispatch} say={say} onToc={onToc} /> : <>
       <div className="dc__stepbar">
         <span className="fbq__label">{T.stepLabel}</span>
         <ModeWheel label={T.stepLabel} value={step} onChange={(s) => (setStep(s as Step), say(`${T.stepLabel}: ${T.steps[s]}`))} options={STEPS.map((s) => ({ id: s, name: T.steps[s], hint: T.stepHints[s] }))} />

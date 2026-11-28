@@ -423,6 +423,8 @@ export type Action =
   | { type: 'vote'; id: string; person: string }
   /** V132 (F-232): Steckbrief-Blatt – Felder des Projektauftrags; '' bzw. null löscht. */
   | { type: 'charterEdit'; id: string; patch: Record<string, unknown> }
+  /** V154 (F-236 B): Regeln der Layout-Vorlage ändern bzw. alle auf die Vorgabe zurücksetzen */
+  | { type: 'layoutEdit'; id: string; patch: Record<string, unknown> | 'reset' }
   /** V132 (F-231 K10d): Beobachten an/aus. */
   | { type: 'watch'; target: Wt.WatchTarget; on: boolean }
   | { type: 'boardVotes'; view: string; on: boolean }
@@ -861,6 +863,8 @@ function step(ws: Workspace, a: Action): Workspace {
     }
     case 'charterEdit':
       return Gp.editCharter(ws, a.id, a.patch);
+    case 'layoutEdit':
+      return Gp.editLayout(ws, a.id, a.patch);
     case 'watch':
       return Wt.setWatch(ws, a.target, a.on);
     case 'vote':

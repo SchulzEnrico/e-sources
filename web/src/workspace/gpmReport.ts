@@ -19,6 +19,8 @@ import { staffLines, wpView } from './wpSheet';
 import { BELBIN } from './gpm';
 import * as Fb from './feedback';
 import * as Dc from './decisions';
+import { embedMedia, logoId } from './fieldMedia';
+import { layoutOf, svgColorsOf } from './layoutRules';
 
 export const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
@@ -55,6 +57,8 @@ export interface SvgColors {
   dot: string;
 }
 export const PRINT_COLORS: SvgColors = { ink: '#1b1b1b', muted: '#666', line: '#ccc', bar: '#9bb7d4', sum: '#b3261e', budget: '#2e7d32', dot: '#b3261e' };
+/** V154 (F-236 B): Druckfarben aus der Layout-Vorlage des Projekts (Vorgabe = PRINT_COLORS) */
+export const printColorsOf = (p: Pick<Project, 'layout'> | undefined): SvgColors => (p?.layout ? svgColorsOf(layoutOf(p)) : PRINT_COLORS);
 
 /** Kostenganglinie (Balken je Monat) mit Summenlinie und Budget als Linie; `w` × `h` in px. */
 export function curveSvg(c: CostCurve, col: SvgColors, w = 640, h = 260, title = 'Kostenganglinie'): string {
@@ -344,9 +348,14 @@ export function signRowHtml(signs: ReportSign[], inks?: ReadonlyMap<string, stri
 
 /** V152: Bild-Schlüssel der Meldungen am Projekt (Anlage A) – zum Vorladen aus dem Gerätespeicher. */
 export function reportPicRefs(ws: Workspace, pid: string): string[] {
-  return Fb.feedbackOf(ws)
+  const out = Fb.feedbackOf(ws)
     .filter((f) => f.project === pid)
     .flatMap((f) => f.pics ?? []);
+  // V154 (F-232 P12): Bilder in den Feldern der Blätter und das Logo (nur Bilder – PDF, Ton, Video bleiben Verweis)
+  const p = projectById(ws, pid);
+  const own = JSON.stringify([p, Fb.feedbackOf(ws).filter((f) => f.project === pid), (ws.decisions ?? []).filter((d) => d.projectId === pid)]);
+  for (const m of own.matchAll(/es-img:([A-Za-z0-9_-]+)/g)) out.push(m[1]);
+  return [...new Set(out)];
 }
 
 export function reportHtml(ws: Workspace, pid: string, o: { version?: string; day: string; inks?: ReadonlyMap<string, string>; base?: string; pics?: ReadonlyMap<string, string> }): string {
@@ -380,11 +389,14 @@ table.kv th { width: 34%; } .empty { color: #777; font-style: italic; } .cover {
 table.wpsheet { border: 2px solid #111; break-inside: avoid; } table.kv.wpsheet th { width: auto; background: #d9d9d9; } table.wpsheet col.wpsheet__l { width: 17%; } table.wpsheet th.wpsheet__head { background: #8a8a8a; color: #fff; font-size: 18pt; vertical-align: middle; padding-left: 12pt; } table.wpsheet td.sheethead__qr { padding: 3pt; background: #fff; } table.wpsheet td.sheethead__qr svg { display: block; width: 74pt; height: 74pt; }
 table.charter > tbody > tr > th { width: 26%; } table.charter td.sub { padding: 0; } table.charter .grid { margin: 0; border: 0; } table.charter .grid th { background: #f6f6f6; font-weight: normal; } table.charter .grid.rows th { width: 34%; } td.is-strong { font-weight: bold; }
 .sign__who { font-size: 8.5pt; } .sign__line { border-top: 1px solid #999; font-size: 8pt; color: #555; padding-top: 1pt; } tr.release td { white-space: normal; } figure { margin: 6pt 0; break-inside: avoid; }
+.logo { float: right; max-height: 22mm; max-width: 50mm; } figure.media { display: inline-block; margin: 3pt 6pt 3pt 0; vertical-align: top; } figure.media img { display: block; max-width: 100%; max-height: 7cm; border: 1px solid #bbb; } figure.media figcaption { font-size: 8pt; color: #555; } .media--file, .media--missing { display: inline-block; font-size: 8.5pt; color: #555; }
 @media screen { body { max-width: 900px; margin: 24px auto; padding: 0 16px; } .bar { position: sticky; top: 0; background: #fff; padding: 8px 0; border-bottom: 1px solid #ddd; } }
 @media print { .bar { display: none; } }
-</style></head><body>`);
+${layoutCss(p)}</style></head><body>`);
   out.push(`<div class="bar"><button type="button" onclick="window.print()">Drucken bzw. als PDF sichern</button></div>`);
-  out.push(`<div class="cover"><h1>Projektbericht ${esc(p.name)}</h1><p class="meta">${esc([no ? `Projektnummer ${no}` : '', p.charter?.client ? `Auftraggeber ${p.charter.client}` : '', `Stand ${dmy(o.day)}`].filter(Boolean).join(' · '))}</p>`);
+  const logo = logoId(p.charter?.logo);
+  const logoUrl = logo ? o.pics?.get(logo) : undefined;
+  out.push(`<div class="cover">${logoUrl && /^data:image\//.test(logoUrl) ? `<img class="logo" src="${esc(logoUrl)}" alt="Logo">` : ''}<h1>Projektbericht ${esc(p.name)}</h1><p class="meta">${esc([no ? `Projektnummer ${no}` : '', p.charter?.client ? `Auftraggeber ${p.charter.client}` : '', `Stand ${dmy(o.day)}`].filter(Boolean).join(' · '))}</p>`);
   out.push(`<table class="kv"><tbody>`);
   const kv = (k: string, v: string) => v && out.push(`<tr><th scope="row">${esc(k)}</th><td>${esc(v)}</td></tr>`);
   kv('Projektzeitraum', [p.start ? dmy(p.start) : '', p.end ? dmy(p.end) : ''].filter(Boolean).join(' – '));
@@ -409,7 +421,8 @@ table.charter > tbody > tr > th { width: 26%; } table.charter td.sub { padding: 
   // V149 (F-232 P9): Problemstellungen und Entscheidungsvorlagen als Anlage – je Blatt eine Seite wie am Bildschirm
   out.push(annex.html);
   out.push(`</body></html>`);
-  return out.join('\n');
+  // V154 (F-232 P12): Verweise auf Medien in den Feldern als Bild bzw. Anlage-Zeile
+  return embedMedia(out.join('\n'), o.pics);
 }
 /** V146 (F-232 P10): Version in der Fußzeile wie im Report („Version 1“) – aus 6.4 Dokumentation der Eintrag „Projektbericht“
  *  bzw. „Report“ (Titel oder Art), sonst die Version von E-Sources. */
@@ -585,7 +598,7 @@ function formSection(ws: Workspace, p: Project, f: FormDef, inks?: ReadonlyMap<s
       if (svg) out.push(`<figure>${svg}<figcaption class="meta">Abbildung: ${esc(f.name)}</figcaption></figure>`);
     }
     if (f.layout === 'chart' || f.layout === 'portfolio' || f.source === 'ev') {
-      const svg = formSvg(ws, p.id, f, PRINT_COLORS);
+      const svg = formSvg(ws, p.id, f, printColorsOf(p));
       if (svg) out.push(`<figure>${svg}</figure>`);
     }
     if (!rows.length) out.push(`<p class="empty">Keine Einträge.</p>`);
@@ -697,4 +710,11 @@ export function annexSheets(ws: Workspace, p: Project, pics?: ReadonlyMap<string
     out.push(`</section>`);
   }
   return { toc, html: out.join('') };
+}
+
+/** V154 (F-236 B): Bericht nimmt die Regeln der Layout-Vorlage (Text, Hervorhebung, Bezeichnungen, Raster) */
+function layoutCss(p: Project): string {
+  if (!p.layout) return '';
+  const l = layoutOf(p);
+  return `body { color: ${l.ink}; } td.is-strong, .over { color: ${l.head}; } th, table.kv th, table.charter .grid th { background: ${l.label}; } th, td { border-color: ${l.line}; } h2 { border-bottom-color: ${l.line}; } .calc, .meta, .icb { color: ${l.muted}; }`;
 }

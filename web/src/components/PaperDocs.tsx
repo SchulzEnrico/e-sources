@@ -14,6 +14,9 @@ import * as Pj from '../workspace/projects';
 import { noticeLater } from '../workspace/flash';
 import { DOC_SHEET_TEXT as T } from '../workspace/terms';
 import { ModeWheel } from './ModeWheel';
+import { PaperLogo } from './FieldMedia';
+import { ContentsRail } from './ProjectContents';
+import type { ContentsEntry } from '../workspace/contents';
 import { Field, PaperSizeWheel, Row, paperZoom, usePaperSize } from './ProjectSheet';
 import { MarkAdd, MarkTrail, Thumb, loadTriage, storePics } from './FeedbackCard';
 import * as Ps from '../workspace/persons';
@@ -60,7 +63,7 @@ export function ShapeWheel<S extends string>({ value, onChange, options, say }: 
 }
 
 /** Meldung am Feld (wie im Steckbrief): verschwindet nach kurzer Zeit. */
-function useFieldMsg(say: (t: string) => void) {
+export function useFieldMsg(say: (t: string) => void) {
   // V150: optional mit Rückgängig – die Meldung steht am Ort und bietet den Knopf direkt an
   const [msg, setMsg] = useState<{ text: string; at: string; undo?: () => void } | null>(null);
   const timer = useRef(0);
@@ -91,7 +94,7 @@ function useFieldMsg(say: (t: string) => void) {
 // ———————————————————————————————————————————— Problemstellung
 
 /** Ansicht „Meldungen“ › Darstellung „Blatt“: Rad „Meldung“ und das Blatt der gewählten Meldung. */
-export function FeedbackPaper({ ws, p, dispatch, say }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void }) {
+export function FeedbackPaper({ ws, p, dispatch, say, onToc }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void; onToc?: (x: ContentsEntry) => void }) {
   const list = Fb.feedbackOf(ws)
     .filter((f) => f.project === p.id)
     .sort((a, b) => b.at.localeCompare(a.at));
@@ -106,7 +109,16 @@ export function FeedbackPaper({ ws, p, dispatch, say }: { ws: Workspace; p: Proj
           <ModeWheel label={T.pick} value={f.id} onChange={(id) => (setPick(id), say(`${T.pick}: ${list.find((x) => x.id === id)?.title ?? ''}`))} options={list.map((x) => ({ id: x.id, name: x.title, hint: T.pickHint }))} />
         </span>
       </div>
-      <FeedbackSheet key={f.id} f={f} p={p} ws={ws} dispatch={dispatch} say={say} />
+      {onToc ? (
+        <div className="paper__side">
+          <ContentsRail ws={ws} p={p} current="an-fb" onOpen={onToc} />
+          <div className="paper__main">
+            <FeedbackSheet key={f.id} f={f} p={p} ws={ws} dispatch={dispatch} say={say} />
+          </div>
+        </div>
+      ) : (
+        <FeedbackSheet key={f.id} f={f} p={p} ws={ws} dispatch={dispatch} say={say} />
+      )}
     </>
   );
 }
@@ -181,10 +193,10 @@ function FeedbackSheet({ f, p, ws, dispatch, say }: { f: Feedback; p: Project; w
         <PaperSizeWheel size={size} setSize={setSize} />
         {gaps.length > 0 && <span className="paper__gaps">{T.gaps(gaps)}</span>}
       </div>
-      <article className="paper paper--form" style={paperZoom(size)} aria-label={T.fbTitle(f.title, p.name)}>
+      <article className="paper paper--form" style={paperZoom(size, p)} aria-label={T.fbTitle(f.title, p.name)}>
         <header className="paper__head">
           <span className="paper__chapter">{T.fbChapter}</span>
-          <span className="paper__project">{p.name}</span>
+          <span className="paper__project"><PaperLogo p={p} dispatch={dispatch} say={say} />{p.name}</span>
         </header>
         <h2 className="paper__h">{T.fbHeading}</h2>
         <table className="paper__table">
@@ -281,7 +293,7 @@ function FeedbackSheet({ f, p, ws, dispatch, say }: { f: Feedback; p: Project; w
 // ———————————————————————————————————————————— Entscheidungsvorlage
 
 /** Entscheidungsvorlage auf dem Blatt: Kriterien mit Gewichten, Bewertungsmatrix, Nutzwert, Rang, Ergebnis. */
-export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void }) {
+export function DecisionSheet({ d, ws, dispatch, say, onToc }: { d: Decision; ws: Workspace; dispatch: (a: Action) => void; say: (t: string) => void; onToc?: (x: ContentsEntry) => void }) {
   const [size, setSize] = usePaperSize(say);
   const { tell, m } = useFieldMsg(say);
   const lock = !!d.locked;
@@ -357,15 +369,16 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
   const tools = (kids: ReactNode) => <span className="paper__rowtools">{kids}</span>;
 
   return (
+    <SideRail p={d.projectId ? Pj.projectById(ws, d.projectId) : undefined} ws={ws} current="an-dc" onToc={onToc}>
     <div className="paper__wrap">
       <div className="paper__bar">
         <PaperSizeWheel size={size} setSize={setSize} />
         {lock && <span className="paper__gaps">{T.locked}</span>}
       </div>
-      <article className={`paper paper--form${weighed.length > 5 ? ' is-wide' : ''}`} style={paperZoom(size)} aria-label={T.dcTitle(d.title, project ?? '')}>
+      <article className={`paper paper--form${weighed.length > 5 ? ' is-wide' : ''}`} style={paperZoom(size, d.projectId ? Pj.projectById(ws, d.projectId) : undefined)} aria-label={T.dcTitle(d.title, project ?? '')}>
         <header className="paper__head">
           <span className="paper__chapter">{T.dcChapter}</span>
-          <span className="paper__project">{project ?? ''}</span>
+          <span className="paper__project"><PaperLogo p={d.projectId ? Pj.projectById(ws, d.projectId) : undefined} dispatch={dispatch} say={say} />{project ?? ''}</span>
         </header>
         <h2 className="paper__h">{T.dcHeading}</h2>
         <table className="paper__table">
@@ -558,6 +571,7 @@ export function DecisionSheet({ d, ws, dispatch, say }: { d: Decision; ws: Works
         <p className="paper__caption">{T.dcCaption}</p>
       </article>
     </div>
+    </SideRail>
   );
 }
 
@@ -593,5 +607,16 @@ function NameIn({ id, label, value, onSave }: { id: string; label: string; value
         e.currentTarget.blur();
       }}
     />
+  );
+}
+
+/** V154 (F-232 P13): Blatt mit Inhalts-Seitenleiste daneben (nur wenn ein Ziel zum Öffnen da ist) */
+function SideRail({ p, ws, current, onToc, children }: { p?: Project; ws: Workspace; current: string; onToc?: (x: ContentsEntry) => void; children: ReactNode }) {
+  if (!p || !onToc) return <>{children}</>;
+  return (
+    <div className="paper__side">
+      <ContentsRail ws={ws} p={p} current={current} onOpen={onToc} />
+      <div className="paper__main">{children}</div>
+    </div>
   );
 }

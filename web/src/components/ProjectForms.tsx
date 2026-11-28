@@ -19,6 +19,10 @@ import { FORMS_TEXT as T, INK_TEXT as T_INK, PSP_TEXT } from '../workspace/terms
 import { InkSign } from './InkChips';
 import { INK_EVENT, getInk } from '../workspace/inkStore';
 import { PIC_EVENT, getPic } from '../workspace/imageStore';
+import * as Fm from '../workspace/fieldMedia';
+import { ContentsRail } from './ProjectContents';
+import type { ContentsEntry } from '../workspace/contents';
+import { PaperLogo, mediaDrop, useFieldMedia } from './FieldMedia';
 import { inkSvg } from '../workspace/ink';
 import { ModeWheel } from './ModeWheel';
 import { Icon } from './Icon';
@@ -42,7 +46,6 @@ import { rolesOf } from '../workspace/projects';
 const FIGURE_VIEW: Record<string, 'psp' | 'gantt' | 'res' | undefined> = { psp: 'psp', gantt: 'gantt', phasePlan: 'gantt', load: 'res' };
 
 /** V133 (F-232 P9): Formulare stehen auf einem hellen Blatt wie im Report – Grafiken daher in den Druckfarben */
-const UI_COLORS: Rp.SvgColors = Rp.PRINT_COLORS;
 /** V134: Gewicht einer Spalte für die feste Tabellenaufteilung auf dem Blatt (lange Texte breit, Zahlen und Kästchen schmal). */
 const COL_WEIGHT: Record<string, number> = { long: 3, lines: 3, akv: 3, goal: 2, note: 2, name: 2.2, text: 1.6, person: 1.5, roles: 1.5, use: 1.5, phase: 1.4, choice: 1.3, date: 1.45, money: 1.2, number: 0.9, pct: 0.9, accept: 2, gpm: 1, bool: 0.7 };
 const colWeight = (c: { key: string; kind: string }) => (c.key === 'code' ? 1 : COL_WEIGHT[c.kind] ?? 1.3);
@@ -68,7 +71,7 @@ const parseNum = (v: string): number | '' | undefined => {
 const fmtNum = (v: Fk.CellValue, kind: Fk.FieldKind, digits?: number): string => (typeof v !== 'number' ? (v === undefined ? '' : String(v)) : Fk.fmtNumber(v, kind, digits));
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
 
-export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void; inPad?: boolean; openView?: (v: 'psp' | 'gantt' | 'res') => void; jump?: { form?: string; row?: string; at: number } }) {
+export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump, onToc }: { ws: Workspace; p: Project; dispatch: (a: Action) => void; say: (t: string) => void; inPad?: boolean; openView?: (v: 'psp' | 'gantt' | 'res') => void; jump?: { form?: string; row?: string; at: number }; onToc?: (x: ContentsEntry) => void }) {
   const tpl = Fk.templateOf(ws, p);
   const [fid, setFidState] = useState(loadForm);
   const form = tpl.forms.find((f) => f.id === fid) ?? tpl.forms[0];
@@ -923,6 +926,9 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump }: { 
           <button type="submit" className="fbq__save" disabled={!targets.length}>{T.acceptAdd}</button>
         </form>
       )}
+      <div className={inPad ? undefined : 'paper__side'}>
+      {!inPad && <ContentsRail ws={ws} p={p} current={form.id} onOpen={(x) => (x.kind === 'form' ? setFid(x.id) : onToc?.(x))} />}
+      <div className="paper__main">
       {isCharter ? (
         <>
           <p className="help__text pjf__sheetnote">{T.sheetCharter}</p>
@@ -934,17 +940,17 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump }: { 
           <PaperSizeWheel size={size} setSize={setSize} />
           <span className="lc__muted">{wide ? T.sheetWide : T.sheetHint}</span>
         </div>
-        <article className={`paper paper--form${wide ? ' is-wide' : ''}`} style={paperZoom(size)} aria-label={T.sheetTitle(`${form.chapter} ${form.name}`, p.name)}>
+        <article className={`paper paper--form${wide ? ' is-wide' : ''}`} style={paperZoom(size, p)} aria-label={T.sheetTitle(`${form.chapter} ${form.name}`, p.name)}>
           <header className="paper__head">
             <span className="paper__chapter">{form.name}{form.icb ? ` [${form.icb}]` : ''}</span>
-            <span className="paper__project">{p.name}</span>
+            <span className="paper__project"><PaperLogo p={p} dispatch={dispatch} say={say} />{p.name}</span>
           </header>
           <h2 className="paper__h">{form.chapter} {form.name}</h2>
       {form.layout === 'chart' && curve && (
         <figure className="pjf__figure">
           {curve.months.length ? (
             <>
-              <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: Rp.curveSvg(curve, UI_COLORS, 720, 260) }} />
+              <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: Rp.curveSvg(curve, Rp.printColorsOf(p), 720, 260) }} />
               <figcaption className="help__text">
                 {T.chartSum(eur(curve.total), curve.hours.toLocaleString('de-DE'), curve.unplanned)}
                 {curve.actual > 0 && ` · ${T.chartActual(eur(curve.actual))}`}
@@ -959,7 +965,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump }: { 
         <figure className="pjf__figure">
           {evc.bac > 0 && evc.pv.length > 1 ? (
             <>
-              <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: Rp.evSvg(evc, { ...UI_COLORS, bar: 'var(--muted)' }, 720, 300) }} />
+              <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: Rp.evSvg(evc, { ...Rp.printColorsOf(p), bar: 'var(--muted)' }, 720, 300) }} />
               <figcaption className="help__text">{T.evSum(evc.points.length - 1, evc.points.filter((x) => x.est).length)}</figcaption>
             </>
           ) : (
@@ -971,7 +977,7 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump }: { 
         <figure className="pjf__figure">
           {mta.rows.some((r) => r.series.some(Boolean)) ? (
             <>
-              <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: Rp.mtaSvg(mta, Rp.mtaNames(ws, p.id), UI_COLORS) }} />
+              <div className="pjf__svg" dangerouslySetInnerHTML={{ __html: Rp.mtaSvg(mta, Rp.mtaNames(ws, p.id), Rp.printColorsOf(p)) }} />
               <figcaption className="help__text">{T.mtaSum(mta.points.length, !!p.baseline)}</figcaption>
             </>
           ) : (
@@ -1121,6 +1127,8 @@ export function ProjectForms({ ws, p, dispatch, say, inPad, openView, jump }: { 
         </article>
       </div>
       )}
+      </div>
+      </div>
     </section>
   );
 }
@@ -1256,6 +1264,43 @@ const WP_SHEET: readonly (readonly string[])[] = [
   ['releasePl', 'releaseOwner'],
 ];
 
+/** V154 (F-232 P12): mehrzeilige Zelle mit Medien (Knopf, Ziehen, Einfügen); Esc verwirft, Strg/⌘+Enter übernimmt. */
+function LongCell({ common, rows, value, label, onSave }: { common: Record<string, unknown>; rows: number; value: string; label: string; onSave: (v: string) => void }) {
+  const { text, media } = Fm.splitMedia(value);
+  const [draft, setDraft] = useState<string | null>(null);
+  const val = draft ?? text;
+  const commit = () => {
+    if (draft === null) return;
+    setDraft(null);
+    if (draft !== text) onSave(Fm.joinMedia(draft, media));
+  };
+  const fm = useFieldMedia({ label, media, onChange: (m) => (setDraft(null), onSave(Fm.joinMedia(val, m))) });
+  return (
+    <>
+      <textarea
+        {...common}
+        rows={rows}
+        value={val}
+        maxLength={Fm.textRoom(media, 2000)}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && draft !== null) {
+            e.preventDefault();
+            e.stopPropagation();
+            setDraft(null);
+          } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            commit();
+          }
+        }}
+        {...mediaDrop(fm.add)}
+      />
+      {fm.tools}
+    </>
+  );
+}
+
 /** Eine Zelle: Eingabe je nach Art; übernimmt bei Enter bzw. beim Verlassen, Esc verwirft. */
 function Cell({ ws, p, form, rowId, col, miss, label, onSet }: { ws: Workspace; p: Project; form: FormDef; rowId: string; col: Fk.FormCol; miss: boolean; label: string; onSet: (row: string, key: string, v: Fk.CellValue) => void }) {
   const v = Fk.cellValue(ws, p.id, form, rowId, col.key);
@@ -1312,8 +1357,7 @@ function Cell({ ws, p, form, rowId, col, miss, label, onSet }: { ws: Workspace; 
       </select>
     );
   }
-  if (col.kind === 'long' || col.kind === 'lines')
-    return <textarea {...common} rows={form.layout === 'fields' ? 3 : 2} value={val} maxLength={2000} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={keys} />;
+  if (col.kind === 'long' || col.kind === 'lines') return <LongCell common={common} rows={form.layout === 'fields' ? 3 : 2} value={typeof v === 'string' ? v : ''} label={label} onSave={(x) => onSet(rowId, col.key, x)} />;
   return (
     <span className="pjf__in">
       <input

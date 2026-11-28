@@ -11,7 +11,7 @@ import { feedbackOf } from './feedback';
 import { decisionsOf } from './decisions';
 import { changesOf, risksOf } from './risks';
 
-export type ContentsView = 'feedback' | 'decide' | 'risks' | 'changes' | 'psp' | 'gantt' | 'net';
+export type ContentsView = 'feedback' | 'decide' | 'risks' | 'changes' | 'psp' | 'gantt' | 'net' | 'layout';
 
 export interface ContentsEntry {
   /** Formular-Id (`form`) bzw. Ansicht (`view`) */
@@ -45,6 +45,8 @@ export function contentsOf(ws: Workspace, p: Project): ContentsEntry[] {
     ['psp', 'Projektstrukturplan (PSP)', undefined],
     ['gantt', 'Balkenplan (Gantt)', undefined],
     ['net', 'Netzplan', undefined],
+    // V154 (F-236 B): Layout-Vorlage – Regeln für alle Dokumente
+    ['layout', 'Layout-Vorlage', undefined],
   ];
   for (const [v, name, count] of views) out.push({ id: `v-${v}`, kind: 'view', view: v, chapter: '', name, count, missing: 0, group: 'views' });
   return out;

@@ -18,6 +18,7 @@ import { matrixEntries, projectMatrix } from './sheets';
 import { qrInner } from './qr';
 import { projectLinkUrl } from './projectLink';
 import type { PortfolioDot } from './gpmCalc';
+import { REPORT_LAYOUT, layoutOf, shade, textOn, type LayoutRules } from './layoutRules';
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const dmy = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : d);
@@ -25,8 +26,8 @@ const dm = (d: string) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${
 const dayNo = (d: string) => Math.round(Date.parse(`${d}T12:00:00Z`) / 864e5);
 const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
-/** Farben wie im ColorGentlemen-Report. */
-export const LOOK = {
+/** Farben wie im ColorGentlemen-Report (Vorgabe). V154 (F-236 B): beim Zeichnen gilt die Layout-Vorlage des Projekts (`withLook`). */
+const BASE_LOOK = {
   wine: '#7b1113',
   wineHi: '#b0282c',
   orange: '#d77a1e',
@@ -40,9 +41,11 @@ export const LOOK = {
   grid: '#d9d9d9',
   red: '#d0021b',
 };
+export const LOOK = { ...BASE_LOOK };
+
 export type BoxTone = 'wine' | 'orange' | 'yellow' | 'gray' | 'pale' | 'root' | 'head' | 'sky' | 'steel' | 'slate' | 'white';
 
-const DEFS = `<defs>
+const defs = () => `<defs>
 <linearGradient id="fgWine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${LOOK.wineHi}"/><stop offset="1" stop-color="${LOOK.wine}"/></linearGradient>
 <linearGradient id="fgOrange" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${LOOK.orangeHi}"/><stop offset="1" stop-color="${LOOK.orange}"/></linearGradient>
 <linearGradient id="fgYellow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffbe0"/><stop offset="1" stop-color="${LOOK.yellow}"/></linearGradient>
@@ -60,9 +63,50 @@ const DEFS = `<defs>
 <linearGradient id="fgRose" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#ec8f8f"/><stop offset="1" stop-color="#d8d8d8"/></linearGradient>
 <filter id="fgShadow" x="-10%" y="-10%" width="130%" height="140%"><feDropShadow dx="1.2" dy="1.6" stdDeviation="1.2" flood-color="#000" flood-opacity="0.28"/></filter>
 </defs>`;
-const FILL: Record<BoxTone, string> = { wine: 'url(#fgWine)', orange: 'url(#fgOrange)', yellow: 'url(#fgYellow)', gray: 'url(#fgGray)', pale: 'url(#fgPale)', root: 'url(#fgGray)', head: 'url(#fgPale)', sky: 'url(#fgSkyBox)', steel: 'url(#fgSteel)', slate: 'url(#fgSlate)', white: 'url(#fgPale)' };
-const TEXT: Record<BoxTone, string> = { wine: '#fff', orange: '#fff', yellow: LOOK.ink, gray: LOOK.wine, pale: LOOK.muted, root: LOOK.wine, head: LOOK.wine, sky: LOOK.ink, steel: LOOK.ink, slate: '#fff', white: LOOK.ink };
-const STROKE: Record<BoxTone, string> = { wine: '#4a0a0b', orange: '#9b5310', yellow: '#b8a845', gray: LOOK.grayLine, pale: '#bdbdbd', root: LOOK.grayLine, head: LOOK.wine, sky: '#2b2b2b', steel: '#2b2b2b', slate: '#1d242c', white: '#2b2b2b' };
+const GRAD_FILL: Record<BoxTone, string> = { wine: 'url(#fgWine)', orange: 'url(#fgOrange)', yellow: 'url(#fgYellow)', gray: 'url(#fgGray)', pale: 'url(#fgPale)', root: 'url(#fgGray)', head: 'url(#fgPale)', sky: 'url(#fgSkyBox)', steel: 'url(#fgSteel)', slate: 'url(#fgSlate)', white: 'url(#fgPale)' };
+const FILL: Record<BoxTone, string> = { ...GRAD_FILL };
+const baseText = (): Record<BoxTone, string> => ({ wine: '#fff', orange: '#fff', yellow: LOOK.ink, gray: LOOK.wine, pale: LOOK.muted, root: LOOK.wine, head: LOOK.wine, sky: LOOK.ink, steel: LOOK.ink, slate: '#fff', white: LOOK.ink });
+const baseStroke = (): Record<BoxTone, string> => ({ wine: '#4a0a0b', orange: '#9b5310', yellow: '#b8a845', gray: LOOK.grayLine, pale: '#bdbdbd', root: LOOK.grayLine, head: LOOK.wine, sky: '#2b2b2b', steel: '#2b2b2b', slate: '#1d242c', white: '#2b2b2b' });
+const TEXT: Record<BoxTone, string> = baseText();
+const STROKE: Record<BoxTone, string> = baseStroke();
+
+/**
+ * V154 (F-236 B, Schritt 1): Farben der Layout-Vorlage übernehmen. Ist eine Regel wie in der Vorgabe, bleiben auch die
+ * abgeleiteten Töne (Verlauf hell, Kanten) genau wie im Report; sonst werden sie aus der Regel gerechnet.
+ */
+function applyLook(l: LayoutRules): void {
+  const D = REPORT_LAYOUT;
+  const same = (k: keyof LayoutRules) => l[k] === D[k];
+  Object.assign(LOOK, BASE_LOOK, {
+    wine: l.primary,
+    wineHi: same('primary') ? BASE_LOOK.wineHi : shade(l.primary, 0.28),
+    orange: l.accent,
+    orangeHi: same('accent') ? BASE_LOOK.orangeHi : shade(l.accent, 0.3),
+    yellow: l.soft,
+    gray: l.neutral,
+    grayHi: same('neutral') ? BASE_LOOK.grayHi : shade(l.neutral, 0.82),
+    grayLine: l.line,
+    ink: l.ink,
+    muted: same('muted') ? BASE_LOOK.muted : l.muted,
+    grid: l.grid,
+    red: l.critical,
+  });
+  Object.assign(TEXT, baseText(), same('primary') ? {} : { wine: textOn(l.primary, l.ink) }, same('accent') ? {} : { orange: textOn(l.accent, l.ink) }, same('soft') ? {} : { yellow: textOn(l.soft, l.ink) });
+  Object.assign(STROKE, baseStroke(), same('primary') ? {} : { wine: shade(l.primary, -0.4) }, same('accent') ? {} : { orange: shade(l.accent, -0.4) }, same('soft') ? {} : { yellow: shade(l.soft, -0.35) });
+  Object.assign(FILL, GRAD_FILL, l.gradient ? {} : { wine: LOOK.wine, orange: LOOK.orange, yellow: LOOK.yellow, gray: LOOK.gray, root: LOOK.gray, pale: '#f4f4f4', head: '#f4f4f4', white: '#ffffff', sky: '#d9e8f8', steel: '#c3ccd6', slate: '#56626f' });
+  GLOSS_ON = l.gradient;
+}
+let GLOSS_ON = true;
+/** Zeichnen mit den Farben eines Projekts – danach gilt wieder die Vorgabe (reine Funktionen bleiben rein). */
+export function withLook<T>(p: Pick<Project, 'layout'> | undefined, draw: () => T): T {
+  if (!p?.layout) return draw();
+  applyLook(layoutOf(p));
+  try {
+    return draw();
+  } finally {
+    applyLook(REPORT_LAYOUT);
+  }
+}
 /** V142: Glanz oben auf den farbigen Kästen wie im Report. */
 const GLOSS: Partial<Record<BoxTone, boolean>> = { wine: true, orange: true, slate: true };
 /** V142 (Report): Schrift in den Kästen fett wie in Abb. 4/7/10 – außer bei blassen Kästen (Nichtziele). */
@@ -123,10 +167,10 @@ function drawBox(x0: number, y0: number, w: number, b: Box, fs = 9): string {
     .join('');
   const tab = b.tab ? `<rect x="${x + 6}" y="${y - 13}" width="${w - 12}" height="14" rx="3" fill="url(#fgPale)" stroke="${LOOK.grayLine}" stroke-width="0.8"/><text x="${x + w / 2}" y="${y - 2.5}" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#9a9a9a">${esc(b.tab)}</text>` : '';
   const ed = b.edit ? ` class="fg-edit" data-edit="${esc(b.edit)}" tabindex="0" role="button" aria-label="${esc(`Bearbeiten: ${b.title ?? b.lines.join(' ')}`)}"` : '';
-  return `<g${ed}>${b.title ? `<title>${esc(b.title)}</title>` : ''}<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${FILL[b.tone]}" stroke="${STROKE[b.tone]}" stroke-width="0.8" filter="url(#fgShadow)"/>${tab}${GLOSS[b.tone] ? `<rect x="${x + 1.5}" y="${y + 1}" width="${w - 3}" height="${Math.min(h / 2, 9)}" rx="3" fill="url(#fgGloss)"/>` : ''}${tx}</g>`;
+  return `<g${ed}>${b.title ? `<title>${esc(b.title)}</title>` : ''}<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${FILL[b.tone]}" stroke="${STROKE[b.tone]}" stroke-width="0.8" filter="url(#fgShadow)"/>${tab}${GLOSS_ON && GLOSS[b.tone] ? `<rect x="${x + 1.5}" y="${y + 1}" width="${w - 3}" height="${Math.min(h / 2, 9)}" rx="3" fill="url(#fgGloss)"/>` : ''}${tx}</g>`;
 }
 const svgWrap = (w: number, h: number, label: string, body: string) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(label)}" font-family="'Open Sans', system-ui, sans-serif">${DEFS}${body}</svg>`;
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(label)}" font-family="'Open Sans', system-ui, sans-serif">${defs()}${body}</svg>`;
 function legend(x: number, y: number, items: [BoxTone, string][]): string {
   const w = 104;
   const parts = [`<rect x="${x}" y="${y}" width="${w + 12}" height="${22 + items.length * 18}" rx="3" fill="#fff" stroke="${LOOK.grayLine}" stroke-width="0.6"/>`, `<rect x="${x + 6}" y="${y + 4}" width="56" height="14" rx="2" fill="${LOOK.ink}"/><text x="${x + 34}" y="${y + 14.5}" text-anchor="middle" font-size="8.5" font-weight="bold" fill="#fff">Legende</text>`];
@@ -1378,6 +1422,9 @@ export function squareSvg(p: Project, rowId: string | undefined): string {
 export type FigureKind = 'goalTree' | 'org' | 'phasePlan' | 'psp' | 'gantt' | 'load' | 'wpReport' | 'statusReport' | 'belbin' | 'eisenhower' | 'square';
 /** Grafik eines Formulars mit Layout `figure` (leer, wenn noch nichts zu zeichnen ist). */
 export function figureSvg(ws: Workspace, pid: string, kind: FigureKind | undefined, o: { person?: string; row?: string; day?: string; all?: boolean; done?: boolean; inks?: InkMap; base?: string } = {}): string {
+  return withLook(projectById(ws, pid), () => figureSvgRaw(ws, pid, kind, o));
+}
+function figureSvgRaw(ws: Workspace, pid: string, kind: FigureKind | undefined, o: { person?: string; row?: string; day?: string; all?: boolean; done?: boolean; inks?: InkMap; base?: string }): string {
   const p = projectById(ws, pid);
   if (!p || !kind) return '';
   switch (kind) {
@@ -1453,6 +1500,9 @@ const listHeight = (items: { lines: string[]; sub?: string }[]) => items.reduce(
 /** Umfeld-Portfolio im Aussehen der Eisenhower-Matrix: intern/extern (Zeilen) × sachlich/sozial (Spalten), Einträge als
  *  linksbündige Liste je Feld. `all` = Felder wachsen mit (Rad „Einträge“ Gekürzt · Alle wie in der Matrix). */
 export function envPortfolioSvg(p: Project, dots: PortfolioDot[], day = today(), all = false): string {
+  return withLook(p, () => envPortfolioSvgRaw(p, dots, day, all));
+}
+function envPortfolioSvgRaw(p: Project, dots: PortfolioDot[], day: string, all: boolean): string {
   const x0 = 70;
   const y0 = 60;
   const gw = 300;
@@ -1475,6 +1525,9 @@ export function envPortfolioSvg(p: Project, dots: PortfolioDot[], day = today(),
  *  (Größe = Konfliktpotenzial, weinrot intern, grau extern), Code und Name, darunter Einstellung · Macht · Konflikt
  *  (Enrico 15:02 „warum sind da 2 Kreise größer?“ – die Zahl steht jetzt dabei). `all` wie beim Umfeld-Portfolio. */
 export function shPortfolioSvg(p: Project, dots: PortfolioDot[], day = today(), all = false): string {
+  return withLook(p, () => shPortfolioSvgRaw(p, dots, day, all));
+}
+function shPortfolioSvgRaw(p: Project, dots: PortfolioDot[], day: string, all: boolean): string {
   const x0 = 70;
   const y0 = 60;
   const gw = 300;

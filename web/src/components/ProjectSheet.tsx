@@ -16,6 +16,9 @@ import { noticeLater } from '../workspace/flash';
 import { INK_TEXT as T_INK, PAPER_TEXT as S } from '../workspace/terms';
 import { InkSign } from './InkChips';
 import { ModeWheel } from './ModeWheel';
+import * as Fm from '../workspace/fieldMedia';
+import { layoutOf, paperVars } from '../workspace/layoutRules';
+import { PaperLogo, mediaDrop, useFieldMedia } from './FieldMedia';
 
 const SIZE_KEY = 'esource.paperSize.v1';
 const SIZES = ['75', '100', '125'] as const;
@@ -51,7 +54,8 @@ export function PaperSizeWheel({ size, setSize }: { size: Size; setSize: (v: Siz
     </span>
   );
 }
-export const paperZoom = (size: Size) => ({ '--paper-zoom': Number(size) / 100 }) as CSSProperties;
+/** V154 (F-236 B): dazu die Farben der Layout-Vorlage des Projekts als CSS-Variablen */
+export const paperZoom = (size: Size, p?: Pick<Project, 'layout'>) => ({ '--paper-zoom': Number(size) / 100, ...(p?.layout ? paperVars(layoutOf(p)) : {}) }) as CSSProperties;
 
 const dmy = (d?: string) => (d ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : '');
 const parseMoney = (v: string): number | null | undefined => {
@@ -63,12 +67,17 @@ const parseMoney = (v: string): number | null | undefined => {
 /** V147: gemeinsam mit dem Bericht (workspace/charterSheet.ts). */
 export { monthsBetween };
 
-/** Ein Feld des Blatts: Text (ein- oder mehrzeilig), Zahl (Euro/Ph) oder Datum; speichert beim Verlassen. */
-export function Field({ label, value, kind = 'text', multi, strong, onSave, placeholder }: { label: string; value: string | number | undefined; kind?: 'text' | 'money' | 'ph' | 'date'; multi?: boolean; strong?: boolean; onSave: (v: string | number | null) => void; placeholder?: string }) {
-  const show = (v: typeof value) => (v === undefined ? '' : kind === 'money' || kind === 'ph' ? (v as number).toLocaleString('de-DE', { maximumFractionDigits: 2 }) : String(v));
+/** Ein Feld des Blatts: Text (ein- oder mehrzeilig), Zahl (Euro/Ph) oder Datum; speichert beim Verlassen.
+ *  V154 (F-232 P12): mehrzeilige Felder nehmen Medien (Knopf, Ziehen, Einfügen) – im Feld steht nur der Text,
+ *  die Verweise stehen als Zeilen am Ende des gespeicherten Werts (`fieldMedia.ts`). */
+export function Field({ label, value, kind = 'text', multi, strong, onSave, placeholder, say }: { label: string; value: string | number | undefined; kind?: 'text' | 'money' | 'ph' | 'date'; multi?: boolean; strong?: boolean; onSave: (v: string | number | null) => void; placeholder?: string; say?: (t: string) => void }) {
+  const split = multi && typeof value === 'string' ? Fm.splitMedia(value) : null;
+  const show = (v: typeof value) => (v === undefined ? '' : kind === 'money' || kind === 'ph' ? (v as number).toLocaleString('de-DE', { maximumFractionDigits: 2 }) : multi && typeof v === 'string' ? Fm.textOnly(v) : String(v));
   const [draft, setDraft] = useState(show(value));
   const [bad, setBad] = useState(false);
   useEffect(() => setDraft(show(value)), [value]);
+  const media = split?.media ?? [];
+  const fm = useFieldMedia({ label, media, onChange: (m) => onSave(Fm.joinMedia(draft.trim(), m) || null), say });
   const cls = `paper__in${strong ? ' is-strong' : ''}${bad ? ' is-bad' : ''}`;
   const save = () => {
     if (kind === 'money' || kind === 'ph') {
@@ -78,7 +87,7 @@ export function Field({ label, value, kind = 'text', multi, strong, onSave, plac
       if ((x ?? undefined) !== value) onSave(x);
       return;
     }
-    const t = draft.trim();
+    const t = multi ? Fm.joinMedia(draft.trim(), media) : draft.trim();
     if (t !== (value ?? '')) onSave(t || null);
   };
   if (kind === 'date') return <input type="date" className={cls} aria-label={label} value={(value as string) ?? ''} onChange={(e) => onSave(e.target.value || null)} />;
@@ -92,13 +101,17 @@ export function Field({ label, value, kind = 'text', multi, strong, onSave, plac
   };
   if (multi)
     return (
-      <textarea
-        {...common}
-        rows={Math.max(1, Math.min(6, Math.ceil(draft.length / 90) + (draft.match(/\n/g)?.length ?? 0)))}
-        maxLength={2000}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.target as HTMLTextAreaElement).blur()}
-      />
+      <>
+        <textarea
+          {...common}
+          rows={Math.max(1, Math.min(6, Math.ceil(draft.length / 90) + (draft.match(/\n/g)?.length ?? 0)))}
+          maxLength={Fm.textRoom(media, 2000)}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.metaKey || e.ctrlKey) && (e.target as HTMLTextAreaElement).blur()}
+          {...mediaDrop(fm.add)}
+        />
+        {fm.tools}
+      </>
     );
   return (
     <span className="paper__unit">
@@ -173,10 +186,10 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
         <PaperSizeWheel size={size} setSize={setSize} />
         <span className="lc__muted">{S.barHint}</span>
       </div>
-      <article className="paper" style={paperZoom(size)} aria-label={S.title(p.name)}>
+      <article className="paper" style={paperZoom(size, p)} aria-label={S.title(p.name)}>
         <header className="paper__head">
           <span className="paper__chapter">{S.chapter}</span>
-          <span className="paper__project">{p.name}</span>
+          <span className="paper__project"><PaperLogo p={p} dispatch={dispatch} say={say} />{p.name}</span>
         </header>
         <h2 className="paper__h">{S.heading}</h2>
         <table className="paper__table">
@@ -360,7 +373,7 @@ export function ProjectSheet({ ws, p, dispatch, say }: { ws: Workspace; p: Proje
         </table>
         <p className="paper__caption">{S.caption}</p>
       </article>
-      <CharterExtras p={p} dispatch={dispatch} tell={tell} m={m} style={paperZoom(size)} />
+      <CharterExtras p={p} dispatch={dispatch} tell={tell} m={m} style={paperZoom(size, p)} />
     </div>
   );
 }
